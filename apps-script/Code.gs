@@ -1,5 +1,5 @@
 /**
- * Retail Client Solutions Control Tower - Backend Runtime
+ * Retail Client Solutions Cockpit - Backend Runtime
  * Desarrollador Experto - Migración a Google Apps Script (2026)
  * * Este archivo gestiona la carga de la página y las llamadas RPC del lado del cliente.
  */
@@ -12,7 +12,7 @@ function doGet() {
   return (
     HtmlService.createTemplateFromFile("Index")
       .evaluate()
-      .setTitle("Retail Client Solutions Control Tower")
+      .setTitle("Retail Client Solutions Cockpit")
       // Permitimos que se embeba en iframes de ser necesario (p.ej. Google Sites)
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
   );
