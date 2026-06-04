@@ -19,16 +19,29 @@ const COUNTRIES = [
   { id: "PE", label: "Perú", flagSrc: "assets/flags/pe.svg" },
   { id: "CO", label: "Colombia", flagSrc: "assets/flags/co.svg" },
 ];
-const SYSTEM_PRODUCTS = [
-  {
-    id: "blue-buddy",
-    label: "Blue Buddy",
-  },
-  {
-    id: "panorama",
-    label: "Panorama",
-  },
-];
+function getAvailableSystemProducts(programId) {
+  const products = new Map();
+
+  (DATA.systems || [])
+    .filter(
+      (item) =>
+        item.programId === programId &&
+        item.country === selectedCountry &&
+        item.product,
+    )
+    .forEach((item) => {
+      const id = String(item.product).trim();
+      products.set(id, {
+        id,
+        label: id
+          .split("-")
+          .map((x) => x.charAt(0).toUpperCase() + x.slice(1))
+          .join(" "),
+      });
+    });
+
+  return [...products.values()];
+}
 function setHead(t, s, c = "Retail Client Solutions") {
   title.textContent = t;
   subtitle.textContent = s;
@@ -498,8 +511,10 @@ function renderSystems(programId, mode = "systems") {
       : "Expandir mapa";
   }
 
-  view.insertAdjacentHTML("afterbegin", renderSystemsProductSelector());
-
+  view.insertAdjacentHTML(
+    "afterbegin",
+    renderSystemsProductSelector(programId),
+  );
   view.insertAdjacentHTML("afterbegin", renderCountrySelector());
 
   const backButton = document.querySelector(".back-to-program-btn");
@@ -911,30 +926,32 @@ function renderCountrySelector() {
     </div>
   `;
 }
-function renderSystemsProductSelector() {
+function renderSystemsProductSelector(programId) {
+  const products = getAvailableSystemProducts(programId);
+
+  if (!products.length) return "";
+
+  if (!products.some((p) => p.id === selectedSystemProduct)) {
+    selectedSystemProduct = products[0].id;
+  }
+
   return `
     <div class="systems-product-selector">
-
-      ${SYSTEM_PRODUCTS.map(
-        (product) => `
-
-          <button
-            class="systems-product-btn ${
-              selectedSystemProduct === product.id ? "active" : ""
-            }"
-
-            type="button"
-
-            data-system-product="${product.id}"
-          >
-
-            ${product.label}
-
-          </button>
-
-        `,
-      ).join("")}
-
+      ${products
+        .map(
+          (product) => `
+            <button
+              class="systems-product-btn ${
+                selectedSystemProduct === product.id ? "active" : ""
+              }"
+              type="button"
+              data-system-product="${product.id}"
+            >
+              ${product.label}
+            </button>
+          `,
+        )
+        .join("")}
     </div>
   `;
 }
