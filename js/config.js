@@ -1,6 +1,9 @@
 window.APP_CONFIG = {
-  runtime: "google-sheets-api",
-  useGoogleSheets: true,
+  runtime: "google-sheets-api", // "google-sheets-api" | "apps-script" | "local-json" | "sample"
+  localDataUrl: "./data/app-data.json",
+
+  // runtime: "google-sheets-api",
+  useGoogleSheets: false,
 
   googleSheetsApi: {
     apiKey: "AIzaSyAuQ7vbefn_W_JTFMwj4jnBTaJNgIOthNA",

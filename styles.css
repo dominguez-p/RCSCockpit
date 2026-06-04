@@ -1249,3 +1249,14 @@ th {
 .systems-tobe-panel.tobe-map-expanded .system-layers {
   grid-template-columns: repeat(2, minmax(280px, 1fr));
 }
+.data-source-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.data-source-toggle input {
+  cursor: pointer;
+}

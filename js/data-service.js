@@ -7,7 +7,22 @@ async function loadData() {
     return loadGoogleSheetsApiData();
   }
 
+  if (window.APP_CONFIG.runtime === "local-json") {
+    return loadLocalJsonData();
+  }
+
   return window.SAMPLE_DATA;
+}
+
+async function loadLocalJsonData() {
+  const url = window.APP_CONFIG.localDataUrl || "./data/app-data.json";
+  const response = await fetch(`${url}?v=${Date.now()}`);
+
+  if (!response.ok) {
+    throw new Error(`No se pudo cargar JSON local: ${response.status}`);
+  }
+
+  return response.json();
 }
 
 function loadAppsScriptData() {
