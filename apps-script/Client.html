@@ -1,0 +1,510 @@
+<script>
+    /**
+     * Motor JavaScript del Cliente - Control Tower BBVA (GAS Core Edition)
+     * Optimizada contra fallos de tokenización de document.write en Google Apps Script.
+     */
+
+    // Estado global de la aplicación web
+    let DATA = {};
+    let selectedCountry = "ES";
+    let selectedSystemProduct = "blue-buddy";
+    let selectedCapability = null;
+    let selectedSystemComponent = null;
+    let selectedFunctionalItem = null;
+    let selectedArchitectureGap = null;
+    let isSystemMapExpanded = false;
+    let isToBeMapExpanded = false;
+    let showProgramLocalisms = false;
+
+    const view = document.querySelector('#view');
+    const title = document.querySelector('#pageTitle');
+    const subtitle = document.querySelector('#pageSubtitle');
+    const crumb = document.querySelector('#breadcrumb');
+    const statusEl = document.querySelector('#dataStatus');
+
+    const COUNTRIES = [
+        { id: "ES", label: "España" },
+        { id: "MX", label: "México" },
+        { id: "PE", label: "Perú" },
+        { id: "CO", label: "Colombia" }
+    ];
+
+    const SYSTEM_PRODUCTS = [
+        { id: "blue-buddy", label: "Blue Buddy" },
+        { id: "panorama", label: "Panorama" }
+    ];
+
+    function loadDataFromServer() {
+        return new Promise((resolve, reject) => {
+            google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)
+                .getAppData();
+        });
+    }
+
+    async function refreshData() {
+        try {
+            statusEl.textContent = 'Sincronizando con Sheet…';
+            document.querySelector('#refreshDataBtn').disabled = true;
+            DATA = await loadDataFromServer();
+            statusEl.textContent = 'Datos sincronizados';
+            document.querySelector('#refreshDataBtn').disabled = false;
+            render();
+        } catch (err) {
+            console.error(err);
+            statusEl.textContent = 'Error de conexión';
+            alert('Error al leer datos de la hoja: ' + (err.message || err));
+            document.querySelector('#refreshDataBtn').disabled = false;
+        }
+    }
+
+    function openDataSource() {
+        google.script.run
+            .withSuccessHandler(url => window.open(url, '_blank'))
+            .withFailureHandler(err => alert(err.message || err))
+            .getSpreadsheetUrl();
+    }
+
+    function setHead(t, s, c = 'Retail Client Solutions') {
+        title.textContent = t;
+        subtitle.textContent = s || '';
+        crumb.textContent = c;
+    }
+
+    function route(r) {
+        location.hash = r;
+    }
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function pillClass(s) {
+        const str = String(s || '');
+        return str.includes("Atención") ? "red" : str.includes("Piloto") ? "yellow" : "";
+    }
+
+    function metricDonut(label, value) {
+        const n = Number(value || 0);
+        return '<div><small style="display:block; margin-bottom:4px; color:var(--muted); font-size:12px;">' + escapeHtml(label) + '</small><div class="donut" style="--p:' + n + '" data-label="' + n + '%"></div></div>';
+    }
+
+    /**
+     * VISTA: Dashboard Principal (Landing)
+     */
+    function renderLanding() {
+        setHead(
+            'Retail Client Solutions Control Tower',
+            'Portfolio overview, demanda estratégica y evolución de arquitectura'
+        );
+
+        const kpis = DATA.portfolioKpis || [];
+        const programs = DATA.programs || [];
+
+        let htm = '<section class="kpi-strip">';
+        htm += kpis.map(k => {
+            return '<article class="kpi"><div class="kpi-icon">' + escapeHtml(k[3] || '◎') + '</div><div><div class="kpi-label">' + escapeHtml(k[0]) + '</div><div class="kpi-value">' + escapeHtml(k[1]) + '</div><div class="kpi-sub">' + escapeHtml(k[2]) + '</div></div></article>';
+        }).join('');
+        htm += '</section>';
+
+        htm += '<section class="section-title-row"><h2>Programas RCS</h2><p>Vista ejecutiva de avance funcional, sistemas y arquitectura.</p></section>';
+        htm += '<section class="program-grid">';
+
+        htm += programs.map(p => {
+            const cls = p.enabled ? '' : 'disabled';
+            const routeCall = p.enabled ? 'data-route="program/' + escapeHtml(p.id) + '"' : 'onclick="alert(\'Programa próximamente disponible\')"';
+            return '<article class="program-card ' + cls + '"><div class="program-head"><div class="program-icon">' + escapeHtml(p.icon || '●') + '</div><div><h3>' + escapeHtml(p.name) + '</h3><p>' + escapeHtml(p.description) + '</p></div></div><span class="pill ' + pillClass(p.status) + '">' + escapeHtml(p.status || '') + '</span><div class="progress-row-donut">' + metricDonut('Funcional', p.functional) + metricDonut('Sistemas', p.systems) + metricDonut('Arquitectura', p.architecture) + '</div><button class="card-link" ' + routeCall + '>→ Ver programa</button></article>';
+        }).join('');
+
+        htm += '</section>';
+        view.innerHTML = htm;
+    }
+
+    /**
+     * VISTA: Detalle del Programa
+     */
+    function renderProgram(programId) {
+        const program = (DATA.programs || []).find(p => p.id === programId);
+        if (!program) return renderLanding();
+
+        setHead(program.name, program.description, 'Retail Client Solutions > ' + program.name);
+
+        const roles = (DATA.roles || []).filter(r => r.programId === programId && r.country === selectedCountry);
+        const priorities = (DATA.priorities || []).filter(x => x.programId === programId && x.country === selectedCountry);
+        const impediments = (DATA.impediments || []).filter(x => x.programId === programId && x.country === selectedCountry);
+        const decisionsPending = (DATA.decisionsPending || []).filter(x => x.programId === programId && x.country === selectedCountry);
+        const decisionsDone = (DATA.decisionsDone || []).filter(x => x.programId === programId && x.country === selectedCountry);
+
+        let htm = '<div class="country-selector">';
+        htm += COUNTRIES.map(c => {
+            const act = selectedCountry === c.id ? 'active' : '';
+            return '<button class="country-btn ' + act + '" data-country="' + c.id + '">' + c.label + '</button>';
+        }).join('');
+        htm += '</div>';
+
+        htm += '<section class="program-hero"><div><button class="ghost-button" data-route="landing">← Volver</button><h2>' + escapeHtml(program.name) + '</h2><p>' + escapeHtml(program.description) + '</p></div>';
+        htm += '<div class="hero-metrics"><div class="metric-tile"><strong>' + program.functional + '%</strong><br><span>functional</span></div><div class="metric-tile"><strong>' + program.systems + '%</strong><br><span>systems</span></div><div class="metric-tile"><strong>' + program.architecture + '%</strong><br><span>architecture</span></div></div></section>';
+
+        htm += '<section class="module-grid">';
+        htm += '<article class="module-card active" data-route="functional/' + programId + '"><span class="pill">Activo</span><h3>Mapa funcional</h3><p>Dominios, capacidades y funcionalidades.</p></article>';
+        htm += '<article class="module-card active" data-route="systems/' + programId + '"><span class="pill">Activo</span><h3>Mapa de sistemas</h3><p>Capas, componentes e inventario AS IS.</p></article>';
+        htm += '<article class="module-card active" data-route="architecture/' + programId + '"><span class="pill">Activo</span><h3>Arquitectura de referencia</h3><p>Vista target de arquitectura, features, gaps y dependencias.</p></article>';
+        htm += '</section>';
+
+        htm += '<section class="localisms-toggle-section"><button class="localisms-toggle-btn" id="localismsToggleBtn">' + (showProgramLocalisms ? 'Contraer' : 'Localismos del programa') + '</button></section>';
+
+        const displayStyle = showProgramLocalisms ? 'block' : 'none';
+        htm += '<div class="program-localisms" style="display:' + displayStyle + ';">';
+        htm += '<section class="two-column management-section"><article class="panel"><h3>Impedimentos</h3><div class="management-list">';
+
+        if (impediments.length) {
+            htm += impediments.map(i => {
+                return '<div class="management-card"><div class="management-card-top"><strong>' + escapeHtml(i.title || 'Impedimento') + '</strong><span class="pill red">high</span></div><p>' + escapeHtml(i.impact || '') + '</p><small><b>Owner:</b> ' + escapeHtml(i.owner || '-') + ' · <b>Objetivo:</b> ' + escapeHtml(i.targetResolutionDate || '-') + '</small></div>';
+            }).join('');
+        } else {
+            htm += '<p class="empty-state">No hay impedimentos registrados.</p>';
+        }
+        htm += '</div></article>';
+
+        htm += '<article class="panel"><h3>Decisiones</h3><h4 class="management-subtitle">Pendientes</h4><div class="management-list">';
+        htm += decisionsPending.map(d => { return '<div class="management-card"><div class="management-card-top"><strong>' + escapeHtml(d.title) + '</strong><span class="pill yellow">pending</span></div><p>' + escapeHtml(d.impact) + '</p></div>'; }).join('') || '<p class="empty-state">No hay decisiones pendientes.</p>';
+        htm += '</div><h4 class="management-subtitle">Tomadas</h4><div class="management-list">';
+        htm += decisionsDone.map(d => { return '<div class="management-card done"><div class="management-card-top"><strong>' + escapeHtml(d.title) + '</strong><span class="pill">done</span></div><p>' + escapeHtml(d.impact) + '</p></div>'; }).join('') || '<p class="empty-state">No hay decisiones tomadas.</p>';
+        htm += '</div></article></section>';
+
+        htm += '<section class="module-grid secondary-module-grid"><article class="module-card" onclick="alert(\'Backlog próximamente disponible\')"><span class="pill yellow">Próximamente</span><h3>Backlog estratégico</h3><p>Demanda, gaps e iniciativas priorizadas.</p></article><article class="module-card" onclick="alert(\'Roadmap próximamente disponible\')"><span class="pill yellow">Próximamente</span><h3>Roadmap</h3><p>Hitos, entregas y planificación temporal.</p></article><article class="module-card" onclick="alert(\'Hitos próximamente disponible\')"><span class="pill yellow">Próximamente</span><h3>Hitos</h3><p>Hitos, entregas y planificación temporal.</p></article></section>';
+
+        htm += '<section class="two-column final-info-section"><article class="panel"><h3>Roles clave</h3><div class="tag-list">';
+        htm += roles.map(r => { return '<span class="tag">' + escapeHtml(r.role) + ' · ' + escapeHtml(r.description) + '</span>'; }).join('') || '<span class="empty-state">Ninguno declarado</span>';
+        htm += '</div></article><article class="panel"><h3>Prioridades</h3><div class="stack-list">';
+        htm += priorities.map(p => { return '<div class="stack-item">' + escapeHtml(p.priority || p) + '</div>'; }).join('') || '<div class="empty-state">Sin prioridades asignadas</div>';
+        htm += '</div></article></section></div>';
+
+        view.innerHTML = htm;
+    }
+
+    /**
+     * VISTA: Mapa Funcional
+     */
+    function renderFunctional(programId) {
+        setHead('Mapa de capacidades funcionales', 'Dominios, capacidades y funcionalidades');
+        const rows = (DATA.functional || []).filter(x => x.programId === programId && x.country === selectedCountry);
+
+        const grouped = rows.reduce((acc, row) => {
+            const value = row.domain || 'General';
+            acc[value] = acc[value] || [];
+            acc[value].push(row);
+            return acc;
+        }, {});
+
+        let htm = '<button class="ghost-button" data-route="program/' + escapeHtml(programId) + '">← Volver al programa</button>';
+        htm += '<section class="functional-map" style="margin-top:20px;">';
+        htm += Object.entries(grouped).map(([domain, items]) => {
+            let domHtm = '<article class="domain"><h3>' + escapeHtml(domain) + '</h3>';
+            domHtm += items.map(i => {
+                let capHtm = '<div class="capability" style="margin-top:10px;"><strong>' + escapeHtml(i.capability) + '</strong>';
+                capHtm += (i.features || []).map(f => { return '<div class="feature">• ' + escapeHtml(f) + '</div>'; }).join('');
+                capHtm += '</div>';
+                return capHtm;
+            }).join('');
+            domHtm += '</article>';
+            return domHtm;
+        }).join('');
+        htm += '</section>';
+        view.innerHTML = htm;
+    }
+
+    /**
+     * VISTA: Sistemas
+     */
+    function renderSystems(programId, mode) {
+        const isArchitecture = mode === 'architecture';
+        const p = DATA.programs.find(x => x.id === programId);
+
+        const systemList = (isArchitecture ? DATA.systemsToBe : DATA.systems || []).filter(
+            item => item.programId === programId && item.country === selectedCountry && item.product === selectedSystemProduct
+        );
+
+        const architectureGapItems = (DATA.architectureFeaturesGaps || []).filter(
+            item => item.programId === programId && item["RtC Anchor Country"] === selectedCountry && item.product === selectedSystemProduct
+        );
+
+        const functionalItems = (DATA.functional || []).filter(
+            item => item.programId === programId && item.country === selectedCountry
+        );
+
+        const affectedSystems = new Set();
+        if (selectedCapability) {
+            (DATA.functionalSystemLinks || [])
+                .filter(link => link.programId === programId && link.country === selectedCountry && link.product === selectedSystemProduct && link.functionalKey === selectedCapability)
+                .forEach(link => affectedSystems.add(String(link.systemComponent || '').trim()));
+        }
+
+        if (selectedArchitectureGap) {
+            const selectedGap = architectureGapItems.find((item, index) =>
+                [item.programId, item["RtC Anchor Country"], item["GAP Asignado"], item.Demanda, index].join("::") === selectedArchitectureGap
+            );
+            String(selectedGap?.affectedSystemComponents || "").split("|").map(c => c.trim()).filter(Boolean).forEach(c => affectedSystems.add(c));
+        }
+
+        setHead(
+            (p?.name || 'AIxBanker') + ' · Mapa de sistemas',
+            'Arquitectura y capacidades · ' + (COUNTRIES.find(c => c.id === selectedCountry)?.label || selectedCountry),
+            'Retail Client Solutions > ' + (p?.name || programId) + ' > ' + selectedCountry
+        );
+
+        let htm = '<div class="country-selector">';
+        htm += COUNTRIES.map(c => { return '<button class="country-btn ' + (selectedCountry === c.id ? 'active' : '') + '" data-country="' + c.id + '">' + c.label + '</button>'; }).join('');
+        htm += '</div>';
+
+        htm += '<div class="systems-product-selector" style="margin-bottom:22px; display:flex; gap:12px;">';
+        htm += SYSTEM_PRODUCTS.map(prod => { return '<button class="systems-product-btn ' + (selectedSystemProduct === prod.id ? 'active' : '') + '" data-system-product="' + prod.id + '">' + prod.label + '</button>'; }).join('');
+        htm += '</div>';
+
+        htm += '<button class="ghost-button back-to-program-btn" data-route="program/' + programId + '">← Volver a ' + (p?.name || 'AIxBanker') + '</button>';
+
+        htm += '<section class="systems-dashboard-grid systems-two-columns ' + (isSystemMapExpanded ? 'system-map-expanded' : '') + '" id="systemsDashboardGrid" style="margin-top:20px;">';
+        htm += '<article class="panel systems-map-panel"><h3>' + (isArchitecture ? 'Mapa de sistemas To-Be' : 'Mapa de sistemas') + '</h3><button class="expand-map-btn" type="button" id="expandSystemMapBtn">' + (isSystemMapExpanded ? 'Contraer mapa' : 'Expandir mapa') + '</button><div class="system-map-canvas" id="systemMapCanvas"><svg class="system-links-svg" id="systemLinksSvg"></svg><section class="system-layers" id="systemLayers"></section></div></article>';
+
+        htm += '<article class="panel systems-functional-panel"><h3>' + (isArchitecture ? 'Features, gaps y dependencias' : 'Mapa funcional') + '</h3><section class="systems-mini-functional-map" id="systemsFunctionalMap"></section></article></section>';
+
+        view.innerHTML = htm;
+
+        const groupedSystems = {};
+        systemList.forEach(item => {
+            const layerName = item.layer || "General";
+            const groupName = item.groupName || "Sin agrupación";
+            if (!groupedSystems[layerName]) groupedSystems[layerName] = {};
+            if (!groupedSystems[layerName][groupName]) groupedSystems[layerName][groupName] = [];
+            groupedSystems[layerName][groupName].push(item);
+        });
+
+        const layersContainer = document.querySelector('#systemLayers');
+        if (layersContainer) {
+            layersContainer.innerHTML = Object.entries(groupedSystems).map(([layerName, groups]) => {
+                let lyrHtm = '<article class="layer"><h3>' + escapeHtml(layerName) + '</h3><div class="system-groups">';
+                lyrHtm += Object.entries(groups).map(([groupName, groupItems]) => {
+                    const componentsByLevel = {};
+                    groupItems.forEach(s => {
+                        const level = s.level || "1";
+                        const components = String(s.component || "").split("|").map(c => c.trim()).filter(Boolean);
+                        if (!componentsByLevel[level]) componentsByLevel[level] = [];
+                        componentsByLevel[level].push(...components);
+                    });
+
+                    let grpHtm = '<div class="system-group-box" data-system-group="' + escapeHtml(groupName) + '"><div class="system-group-title">' + escapeHtml(groupName) + '</div>';
+                    grpHtm += Object.entries(componentsByLevel).sort(([a], [b]) => Number(a) - Number(b)).map(([level, components]) => {
+                        let rowHtm = '<div class="system-level-row" data-level="' + level + '">';
+                        rowHtm += components.map(comp => {
+                            const isAffected = affectedSystems.has(comp) ? 'affected-by-capability' : '';
+                            const isSelected = selectedSystemComponent === comp ? 'selected-system-component' : '';
+                            return '<button class="component system-component-card ' + isAffected + ' ' + isSelected + '" type="button" data-system-component="' + escapeHtml(comp) + '" data-system-node="' + escapeHtml(comp) + '">' + escapeHtml(comp) + '</button>';
+                        }).join('');
+                        rowHtm += '</div>';
+                        return rowHtm;
+                    }).join('');
+                    grpHtm += '</div>';
+                    return grpHtm;
+                }).join('');
+                lyrHtm += '</div></article>';
+                return lyrHtm;
+            }).join('');
+        }
+
+        const rightPanelContainer = document.querySelector('#systemsFunctionalMap');
+        if (rightPanelContainer) {
+            if (isArchitecture) {
+                rightPanelContainer.innerHTML = '<div class="architecture-gap-list">' + architectureGapItems.map((item, index) => {
+                    const gapKey = [item.programId, item["RtC Anchor Country"], item["GAP Asignado"], item.Demanda, index].join("::");
+                    const sel = selectedArchitectureGap === gapKey ? 'selected' : '';
+                    return '<button class="architecture-gap-card ' + sel + '" type="button" data-architecture-gap="' + gapKey + '"><div class="architecture-gap-top"><span class="architecture-gap-status">' + escapeHtml(item["Estatus revisión PA"] || 'Analizando') + '</span><span class="architecture-gap-priority">' + escapeHtml(item.Prioridad || 'Media') + '</span></div><strong class="architecture-gap-title">' + escapeHtml(item.Demanda || 'Sin Demanda') + '</strong><div class="architecture-gap-meta"><span><b>GAP:</b> ' + escapeHtml(item["GAP asignado"] || item["GAP Asignado"] || '-') + '</span><span><b>Dependencias:</b> ' + escapeHtml(item.Dependencias || '-') + '</span></div></button>';
+                }).join('') + '</div>';
+            } else {
+                const groupedDomains = {};
+                functionalItems.forEach(item => {
+                    if (!groupedDomains[item.domain]) groupedDomains[item.domain] = [];
+                    groupedDomains[item.domain].push(item);
+                });
+
+                rightPanelContainer.innerHTML = Object.entries(groupedDomains).map(([domainName, capabilities]) => {
+                    let domHtm = '<article class="systems-mini-domain"><h4>' + escapeHtml(domainName) + '</h4>';
+                    domHtm += capabilities.map(cap => {
+                        let capHtm = '<div class="systems-mini-capability"><strong>' + escapeHtml(cap.capability) + '</strong><div class="feature-card-list">';
+                        capHtm += (cap.features || []).map(feat => {
+                            const featureKey = domainName + '::' + cap.capability + '::' + feat;
+                            const sel = selectedCapability === featureKey ? 'selected' : '';
+                            return '<button class="feature-card ' + sel + '" type="button" data-feature="' + escapeHtml(featureKey) + '">' + escapeHtml(feat) + '</button>';
+                        }).join('');
+                        capHtm += '</div></div>';
+                        return capHtm;
+                    }).join('');
+                    domHtm += '</article>';
+                    return domHtm;
+                }).join('') || '<p class="empty-state">No hay capacidades mapeadas.</p>';
+            }
+        }
+
+        const relationshipItems = (DATA.systemRelationships || []).filter(item =>
+            String(item.programId || '').trim() === String(programId || '').trim() &&
+            String(item.country || item["RtC Anchor Country"] || '').trim() === String(selectedCountry || '').trim() &&
+            String(item.product || '').trim() === String(selectedSystemProduct || '').trim()
+        );
+
+        requestAnimationFrame(() => {
+            renderSystemRelationships(relationshipItems);
+        });
+    }
+
+    /**
+     * Dibujado ortogonal de conexiones dinámicas en SVG
+     */
+    function renderSystemRelationships(relationships, canvasSelector = "#systemMapCanvas", svgSelector = "#systemLinksSvg") {
+        const canvas = document.querySelector(canvasSelector);
+        const svg = document.querySelector(svgSelector);
+        if (!canvas || !svg) return;
+
+        svg.innerHTML = "";
+        const canvasRect = canvas.getBoundingClientRect();
+        svg.setAttribute("width", canvasRect.width);
+        svg.setAttribute("height", canvasRect.height);
+        svg.setAttribute("viewBox", "0 0 " + canvasRect.width + " " + canvasRect.height);
+
+        relationships.forEach((relationship, index) => {
+            function getRelationshipNode(type, id) {
+                const cleanId = String(id || "").trim();
+                if (type === "group" || !type) {
+                    const node = canvas.querySelector('[data-system-group="' + CSS.escape(cleanId) + '"]');
+                    if (node) return node;
+                }
+                return canvas.querySelector('[data-system-node="' + CSS.escape(cleanId) + '"]') ||
+                    canvas.querySelector('[data-system-component="' + CSS.escape(cleanId) + '"]');
+            }
+
+            const fromNode = getRelationshipNode(relationship.fromType, relationship.fromId || relationship.fromComponent);
+            const toNode = getRelationshipNode(relationship.toType, relationship.toId || relationship.toComponent);
+
+            if (!fromNode || !toNode) return;
+
+            const fromRect = fromNode.getBoundingClientRect();
+            const toRect = toNode.getBoundingClientRect();
+
+            const fromCenterX = fromRect.left + fromRect.width / 2 - canvasRect.left;
+            const fromBottomY = fromRect.bottom - canvasRect.top;
+            const toCenterX = toRect.left + toRect.width / 2 - canvasRect.left;
+            const toTopY = toRect.top - canvasRect.top;
+
+            const sameGroup = fromNode.closest(".system-group-box") === toNode.closest(".system-group-box");
+            const sameLayer = fromNode.closest(".layer") === toNode.closest(".layer");
+
+            let d = "";
+            const laneOffset = 24 + (index * 12);
+
+            if (sameGroup) {
+                const midY = fromBottomY + (toTopY - fromBottomY) / 2;
+                d = "M " + fromCenterX + " " + fromBottomY + " L " + fromCenterX + " " + midY + " L " + toCenterX + " " + midY + " L " + toCenterX + " " + toTopY;
+            } else if (sameLayer) {
+                const fromRightX = fromRect.right - canvasRect.left;
+                const toLeftX = toRect.left - canvasRect.left;
+                const laneY = Math.min(fromRect.top, toRect.top) - canvasRect.top - laneOffset;
+                d = "M " + fromRightX + " " + (fromRect.top + fromRect.height / 2 - canvasRect.top) + " L " + (fromRightX + 15) + " " + (fromRect.top + fromRect.height / 2 - canvasRect.top) + " L " + (fromRightX + 15) + " " + laneY + " L " + (toLeftX - 15) + " " + laneY + " L " + (toLeftX - 15) + " " + (toRect.top + toRect.height / 2 - canvasRect.top) + " L " + toLeftX + " " + (toRect.top + toRect.height / 2 - canvasRect.top);
+            } else {
+                const laneY = fromBottomY + (toTopY - fromBottomY) / 2;
+                d = "M " + fromCenterX + " " + fromBottomY + " L " + fromCenterX + " " + laneY + " L " + toCenterX + " " + laneY + " L " + toCenterX + " " + toTopY;
+            }
+
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", d);
+            path.setAttribute("class", "system-relationship-link");
+            if (relationship.type === "api") path.classList.add("api");
+            if (relationship.type === "dependency") path.classList.add("dependency");
+            svg.appendChild(path);
+
+            if (relationship.label) {
+                const labelGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("class", "relationship-label");
+
+                const pathLength = path.getTotalLength();
+                const labelPoint = path.getPointAtLength(pathLength * 0.45);
+
+                text.setAttribute("x", labelPoint.x);
+                text.setAttribute("y", labelPoint.y + 3);
+                text.textContent = relationship.label;
+
+                labelGroup.appendChild(text);
+                svg.appendChild(labelGroup);
+
+                const bbox = text.getBBox();
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", bbox.x - 5);
+                rect.setAttribute("y", bbox.y - 2);
+                rect.setAttribute("width", bbox.width + 10);
+                rect.setAttribute("height", bbox.height + 4);
+                rect.setAttribute("rx", 4);
+                rect.setAttribute("class", "relationship-label-bg");
+
+                labelGroup.insertBefore(rect, text);
+            }
+        });
+    }
+
+    function render() {
+        const hash = location.hash.replace('#', '') || 'landing';
+        const [routeName, programId] = hash.split('/');
+
+        if (routeName === 'program') return renderProgram(programId);
+        if (routeName === 'functional') return renderFunctional(programId);
+        if (routeName === 'systems') return renderSystems(programId, 'systems');
+        if (routeName === 'architecture') return renderSystems(programId, 'architecture');
+
+        renderLanding();
+    }
+
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            const [routeName, programId] = location.hash.replace("#", "").split("/");
+            if (routeName === 'systems' || routeName === 'architecture') {
+                const relationshipItems = (DATA.systemRelationships || []).filter(item =>
+                    String(item.programId || '').trim() === String(programId || '').trim() &&
+                    String(item.country || item["RtC Anchor Country"] || '').trim() === String(selectedCountry || '').trim() &&
+                    String(item.product || '').trim() === String(selectedSystemProduct || '').trim()
+                );
+                renderSystemRelationships(relationshipItems);
+            }
+        }, 150);
+    });
+
+    document.addEventListener('click', event => {
+        const routeElement = event.target.closest('[data-route]');
+        if (routeElement) { route(routeElement.dataset.route); return; }
+
+        const countryBtn = event.target.closest('[data-country]');
+        if (countryBtn) { selectedCountry = countryBtn.dataset.country; render(); return; }
+
+        const toggleBtn = event.target.closest('#localismsToggleBtn');
+        if (toggleBtn) { showProgramLocalisms = !showProgramLocalisms; render(); return; }
+
+        const productBtn = event.target.closest('[data-system-product]');
+        if (productBtn) { selectedSystemProduct = productBtn.dataset.systemProduct; const [r, p] = location.hash.replace("#", "").split("/"); renderSystems(p, r); return; }
+
+        const featureCard = event.target.closest('[data-feature]');
+        if (featureCard) { const fk = featureCard.dataset.feature; selectedCapability = selectedCapability === fk ? null : fk; selectedArchitectureGap = null; const [r, p] = location.hash.replace("#", "").split("/"); renderSystems(p, r); return; }
+
+        const expandBtn = event.target.closest('#expandSystemMapBtn');
+        if (expandBtn) { isSystemMapExpanded = !isSystemMapExpanded; const [r, p] = location.hash.replace("#", "").split("/"); renderSystems(p, r); return; }
+
+        const gapCard = event.target.closest('[data-architecture-gap]');
+        if (gapCard) { const gk = gapCard.dataset.architectureGap; selectedArchitectureGap = selectedArchitectureGap === gk ? null : gk; selectedCapability = null; const [r, p] = location.hash.replace("#", "").split("/"); renderSystems(p, r); return; }
+    });
+
+    window.addEventListener('hashchange', render);
+    refreshData();
+</script>
