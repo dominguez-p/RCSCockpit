@@ -1122,7 +1122,7 @@ function renderSystemRelationships(
 async function init(showMessage = true) {
   try {
     if (window.APP_CONFIG.useGoogleSheets) {
-      DATA = await loadGoogleSheetsData();
+      DATA = await loadData();
       statusEl.textContent = showMessage
         ? "Datos Google Sheets API v4 actualizados"
         : "Datos sincronizados";
@@ -1136,6 +1136,28 @@ async function init(showMessage = true) {
 
   render();
 }
+function openDataSource() {
+  if (window.APP_CONFIG.runtime === "apps-script") {
+    google.script.run
+      .withSuccessHandler((url) => window.open(url, "_blank"))
+      .getSpreadsheetUrl();
+
+    return;
+  }
+
+  const spreadsheetId = window.APP_CONFIG.googleSheetsApi?.spreadsheetId;
+
+  if (!spreadsheetId || spreadsheetId.includes("REPLACE")) {
+    alert("Spreadsheet ID no configurado.");
+    return;
+  }
+
+  window.open(
+    `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+    "_blank",
+  );
+}
+
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-route]");
   if (b) route(b.dataset.route);
@@ -1149,67 +1171,11 @@ document.addEventListener("click", (e) => {
 
   render();
 });
-document.addEventListener("click", (event) => {
-  const button = event.target.closest("#openDataSourceBtn");
 
-  if (!button) return;
+document
+  .getElementById("openDataSourceBtn")
+  ?.addEventListener("click", openDataSource);
 
-  const spreadsheetId = window.APP_CONFIG.googleSheetsApi?.spreadsheetId;
-
-  if (!spreadsheetId || spreadsheetId.includes("REPLACE")) {
-    alert("No hay Spreadsheet ID configurado.");
-    return;
-  }
-
-  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
-  window.open(url, "_blank", "noopener,noreferrer");
-});
-document.addEventListener("click", async (event) => {
-  const openButton = event.target.closest("#openDataSourceBtn");
-
-  if (openButton) {
-    const spreadsheetId = window.APP_CONFIG.googleSheetsApi?.spreadsheetId;
-
-    if (!spreadsheetId || spreadsheetId.includes("REPLACE")) {
-      alert("No hay Spreadsheet ID configurado.");
-      return;
-    }
-
-    const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
-
-    window.open(url, "_blank", "noopener,noreferrer");
-
-    return;
-  }
-
-  const refreshButton = event.target.closest("#refreshDataBtn");
-
-  if (refreshButton) {
-    refreshButton.disabled = true;
-    refreshButton.textContent = "Actualizando...";
-
-    try {
-      statusEl.textContent = "Sincronizando datos...";
-
-      if (window.APP_CONFIG.useGoogleSheets) {
-        DATA = await loadGoogleSheetsData();
-      }
-
-      render();
-
-      statusEl.textContent = "Datos Google Sheets API v4 actualizados";
-    } catch (error) {
-      console.error(error);
-
-      statusEl.textContent = "Error actualizando datos";
-
-      alert("Error actualizando datos desde Google Sheets.");
-    } finally {
-      refreshButton.disabled = false;
-      refreshButton.textContent = "Actualizar datos";
-    }
-  }
-});
 document.addEventListener("click", (e) => {
   const productButton = e.target.closest("[data-system-product]");
 

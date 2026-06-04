@@ -1,4 +1,5 @@
 window.APP_CONFIG = {
+  runtime: "google-sheets-api",
   useGoogleSheets: true,
 
   googleSheetsApi: {

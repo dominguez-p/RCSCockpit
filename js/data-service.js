@@ -1,3 +1,31 @@
+async function loadData() {
+  if (window.APP_CONFIG.runtime === "apps-script") {
+    return loadAppsScriptData();
+  }
+
+  if (window.APP_CONFIG.runtime === "google-sheets-api") {
+    return loadGoogleSheetsApiData();
+  }
+
+  return window.SAMPLE_DATA;
+}
+
+function loadAppsScriptData() {
+  return new Promise((resolve, reject) => {
+    if (!window.google || !google.script || !google.script.run) {
+      reject(
+        new Error("google.script.run no está disponible fuera de Apps Script."),
+      );
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(reject)
+      .getAppData();
+  });
+}
+
 async function fetchSheetValues(sheetName) {
   const { apiKey, spreadsheetId } = window.APP_CONFIG.googleSheetsApi || {};
 
@@ -14,6 +42,7 @@ async function fetchSheetValues(sheetName) {
 
   const encodedSheetName = encodeURIComponent(sheetName);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheetName}?key=${apiKey}`;
+
   const response = await fetch(url);
 
   if (!response.ok) {
@@ -27,55 +56,7 @@ async function fetchSheetValues(sheetName) {
   return payload.values || [];
 }
 
-function rowsToObjects(rows) {
-  if (!rows.length) return [];
-  const headers = rows[0].map((header) => String(header || "").trim());
-
-  return rows
-    .slice(1)
-    .filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""))
-    .map((row) => {
-      const obj = {};
-      headers.forEach((header, index) => {
-        obj[header] = String(row[index] ?? "").trim();
-      });
-      return obj;
-    });
-}
-
-function rowsToArray(rows) {
-  return rows
-    .slice(1)
-    .filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""))
-    .map((row) => row.map((cell) => String(cell ?? "").trim()));
-}
-
-function toNumber(value, fallback = 0) {
-  const number = Number(
-    String(value ?? "")
-      .replace("%", "")
-      .replace(",", ".")
-      .trim(),
-  );
-  return Number.isNaN(number) ? fallback : number;
-}
-
-function toBoolean(value) {
-  return (
-    String(value ?? "")
-      .trim()
-      .toLowerCase() === "true"
-  );
-}
-
-function splitPipeList(value) {
-  return String(value ?? "")
-    .split("|")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-async function loadGoogleSheetsData() {
+async function loadGoogleSheetsApiData() {
   const sheetNames = window.APP_CONFIG.sheets;
 
   const [
@@ -122,6 +103,7 @@ async function loadGoogleSheetsData() {
     architectureFeaturesGaps: rowsToObjects(architectureFeaturesGapsRows),
     portfolioKpis: rowsToArray(portfolioKpisRows),
     systemRelationships: rowsToObjects(systemRelationshipsRows),
+
     programs: rowsToObjects(programsRows).map((program) => ({
       ...program,
       functional: toNumber(program.functional),
@@ -136,13 +118,63 @@ async function loadGoogleSheetsData() {
     })),
 
     roles: rowsToObjects(rolesRows),
-
     priorities: rowsToObjects(prioritiesRows),
 
     functional: rowsToObjects(functionalRows).map((item) => ({
       ...item,
       features: splitPipeList(item.features),
     })),
+
     systems: rowsToObjects(systemsRows),
   };
+}
+
+function rowsToObjects(rows) {
+  if (!rows.length) return [];
+
+  const headers = rows[0].map((header) => String(header || "").trim());
+
+  return rows
+    .slice(1)
+    .filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""))
+    .map((row) => {
+      const obj = {};
+      headers.forEach((header, index) => {
+        obj[header] = String(row[index] ?? "").trim();
+      });
+      return obj;
+    });
+}
+
+function rowsToArray(rows) {
+  return rows
+    .slice(1)
+    .filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""))
+    .map((row) => row.map((cell) => String(cell ?? "").trim()));
+}
+
+function toNumber(value, fallback = 0) {
+  const number = Number(
+    String(value ?? "")
+      .replace("%", "")
+      .replace(",", ".")
+      .trim(),
+  );
+
+  return Number.isNaN(number) ? fallback : number;
+}
+
+function toBoolean(value) {
+  return (
+    String(value ?? "")
+      .trim()
+      .toLowerCase() === "true"
+  );
+}
+
+function splitPipeList(value) {
+  return String(value ?? "")
+    .split("|")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
