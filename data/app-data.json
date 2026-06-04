@@ -28,7 +28,7 @@
             "product": "blue-buddy",
             "layer": "Conversa",
             "groupName": "Conversa Gestores",
-            "component": "ASO (Crear conversación anónima) | API (Mensajes)",
+            "component": "ASO (Crear anonimus conversation) | API (Mensajes)",
             "description": "Adaptación al canal",
             "status": "AS IS",
             "level": ""
@@ -138,7 +138,7 @@
             "product": "blue-buddy",
             "layer": "Conversa",
             "groupName": "Conversa Gestores",
-            "component": "ASO (Crear conversación anónima) | API (Mensajes)",
+            "component": "ASO (Crear anonimus conversation) | API (Mensajes)",
             "description": "Adaptación al canal",
             "status": "AS IS",
             "level": ""
@@ -229,7 +229,7 @@
             "fromType": "group",
             "fromId": "Escritorio del Gestor",
             "toType": "component",
-            "toId": "ASO (Crear conversación anónima)",
+            "toId": "ASO (Crear anonimus conversation)",
             "label": "SMC",
             "type": "api"
         },
@@ -317,7 +317,7 @@
             "fromType": "component",
             "fromId": "Salesforce",
             "toType": "component",
-            "toId": "ASO (Crear conversación anónima)",
+            "toId": "ASO (Crear anonimus conversation)",
             "label": "SMC",
             "type": "api"
         },
@@ -517,7 +517,7 @@
             "country": "ES",
             "product": "blue-buddy",
             "functionalKey": "Asistencia en la venta::Contexto comercial del cliente::Customer overview",
-            "systemComponent": "ASO (Crear conversación anónima)"
+            "systemComponent": "ASO (Crear anonimus conversation)"
         },
         {
             "programId": "aixbanker",
@@ -552,7 +552,7 @@
             "country": "ES",
             "product": "blue-buddy",
             "functionalKey": "Asistencia en la venta::Contexto comercial del cliente::Personalización con señales de cliente vía SCOUT",
-            "systemComponent": "ASO (Crear conversación anónima)"
+            "systemComponent": "ASO (Crear anonimus conversation)"
         },
         {
             "programId": "aixbanker",
@@ -587,7 +587,7 @@
             "country": "ES",
             "product": "blue-buddy",
             "functionalKey": "Asistencia en la venta::Generación de discurso de venta::Argumento de venta personalizado",
-            "systemComponent": "ASO (Crear conversación anónima)"
+            "systemComponent": "ASO (Crear anonimus conversation)"
         },
         {
             "programId": "aixbanker",
@@ -622,7 +622,7 @@
             "country": "ES",
             "product": "blue-buddy",
             "functionalKey": "Asistencia en la venta::Comparativa con competencia::Argumento de venta personalizado con información de competidores",
-            "systemComponent": "ASO (Crear conversación anónima)"
+            "systemComponent": "ASO (Crear anonimus conversation)"
         },
         {
             "programId": "aixbanker",
@@ -664,7 +664,7 @@
             "country": "ES",
             "product": "blue-buddy",
             "functionalKey": "Asistencia informacional::Resolución de consultas informacionales generales::Servicebox",
-            "systemComponent": "ASO (Crear conversación anónima)"
+            "systemComponent": "ASO (Crear anonimus conversation)"
         },
         {
             "programId": "aixbanker",
@@ -713,7 +713,7 @@
             "country": "ES",
             "product": "blue-buddy",
             "functionalKey": "Asistencia informacional::Resolución de consultas informacionales específicas::Marko",
-            "systemComponent": "ASO (Crear conversación anónima)"
+            "systemComponent": "ASO (Crear anonimus conversation)"
         },
         {
             "programId": "aixbanker",
@@ -762,7 +762,7 @@
             "country": "ES",
             "product": "blue-buddy",
             "functionalKey": "Habilitadores::Orquestación de asistentes::Enrutamiento según intent",
-            "systemComponent": "ASO (Crear conversación anónima)"
+            "systemComponent": "ASO (Crear anonimus conversation)"
         },
         {
             "programId": "aixbanker",
@@ -797,7 +797,7 @@
             "country": "ES",
             "product": "blue-buddy",
             "functionalKey": "Habilitadores::Orquestación de asistentes::Generación respuesta con inputs de varios agentes",
-            "systemComponent": "ASO (Crear conversación anónima)"
+            "systemComponent": "ASO (Crear anonimus conversation)"
         },
         {
             "programId": "aixbanker",
@@ -818,7 +818,7 @@
             "country": "ES",
             "product": "blue-buddy",
             "functionalKey": "Bases de conocimiento::Interacción con el gestor::Búsquedas por lenguaje natural",
-            "systemComponent": "ASO (Crear conversación anónima)"
+            "systemComponent": "ASO (Crear anonimus conversation)"
         },
         {
             "programId": "aixbanker",
@@ -907,7 +907,7 @@
             "Dependencias": "Public Cloud & Channels",
             "Ficha necesidad / Documentación": "[AIxBankers] - Implementación propagación de CustomerId hacia GenAI",
             "programId": "aixbanker",
-            "affectedSystemComponents": "ASO (Crear conversación anónima)|API (Mensajes)",
+            "affectedSystemComponents": "ASO (Crear anonimus conversation)|API (Mensajes)",
             "product": "blue-buddy"
         },
         {
@@ -1015,7 +1015,7 @@
             "fromType": "component",
             "fromId": "EMAG",
             "toType": "component",
-            "toId": "ASO (Crear conversación anónima)",
+            "toId": "ASO (Crear anonimus conversation)",
             "label": "SMC",
             "type": "api"
         },
@@ -1070,7 +1070,7 @@
             "fromType": "component",
             "fromId": "Salesforce",
             "toType": "component",
-            "toId": "ASO (Crear conversación anónima)",
+            "toId": "ASO (Crear anonimus conversation)",
             "label": "SMC",
             "type": "api"
         },
@@ -2350,7 +2350,7 @@
             "product": "blue-buddy",
             "layer": "Conversa",
             "groupName": "Conversa Gestores",
-            "component": "ASO (Crear conversación anónima) | API (Mensajes)",
+            "component": "ASO (Crear anonimus conversation) | API (Mensajes)",
             "description": "Adaptación al canal",
             "status": "AS IS",
             "level": ""
@@ -2416,7 +2416,7 @@
             "product": "blue-buddy",
             "layer": "Conversa",
             "groupName": "Conversa Gestores",
-            "component": "ASO (Crear conversación anónima) | API (Mensajes)",
+            "component": "ASO (Crear anonimus conversation) | API (Mensajes)",
             "description": "Adaptación al canal",
             "status": "AS IS",
             "level": ""
