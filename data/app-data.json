@@ -1811,7 +1811,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Asistencia Proactiva",
             "capability": "capacidad base",
             "features": [],
@@ -1820,7 +1820,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Asistencia Proactiva",
             "capability": "Validación de canales disponibles",
             "features": [],
@@ -1829,7 +1829,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Asistencia Proactiva",
             "capability": "Clusterización de clientes",
             "features": [],
@@ -1838,7 +1838,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Asistencia Proactiva",
             "capability": "Asistencia digital",
             "features": [],
@@ -1847,7 +1847,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Asistencia Proactiva",
             "capability": "Asistencia por eventos Genesys",
             "features": [],
@@ -1856,7 +1856,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Asistencia Proactiva",
             "capability": "Asistencia por eventos Glomo",
             "features": [],
@@ -1865,7 +1865,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Contexto Interaciones",
             "capability": "capacidad base",
             "features": [],
@@ -1874,7 +1874,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Contexto Interaciones",
             "capability": "Ampliación Campos",
             "features": [],
@@ -1883,7 +1883,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Contexto Interaciones",
             "capability": "Herencia de autenticación",
             "features": [],
@@ -1892,7 +1892,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Contexto Interaciones",
             "capability": "Integración ODIN",
             "features": [],
@@ -1901,7 +1901,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Smart Routing",
             "capability": "capacidad base",
             "features": [],
@@ -1910,7 +1910,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Smart Routing",
             "capability": "Validación de Canales",
             "features": [],
@@ -1919,7 +1919,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Smart Routing",
             "capability": "Clusterización de clientes",
             "features": [],
@@ -1928,7 +1928,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Smart Routing",
             "capability": "Validación Colas Genesys",
             "features": [],
@@ -1937,7 +1937,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Smart Routing",
             "capability": "Integración BEA",
             "features": [],
@@ -1946,7 +1946,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Smart Routing",
             "capability": "Integración Propensión compra",
             "features": [],
@@ -1955,7 +1955,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Smart Routing",
             "capability": "Priorización de colas Voz",
             "features": [],
@@ -1964,7 +1964,7 @@
         },
         {
             "programId": "rosetta",
-            "country": "",
+            "country": "ES",
             "domain": "Smart Routing",
             "capability": "Validación de colas por eventos",
             "features": [],
@@ -1976,6 +1976,357 @@
             "country": "ES",
             "domain": "AI Predictive",
             "capability": "Eventos de Genesys",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Asistencia Proactiva",
+            "capability": "capacidad base",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Asistencia Proactiva",
+            "capability": "Validación de canales disponibles",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Asistencia Proactiva",
+            "capability": "Clusterización de clientes",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Asistencia Proactiva",
+            "capability": "Asistencia digital",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Asistencia Proactiva",
+            "capability": "Asistencia por eventos Genesys",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Asistencia Proactiva",
+            "capability": "Asistencia por eventos Glomo",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Contexto Interaciones",
+            "capability": "capacidad base",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Contexto Interaciones",
+            "capability": "Ampliación Campos",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Contexto Interaciones",
+            "capability": "Herencia de autenticación",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Smart Routing",
+            "capability": "capacidad base",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Smart Routing",
+            "capability": "Validación de Canales",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Smart Routing",
+            "capability": "Clusterización de clientes",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "MX",
+            "domain": "Smart Routing",
+            "capability": "Validación Colas Genesys",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Asistencia Proactiva",
+            "capability": "capacidad base",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Asistencia Proactiva",
+            "capability": "Validación de canales disponibles",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Asistencia Proactiva",
+            "capability": "Clusterización de clientes",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Asistencia Proactiva",
+            "capability": "Asistencia digital",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Asistencia Proactiva",
+            "capability": "Asistencia por eventos Genesys",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Asistencia Proactiva",
+            "capability": "Asistencia por eventos Glomo",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Contexto Interaciones",
+            "capability": "capacidad base",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Contexto Interaciones",
+            "capability": "Ampliación Campos",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Contexto Interaciones",
+            "capability": "Herencia de autenticación",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Smart Routing",
+            "capability": "capacidad base",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Smart Routing",
+            "capability": "Validación de Canales",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Smart Routing",
+            "capability": "Clusterización de clientes",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "CO",
+            "domain": "Smart Routing",
+            "capability": "Validación Colas Genesys",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Asistencia Proactiva",
+            "capability": "capacidad base",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Asistencia Proactiva",
+            "capability": "Validación de canales disponibles",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Asistencia Proactiva",
+            "capability": "Clusterización de clientes",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Asistencia Proactiva",
+            "capability": "Asistencia digital",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Asistencia Proactiva",
+            "capability": "Asistencia por eventos Genesys",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Asistencia Proactiva",
+            "capability": "Asistencia por eventos Glomo",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Contexto Interaciones",
+            "capability": "capacidad base",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Contexto Interaciones",
+            "capability": "Ampliación Campos",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Contexto Interaciones",
+            "capability": "Herencia de autenticación",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Smart Routing",
+            "capability": "capacidad base",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Smart Routing",
+            "capability": "Validación de Canales",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Smart Routing",
+            "capability": "Clusterización de clientes",
+            "features": [],
+            "affectedComponents": "",
+            "": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "PE",
+            "domain": "Smart Routing",
+            "capability": "Validación Colas Genesys",
             "features": [],
             "affectedComponents": "",
             "": ""
@@ -2144,6 +2495,50 @@
             "groupName": "Conversaciones",
             "component": "SVBX | RE4M",
             "description": "Informacional de BBVA",
+            "status": "AS IS",
+            "level": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "ES",
+            "product": "NBC",
+            "layer": "Back",
+            "groupName": "Smart Routing",
+            "component": "ASO",
+            "description": "Obtener el canal adecuado",
+            "status": "AS IS",
+            "level": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "ES",
+            "product": "NBC",
+            "layer": "Back",
+            "groupName": "Smart Routing",
+            "component": "APX",
+            "description": "Obtener el canal adecuado",
+            "status": "AS IS",
+            "level": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "ES",
+            "product": "NBC",
+            "layer": "Back",
+            "groupName": "Smart Routing",
+            "component": "ORACLE",
+            "description": "Obtener el canal adecuado",
+            "status": "AS IS",
+            "level": ""
+        },
+        {
+            "programId": "rosetta",
+            "country": "ES",
+            "product": "NBC",
+            "layer": "Front",
+            "groupName": "panel de administracion de NBC",
+            "component": "EMAG",
+            "description": "Interfaz de configuracion de MdR",
             "status": "AS IS",
             "level": ""
         }
