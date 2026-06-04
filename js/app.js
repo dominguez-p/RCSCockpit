@@ -1121,19 +1121,19 @@ function renderSystemRelationships(
 }
 async function init(showMessage = true) {
   try {
-    if (window.APP_CONFIG.useGoogleSheets) {
-      DATA = await loadData();
-      statusEl.textContent = showMessage
-        ? "Datos Google Sheets API v4 actualizados"
-        : "Datos sincronizados";
-    } else {
-      statusEl.textContent = "Datos demo locales";
-    }
+    DATA = await loadData();
+
+    statusEl.textContent =
+      window.APP_CONFIG.runtime === "local-json"
+        ? "Datos locales cargados"
+        : "Datos Google Sheets API v4 actualizados";
   } catch (e) {
     console.error(e);
-    statusEl.textContent = "Error Sheets API v4: usando demo local";
+    DATA = window.SAMPLE_DATA;
+    statusEl.textContent = "Error cargando datos: usando demo local";
   }
 
+  syncDataSourceToggle();
   render();
 }
 function openDataSource() {
@@ -1157,7 +1157,28 @@ function openDataSource() {
     "_blank",
   );
 }
+function syncDataSourceToggle() {
+  const toggle = document.getElementById("dataSourceToggle");
+  if (!toggle) return;
 
+  toggle.checked = window.APP_CONFIG.runtime === "google-sheets-api";
+}
+
+document
+  .getElementById("dataSourceToggle")
+  ?.addEventListener("change", async (e) => {
+    window.APP_CONFIG.runtime = e.target.checked
+      ? "google-sheets-api"
+      : "local-json";
+    window.APP_CONFIG.useGoogleSheets = e.target.checked ? false : true;
+
+    await init(false);
+  });
+// document
+//   .getElementById("refreshDataBtn")
+//   ?.addEventListener("click", async () => {
+//     await init(false);
+//   });
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-route]");
   if (b) route(b.dataset.route);
