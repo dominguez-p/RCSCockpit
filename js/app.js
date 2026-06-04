@@ -62,7 +62,7 @@ function route(r) {
 
 function renderLanding() {
   setHead(
-    "Retail Client Solutions Control Tower",
+    "Retail Client Solutions Cockpit",
     "Portfolio overview, demanda estratégica y evolución de arquitectura",
   );
 

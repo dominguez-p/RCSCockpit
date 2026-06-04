@@ -1,4 +1,4 @@
-# RCS Control Tower - Google Sheets API v4
+# RCS Cockpit - Google Sheets API v4
 
 ## Ficheros a sustituir
 
@@ -35,6 +35,7 @@ id | name | description | status | functional | systems | architecture | enabled
 ```
 
 Notas:
+
 - `functional`, `systems`, `architecture`: número 0-100.
 - `enabled`: `true` o `false`.
 - AIxBanker debe tener `id = aixbanker`.
@@ -46,6 +47,7 @@ id | title | description | route | status
 ```
 
 Rutas actuales soportadas:
+
 - `functional`
 - `systems`
 
@@ -86,9 +88,9 @@ layer | component | description | status | country
 En `js/config.js`:
 
 ```js
-useGoogleSheets: true
-apiKey: "TU_API_KEY"
-spreadsheetId: "TU_SPREADSHEET_ID"
+useGoogleSheets: true;
+apiKey: "TU_API_KEY";
+spreadsheetId: "TU_SPREADSHEET_ID";
 ```
 
 ## Google Cloud
