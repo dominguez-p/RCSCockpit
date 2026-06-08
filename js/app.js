@@ -60,7 +60,14 @@ function pillClass(s) {
 function route(r) {
   location.hash = r;
 }
+function splitPipeList(value) {
+  if (Array.isArray(value)) return value;
 
+  return String(value || "")
+    .split("|")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 function renderLanding() {
   setHead(
     "Retail Client Solutions Cockpit",
@@ -363,7 +370,7 @@ function renderFunctional(programId) {
 
               <strong>${capability.capability}</strong>
 
-              ${(capability.features || [])
+              ${splitPipeList(capability.features)
                 .map(
                   (feature) => `
                     <div class="feature">
@@ -858,7 +865,7 @@ function renderSystems(programId, mode = "systems") {
 
                     <div class="feature-card-list">
 
-                      ${(capability.features || [])
+                      ${splitPipeList(capability.features)
                         .map((feature) => {
                           const featureKey = `${domainName}::${capability.capability}::${feature}`;
 
@@ -1765,6 +1772,10 @@ document
       }
     }
   });
+document.getElementById("backlogHeader")?.scrollIntoView({
+  behavior: "smooth",
+  block: "start",
+});
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-route]");
   if (b) route(b.dataset.route);
