@@ -18,6 +18,7 @@ const COUNTRIES = [
   { id: "MX", label: "México", flagSrc: "assets/flags/mx.svg" },
   { id: "PE", label: "Perú", flagSrc: "assets/flags/pe.svg" },
   { id: "CO", label: "Colombia", flagSrc: "assets/flags/co.svg" },
+  { id: "HL", label: "Holding", flagSrc: "assets/flags/world.png" },
 ];
 function getAvailableSystemProducts(programId) {
   const products = new Map();
