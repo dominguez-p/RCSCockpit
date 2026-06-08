@@ -70,92 +70,78 @@ async function fetchSheetValues(sheetName) {
   const payload = await response.json();
   return payload.values || [];
 }
+async function fetchSheetsBatch(sheetNames) {
+  const spreadsheetId = window.APP_CONFIG.googleSheetsApi.spreadsheetId;
+  const apiKey = window.APP_CONFIG.googleSheetsApi.apiKey;
 
+  const ranges = Object.values(sheetNames)
+    .filter(Boolean)
+    .map((name) => `ranges=${encodeURIComponent(name)}`)
+    .join("&");
+
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet` +
+    `?${ranges}&key=${apiKey}`;
+
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    throw new Error(`Error batchGet Sheets: ${res.status} ${await res.text()}`);
+  }
+
+  return await res.json();
+}
 async function loadGoogleSheetsApiData() {
   const sheetNames = window.APP_CONFIG.sheets;
+  const batch = await fetchSheetsBatch(sheetNames);
 
-  const [
-    portfolioKpisRows,
-    programsRows,
-    modulesRows,
-    rolesRows,
-    prioritiesRows,
-    functionalRows,
-    systemsRows,
-    functionalSystemLinksRows,
-    architectureFeaturesGapsRows,
-    systemRelationshipsRows,
-    impedimentsRows,
-    decisionsPendingRows,
-    decisionsDoneRows,
-    systemsToBeRows,
-    systemRelationshipsToBeRows,
-    projectsRows,
-    projectPhasesRows,
-    msasRows,
-    msaPhasesRows,
-  ] = await Promise.all([
-    fetchSheetValues(sheetNames.portfolioKpis),
-    fetchSheetValues(sheetNames.programs),
-    fetchSheetValues(sheetNames.modules),
-    fetchSheetValues(sheetNames.roles),
-    fetchSheetValues(sheetNames.priorities),
-    fetchSheetValues(sheetNames.functional),
-    fetchSheetValues(sheetNames.systems),
-    fetchSheetValues(sheetNames.functionalSystemLinks),
-    fetchSheetValues(sheetNames.architectureFeaturesGaps),
-    fetchSheetValues(sheetNames.systemRelationships),
-    fetchSheetValues(sheetNames.impediments),
-    fetchSheetValues(sheetNames.decisionsPending),
-    fetchSheetValues(sheetNames.decisionsDone),
-    fetchSheetValues(sheetNames.systemsToBe),
-    fetchSheetValues(sheetNames.systemRelationshipsToBe),
-    fetchSheetValues(sheetNames.projects),
-    fetchSheetValues(sheetNames.projectPhases),
-    fetchSheetValues(sheetNames.msas),
-    fetchSheetValues(sheetNames.msaPhases),
-  ]);
+  const byName = {};
+
+  batch.valueRanges.forEach((rangeData, index) => {
+    const key = Object.keys(sheetNames)[index];
+    byName[key] = rangeData.values || [];
+  });
 
   return {
-    msas: rowsToObjects(msasRows),
-    msaPhases: rowsToObjects(msaPhasesRows),
-    projects: rowsToObjects(projectsRows),
-    projectPhases: rowsToObjects(projectPhasesRows),
-    systemsToBe: rowsToObjects(systemsToBeRows),
-    systemRelationshipsToBe: rowsToObjects(systemRelationshipsToBeRows),
-    impediments: rowsToObjects(impedimentsRows),
-    decisionsPending: rowsToObjects(decisionsPendingRows),
-    decisionsDone: rowsToObjects(decisionsDoneRows),
-    functionalSystemLinks: rowsToObjects(functionalSystemLinksRows),
-    architectureFeaturesGaps: rowsToObjects(architectureFeaturesGapsRows),
-    portfolioKpis: rowsToArray(portfolioKpisRows),
-    systemRelationships: rowsToObjects(systemRelationshipsRows),
-
-    programs: rowsToObjects(programsRows).map((program) => ({
-      ...program,
-      functional: toNumber(program.functional),
-      systems: toNumber(program.systems),
-      architecture: toNumber(program.architecture),
-      enabled: toBoolean(program.enabled),
-    })),
-
-    modules: rowsToObjects(modulesRows).map((module) => ({
-      ...module,
-      route: module.route || null,
-    })),
-
-    roles: rowsToObjects(rolesRows),
-    priorities: rowsToObjects(prioritiesRows),
-
-    functional: rowsToObjects(functionalRows).map((item) => ({
-      ...item,
-      features: splitPipeList(item.features),
-    })),
-
-    systems: rowsToObjects(systemsRows),
+    portfolioKpis: rowsToArray(byName.portfolioKpis),
+    programs: rowsToObjects(byName.programs),
+    modules: rowsToObjects(byName.modules),
+    roles: rowsToObjects(byName.roles),
+    priorities: rowsToObjects(byName.priorities),
+    functional: rowsToObjects(byName.functional),
+    functionalSystemLinks: rowsToObjects(byName.functionalSystemLinks),
+    architectureFeaturesGaps: rowsToObjects(byName.architectureFeaturesGaps),
+    systemRelationships: rowsToObjects(byName.systemRelationships),
+    impediments: rowsToObjects(byName.impediments),
+    decisionsPending: rowsToObjects(byName.decisionsPending),
+    decisionsDone: rowsToObjects(byName.decisionsDone),
+    systemsToBe: rowsToObjects(byName.systemsToBe),
+    systemRelationshipsToBe: rowsToObjects(byName.systemRelationshipsToBe),
+    projects: rowsToObjects(byName.projects),
+    projectPhases: rowsToObjects(byName.projectPhases),
+    msas: rowsToObjects(byName.msas),
+    msaPhases: rowsToObjects(byName.msaPhases),
+    systems: rowsToObjects(byName.systems),
   };
 }
+let isLoadingData = false;
 
+async function init(showMessage = true) {
+  if (isLoadingData) return;
+  isLoadingData = true;
+
+  try {
+    DATA = await loadData();
+    statusEl.textContent = "Datos Google Sheets API v4 actualizados";
+  } catch (e) {
+    console.error(e);
+    statusEl.textContent = "Error cargando datos";
+  } finally {
+    isLoadingData = false;
+  }
+
+  render();
+}
 function rowsToObjects(rows) {
   if (!rows.length) return [];
 
