@@ -28,5 +28,7 @@ window.APP_CONFIG = {
     systemRelationshipsToBe: "system_relationships_tobe",
     projects: "projects",
     projectPhases: "project_phases",
+    msas: "msas",
+    msaPhases: "msa_phases",
   },
 };
