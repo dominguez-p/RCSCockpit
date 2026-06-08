@@ -906,6 +906,7 @@ function render() {
   else if (routeName === "impediments") renderImpediments(programId);
   else if (routeName === "decisions") renderDecisions(programId);
   else if (routeName === "projects") renderProjectsView(programId);
+  else if (routeName === "msas") renderMsasView(programId);
   else renderLanding();
 }
 function renderCountrySelector() {
@@ -1243,9 +1244,9 @@ function renderProjectsView(programId) {
   view.insertAdjacentHTML("afterbegin", renderCountrySelector());
 
   setHead(
-    `${p?.name || "Programa"} · Backlog estratégico`,
-    `Proyectos e iniciativas · ${selectedCountry}`,
-    `Retail Client Solutions > ${p?.name || programId} > Backlog estratégico`,
+    `${p?.name || "Programa"} · Executive Summary`,
+    `Projects and initiatives · ${selectedCountry}`,
+    `Retail Client Solutions > ${p?.name || programId} > Executive Summary`,
   );
 
   const backButton = document.querySelector(".back-to-program-btn");
@@ -1255,6 +1256,17 @@ function renderProjectsView(programId) {
   }
 
   renderProjectsList(programId);
+  view.insertAdjacentHTML(
+    "beforeend",
+    `
+    <section id="msas" class="panel projects-panel">
+      <h3>MSAs</h3>
+    </section>
+    <section id="msaDetail" class="panel project-detail-panel" hidden></section>
+  `,
+  );
+
+  renderMsasList(programId);
 }
 
 function getProgramProjects(programId) {
@@ -1332,18 +1344,20 @@ function renderProjectsList(programId) {
     </div>
   `;
 
-  document.querySelectorAll(".project-card.clickable-card").forEach((card) => {
-    const open = () =>
-      renderProjectDetailView(programId, card.dataset.projectId);
+  document
+    .querySelectorAll(".project-card.clickable-card[data-project-id]")
+    .forEach((card) => {
+      const open = () =>
+        renderProjectDetailView(programId, card.dataset.projectId);
 
-    card.addEventListener("click", open);
-    card.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        open();
-      }
+      card.addEventListener("click", open);
+      card.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          open();
+        }
+      });
     });
-  });
 }
 
 function renderProjectDetailView(programId, projectId) {
@@ -1480,6 +1494,248 @@ function renderProjectDetailView(programId, projectId) {
   `;
 }
 /* dashboard inspired*/
+/*MSAs*/
+function getProgramMsas(programId) {
+  return (DATA.msas || []).filter(
+    (m) =>
+      m.programId === programId &&
+      (!m.country || m.country === selectedCountry),
+  );
+}
+
+function getMsaPhases(msaId) {
+  return (DATA.msaPhases || [])
+    .filter((p) => p.msaId === msaId)
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+function renderMsasView(programId) {
+  const p = DATA.programs.find((x) => x.id === programId);
+
+  view.innerHTML = "";
+  view.append(tpl("#msas-template"));
+  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
+
+  setHead(
+    `${p?.name || "Programa"} · MSAs`,
+    `Acuerdos y aprobaciones · ${selectedCountry}`,
+    `Retail Client Solutions > ${p?.name || programId} > MSAs`,
+  );
+
+  const backButton = document.querySelector(".back-to-program-btn");
+
+  if (backButton) {
+    backButton.dataset.route = `program/${programId}`;
+    backButton.textContent = `← Volver a ${p?.name || "programa"}`;
+  }
+
+  renderMsasList(programId);
+}
+
+function renderMsasList(programId) {
+  const container = document.querySelector("#msas");
+  const detail = document.querySelector("#msaDetail");
+
+  if (!container) return;
+
+  if (detail) {
+    detail.hidden = true;
+    detail.innerHTML = "";
+  }
+
+  container.hidden = false;
+
+  const msas = getProgramMsas(programId);
+
+  container.innerHTML = `
+    <h3>MSAs</h3>
+
+    <div class="project-list">
+      ${
+        msas.length
+          ? msas
+              .map((msa) => {
+                const status = rcsNormalizeStatus(msa.status);
+
+                return `
+                  <article
+                    class="project-card msa-clickable-card"
+                    data-msa-id="${rcsEsc(msa.id)}"
+                    tabindex="0"
+                    role="button"
+                  >
+                    <div class="project-card-main">
+                      <div>
+                        <div class="project-name">${rcsEsc(msa.name)}</div>
+                        <div class="project-summary">${rcsEsc(msa.summary)}</div>
+                      </div>
+
+                      <div class="project-progress">${rcsEsc(msa.progress || 0)}%</div>
+                    </div>
+
+                    <div class="project-meta">
+                      <span class="status-pill status-${status}">
+                        ${rcsStatusLabel(status)}
+                      </span>
+                      <span>Owner: ${rcsEsc(msa.owner || "-")}</span>
+                      <span>
+                        Hito: ${rcsEsc(msa.nextMilestoneTitle || "-")}
+                        · ${rcsEsc(msa.nextMilestoneDate || "-")}
+                      </span>
+                    </div>
+
+                    <div class="project-card-action">Ver detalle →</div>
+                  </article>
+                `;
+              })
+              .join("")
+          : `<p class="empty-state">No hay MSAs informados para este país.</p>`
+      }
+    </div>
+  `;
+
+  document
+    .querySelectorAll(".msa-clickable-card[data-msa-id]")
+    .forEach((card) => {
+      card.addEventListener("click", () => {
+        renderMsaDetailView(programId, card.dataset.msaId);
+      });
+    });
+}
+function renderMsaDetailView(programId, msaId) {
+  const list = document.querySelector("#msas");
+  const detail = document.querySelector("#msaDetail");
+
+  if (!detail) return;
+
+  const msa = getProgramMsas(programId).find((item) => item.id === msaId);
+
+  if (!msa) {
+    detail.hidden = false;
+    detail.innerHTML = `
+      <button class="ghost-button" type="button" onclick="renderMsasList('${programId}')">
+        ← Volver a MSAs
+      </button>
+      <h3>MSA no encontrado</h3>
+    `;
+    return;
+  }
+
+  const phases = getMsaPhases(msa.id);
+  const status = rcsNormalizeStatus(msa.status);
+
+  if (list) list.hidden = true;
+  detail.hidden = false;
+
+  detail.innerHTML = `
+    <div class="project-detail-header">
+      <button class="ghost-button" type="button" onclick="renderMsasList('${programId}')">
+        ← Volver a MSAs
+      </button>
+
+      <div>
+        <h3>${rcsEsc(msa.name)}</h3>
+        <p>${rcsEsc(msa.description || msa.summary)}</p>
+      </div>
+
+      <span class="status-pill status-${status}">
+        ${rcsStatusLabel(status)}
+      </span>
+    </div>
+
+    <div class="project-detail-grid">
+      <article class="detail-card">
+        <span>Owner</span>
+        <strong>${rcsEsc(msa.owner || "-")}</strong>
+      </article>
+
+      <article class="detail-card">
+        <span>Avance global</span>
+        <strong>${rcsEsc(msa.progress || 0)}%</strong>
+      </article>
+
+      <article class="detail-card">
+        <span>Siguiente hito</span>
+        <strong>${rcsEsc(msa.nextMilestoneTitle || "-")}</strong>
+        <small>${rcsEsc(msa.nextMilestoneDate || "")}</small>
+      </article>
+
+      <article class="detail-card">
+        <span>Última actualización</span>
+        <strong>${rcsEsc(msa.lastUpdate || "-")}</strong>
+      </article>
+    </div>
+
+    <section class="phase-section">
+      <h3>Avance por fases</h3>
+
+      <div class="phase-roadmap">
+        ${
+          phases.length
+            ? phases
+                .map((phase) => {
+                  const phaseStatus = rcsNormalizeStatus(phase.status);
+                  const progress = Math.max(
+                    0,
+                    Math.min(100, Number(phase.progress || 0)),
+                  );
+
+                  return `
+                    <article class="phase-card">
+                      <div class="phase-card-head">
+                        <h4>${rcsEsc(phase.phaseName)}</h4>
+                        <span class="status-pill status-${phaseStatus}">
+                          ${rcsStatusLabel(phaseStatus)}
+                        </span>
+                      </div>
+
+                      <div class="phase-bar">
+                        <span style="width:${progress}%"></span>
+                      </div>
+
+                      <div class="phase-meta">
+                        <strong>${progress}%</strong>
+                        <span>
+                          ${rcsEsc(phase.startDate || "-")}
+                          →
+                          ${rcsEsc(phase.targetDate || "-")}
+                        </span>
+                      </div>
+
+                      <p>${rcsEsc(phase.comments || "")}</p>
+                    </article>
+                  `;
+                })
+                .join("")
+            : `<p class="empty-state">No hay fases informadas para este MSA.</p>`
+        }
+      </div>
+    </section>
+
+    <section class="project-detail-notes">
+      <article>
+        <h3>Objetivo estratégico</h3>
+        <p>${rcsEsc(msa.strategicGoal || "No informado.")}</p>
+      </article>
+
+      <article>
+        <h3>Valor de negocio</h3>
+        <p>${rcsEsc(msa.businessValue || "No informado.")}</p>
+      </article>
+
+      <article>
+        <h3>Riesgos principales</h3>
+        <p>${rcsEsc(msa.mainRisks || "No informado.")}</p>
+      </article>
+
+      <article>
+        <h3>Dependencias</h3>
+        <p>${rcsEsc(msa.dependencies || "No informado.")}</p>
+      </article>
+    </section>
+  `;
+}
+/*MSAs*/
 document
   .getElementById("dataSourceToggle")
   ?.addEventListener("change", async (e) => {

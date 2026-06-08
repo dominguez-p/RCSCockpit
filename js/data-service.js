@@ -92,6 +92,8 @@ async function loadGoogleSheetsApiData() {
     systemRelationshipsToBeRows,
     projectsRows,
     projectPhasesRows,
+    msasRows,
+    msaPhasesRows,
   ] = await Promise.all([
     fetchSheetValues(sheetNames.portfolioKpis),
     fetchSheetValues(sheetNames.programs),
@@ -110,9 +112,13 @@ async function loadGoogleSheetsApiData() {
     fetchSheetValues(sheetNames.systemRelationshipsToBe),
     fetchSheetValues(sheetNames.projects),
     fetchSheetValues(sheetNames.projectPhases),
+    fetchSheetValues(sheetNames.msas),
+    fetchSheetValues(sheetNames.msaPhases),
   ]);
 
   return {
+    msas: rowsToObjects(msasRows),
+    msaPhases: rowsToObjects(msaPhasesRows),
     projects: rowsToObjects(projectsRows),
     projectPhases: rowsToObjects(projectPhasesRows),
     systemsToBe: rowsToObjects(systemsToBeRows),
