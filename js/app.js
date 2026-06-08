@@ -271,10 +271,10 @@ function renderProgram(programId) {
         </article>
       </section> 
     <section class="module-grid secondary-module-grid">
-       <article class="module-card" onclick="alert('Backlog próximamente disponible')">
-        <span class="pill yellow">Próximamente</span>
-        <h3>Backlog estratégico</h3>
-        <p>Demanda, gaps e iniciativas priorizadas.</p>
+       <article class="module-card" data-route="projects/${programId}">
+        <span class="pill green">Activo</span>
+        <h3>Seguimiento de los proyectos</h3>
+        <p>Iniciativas, desarrollos, MSAs, etc</p>
       </article>
 
       <article class="module-card" onclick="alert('Roadmap próximamente disponible')">
@@ -905,6 +905,7 @@ function render() {
     renderSystems(programId, "architecture");
   else if (routeName === "impediments") renderImpediments(programId);
   else if (routeName === "decisions") renderDecisions(programId);
+  else if (routeName === "projects") renderProjectsView(programId);
   else renderLanding();
 }
 function renderCountrySelector() {
@@ -1181,7 +1182,304 @@ function syncDataSourceToggle() {
 
   toggle.checked = window.APP_CONFIG.runtime === "google-sheets-api";
 }
+/* dashboard inspired*/
+function rcsEsc(v) {
+  return String(v ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
+function rcsNormalizeStatus(s) {
+  const v = String(s || "planned")
+    .toLowerCase()
+    .trim();
+
+  return (
+    {
+      ok: "on-track",
+      green: "on-track",
+      on_track: "on-track",
+      "on track": "on-track",
+      risk: "at-risk",
+      amber: "at-risk",
+      at_risk: "at-risk",
+      "at risk": "at-risk",
+      red: "blocked",
+      blocker: "blocked",
+      blocked: "blocked",
+      planned: "planned",
+      planificado: "planned",
+      done: "done",
+      closed: "done",
+      completed: "done",
+      pending: "pending",
+    }[v] || v.replaceAll("_", "-")
+  );
+}
+
+function rcsStatusLabel(s) {
+  return (
+    {
+      "on-track": "OK",
+      "at-risk": "Riesgo",
+      blocked: "Bloqueado",
+      planned: "Planificado",
+      done: "Hecho",
+      pending: "Pendiente",
+    }[rcsNormalizeStatus(s)] ||
+    s ||
+    "-"
+  );
+}
+
+function renderProjectsView(programId) {
+  const p = DATA.programs.find((x) => x.id === programId);
+
+  view.innerHTML = "";
+  view.append(tpl("#projects-template"));
+  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
+
+  setHead(
+    `${p?.name || "Programa"} · Backlog estratégico`,
+    `Proyectos e iniciativas · ${selectedCountry}`,
+    `Retail Client Solutions > ${p?.name || programId} > Backlog estratégico`,
+  );
+
+  const backButton = document.querySelector(".back-to-program-btn");
+  if (backButton) {
+    backButton.dataset.route = `program/${programId}`;
+    backButton.textContent = `← Volver a ${p?.name || "programa"}`;
+  }
+
+  renderProjectsList(programId);
+}
+
+function getProgramProjects(programId) {
+  return (DATA.projects || []).filter(
+    (p) =>
+      p.programId === programId &&
+      (!p.country || p.country === selectedCountry),
+  );
+}
+
+function getProjectPhases(projectId) {
+  return (DATA.projectPhases || [])
+    .filter((p) => p.projectId === projectId)
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+function renderProjectsList(programId) {
+  const container = document.querySelector("#projects");
+  const detail = document.querySelector("#projectDetail");
+  if (!container) return;
+
+  if (detail) {
+    detail.hidden = true;
+    detail.innerHTML = "";
+  }
+
+  container.hidden = false;
+
+  const projects = getProgramProjects(programId);
+
+  container.innerHTML = `
+    <h3>Proyectos</h3>
+
+    <div class="project-list">
+      ${
+        projects.length
+          ? projects
+              .map((p) => {
+                const status = rcsNormalizeStatus(p.status);
+
+                return `
+                  <article
+                    class="project-card clickable-card"
+                    data-project-id="${rcsEsc(p.id)}"
+                    tabindex="0"
+                    role="button"
+                  >
+                    <div class="project-card-main">
+                      <div>
+                        <div class="project-name">${rcsEsc(p.name)}</div>
+                        <div class="project-summary">${rcsEsc(p.summary)}</div>
+                      </div>
+
+                      <div class="project-progress">${rcsEsc(p.progress || 0)}%</div>
+                    </div>
+
+                    <div class="project-meta">
+                      <span class="status-pill status-${status}">
+                        ${rcsStatusLabel(status)}
+                      </span>
+                      <span>Owner: ${rcsEsc(p.owner || "-")}</span>
+                      <span>
+                        Hito: ${rcsEsc(p.nextMilestoneTitle || "-")}
+                        · ${rcsEsc(p.nextMilestoneDate || "-")}
+                      </span>
+                    </div>
+
+                    <div class="project-card-action">Ver detalle →</div>
+                  </article>
+                `;
+              })
+              .join("")
+          : `<p class="empty-state">No hay proyectos informados para este país.</p>`
+      }
+    </div>
+  `;
+
+  document.querySelectorAll(".project-card.clickable-card").forEach((card) => {
+    const open = () =>
+      renderProjectDetailView(programId, card.dataset.projectId);
+
+    card.addEventListener("click", open);
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        open();
+      }
+    });
+  });
+}
+
+function renderProjectDetailView(programId, projectId) {
+  const list = document.querySelector("#projects");
+  const detail = document.querySelector("#projectDetail");
+
+  if (!detail) return;
+
+  const project = getProgramProjects(programId).find((p) => p.id === projectId);
+
+  if (!project) {
+    detail.hidden = false;
+    detail.innerHTML = `
+      <button class="ghost-button" type="button" onclick="renderProjectsList('${programId}')">
+        ← Volver a proyectos
+      </button>
+      <h3>Proyecto no encontrado</h3>
+    `;
+    return;
+  }
+
+  const phases = getProjectPhases(project.id);
+  const status = rcsNormalizeStatus(project.status);
+
+  if (list) list.hidden = true;
+  detail.hidden = false;
+
+  detail.innerHTML = `
+    <div class="project-detail-header">
+      <button class="ghost-button" type="button" onclick="renderProjectsList('${programId}')">
+        ← Volver a proyectos
+      </button>
+
+      <div>
+        <h3>${rcsEsc(project.name)}</h3>
+        <p>${rcsEsc(project.description || project.summary)}</p>
+      </div>
+
+      <span class="status-pill status-${status}">
+        ${rcsStatusLabel(status)}
+      </span>
+    </div>
+
+    <div class="project-detail-grid">
+      <article class="detail-card">
+        <span>Owner</span>
+        <strong>${rcsEsc(project.owner || "-")}</strong>
+      </article>
+
+      <article class="detail-card">
+        <span>Avance global</span>
+        <strong>${rcsEsc(project.progress || 0)}%</strong>
+      </article>
+
+      <article class="detail-card">
+        <span>Siguiente hito</span>
+        <strong>${rcsEsc(project.nextMilestoneTitle || "-")}</strong>
+        <small>${rcsEsc(project.nextMilestoneDate || "")}</small>
+      </article>
+
+      <article class="detail-card">
+        <span>Última actualización</span>
+        <strong>${rcsEsc(project.lastUpdate || "-")}</strong>
+      </article>
+    </div>
+
+    <section class="phase-section">
+      <h3>Avance por fases</h3>
+
+      <div class="phase-roadmap">
+        ${
+          phases.length
+            ? phases
+                .map((phase) => {
+                  const phaseStatus = rcsNormalizeStatus(phase.status);
+                  const progress = Math.max(
+                    0,
+                    Math.min(100, Number(phase.progress || 0)),
+                  );
+
+                  return `
+                    <article class="phase-card">
+                      <div class="phase-card-head">
+                        <h4>${rcsEsc(phase.phaseName)}</h4>
+                        <span class="status-pill status-${phaseStatus}">
+                          ${rcsStatusLabel(phaseStatus)}
+                        </span>
+                      </div>
+
+                      <div class="phase-bar">
+                        <span style="width:${progress}%"></span>
+                      </div>
+
+                      <div class="phase-meta">
+                        <strong>${progress}%</strong>
+                        <span>
+                          ${rcsEsc(phase.startDate || "-")}
+                          →
+                          ${rcsEsc(phase.targetDate || "-")}
+                        </span>
+                      </div>
+
+                      <p>${rcsEsc(phase.comments || "")}</p>
+                    </article>
+                  `;
+                })
+                .join("")
+            : `<p class="empty-state">No hay fases informadas para este proyecto.</p>`
+        }
+      </div>
+    </section>
+
+    <section class="project-detail-notes">
+      <article>
+        <h3>Objetivo estratégico</h3>
+        <p>${rcsEsc(project.strategicGoal || "No informado.")}</p>
+      </article>
+
+      <article>
+        <h3>Valor de negocio</h3>
+        <p>${rcsEsc(project.businessValue || "No informado.")}</p>
+      </article>
+
+      <article>
+        <h3>Riesgos principales</h3>
+        <p>${rcsEsc(project.mainRisks || "No informado.")}</p>
+      </article>
+
+      <article>
+        <h3>Dependencias</h3>
+        <p>${rcsEsc(project.dependencies || "No informado.")}</p>
+      </article>
+    </section>
+  `;
+}
+/* dashboard inspired*/
 document
   .getElementById("dataSourceToggle")
   ?.addEventListener("change", async (e) => {
