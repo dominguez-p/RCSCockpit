@@ -26,5 +26,7 @@ window.APP_CONFIG = {
     decisionsDone: "decisions_done",
     systemsToBe: "systems_inventory_tobe",
     systemRelationshipsToBe: "system_relationships_tobe",
+    projects: "projects",
+    projectPhases: "project_phases",
   },
 };
