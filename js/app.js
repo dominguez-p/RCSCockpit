@@ -1244,7 +1244,7 @@ function renderProjectsView(programId) {
   view.insertAdjacentHTML("afterbegin", renderCountrySelector());
 
   setHead(
-    `${p?.name || "Programa"} · Executive Summary`,
+    `${p?.name || "Programa"}`,
     `Projects and initiatives · ${selectedCountry}`,
     `Retail Client Solutions > ${p?.name || programId} > Executive Summary`,
   );
@@ -1746,11 +1746,25 @@ document
 
     await init(false);
   });
-// document
-//   .getElementById("refreshDataBtn")
-//   ?.addEventListener("click", async () => {
-//     await init(false);
-//   });
+document
+  .getElementById("refreshDataBtn")
+  ?.addEventListener("click", async () => {
+    const button = document.getElementById("refreshDataBtn");
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Actualizando...";
+    }
+
+    try {
+      await init(false);
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Actualizar datos";
+      }
+    }
+  });
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-route]");
   if (b) route(b.dataset.route);
