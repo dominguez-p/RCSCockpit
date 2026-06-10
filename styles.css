@@ -1496,6 +1496,7 @@ th {
 .phase-meta {
   margin-top: 8px;
 }
+
 @media (max-width: 900px) {
   .project-detail-grid,
   .project-detail-notes {
