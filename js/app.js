@@ -1149,11 +1149,14 @@ function renderSystemRelationships(
 async function init(showMessage = true) {
   try {
     DATA = await loadData();
-
     statusEl.textContent =
-      window.APP_CONFIG.runtime === "local-json"
-        ? "Datos locales cargados"
+      window.APP_CONFIG.runtime === "drive-json"
+        ? "Datos JSON de Drive cargados"
         : "Datos Google Sheets API v4 actualizados";
+    // statusEl.textContent =
+    //   window.APP_CONFIG.runtime === "local-json"
+    //     ? "Datos locales cargados"
+    //     : "Datos Google Sheets API v4 actualizados";
   } catch (e) {
     console.error(e);
     DATA = window.SAMPLE_DATA;
