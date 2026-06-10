@@ -1,6 +1,10 @@
 window.APP_CONFIG = {
-  runtime: "google-sheets-api", // "google-sheets-api" | "apps-script" | "local-json" | "sample"
-  localDataUrl: "./data/app-data.json",
+  //runtime: "local-json", // "google-sheets-api" | "apps-script" | "local-json" | "sample"
+  runtime: "drive-json",
+  driveJsonUrl:
+    "https://script.google.com/a/macros/bbva.com/s/AKfycbyMx9rMzsa1nIKGA4jmbPgplrXx1wiK5wfb33LSOIsEwKk_ZWfrdB1nppCZ8wsYepTy/exec",
+  localDataUrl:
+    "https://drive.google.com/uc?export=download&id=1LuAoIq9K6ryPEZi8xh0-to1RlF6dCDgE",
 
   // runtime: "google-sheets-api",
   useGoogleSheets: false,
