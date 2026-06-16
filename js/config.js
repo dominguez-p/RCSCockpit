@@ -2,7 +2,8 @@ window.APP_CONFIG = {
   //runtime: "local-json", // "google-sheets-api" | "apps-script" | "local-json" | "sample"
   runtime: "drive-json",
   driveJsonUrl:
-    "https://script.google.com/a/macros/bbva.com/s/AKfycbyMx9rMzsa1nIKGA4jmbPgplrXx1wiK5wfb33LSOIsEwKk_ZWfrdB1nppCZ8wsYepTy/exec",
+    // "https://script.google.com/a/macros/bbva.com/s/AKfycbyMx9rMzsa1nIKGA4jmbPgplrXx1wiK5wfb33LSOIsEwKk_ZWfrdB1nppCZ8wsYepTy/exec",
+    "https://script.google.com/a/macros/bbva.com/s/AKfycby7hfNb_voJGFgHJKRStqi1Yl8_YA1-6cFtRRS4GYeb7aAIWaE1FPtusxLBkhkGpSWm/exec",
   localDataUrl:
     "https://drive.google.com/uc?export=download&id=1LuAoIq9K6ryPEZi8xh0-to1RlF6dCDgE",
 
