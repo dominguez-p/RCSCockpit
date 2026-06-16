@@ -1496,7 +1496,44 @@ th {
 .phase-meta {
   margin-top: 8px;
 }
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toolbar-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  background: #eef4fb;
+  color: #001391;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.toolbar-btn.primary {
+  background: #001391;
+  color: #ffffff;
+}
+
+.toolbar-btn:hover {
+  filter: brightness(0.96);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 @media (max-width: 900px) {
   .project-detail-grid,
   .project-detail-notes {
