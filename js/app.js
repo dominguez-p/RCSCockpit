@@ -77,21 +77,27 @@ function renderLanding() {
   view.innerHTML = "";
   view.append(tpl("#landing-template"));
 
-  document.querySelector("#portfolioKpis").innerHTML = DATA.portfolioKpis
-    .map(
-      (k) => `
-        <article class="kpi">
-          <div class="kpi-icon">${k[3] || "◎"}</div>
-          <div>
-            <div class="kpi-label">${k[0] || ""}</div>
-            <div class="kpi-value">${k[1] || ""}</div>
-            <div class="kpi-sub">${k[2] || ""}</div>
-          </div>
-        </article>
-      `,
-    )
-    .join("");
+  document.querySelector("#portfolioKpis").innerHTML = (
+    DATA.portfolioKpis || []
+  )
+    .map((k) => {
+      const label = k.label || k.title || k.name || k[0] || "";
+      const value = k.value || k.metric || k[1] || "";
+      const subtitle = k.subtitle || k.description || k[2] || "";
+      const icon = k.icon || k[3] || "◎";
 
+      return `
+      <article class="kpi-card">
+        <div class="kpi-icon">${icon}</div>
+        <div>
+          <h3>${label}</h3>
+          <strong>${value}</strong>
+          <p>${subtitle}</p>
+        </div>
+      </article>
+    `;
+    })
+    .join("");
   document.querySelector("#programGrid").innerHTML = DATA.programs
     .map(
       (p) => `
@@ -1151,8 +1157,8 @@ async function init(showMessage = true) {
     DATA = await loadData();
     statusEl.textContent =
       window.APP_CONFIG.runtime === "drive-json"
-        ? "Datos JSON de Drive cargados"
-        : "Datos Google Sheets API v4 actualizados";
+        ? "Datos Google Sheets de Drive cargados"
+        : "Datos Locales";
     // statusEl.textContent =
     //   window.APP_CONFIG.runtime === "local-json"
     //     ? "Datos locales cargados"
@@ -1191,7 +1197,7 @@ function syncDataSourceToggle() {
   const toggle = document.getElementById("dataSourceToggle");
   if (!toggle) return;
 
-  toggle.checked = window.APP_CONFIG.runtime === "google-sheets-api";
+  toggle.checked = window.APP_CONFIG.runtime === "drive-json";
 }
 /* dashboard inspired*/
 function rcsEsc(v) {

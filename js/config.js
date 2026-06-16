@@ -10,8 +10,8 @@ window.APP_CONFIG = {
   useGoogleSheets: false,
 
   googleSheetsApi: {
-    apiKey: "AIzaSyAuQ7vbefn_W_JTFMwj4jnBTaJNgIOthNA",
-    spreadsheetId: "1VMEU6hUGWLlBtCzniE74pPp7fhuzaCdgYoDQsR7msrA",
+    // apiKey: "AIzaSyAuQ7vbefn_W_JTFMwj4jnBTaJNgIOthNA",
+    // spreadsheetId: "1xQv47GEZ_qTy_ovwudLAxUjZX7mfWCkEvRvlfghfxhU",
   },
 
   sheets: {
