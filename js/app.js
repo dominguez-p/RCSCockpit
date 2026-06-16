@@ -1157,8 +1157,8 @@ async function init(showMessage = true) {
     DATA = await loadData();
     statusEl.textContent =
       window.APP_CONFIG.runtime === "drive-json"
-        ? "Datos JSON de Drive cargados"
-        : "Datos Google Sheets API v4 actualizados";
+        ? "Datos Google Sheets de Drive cargados"
+        : "Datos Locales";
     // statusEl.textContent =
     //   window.APP_CONFIG.runtime === "local-json"
     //     ? "Datos locales cargados"
@@ -1197,7 +1197,7 @@ function syncDataSourceToggle() {
   const toggle = document.getElementById("dataSourceToggle");
   if (!toggle) return;
 
-  toggle.checked = window.APP_CONFIG.runtime === "google-sheets-api";
+  toggle.checked = window.APP_CONFIG.runtime === "drive-json";
 }
 /* dashboard inspired*/
 function rcsEsc(v) {
