@@ -1289,8 +1289,13 @@ function renderProjectsView(programId) {
       <div class="section-header">
         <h3>MSAs</h3>
         <div class="section-actions">
-          <button id="refreshMsasBtn" type="button">Actualizar MSAs</button>
-          <button id="openMsasSourceBtn" type="button">Abrir origen MSAs</button>
+          <button id="refreshMsasBtn" class="toolbar-btn primary" type="button">
+            Actualizar MSAs
+          </button>
+
+          <button id="openMsasSourceBtn" class="toolbar-btn" type="button">
+            Abrir origen MSAs
+          </button>
         </div>
       </div>
     </section>
@@ -1583,8 +1588,13 @@ function renderMsasList(programId) {
     <div class="section-header">
       <h3>MSAs</h3>
       <div class="section-actions">
-        <button id="refreshMsasBtn" type="button">Actualizar MSAs</button>
-        <button id="openMsasSourceBtn" type="button">Abrir origen MSAs</button>
+        <button id="refreshMsasBtn" class="toolbar-btn primary" type="button">
+          Actualizar MSAs
+        </button>
+
+        <button id="openMsasSourceBtn" class="toolbar-btn" type="button">
+          Abrir origen MSAs
+        </button>
       </div>
     </div>
 
@@ -1792,30 +1802,28 @@ async function refreshMsaData() {
   try {
     const msaData = await loadMsaData();
 
-    DATA.msas = msaData.msas;
-    DATA.msaPhases = msaData.msaPhases;
-
-    render();
+    DATA.msas = msaData.msas || [];
+    DATA.msaPhases = msaData.msaPhases || [];
 
     statusEl.textContent = "MSAs actualizados";
+    render();
   } catch (error) {
     console.error(error);
+
+    statusEl.textContent = "Error actualizando MSAs";
     alert("No se pudieron actualizar los MSAs");
   } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = "Actualizar MSAs";
+    const newButton = document.getElementById("refreshMsasBtn");
+
+    if (newButton) {
+      newButton.disabled = false;
+      newButton.textContent = "Actualizar MSAs";
     }
   }
 }
 
 function openMsaDataSource() {
-  const spreadsheetId = window.APP_CONFIG.msaSpreadsheet?.spreadsheetId;
-
-  if (!spreadsheetId || spreadsheetId.includes("REPLACE")) {
-    alert("Spreadsheet de MSAs no configurada.");
-    return;
-  }
+  const spreadsheetId = window.APP_CONFIG.msaSpreadsheet.spreadsheetId;
 
   window.open(
     `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
@@ -1824,17 +1832,13 @@ function openMsaDataSource() {
 }
 /* msa spreadsheet */
 document.addEventListener("click", async (event) => {
-  const button = event.target.closest("#refreshMsasBtn");
-
-  if (!button) return;
+  if (!event.target.closest("#refreshMsasBtn")) return;
 
   await refreshMsaData();
 });
 
 document.addEventListener("click", (event) => {
-  const button = event.target.closest("#openMsasSourceBtn");
-
-  if (!button) return;
+  if (!event.target.closest("#openMsasSourceBtn")) return;
 
   openMsaDataSource();
 });

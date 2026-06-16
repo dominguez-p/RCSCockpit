@@ -36,3 +36,9 @@ window.APP_CONFIG = {
     msaPhases: "msa_phases",
   },
 };
+window.APP_CONFIG.msaSpreadsheet = {
+  spreadsheetId: "18TfQl-xdPiM6Pc6Owfsko_EvyvP1_HB6Jj17BFU2uoA",
+  sheetName: "MdR - AI For Bankers",
+};
+window.APP_CONFIG.msaScriptUrl =
+  "https://script.google.com/a/macros/bbva.com/s/AKfycbwqzQ3TACdOdeBv_JLJdMHT5syTQ3T-dYSNLs94oW_PJ6kMEVAQ76DMQgryHEwDULEG/exec";
