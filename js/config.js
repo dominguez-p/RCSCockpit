@@ -11,7 +11,7 @@ window.APP_CONFIG = {
 
   googleSheetsApi: {
     // apiKey: "AIzaSyAuQ7vbefn_W_JTFMwj4jnBTaJNgIOthNA",
-    // spreadsheetId: "1xQv47GEZ_qTy_ovwudLAxUjZX7mfWCkEvRvlfghfxhU",
+    spreadsheetId: "1xQv47GEZ_qTy_ovwudLAxUjZX7mfWCkEvRvlfghfxhU",
   },
 
   sheets: {
