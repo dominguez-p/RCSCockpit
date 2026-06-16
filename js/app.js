@@ -134,7 +134,14 @@ function renderLanding() {
     .join("");
 }
 function renderProgram(programId) {
-  const p = DATA.programs.find((x) => x.id === programId);
+  const data = DATA;
+
+  if (!data || !Array.isArray(data.programs)) {
+    console.error("No hay datos válidos para renderProgram:", data);
+    return "";
+  }
+
+  const p = data.programs.find((p) => p.id === programId);
 
   if (!p) {
     renderLanding();
@@ -1165,8 +1172,11 @@ async function init(showMessage = true) {
     //     : "Datos Google Sheets API v4 actualizados";
   } catch (e) {
     console.error(e);
-    DATA = window.SAMPLE_DATA;
-    statusEl.textContent = "Error cargando datos: usando demo local";
+
+    const response = await fetch("./data/app-data.json");
+    DATA = await response.json();
+
+    statusEl.textContent = "Datos locales cargados";
   }
 
   syncDataSourceToggle();
@@ -1276,7 +1286,13 @@ function renderProjectsView(programId) {
     "beforeend",
     `
     <section id="msas" class="panel projects-panel">
-      <h3>MSAs</h3>
+      <div class="section-header">
+        <h3>MSAs</h3>
+        <div class="section-actions">
+          <button id="refreshMsasBtn" type="button">Actualizar MSAs</button>
+          <button id="openMsasSourceBtn" type="button">Abrir origen MSAs</button>
+        </div>
+      </div>
     </section>
     <section id="msaDetail" class="panel project-detail-panel" hidden></section>
   `,
@@ -1564,7 +1580,13 @@ function renderMsasList(programId) {
   const msas = getProgramMsas(programId);
 
   container.innerHTML = `
-    <h3>MSAs</h3>
+    <div class="section-header">
+      <h3>MSAs</h3>
+      <div class="section-actions">
+        <button id="refreshMsasBtn" type="button">Actualizar MSAs</button>
+        <button id="openMsasSourceBtn" type="button">Abrir origen MSAs</button>
+      </div>
+    </div>
 
     <div class="project-list">
       ${
@@ -1752,6 +1774,70 @@ function renderMsaDetailView(programId, msaId) {
   `;
 }
 /*MSAs*/
+
+/* sample data */
+loadSampleData().then((data) => {
+  console.log(data);
+});
+/* sample data */
+/* msa spreadsheet */
+async function refreshMsaData() {
+  const button = document.getElementById("refreshMsasBtn");
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Actualizando...";
+  }
+
+  try {
+    const msaData = await loadMsaData();
+
+    DATA.msas = msaData.msas;
+    DATA.msaPhases = msaData.msaPhases;
+
+    render();
+
+    statusEl.textContent = "MSAs actualizados";
+  } catch (error) {
+    console.error(error);
+    alert("No se pudieron actualizar los MSAs");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Actualizar MSAs";
+    }
+  }
+}
+
+function openMsaDataSource() {
+  const spreadsheetId = window.APP_CONFIG.msaSpreadsheet?.spreadsheetId;
+
+  if (!spreadsheetId || spreadsheetId.includes("REPLACE")) {
+    alert("Spreadsheet de MSAs no configurada.");
+    return;
+  }
+
+  window.open(
+    `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+    "_blank",
+  );
+}
+/* msa spreadsheet */
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("#refreshMsasBtn");
+
+  if (!button) return;
+
+  await refreshMsaData();
+});
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("#openMsasSourceBtn");
+
+  if (!button) return;
+
+  openMsaDataSource();
+});
 document
   .getElementById("dataSourceToggle")
   ?.addEventListener("change", async (e) => {
