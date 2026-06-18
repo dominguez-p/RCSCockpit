@@ -8,6 +8,7 @@ let selectedArchitectureGap = null;
 let isSystemMapExpanded = false;
 let isToBeMapExpanded = false;
 let showProgramLocalisms = false;
+let isLoadingData = false;
 const view = document.querySelector("#view");
 const title = document.querySelector("#pageTitle");
 const subtitle = document.querySelector("#pageSubtitle");
@@ -1160,6 +1161,11 @@ function renderSystemRelationships(
   });
 }
 async function init(showMessage = true) {
+  if (isLoadingData) return;
+
+  isLoadingData = true;
+  showLoadingOverlay();
+
   try {
     DATA = await loadData();
     statusEl.textContent =
@@ -1177,6 +1183,9 @@ async function init(showMessage = true) {
     DATA = await response.json();
 
     statusEl.textContent = "Datos locales cargados";
+  } finally {
+    isLoadingData = false;
+    hideLoadingOverlay();
   }
 
   syncDataSourceToggle();
@@ -1772,6 +1781,31 @@ loadSampleData().then((data) => {
   console.log(data);
 });
 /* sample data */
+
+/* loading overlay */
+function showLoadingOverlay(
+  message = "Actualizando la información del cockpit...",
+) {
+  const overlay = document.querySelector("#loadingOverlay");
+
+  if (!overlay) return;
+
+  const text = overlay.querySelector("p");
+  if (text) text.textContent = message;
+
+  overlay.hidden = false;
+}
+
+function hideLoadingOverlay() {
+  const overlay = document.querySelector("#loadingOverlay");
+
+  if (!overlay) return;
+
+  overlay.hidden = true;
+}
+
+/* loading overlay */
+
 /* msa spreadsheet */
 // async function refreshMsaData() {
 //   const button = document.getElementById("refreshMsasBtn");
@@ -1813,17 +1847,17 @@ loadSampleData().then((data) => {
 //   );
 // }
 /* msa spreadsheet */
-document.addEventListener("click", async (event) => {
-  if (!event.target.closest("#refreshMsasBtn")) return;
+// document.addEventListener("click", async (event) => {
+//   if (!event.target.closest("#refreshMsasBtn")) return;
 
-  await refreshMsaData();
-});
+//   await refreshMsaData();
+// });
 
-document.addEventListener("click", (event) => {
-  if (!event.target.closest("#openMsasSourceBtn")) return;
+// document.addEventListener("click", (event) => {
+//   if (!event.target.closest("#openMsasSourceBtn")) return;
 
-  openMsaDataSource();
-});
+//   openMsaDataSource();
+// });
 document
   .getElementById("dataSourceToggle")
   ?.addEventListener("change", async (e) => {
