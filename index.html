@@ -217,10 +217,22 @@
     <section id="msaDetail" class="panel project-detail-panel" hidden></section>
   </template>
 
+  <div id="loadingOverlay" class="loading-overlay" hidden>
+    <div class="loading-card">
+      <div class="loading-orb">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+
+      <strong>Cargando datos</strong>
+      <p>Actualizando la información del cockpit...</p>
+    </div>
+  </div>
+
   <script src="js/config.js"></script>
   <script src="js/sample-data.js"></script>
   <script src="js/drive-json-source.js"></script>
-  <script src="js/msa-data-source.js"></script>
   <script src="js/app.js"></script>
   <footer class="footer">
     © Pablo Domínguez 2026

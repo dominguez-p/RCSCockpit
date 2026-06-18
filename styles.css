@@ -1534,6 +1534,7 @@ th {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
 @media (max-width: 900px) {
   .project-detail-grid,
   .project-detail-notes {
@@ -1554,5 +1555,114 @@ th {
 @media (max-width: 760px) {
   .phase-roadmap {
     grid-template-columns: 1fr;
+  }
+}
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: rgba(244, 247, 251, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.loading-overlay[hidden] {
+  display: none;
+}
+
+.loading-card {
+  min-width: 280px;
+  padding: 28px 32px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 60px rgba(7, 46, 111, 0.16);
+  text-align: center;
+}
+
+.loading-card strong {
+  display: block;
+  margin-top: 18px;
+  color: var(--blue);
+  font-family: Georgia, serif;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.loading-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.loading-orb {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 35%, #ffffff 0 12%, transparent 13%),
+    linear-gradient(135deg, var(--blue), #2dcccd);
+  box-shadow:
+    0 0 0 8px rgba(0, 19, 145, 0.08),
+    0 18px 34px rgba(0, 19, 145, 0.24);
+  animation: loadingPulse 1.6s ease-in-out infinite;
+}
+
+.loading-orb::before {
+  content: "";
+  position: absolute;
+  inset: 13px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  border-top-color: transparent;
+  animation: loadingSpin 1s linear infinite;
+}
+
+.loading-orb span {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0.95;
+}
+
+.loading-orb span:nth-child(1) {
+  top: 14px;
+  left: 36px;
+}
+
+.loading-orb span:nth-child(2) {
+  right: 16px;
+  bottom: 22px;
+}
+
+.loading-orb span:nth-child(3) {
+  left: 18px;
+  bottom: 18px;
+}
+
+@keyframes loadingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loadingPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 8px rgba(0, 19, 145, 0.08),
+      0 18px 34px rgba(0, 19, 145, 0.24);
+  }
+
+  50% {
+    transform: scale(1.04);
+    box-shadow:
+      0 0 0 16px rgba(0, 19, 145, 0.05),
+      0 24px 46px rgba(0, 19, 145, 0.28);
   }
 }

@@ -8,6 +8,7 @@ let selectedArchitectureGap = null;
 let isSystemMapExpanded = false;
 let isToBeMapExpanded = false;
 let showProgramLocalisms = false;
+let isLoadingData = false;
 const view = document.querySelector("#view");
 const title = document.querySelector("#pageTitle");
 const subtitle = document.querySelector("#pageSubtitle");
@@ -1160,6 +1161,11 @@ function renderSystemRelationships(
   });
 }
 async function init(showMessage = true) {
+  if (isLoadingData) return;
+
+  isLoadingData = true;
+  showLoadingOverlay();
+
   try {
     DATA = await loadData();
     statusEl.textContent =
@@ -1177,6 +1183,9 @@ async function init(showMessage = true) {
     DATA = await response.json();
 
     statusEl.textContent = "Datos locales cargados";
+  } finally {
+    isLoadingData = false;
+    hideLoadingOverlay();
   }
 
   syncDataSourceToggle();
@@ -1288,15 +1297,6 @@ function renderProjectsView(programId) {
     <section id="msas" class="panel projects-panel">
       <div class="section-header">
         <h3>MSAs</h3>
-        <div class="section-actions">
-          <button id="refreshMsasBtn" class="toolbar-btn primary" type="button">
-            Actualizar MSAs
-          </button>
-
-          <button id="openMsasSourceBtn" class="toolbar-btn" type="button">
-            Abrir origen MSAs
-          </button>
-        </div>
       </div>
     </section>
     <section id="msaDetail" class="panel project-detail-panel" hidden></section>
@@ -1587,15 +1587,6 @@ function renderMsasList(programId) {
   container.innerHTML = `
     <div class="section-header">
       <h3>MSAs</h3>
-      <div class="section-actions">
-        <button id="refreshMsasBtn" class="toolbar-btn primary" type="button">
-          Actualizar MSAs
-        </button>
-
-        <button id="openMsasSourceBtn" class="toolbar-btn" type="button">
-          Abrir origen MSAs
-        </button>
-      </div>
     </div>
 
     <div class="project-list">
@@ -1790,58 +1781,83 @@ loadSampleData().then((data) => {
   console.log(data);
 });
 /* sample data */
-/* msa spreadsheet */
-async function refreshMsaData() {
-  const button = document.getElementById("refreshMsasBtn");
 
-  if (button) {
-    button.disabled = true;
-    button.textContent = "Actualizando...";
-  }
+/* loading overlay */
+function showLoadingOverlay(
+  message = "Actualizando la información del cockpit...",
+) {
+  const overlay = document.querySelector("#loadingOverlay");
 
-  try {
-    const msaData = await loadMsaData();
+  if (!overlay) return;
 
-    DATA.msas = msaData.msas || [];
-    DATA.msaPhases = msaData.msaPhases || [];
+  const text = overlay.querySelector("p");
+  if (text) text.textContent = message;
 
-    statusEl.textContent = "MSAs actualizados";
-    render();
-  } catch (error) {
-    console.error(error);
-
-    statusEl.textContent = "Error actualizando MSAs";
-    alert("No se pudieron actualizar los MSAs");
-  } finally {
-    const newButton = document.getElementById("refreshMsasBtn");
-
-    if (newButton) {
-      newButton.disabled = false;
-      newButton.textContent = "Actualizar MSAs";
-    }
-  }
+  overlay.hidden = false;
 }
 
-function openMsaDataSource() {
-  const spreadsheetId = window.APP_CONFIG.msaSpreadsheet.spreadsheetId;
+function hideLoadingOverlay() {
+  const overlay = document.querySelector("#loadingOverlay");
 
-  window.open(
-    `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
-    "_blank",
-  );
+  if (!overlay) return;
+
+  overlay.hidden = true;
 }
+
+/* loading overlay */
+
 /* msa spreadsheet */
-document.addEventListener("click", async (event) => {
-  if (!event.target.closest("#refreshMsasBtn")) return;
+// async function refreshMsaData() {
+//   const button = document.getElementById("refreshMsasBtn");
 
-  await refreshMsaData();
-});
+//   if (button) {
+//     button.disabled = true;
+//     button.textContent = "Actualizando...";
+//   }
 
-document.addEventListener("click", (event) => {
-  if (!event.target.closest("#openMsasSourceBtn")) return;
+//   try {
+//     const msaData = await loadMsaData();
 
-  openMsaDataSource();
-});
+//     DATA.msas = msaData.msas || [];
+//     DATA.msaPhases = msaData.msaPhases || [];
+
+//     statusEl.textContent = "MSAs actualizados";
+//     render();
+//   } catch (error) {
+//     console.error(error);
+
+//     statusEl.textContent = "Error actualizando MSAs";
+//     alert("No se pudieron actualizar los MSAs");
+//   } finally {
+//     const newButton = document.getElementById("refreshMsasBtn");
+
+//     if (newButton) {
+//       newButton.disabled = false;
+//       newButton.textContent = "Actualizar MSAs";
+//     }
+//   }
+// }
+
+// function openMsaDataSource() {
+//   const spreadsheetId = window.APP_CONFIG.msaSpreadsheet.spreadsheetId;
+
+//   window.open(
+//     `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+//     "_blank",
+//   );
+// }
+/* msa spreadsheet */
+// document.addEventListener("click", async (event) => {
+//   if (!event.target.closest("#refreshMsasBtn")) return;
+
+//   await refreshMsaData();
+// });
+
+// document.addEventListener("click", (event) => {
+//   if (!event.target.closest("#openMsasSourceBtn")) return;
+
+//   openMsaDataSource();
+// });
 document
   .getElementById("dataSourceToggle")
   ?.addEventListener("change", async (e) => {
