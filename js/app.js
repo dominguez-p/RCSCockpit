@@ -1288,15 +1288,6 @@ function renderProjectsView(programId) {
     <section id="msas" class="panel projects-panel">
       <div class="section-header">
         <h3>MSAs</h3>
-        <div class="section-actions">
-          <button id="refreshMsasBtn" class="toolbar-btn primary" type="button">
-            Actualizar MSAs
-          </button>
-
-          <button id="openMsasSourceBtn" class="toolbar-btn" type="button">
-            Abrir origen MSAs
-          </button>
-        </div>
       </div>
     </section>
     <section id="msaDetail" class="panel project-detail-panel" hidden></section>
@@ -1587,15 +1578,6 @@ function renderMsasList(programId) {
   container.innerHTML = `
     <div class="section-header">
       <h3>MSAs</h3>
-      <div class="section-actions">
-        <button id="refreshMsasBtn" class="toolbar-btn primary" type="button">
-          Actualizar MSAs
-        </button>
-
-        <button id="openMsasSourceBtn" class="toolbar-btn" type="button">
-          Abrir origen MSAs
-        </button>
-      </div>
     </div>
 
     <div class="project-list">
@@ -1791,45 +1773,45 @@ loadSampleData().then((data) => {
 });
 /* sample data */
 /* msa spreadsheet */
-async function refreshMsaData() {
-  const button = document.getElementById("refreshMsasBtn");
+// async function refreshMsaData() {
+//   const button = document.getElementById("refreshMsasBtn");
 
-  if (button) {
-    button.disabled = true;
-    button.textContent = "Actualizando...";
-  }
+//   if (button) {
+//     button.disabled = true;
+//     button.textContent = "Actualizando...";
+//   }
 
-  try {
-    const msaData = await loadMsaData();
+//   try {
+//     const msaData = await loadMsaData();
 
-    DATA.msas = msaData.msas || [];
-    DATA.msaPhases = msaData.msaPhases || [];
+//     DATA.msas = msaData.msas || [];
+//     DATA.msaPhases = msaData.msaPhases || [];
 
-    statusEl.textContent = "MSAs actualizados";
-    render();
-  } catch (error) {
-    console.error(error);
+//     statusEl.textContent = "MSAs actualizados";
+//     render();
+//   } catch (error) {
+//     console.error(error);
 
-    statusEl.textContent = "Error actualizando MSAs";
-    alert("No se pudieron actualizar los MSAs");
-  } finally {
-    const newButton = document.getElementById("refreshMsasBtn");
+//     statusEl.textContent = "Error actualizando MSAs";
+//     alert("No se pudieron actualizar los MSAs");
+//   } finally {
+//     const newButton = document.getElementById("refreshMsasBtn");
 
-    if (newButton) {
-      newButton.disabled = false;
-      newButton.textContent = "Actualizar MSAs";
-    }
-  }
-}
+//     if (newButton) {
+//       newButton.disabled = false;
+//       newButton.textContent = "Actualizar MSAs";
+//     }
+//   }
+// }
 
-function openMsaDataSource() {
-  const spreadsheetId = window.APP_CONFIG.msaSpreadsheet.spreadsheetId;
+// function openMsaDataSource() {
+//   const spreadsheetId = window.APP_CONFIG.msaSpreadsheet.spreadsheetId;
 
-  window.open(
-    `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
-    "_blank",
-  );
-}
+//   window.open(
+//     `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+//     "_blank",
+//   );
+// }
 /* msa spreadsheet */
 document.addEventListener("click", async (event) => {
   if (!event.target.closest("#refreshMsasBtn")) return;
