@@ -9,6 +9,7 @@ let isSystemMapExpanded = false;
 let isToBeMapExpanded = false;
 let showProgramLocalisms = false;
 let isLoadingData = false;
+let executiveQuarter = "ALL";
 const view = document.querySelector("#view");
 const title = document.querySelector("#pageTitle");
 const subtitle = document.querySelector("#pageSubtitle");
@@ -204,7 +205,41 @@ function renderProgram(programId) {
       `,
     )
     .join("");
+  view.insertAdjacentHTML(
+    "beforeend",
+    `
+    <section class="panel executive-quarter-panel">
+      <div class="executive-quarter-header">
+        <div>
+          <h3>Executive Summary</h3>
+          <p>Vista por trimestre de proyectos y MSAs.</p>
+        </div>
 
+        <div class="executive-quarter-selector">
+          ${["ALL", "Q1", "Q2", "Q3", "Q4"]
+            .map(
+              (quarter) => `
+                <button
+                  class="quarter-btn ${
+                    executiveQuarter === quarter ? "active" : ""
+                  }"
+                  type="button"
+                  data-executive-quarter="${quarter}"
+                >
+                  ${quarter === "ALL" ? "Todo el año" : quarter}
+                </button>
+              `,
+            )
+            .join("")}
+        </div>
+      </div>
+
+      <div id="executiveQuarterView"></div>
+    </section>
+  `,
+  );
+
+  renderExecutiveQuarterView(programId);
   view.insertAdjacentHTML(
     "beforeend",
     `
@@ -1805,59 +1840,162 @@ function hideLoadingOverlay() {
 }
 
 /* loading overlay */
+/* executive summary by Q */
+function getQuarterOrder(quarter) {
+  return (
+    {
+      Q1: 1,
+      Q2: 2,
+      Q3: 3,
+      Q4: 4,
+    }[quarter] || 99
+  );
+}
 
-/* msa spreadsheet */
-// async function refreshMsaData() {
-//   const button = document.getElementById("refreshMsasBtn");
+function getExecutiveItems(programId) {
+  const projects = getProgramProjects(programId).map((item) => ({
+    ...item,
+    itemType: "project",
+    itemTypeLabel: "Proyecto",
+  }));
 
-//   if (button) {
-//     button.disabled = true;
-//     button.textContent = "Actualizando...";
-//   }
+  const msas = getProgramMsas(programId).map((item) => ({
+    ...item,
+    itemType: "msa",
+    itemTypeLabel: "MSA",
+  }));
 
-//   try {
-//     const msaData = await loadMsaData();
+  return [...projects, ...msas]
+    .filter((item) => item.quarter)
+    .sort((a, b) => {
+      const quarterDiff =
+        getQuarterOrder(a.quarter) - getQuarterOrder(b.quarter);
 
-//     DATA.msas = msaData.msas || [];
-//     DATA.msaPhases = msaData.msaPhases || [];
+      if (quarterDiff !== 0) return quarterDiff;
 
-//     statusEl.textContent = "MSAs actualizados";
-//     render();
-//   } catch (error) {
-//     console.error(error);
+      return Number(a.priority || 999) - Number(b.priority || 999);
+    });
+}
+function renderExecutiveQuarterView(programId) {
+  const container = document.querySelector("#executiveQuarterView");
+  if (!container) return;
 
-//     statusEl.textContent = "Error actualizando MSAs";
-//     alert("No se pudieron actualizar los MSAs");
-//   } finally {
-//     const newButton = document.getElementById("refreshMsasBtn");
+  const allItems = getExecutiveItems(programId);
 
-//     if (newButton) {
-//       newButton.disabled = false;
-//       newButton.textContent = "Actualizar MSAs";
-//     }
-//   }
-// }
+  const visibleItems =
+    executiveQuarter === "ALL"
+      ? allItems
+      : allItems.filter((item) => item.quarter === executiveQuarter);
 
-// function openMsaDataSource() {
-//   const spreadsheetId = window.APP_CONFIG.msaSpreadsheet.spreadsheetId;
+  const groupedByQuarter = visibleItems.reduce((acc, item) => {
+    const quarter = item.quarter || "Sin trimestre";
 
-//   window.open(
-//     `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
-//     "_blank",
-//   );
-// }
-/* msa spreadsheet */
-// document.addEventListener("click", async (event) => {
-//   if (!event.target.closest("#refreshMsasBtn")) return;
+    if (!acc[quarter]) acc[quarter] = [];
 
-//   await refreshMsaData();
-// });
+    acc[quarter].push(item);
 
-// document.addEventListener("click", (event) => {
-//   if (!event.target.closest("#openMsasSourceBtn")) return;
+    return acc;
+  }, {});
 
-//   openMsaDataSource();
-// });
+  const quartersToRender =
+    executiveQuarter === "ALL"
+      ? ["Q1", "Q2", "Q3", "Q4"].filter((q) => groupedByQuarter[q])
+      : [executiveQuarter];
+
+  if (!visibleItems.length) {
+    container.innerHTML = `
+      <p class="empty-state">
+        No hay proyectos ni MSAs para esta selección.
+      </p>
+    `;
+    return;
+  }
+
+  container.innerHTML = quartersToRender
+    .map(
+      (quarter) => `
+        <section class="executive-quarter-group">
+          <h4>${quarter}</h4>
+
+          <div class="executive-quarter-grid">
+            ${(groupedByQuarter[quarter] || [])
+              .map((item) => {
+                const status = rcsNormalizeStatus(item.status);
+
+                return `
+                  <article
+                    class="executive-item-card"
+                    data-executive-item-type="${item.itemType}"
+                    data-executive-item-id="${rcsEsc(item.id)}"
+                    role="button"
+                    tabindex="0"
+                  >
+                    <div class="executive-item-top">
+                      <span class="status-pill status-${status}">
+                        ${rcsStatusLabel(status)}
+                      </span>
+
+                      <span class="executive-item-type">
+                        ${item.itemTypeLabel}
+                      </span>
+                    </div>
+
+                    <h5>${rcsEsc(item.name)}</h5>
+
+                    <p>${rcsEsc(item.summary || "")}</p>
+
+                    <div class="executive-item-meta">
+                      <span>${rcsEsc(item.quarter)}</span>
+                      <span>Prioridad ${rcsEsc(item.priority || "-")}</span>
+                      <span>${rcsEsc(item.progress || 0)}%</span>
+                    </div>
+                  </article>
+                `;
+              })
+              .join("")}
+          </div>
+        </section>
+      `,
+    )
+    .join("");
+}
+/* executive summery by Q */
+document.addEventListener("click", (event) => {
+  const quarterButton = event.target.closest("[data-executive-quarter]");
+
+  if (!quarterButton) return;
+
+  executiveQuarter = quarterButton.dataset.executiveQuarter;
+
+  render();
+});
+document.addEventListener("click", (event) => {
+  const card = event.target.closest("[data-executive-item-type]");
+
+  if (!card) return;
+
+  const type = card.dataset.executiveItemType;
+  const id = card.dataset.executiveItemId;
+
+  const hash = location.hash.replace("#", "");
+  const [, programId] = hash.split("/");
+
+  if (type === "project") {
+    route(`projects/${programId}`);
+    requestAnimationFrame(() => {
+      renderProjectDetailView(programId, id);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
+  if (type === "msa") {
+    route(`msas/${programId}`);
+    requestAnimationFrame(() => {
+      renderMsaDetailView(programId, id);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+});
 document
   .getElementById("dataSourceToggle")
   ?.addEventListener("change", async (e) => {
