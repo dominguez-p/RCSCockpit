@@ -1217,7 +1217,15 @@ async function init(showMessage = true) {
     const response = await fetch("./data/app-data.json");
     DATA = await response.json();
 
-    statusEl.textContent = "Datos locales cargados";
+    statusEl.textContent = "⚠ Error accediendo a la spreadsheet";
+
+    const banner = document.getElementById("errorBanner");
+
+    if (banner) {
+      banner.hidden = false;
+      banner.textContent =
+        "No se puede acceder a la spreadsheet. Revisa el acceso al documento o vuelve a iniciar sesión. La sesión puede haber caducado.";
+    }
   } finally {
     isLoadingData = false;
     hideLoadingOverlay();
@@ -1262,6 +1270,26 @@ function rcsEsc(v) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+/* hipervínculos */
+function rcsExternalLink(item, defaultLabel = "Abrir documento") {
+  const url = item.documentUrl || "";
+
+  if (!url) return "";
+
+  const label = item.documentLabel || defaultLabel;
+
+  return `
+    <a
+      class="document-link"
+      href="${rcsEsc(url)}"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      ${rcsEsc(label)} ↗
+    </a>
+  `;
+}
+/* hipervínculos*/
 
 function rcsNormalizeStatus(s) {
   const v = String(s || "planned")
@@ -1638,13 +1666,15 @@ function renderMsasList(programId) {
                     tabindex="0"
                     role="button"
                   >
-                    <div class="project-card-main">
+                   <div class="project-card-main">
                       <div>
                         <div class="project-name">${rcsEsc(msa.name)}</div>
                         <div class="project-summary">${rcsEsc(msa.summary)}</div>
                       </div>
 
-                      <div class="project-progress">${rcsEsc(msa.progress || 0)}%</div>
+                      <div class="project-progress">
+                        ${rcsEsc(msa.progress || 0)}%
+                      </div>
                     </div>
 
                     <div class="project-meta">
@@ -1658,7 +1688,10 @@ function renderMsasList(programId) {
                       </span>
                     </div>
 
-                    <div class="project-card-action">Ver detalle →</div>
+                    <div class="project-card-actions">
+                      <span class="project-card-action">Ver detalle →</span>
+                      ${rcsExternalLink(msa, "Abrir MSA")}
+                    </div>
                   </article>
                 `;
               })
@@ -1712,9 +1745,13 @@ function renderMsaDetailView(programId, msaId) {
         <p>${rcsEsc(msa.description || msa.summary)}</p>
       </div>
 
-      <span class="status-pill status-${status}">
-        ${rcsStatusLabel(status)}
-      </span>
+      <div class="project-detail-actions">
+        <span class="status-pill status-${status}">
+          ${rcsStatusLabel(status)}
+        </span>
+
+        ${rcsExternalLink(msa, "Abrir MSA")}
+      </div>
     </div>
 
     <div class="project-detail-grid">
@@ -1960,6 +1997,28 @@ function renderExecutiveQuarterView(programId) {
     .join("");
 }
 /* executive summery by Q */
+// function isValidExternalUrl(url) {
+//   return /^https?:\/\//i.test(String(url || "").trim());
+// }
+
+// function rcsExternalLink(item, defaultLabel = "Abrir documento") {
+//   const url = String(item.documentUrl || "").trim();
+
+//   if (!isValidExternalUrl(url)) return "";
+
+//   const label = item.documentLabel || defaultLabel;
+
+//   return `
+//     <a
+//       class="document-link"
+//       href="${rcsEsc(url)}"
+//       target="_blank"
+//       rel="noopener noreferrer"
+//     >
+//       ${rcsEsc(label)} ↗
+//     </a>
+//   `;
+// }
 document.addEventListener("click", (event) => {
   const quarterButton = event.target.closest("[data-executive-quarter]");
 
