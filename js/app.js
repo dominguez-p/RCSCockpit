@@ -10,6 +10,7 @@ let isToBeMapExpanded = false;
 let showProgramLocalisms = false;
 let isLoadingData = false;
 let executiveQuarter = "ALL";
+let selectedExecutiveProduct = "blue-buddy";
 const view = document.querySelector("#view");
 const title = document.querySelector("#pageTitle");
 const subtitle = document.querySelector("#pageSubtitle");
@@ -205,39 +206,78 @@ function renderProgram(programId) {
       `,
     )
     .join("");
-  view.insertAdjacentHTML(
+  moduleGrid.insertAdjacentHTML(
     "beforeend",
     `
-    <section class="panel executive-quarter-panel">
-      <div class="executive-quarter-header">
-        <div>
-          <h3>Executive Summary</h3>
-          <p>Vista por trimestre de proyectos y MSAs.</p>
-        </div>
-
-        <div class="executive-quarter-selector">
-          ${["ALL", "Q1", "Q2", "Q3", "Q4"]
-            .map(
-              (quarter) => `
-                <button
-                  class="quarter-btn ${
-                    executiveQuarter === quarter ? "active" : ""
-                  }"
-                  type="button"
-                  data-executive-quarter="${quarter}"
-                >
-                  ${quarter === "ALL" ? "Todo el año" : quarter}
-                </button>
-              `,
-            )
-            .join("")}
-        </div>
-      </div>
-
-      <div id="executiveQuarterView"></div>
-    </section>
+    <article
+      class="module-card active"
+      data-route="projects/${programId}"
+    >
+      <span class="pill green">Activo</span>
+      <h3>Executive Summary</h3>
+      <p>Proyectos, MSAs, avance por país, producto y trimestre.</p>
+    </article>
   `,
   );
+  moduleGrid.insertAdjacentHTML(
+    "beforeend",
+    `
+    <article
+      class="module-card disable
+      data-route="projects/${programId}"
+    >
+      <span class="pill yellow">Proximamente</span>
+      <h3>Budget</h3>
+      <p>Control presupuestario por producto y trimestre.</p>
+    </article>
+  `,
+  );
+  moduleGrid.insertAdjacentHTML(
+    "beforeend",
+    `
+    <article
+      class="module-card disable
+      data-route="projects/${programId}"
+    >
+      <span class="pill yellow">Proximamente</span>
+      <h3>Team</h3>
+      <p>Scrums, staffing, demanda de FTEs, etc</p>
+    </article>
+  `,
+  );
+  // view.insertAdjacentHTML(
+  //   "beforeend",
+  //   `
+  //   <section class="panel executive-quarter-panel">
+  //     <div class="executive-quarter-header">
+  //       <div>
+  //         <h3>Executive Summary</h3>
+  //         <p>Vista por trimestre de proyectos y MSAs.</p>
+  //       </div>
+
+  //       <div class="executive-quarter-selector">
+  //         ${["ALL", "Q1", "Q2", "Q3", "Q4"]
+  //           .map(
+  //             (quarter) => `
+  //               <button
+  //                 class="quarter-btn ${
+  //                   executiveQuarter === quarter ? "active" : ""
+  //                 }"
+  //                 type="button"
+  //                 data-executive-quarter="${quarter}"
+  //               >
+  //                 ${quarter === "ALL" ? "Todo el año" : quarter}
+  //               </button>
+  //             `,
+  //           )
+  //           .join("")}
+  //       </div>
+  //     </div>
+
+  //     <div id="executiveQuarterView"></div>
+  //   </section>
+  // `,
+  // );
 
   renderExecutiveQuarterView(programId);
   view.insertAdjacentHTML(
@@ -1302,6 +1342,12 @@ function rcsNormalizeStatus(s) {
       green: "on-track",
       on_track: "on-track",
       "on track": "on-track",
+
+      "componente desarrollado": "on-track",
+      "diseño liberado": "done",
+      "n/a": "pending",
+      na: "pending",
+
       risk: "at-risk",
       amber: "at-risk",
       at_risk: "at-risk",
@@ -1339,7 +1385,14 @@ function renderProjectsView(programId) {
 
   view.innerHTML = "";
   view.append(tpl("#projects-template"));
-  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
+  view.insertAdjacentHTML(
+    "afterbegin",
+    `
+    ${renderCountrySelector()}
+    ${renderExecutiveProductSelector()}
+    ${renderExecutiveQuarterSelector()}
+  `,
+  );
 
   setHead(
     `${p?.name || "Programa"}`,
@@ -1373,13 +1426,20 @@ function getProgramProjects(programId) {
   return (DATA.projects || []).filter(
     (p) =>
       p.programId === programId &&
-      (!p.country || p.country === selectedCountry),
+      (!p.country || p.country === selectedCountry) &&
+      (!p.product || p.product === selectedExecutiveProduct) &&
+      (executiveQuarter === "ALL" || p.quarter === executiveQuarter),
   );
 }
 
 function getProjectPhases(projectId) {
   return (DATA.projectPhases || [])
-    .filter((p) => p.projectId === projectId)
+    .filter(
+      (p) =>
+        p.projectId === projectId &&
+        (!p.country || p.country === selectedCountry) &&
+        (!p.product || p.product === selectedExecutiveProduct),
+    )
     .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
 }
 
@@ -1430,7 +1490,7 @@ function renderProjectsList(programId) {
                       <span>Owner: ${rcsEsc(p.owner || "-")}</span>
                       <span>
                         Hito: ${rcsEsc(p.nextMilestoneTitle || "-")}
-                        · ${rcsEsc(p.nextMilestoneDate || "-")}
+                        · ${rcsEsc(formatDate(p.nextMilestoneDate) || "-")}
                       </span>
                     </div>
 
@@ -1515,12 +1575,12 @@ function renderProjectDetailView(programId, projectId) {
       <article class="detail-card">
         <span>Siguiente hito</span>
         <strong>${rcsEsc(project.nextMilestoneTitle || "-")}</strong>
-        <small>${rcsEsc(project.nextMilestoneDate || "")}</small>
+        <small>${rcsEsc(formatDate(project.nextMilestoneDate) || "")}</small>
       </article>
 
       <article class="detail-card">
         <span>Última actualización</span>
-        <strong>${rcsEsc(project.lastUpdate || "-")}</strong>
+        <strong>${rcsEsc(formatDate(project.lastUpdate) || "-")}</strong>
       </article>
     </div>
 
@@ -1554,10 +1614,15 @@ function renderProjectDetailView(programId, projectId) {
                       <div class="phase-meta">
                         <strong>${progress}%</strong>
                         <span>
-                          ${rcsEsc(phase.startDate || "-")}
+                          Marco:
+                          ${rcsEsc(formatDate(phase.startDate))}
                           →
-                          ${rcsEsc(phase.targetDate || "-")}
+                          ${rcsEsc(formatDate(phase.endDate))}
                         </span>
+                      </div>
+
+                      <div class="phase-delivery">
+                        🚩 Entrega: ${rcsEsc(formatDate(phase.targetDate))}
                       </div>
 
                       <p>${rcsEsc(phase.comments || "")}</p>
@@ -1568,6 +1633,7 @@ function renderProjectDetailView(programId, projectId) {
             : `<p class="empty-state">No hay fases informadas para este proyecto.</p>`
         }
       </div>
+      <div id="phaseTimeline"></div>
     </section>
 
     <section class="project-detail-notes">
@@ -1592,6 +1658,9 @@ function renderProjectDetailView(programId, projectId) {
       </article>
     </section>
   `;
+  const timelineContainer = document.getElementById("phaseTimeline");
+
+  renderPhaseTimeline(phases, timelineContainer);
 }
 /* dashboard inspired*/
 /*MSAs*/
@@ -1599,7 +1668,9 @@ function getProgramMsas(programId) {
   return (DATA.msas || []).filter(
     (m) =>
       m.programId === programId &&
-      (!m.country || m.country === selectedCountry),
+      (!m.country || m.country === selectedCountry) &&
+      (!m.product || m.product === selectedExecutiveProduct) &&
+      (executiveQuarter === "ALL" || m.quarter === executiveQuarter),
   );
 }
 
@@ -1649,7 +1720,7 @@ function renderMsasList(programId) {
 
   container.innerHTML = `
     <div class="section-header">
-      <h3>MSAs</h3>
+      <h3>MSAs (En construcción)</h3>
     </div>
 
     <div class="project-list">
@@ -1807,9 +1878,9 @@ function renderMsaDetailView(programId, msaId) {
                       <div class="phase-meta">
                         <strong>${progress}%</strong>
                         <span>
-                          ${rcsEsc(phase.startDate || "-")}
+                          ${rcsEsc(formatDate(phase.startDate) || "-")}
                           →
-                          ${rcsEsc(phase.targetDate || "-")}
+                          ${rcsEsc(formatDate(phase.targetDate || phase.endDate))}
                         </span>
                       </div>
 
@@ -1996,7 +2067,276 @@ function renderExecutiveQuarterView(programId) {
     )
     .join("");
 }
+function renderExecutiveProductSelector() {
+  const products = [
+    { id: "blue-buddy", label: "Blue Buddy" },
+    { id: "panorama", label: "Panorama" },
+  ];
+
+  return `
+    <div class="systems-product-selector">
+      ${products
+        .map(
+          (product) => `
+            <button
+              class="systems-product-btn ${
+                selectedExecutiveProduct === product.id ? "active" : ""
+              }"
+              type="button"
+              data-executive-product="${product.id}"
+            >
+              ${product.label}
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+function renderExecutiveQuarterSelector() {
+  const quarters = [
+    { id: "ALL", label: "Todo" },
+    { id: "Q1", label: "Q1" },
+    { id: "Q2", label: "Q2" },
+    { id: "Q3", label: "Q3" },
+    { id: "Q4", label: "Q4" },
+  ];
+
+  return `
+    <div class="executive-filter-row">
+      ${quarters
+        .map(
+          (q) => `
+            <button
+              class="quarter-btn ${executiveQuarter === q.id ? "active" : ""}"
+              type="button"
+              data-executive-quarter="${q.id}"
+            >
+              ${q.label}
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
 /* executive summery by Q */
+/* calendar */
+function getPhaseStartDate(phase) {
+  return parseValidDate(
+    phase.startDate || phase.start_date || phase.start || phase.beginDate,
+  );
+}
+
+function getPhaseEndDate(phase) {
+  return parseValidDate(phase.endDate);
+}
+
+function getPhaseTargetDate(phase) {
+  return parseValidDate(phase.targetDate || phase.target_date);
+}
+
+function parseValidDate(value) {
+  if (!value) return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+
+  const text = String(value).trim();
+
+  const ddmmyyyy = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  if (ddmmyyyy) {
+    const [, day, month, year] = ddmmyyyy;
+
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  const date = new Date(text);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function renderPhaseTimeline(phases, container) {
+  if (!container || !Array.isArray(phases) || !phases.length) return;
+
+  const validPhases = phases
+    .map((phase) => ({
+      ...phase,
+      _start: getPhaseStartDate(phase),
+      _end: getPhaseEndDate(phase),
+      _target: getPhaseTargetDate(phase),
+    }))
+    .filter((phase) => phase._start && phase._end);
+
+  if (!validPhases.length) {
+    container.innerHTML = `
+      <p class="empty-state">
+        No hay fechas válidas para pintar el calendario.
+      </p>
+    `;
+    return;
+  }
+
+  const minDate = new Date(
+    Math.min(...validPhases.map((phase) => phase._start.getTime())),
+  );
+
+  const maxDate = new Date(
+    Math.max(
+      ...validPhases.map((phase) =>
+        Math.max(
+          phase._end.getTime(),
+          phase._target ? phase._target.getTime() : phase._end.getTime(),
+        ),
+      ),
+    ),
+  );
+
+  const months = [];
+  const current = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+
+  while (current <= maxDate) {
+    months.push(new Date(current));
+    current.setMonth(current.getMonth() + 1);
+  }
+
+  container.innerHTML = `
+    <div class="phase-timeline-wrap">
+      <h4>Calendario por meses</h4>
+
+      <div class="phase-timeline" style="--month-count:${months.length}">
+        ${buildTimeline(months, validPhases)}
+      </div>
+    </div>
+  `;
+}
+
+function buildTimeline(months, phases) {
+  let html = `<div class="timeline-header">Fase</div>`;
+
+  months.forEach((month) => {
+    html += `
+      <div class="timeline-month">
+        ${month.toLocaleDateString("es-ES", {
+          month: "short",
+          year: "numeric",
+        })}
+      </div>
+    `;
+  });
+
+  phases.forEach((phase) => {
+    html += `
+      <div class="timeline-phase-name">
+        <strong>${rcsEsc(phase.phaseName || phase.name || "-")}</strong>
+          <small>
+            Marco: ${formatDate(phase.startDate)} → ${formatDate(phase.endDate)}
+            Entrega: ${formatDate(phase.targetDate)}
+          </small>
+      </div>
+    `;
+
+    months.forEach((month) => {
+      html += buildMonthCell(phase, month);
+    });
+  });
+
+  return html;
+}
+
+function buildMonthCell(phase, month) {
+  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+  const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+
+  const overlaps = phase._start <= monthEnd && phase._end >= monthStart;
+  const targetInMonth =
+    phase._target &&
+    phase._target.getFullYear() === month.getFullYear() &&
+    phase._target.getMonth() === month.getMonth();
+
+  if (!overlaps && !targetInMonth) {
+    return `<div class="timeline-cell"></div>`;
+  }
+
+  const status = rcsNormalizeStatus(phase.status);
+  let barHtml = "";
+
+  if (overlaps) {
+    const visibleStart = phase._start > monthStart ? phase._start : monthStart;
+    const visibleEnd = phase._end < monthEnd ? phase._end : monthEnd;
+
+    const daysInMonth = monthEnd.getDate();
+    const startDay = visibleStart.getDate();
+    const endDay = visibleEnd.getDate();
+
+    const left = ((startDay - 1) / daysInMonth) * 100;
+    const width = ((endDay - startDay + 1) / daysInMonth) * 100;
+
+    barHtml = `<span class="timeline-bar" style="left:${left}%; width:${width}%"></span>`;
+  }
+
+  let targetHtml = "";
+
+  if (targetInMonth) {
+    const daysInMonth = monthEnd.getDate();
+    const targetDay = phase._target.getDate();
+    const left = Math.min(((targetDay - 1) / daysInMonth) * 100, 96);
+
+    const isNearEnd = targetDay >= daysInMonth - 2;
+    const safeLeft = isNearEnd ? 96 : left;
+
+    targetHtml = `
+          <span
+            class="timeline-target ${isNearEnd ? "is-near-end" : ""}"
+            style="left:${safeLeft}%"
+          >
+            <em>🚩 ${formatDate(phase._target)}</em>
+          </span>
+        `;
+  }
+
+  return `
+    <div class="timeline-cell timeline-${status}">
+      ${barHtml}
+      ${targetHtml}
+    </div>
+  `;
+}
+
+function formatDate(value) {
+  const date = value instanceof Date ? value : parseValidDate(value);
+
+  if (!date) return "-";
+
+  return date.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+/* calendar */
+document.addEventListener("click", (event) => {
+  const quarterButton = event.target.closest("[data-executive-quarter]");
+
+  if (!quarterButton) return;
+
+  executiveQuarter = quarterButton.dataset.executiveQuarter;
+
+  render();
+});
+document.addEventListener("click", (event) => {
+  const productButton = event.target.closest("[data-executive-product]");
+
+  if (!productButton) return;
+
+  selectedExecutiveProduct = productButton.dataset.executiveProduct;
+
+  render();
+});
 // function isValidExternalUrl(url) {
 //   return /^https?:\/\//i.test(String(url || "").trim());
 // }
