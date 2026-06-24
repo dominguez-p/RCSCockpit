@@ -1768,3 +1768,166 @@ th {
   font-size: 12px;
   font-weight: 900;
 }
+.phase-timeline-wrap {
+  margin-top: 22px;
+}
+
+.phase-timeline-wrap h4 {
+  margin: 0 0 12px;
+  color: var(--blue);
+}
+
+.phase-delivery {
+  margin-top: 10px;
+  text-align: right;
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.phase-timeline-wrap {
+  margin-top: 24px;
+}
+
+.phase-timeline-wrap h4 {
+  margin: 0 0 12px;
+  color: var(--blue);
+}
+
+.phase-timeline {
+  display: grid;
+  grid-template-columns: 240px repeat(var(--month-count), minmax(220px, 1fr));
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: visible;
+  background: #fff;
+}
+
+.timeline-header,
+.timeline-month {
+  min-height: 44px;
+  padding: 12px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: #f5f8ff;
+  color: var(--blue);
+  font-weight: 900;
+  text-align: center;
+}
+
+.timeline-phase-name {
+  min-height: 72px;
+  padding: 12px 14px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  color: var(--blue);
+}
+
+.timeline-phase-name strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.timeline-phase-name small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.timeline-phase-name small br + * {
+  color: var(--red);
+}
+
+.timeline-cell {
+  min-height: 72px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  position: relative;
+  overflow: visible;
+}
+
+.timeline-bar {
+  position: absolute;
+  top: 50%;
+  height: 16px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  z-index: 2;
+}
+
+.timeline-target {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--red);
+  border-radius: 999px;
+  z-index: 4;
+}
+
+.timeline-target::before {
+  position: absolute;
+  top: -3px;
+  left: 5px;
+  font-size: 12px;
+}
+
+.timeline-target::after {
+  position: absolute;
+  top: -4px;
+  left: 24px;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.timeline-cell.timeline-done .timeline-bar {
+  background: var(--green);
+}
+
+.timeline-cell.timeline-on-track .timeline-bar {
+  background: var(--blue);
+}
+
+.timeline-cell.timeline-at-risk .timeline-bar {
+  background: #f59e0b;
+}
+
+.timeline-cell.timeline-planned .timeline-bar,
+.timeline-cell.timeline-pending .timeline-bar {
+  background: #9ed3ff;
+}
+
+.timeline-cell.timeline-blocked .timeline-bar {
+  background: var(--red);
+}
+.timeline-target {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--red);
+  border-radius: 999px;
+  z-index: 10;
+}
+
+.timeline-target em {
+  position: absolute;
+  top: -4px;
+  left: 8px;
+  font-style: normal;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.timeline-target.is-near-end em {
+  left: auto;
+  right: 8px;
+  text-align: right;
+}

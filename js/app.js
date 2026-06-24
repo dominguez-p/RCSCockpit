@@ -1274,6 +1274,12 @@ function rcsNormalizeStatus(s) {
       green: "on-track",
       on_track: "on-track",
       "on track": "on-track",
+
+      "componente desarrollado": "on-track",
+      "diseño liberado": "done",
+      "n/a": "pending",
+      na: "pending",
+
       risk: "at-risk",
       amber: "at-risk",
       at_risk: "at-risk",
@@ -1402,7 +1408,7 @@ function renderProjectsList(programId) {
                       <span>Owner: ${rcsEsc(p.owner || "-")}</span>
                       <span>
                         Hito: ${rcsEsc(p.nextMilestoneTitle || "-")}
-                        · ${rcsEsc(p.nextMilestoneDate || "-")}
+                        · ${rcsEsc(formatDate(p.nextMilestoneDate) || "-")}
                       </span>
                     </div>
 
@@ -1487,12 +1493,12 @@ function renderProjectDetailView(programId, projectId) {
       <article class="detail-card">
         <span>Siguiente hito</span>
         <strong>${rcsEsc(project.nextMilestoneTitle || "-")}</strong>
-        <small>${rcsEsc(project.nextMilestoneDate || "")}</small>
+        <small>${rcsEsc(formatDate(project.nextMilestoneDate) || "")}</small>
       </article>
 
       <article class="detail-card">
         <span>Última actualización</span>
-        <strong>${rcsEsc(project.lastUpdate || "-")}</strong>
+        <strong>${rcsEsc(formatDate(project.lastUpdate) || "-")}</strong>
       </article>
     </div>
 
@@ -1526,10 +1532,15 @@ function renderProjectDetailView(programId, projectId) {
                       <div class="phase-meta">
                         <strong>${progress}%</strong>
                         <span>
-                          ${rcsEsc(phase.startDate || "-")}
+                          Marco:
+                          ${rcsEsc(formatDate(phase.startDate))}
                           →
-                          ${rcsEsc(phase.targetDate || "-")}
+                          ${rcsEsc(formatDate(phase.endDate))}
                         </span>
+                      </div>
+
+                      <div class="phase-delivery">
+                        🚩 Entrega: ${rcsEsc(formatDate(phase.targetDate))}
                       </div>
 
                       <p>${rcsEsc(phase.comments || "")}</p>
@@ -1540,6 +1551,7 @@ function renderProjectDetailView(programId, projectId) {
             : `<p class="empty-state">No hay fases informadas para este proyecto.</p>`
         }
       </div>
+      <div id="phaseTimeline"></div>
     </section>
 
     <section class="project-detail-notes">
@@ -1564,6 +1576,9 @@ function renderProjectDetailView(programId, projectId) {
       </article>
     </section>
   `;
+  const timelineContainer = document.getElementById("phaseTimeline");
+
+  renderPhaseTimeline(phases, timelineContainer);
 }
 /* dashboard inspired*/
 /*MSAs*/
@@ -1770,9 +1785,9 @@ function renderMsaDetailView(programId, msaId) {
                       <div class="phase-meta">
                         <strong>${progress}%</strong>
                         <span>
-                          ${rcsEsc(phase.startDate || "-")}
+                          ${rcsEsc(formatDate(phase.startDate) || "-")}
                           →
-                          ${rcsEsc(phase.targetDate || "-")}
+                          ${rcsEsc(formatDate(phase.targetDate || phase.endDate))}
                         </span>
                       </div>
 
@@ -1960,6 +1975,205 @@ function renderExecutiveQuarterView(programId) {
     .join("");
 }
 /* executive summery by Q */
+/* calendar */
+function getPhaseStartDate(phase) {
+  return parseValidDate(
+    phase.startDate || phase.start_date || phase.start || phase.beginDate,
+  );
+}
+
+function getPhaseEndDate(phase) {
+  return parseValidDate(phase.endDate);
+}
+
+function getPhaseTargetDate(phase) {
+  return parseValidDate(phase.targetDate || phase.target_date);
+}
+
+function parseValidDate(value) {
+  if (!value) return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+
+  const text = String(value).trim();
+
+  const ddmmyyyy = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  if (ddmmyyyy) {
+    const [, day, month, year] = ddmmyyyy;
+
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  const date = new Date(text);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function renderPhaseTimeline(phases, container) {
+  if (!container || !Array.isArray(phases) || !phases.length) return;
+
+  const validPhases = phases
+    .map((phase) => ({
+      ...phase,
+      _start: getPhaseStartDate(phase),
+      _end: getPhaseEndDate(phase),
+      _target: getPhaseTargetDate(phase),
+    }))
+    .filter((phase) => phase._start && phase._end);
+
+  if (!validPhases.length) {
+    container.innerHTML = `
+      <p class="empty-state">
+        No hay fechas válidas para pintar el calendario.
+      </p>
+    `;
+    return;
+  }
+
+  const minDate = new Date(
+    Math.min(...validPhases.map((phase) => phase._start.getTime())),
+  );
+
+  const maxDate = new Date(
+    Math.max(
+      ...validPhases.map((phase) =>
+        Math.max(
+          phase._end.getTime(),
+          phase._target ? phase._target.getTime() : phase._end.getTime(),
+        ),
+      ),
+    ),
+  );
+
+  const months = [];
+  const current = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+
+  while (current <= maxDate) {
+    months.push(new Date(current));
+    current.setMonth(current.getMonth() + 1);
+  }
+
+  container.innerHTML = `
+    <div class="phase-timeline-wrap">
+      <h4>Calendario por meses</h4>
+
+      <div class="phase-timeline" style="--month-count:${months.length}">
+        ${buildTimeline(months, validPhases)}
+      </div>
+    </div>
+  `;
+}
+
+function buildTimeline(months, phases) {
+  let html = `<div class="timeline-header">Fase</div>`;
+
+  months.forEach((month) => {
+    html += `
+      <div class="timeline-month">
+        ${month.toLocaleDateString("es-ES", {
+          month: "short",
+          year: "numeric",
+        })}
+      </div>
+    `;
+  });
+
+  phases.forEach((phase) => {
+    html += `
+      <div class="timeline-phase-name">
+        <strong>${rcsEsc(phase.phaseName || phase.name || "-")}</strong>
+          <small>
+            Marco: ${formatDate(phase.startDate)} → ${formatDate(phase.endDate)}
+            Entrega: ${formatDate(phase.targetDate)}
+          </small>
+      </div>
+    `;
+
+    months.forEach((month) => {
+      html += buildMonthCell(phase, month);
+    });
+  });
+
+  return html;
+}
+
+function buildMonthCell(phase, month) {
+  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+  const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+
+  const overlaps = phase._start <= monthEnd && phase._end >= monthStart;
+  const targetInMonth =
+    phase._target &&
+    phase._target.getFullYear() === month.getFullYear() &&
+    phase._target.getMonth() === month.getMonth();
+
+  if (!overlaps && !targetInMonth) {
+    return `<div class="timeline-cell"></div>`;
+  }
+
+  const status = rcsNormalizeStatus(phase.status);
+  let barHtml = "";
+
+  if (overlaps) {
+    const visibleStart = phase._start > monthStart ? phase._start : monthStart;
+    const visibleEnd = phase._end < monthEnd ? phase._end : monthEnd;
+
+    const daysInMonth = monthEnd.getDate();
+    const startDay = visibleStart.getDate();
+    const endDay = visibleEnd.getDate();
+
+    const left = ((startDay - 1) / daysInMonth) * 100;
+    const width = ((endDay - startDay + 1) / daysInMonth) * 100;
+
+    barHtml = `<span class="timeline-bar" style="left:${left}%; width:${width}%"></span>`;
+  }
+
+  let targetHtml = "";
+
+  if (targetInMonth) {
+    const daysInMonth = monthEnd.getDate();
+    const targetDay = phase._target.getDate();
+    const left = Math.min(((targetDay - 1) / daysInMonth) * 100, 96);
+
+    const isNearEnd = targetDay >= daysInMonth - 2;
+    const safeLeft = isNearEnd ? 96 : left;
+
+    targetHtml = `
+          <span
+            class="timeline-target ${isNearEnd ? "is-near-end" : ""}"
+            style="left:${safeLeft}%"
+          >
+            <em>🚩 ${formatDate(phase._target)}</em>
+          </span>
+        `;
+  }
+
+  return `
+    <div class="timeline-cell timeline-${status}">
+      ${barHtml}
+      ${targetHtml}
+    </div>
+  `;
+}
+
+function formatDate(value) {
+  const date = value instanceof Date ? value : parseValidDate(value);
+
+  if (!date) return "-";
+
+  return date.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+/* calendar */
+
 document.addEventListener("click", (event) => {
   const quarterButton = event.target.closest("[data-executive-quarter]");
 
