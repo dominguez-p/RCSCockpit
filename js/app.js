@@ -11,6 +11,8 @@ let showProgramLocalisms = false;
 let isLoadingData = false;
 let executiveQuarter = "ALL";
 let selectedExecutiveProduct = "blue-buddy";
+let selectedTeamScrum = null;
+let selectedTeamQuarter = "ALL";
 const view = document.querySelector("#view");
 const title = document.querySelector("#pageTitle");
 const subtitle = document.querySelector("#pageSubtitle");
@@ -222,28 +224,28 @@ function renderProgram(programId) {
   moduleGrid.insertAdjacentHTML(
     "beforeend",
     `
-    <article
-      class="module-card disable
-      data-route="projects/${programId}"
-    >
-      <span class="pill yellow">Proximamente</span>
-      <h3>Budget</h3>
-      <p>Control presupuestario por producto y trimestre.</p>
-    </article>
-  `,
+  <article
+    class="module-card disabled"
+    onclick="alert('Budget próximamente disponible')"
+  >
+    <span class="pill yellow">Proximamente</span>
+    <h3>Budget</h3>
+    <p>Control presupuestario por producto y trimestre.</p>
+  </article>
+`,
   );
   moduleGrid.insertAdjacentHTML(
     "beforeend",
     `
-    <article
-      class="module-card disable
-      data-route="projects/${programId}"
-    >
-      <span class="pill yellow">Proximamente</span>
-      <h3>Team</h3>
-      <p>Scrums, staffing, demanda de FTEs, etc</p>
-    </article>
-  `,
+  <article
+    class="module-card active"
+    data-route="teams/${programId}"
+  >
+    <span class="pill green">Activo</span>
+    <h3>Teams</h3>
+    <p>Scrums, staffing, demanda de FTEs, etc</p>
+  </article>
+`,
   );
   // view.insertAdjacentHTML(
   //   "beforeend",
@@ -1003,6 +1005,7 @@ function render() {
   else if (routeName === "decisions") renderDecisions(programId);
   else if (routeName === "projects") renderProjectsView(programId);
   else if (routeName === "msas") renderMsasView(programId);
+  else if (routeName === "teams") renderTeamsView(programId);
   else renderLanding();
 }
 function renderCountrySelector() {
@@ -2319,6 +2322,403 @@ function formatDate(value) {
   });
 }
 /* calendar */
+
+/* teams */
+function renderTeamsView(programId) {
+  const p = DATA.programs.find((x) => x.id === programId);
+  const country = COUNTRIES.find((c) => c.id === selectedCountry);
+
+  view.innerHTML = "";
+  view.append(tpl("#teams-template"));
+
+  view.insertAdjacentHTML(
+    "afterbegin",
+    `
+    ${renderCountrySelector()}
+    ${renderTeamsQuarterSelector()}
+  `,
+  );
+  setHead(
+    `${p?.name || "Programa"} · Teams`,
+    `Scrums y staffing · ${country?.label || selectedCountry} · ${selectedTeamQuarter === "ALL" ? "Todo el año" : selectedTeamQuarter}`,
+    `Retail Client Solutions > ${p?.name || programId} > ${country?.label || selectedCountry} > Teams`,
+  );
+
+  const backButton = document.querySelector(".back-to-program-btn");
+
+  if (backButton) {
+    backButton.dataset.route = `program/${programId}`;
+    backButton.textContent = `← Volver a ${p?.name || "programa"}`;
+  }
+
+  renderTeamsDashboard(programId);
+}
+function getProgramTeamMembers(programId) {
+  return (DATA.teams || []).filter((person) => {
+    const isSameProgram =
+      String(person.programId || "").trim() === String(programId || "").trim();
+
+    const isSameCountry =
+      String(person.country || "").trim() ===
+      String(selectedCountry || "").trim();
+
+    const isActive =
+      person.active === true ||
+      String(person.active || "true")
+        .toLowerCase()
+        .trim() === "true";
+
+    return isSameProgram && isSameCountry && isActive;
+  });
+}
+function renderTeamsDashboard(programId) {
+  const people = getProgramTeamMembers(programId);
+
+  renderTeamsKpis(people);
+  renderTeamsByProduct(people);
+  renderTeamsProductCountryMatrix(programId);
+  renderTeamsScrumCards(people);
+}
+function uniqueCount(rows, field) {
+  return new Set(
+    rows.map((row) => String(row[field] || "").trim()).filter(Boolean),
+  ).size;
+}
+function groupByField(rows, field) {
+  return rows.reduce((acc, row) => {
+    const key = String(row[field] || "Sin asignar").trim();
+
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+
+    acc[key].push(row);
+    return acc;
+  }, {});
+}
+function sumFte(rows) {
+  return rows.reduce((sum, row) => sum + Number(row.fte || 0), 0);
+}
+function sumCost(rows) {
+  return rows.reduce((sum, row) => {
+    return sum + Number(row.cost || 0);
+  }, 0);
+}
+function formatFte(value) {
+  return Number(value || 0).toLocaleString("es-ES", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+function formatCurrency(value) {
+  return Number(value).toLocaleString("es-ES", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  });
+}
+function renderTeamsKpis(people) {
+  const totalFte = sumFte(people);
+  const roles = groupByField(people, "role");
+
+  const baseKpis = [
+    { label: "Personas", value: people.length, icon: "👥" },
+    { label: "FTEs", value: formatFte(totalFte), icon: "⏱️" },
+  ];
+
+  const roleKpis = Object.entries(roles)
+    .map(([role, members]) => ({
+      label: role,
+      rawValue: sumFte(members),
+      value: formatFte(sumFte(members)),
+      icon: getRoleIcon(role),
+    }))
+    .sort((a, b) => b.rawValue - a.rawValue);
+
+  const container = document.querySelector("#teamsKpis");
+  if (!container) return;
+
+  const kpis = [...baseKpis, ...roleKpis];
+
+  container.innerHTML = kpis
+    .map(
+      (kpi) => `
+      <article class="kpi-card">
+        <div class="kpi-icon">${kpi.icon}</div>
+        <div>
+          <h3>${rcsEsc(kpi.label)}</h3>
+          <strong>${kpi.value}</strong>
+        </div>
+      </article>
+    `,
+    )
+    .join("");
+}
+function renderTeamsByProduct(people) {
+  const container = document.querySelector("#teamsByProduct");
+  if (!container) return;
+
+  const grouped = groupByField(people, "product");
+  const total = people.length || 1;
+
+  container.innerHTML = Object.entries(grouped).length
+    ? Object.entries(grouped)
+        .map(([product, members]) => {
+          const percentage = Math.round((members.length / total) * 100);
+
+          return `
+            <div class="team-bar-row">
+              <div class="team-bar-head">
+                <strong>${rcsEsc(product)}</strong>
+                <span>${members.length}</span>
+              </div>
+              <div class="team-bar">
+                <span style="width:${percentage}%"></span>
+              </div>
+            </div>
+          `;
+        })
+        .join("")
+    : `<p class="empty-state">No hay personas informadas para este país.</p>`;
+}
+function renderTeamsProductCountryMatrix(programId) {
+  const table = document.querySelector("#teamsProductCountryMatrix");
+  if (!table) return;
+
+  const allPeople = (DATA.teams || []).filter((person) => {
+    const isSameQuarter =
+      selectedTeamQuarter === "ALL" ||
+      String(person.quarter || "").trim() ===
+        String(selectedTeamQuarter).trim();
+    const isSameProgram =
+      String(person.programId || "").trim() === String(programId || "").trim();
+
+    const isActive =
+      person.active === true ||
+      String(person.active || "true")
+        .toLowerCase()
+        .trim() === "true";
+
+    return isSameProgram && isActive && isSameQuarter;
+  });
+
+  const products = [
+    ...new Set(
+      allPeople.map((p) => String(p.product || "").trim()).filter(Boolean),
+    ),
+  ];
+
+  const countries = COUNTRIES.map((c) => c.id);
+
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Producto</th>
+        ${countries.map((country) => `<th>${rcsEsc(country)}</th>`).join("")}
+      </tr>
+    </thead>
+    <tbody>
+      ${
+        products.length
+          ? products
+              .map(
+                (product) => `
+                  <tr>
+                    <td><strong>${rcsEsc(product)}</strong></td>
+                    ${countries
+                      .map((country) => {
+                        const value = allPeople.filter(
+                          (p) =>
+                            String(p.product || "").trim() === product &&
+                            String(p.country || "").trim() === country,
+                        ).length;
+
+                        const activeClass =
+                          country === selectedCountry
+                            ? "matrix-active-cell"
+                            : "";
+
+                        return `<td class="${activeClass}">${value}</td>`;
+                      })
+                      .join("")}
+                  </tr>
+                `,
+              )
+              .join("")
+          : `<tr><td colspan="${countries.length + 1}">No hay datos de equipo.</td></tr>`
+      }
+    </tbody>
+  `;
+}
+function renderTeamsScrumCards(people) {
+  const container = document.querySelector("#teamsScrumCards");
+  if (!container) return;
+
+  const grouped = groupByField(people, "scrum");
+
+  container.innerHTML = Object.entries(grouped).length
+    ? Object.entries(grouped)
+        .map(([scrum, members]) => {
+          const first = members[0];
+          const profiles = groupByField(members, "profile");
+          const productColor = getProductColor(first.product);
+          return `
+              <article
+                class="scrum-card"
+                style="--product-color:${productColor}"
+              >
+              <div class="scrum-product-band"></div>
+              <div class="scrum-card-header">
+                <div>
+                  <h3>${rcsEsc(scrum)}</h3>
+                  ${renderProductPill(first.product)}
+                </div>
+                <span class="status-pill">
+                  ${formatFte(sumFte(members).toFixed(2))} FTE
+                </span>
+              </div>
+
+              <div class="scrum-kpis">
+                <div class="scrum-kpi">
+                  <span class="scrum-kpi-label">👥 Personas</span>
+                  <strong>${members.length}</strong>
+                </div>
+
+                <div class="scrum-kpi">
+                  <span class="scrum-kpi-label">⏱ FTE</span>
+                  <strong>${formatFte(sumFte(members))}</strong>
+                </div>
+
+                <div class="scrum-kpi">
+                  <span class="scrum-kpi-label">💰 Coste</span>
+                  <strong>${formatCurrency(sumCost(members))}</strong>
+                </div>
+              </div>        
+             <div class="scrum-meta">
+                <span><b>PO:</b> ${rcsEsc(first.po || "-")}</span>
+                <span><b>TL:</b> ${rcsEsc(first.tl || "-")}</span>
+              </div>
+              <div class="scrum-role-list">
+                ${Object.entries(profiles)
+                  .map(
+                    ([profile, profileMembers]) => `
+                      <div class="scrum-role-row">
+                        <span>${rcsEsc(profile)}</span>
+                        <strong>${formatFte(sumFte(profileMembers).toFixed(2))}</strong>
+                      </div>
+                    `,
+                  )
+                  .join("")}
+              </div>
+            </article>
+          `;
+        })
+        .join("")
+    : `<p class="empty-state">No hay scrums informados para este país.</p>`;
+}
+function getRoleIcon(role) {
+  const key = String(role || "")
+    .toLowerCase()
+    .trim();
+
+  const icons = {
+    engineering: "⚙️",
+    data: "📊",
+    design: "🎨",
+    business: "💼",
+    architecture: "🏛️",
+    security: "🔐",
+  };
+
+  return icons[key] || "👤";
+}
+function renderTeamsQuarterSelector() {
+  const quarters = [
+    { id: "ALL", label: "Todo" },
+    { id: "Q1", label: "Q1" },
+    { id: "Q2", label: "Q2" },
+    { id: "Q3", label: "Q3" },
+    { id: "Q4", label: "Q4" },
+  ];
+
+  return `
+    <div class="executive-filter-row">
+      ${quarters
+        .map(
+          (q) => `
+            <button
+              class="quarter-btn ${selectedTeamQuarter === q.id ? "active" : ""}"
+              type="button"
+              data-team-quarter="${q.id}"
+            >
+              ${q.label}
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+function getProgramTeamMembers(programId) {
+  return (DATA.teams || []).filter((person) => {
+    const isSameProgram =
+      String(person.programId || "").trim() === String(programId || "").trim();
+
+    const isSameCountry =
+      String(person.country || "").trim() ===
+      String(selectedCountry || "").trim();
+
+    const isSameQuarter =
+      selectedTeamQuarter === "ALL" ||
+      String(person.quarter || "").trim() ===
+        String(selectedTeamQuarter).trim();
+
+    const isActive =
+      person.active === true ||
+      String(person.active || "true")
+        .toLowerCase()
+        .trim() === "true";
+
+    return isSameProgram && isSameCountry && isSameQuarter && isActive;
+  });
+}
+function getProductColor(product) {
+  const key = String(product || "")
+    .toLowerCase()
+    .trim();
+
+  const colors = {
+    "blue buddy": "#1464c9",
+    franquicia: "#20a676",
+    "task automation": "#ff9f1c",
+    "monitor & bex": "#6755c4",
+    "cross desarrollo": "#37b7c9",
+  };
+
+  return colors[key] || "#60708f";
+}
+function renderProductPill(product) {
+  const color = getProductColor(product);
+
+  return `
+    <span
+      class="scrum-product-pill"
+      style="--product-color:${color}"
+    >
+      ${rcsEsc(product || "Sin producto")}
+    </span>
+  `;
+}
+/* teams */
+document.addEventListener("click", (event) => {
+  const quarterButton = event.target.closest("[data-team-quarter]");
+
+  if (!quarterButton) return;
+
+  selectedTeamQuarter = quarterButton.dataset.teamQuarter;
+
+  render();
+});
 document.addEventListener("click", (event) => {
   const quarterButton = event.target.closest("[data-executive-quarter]");
 
