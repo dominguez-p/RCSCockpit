@@ -217,6 +217,39 @@
     <section id="msas" class="panel projects-panel"></section>
     <section id="msaDetail" class="panel project-detail-panel" hidden></section>
   </template>
+  <template id="teams-template">
+    <button class="ghost-button back-to-program-btn" data-route="">
+      ← Volver al programa
+    </button>
+
+    <section class="section-title-row">
+      <h2>Teams</h2>
+      <p>Scrums, staffing y distribución por país.</p>
+    </section>
+
+    <section id="teamsKpis" class="kpi-strip"></section>
+
+    <section class="teams-dashboard-grid">
+      <article class="panel">
+        <h3>Personas por producto</h3>
+        <div id="teamsByProduct"></div>
+      </article>
+
+      <article class="panel">
+        <h3>Producto × país</h3>
+        <div class="table-wrap">
+          <table id="teamsProductCountryMatrix"></table>
+        </div>
+      </article>
+    </section>
+
+    <section class="section-title-row">
+      <h2>Scrums</h2>
+      <p>Equipos del país seleccionado.</p>
+    </section>
+
+    <section id="teamsScrumCards" class="scrum-grid"></section>
+  </template>
 
   <div id="loadingOverlay" class="loading-overlay" hidden>
     <div class="loading-card">

@@ -202,10 +202,18 @@ h4 {
 }
 
 .kpi-icon {
-  width: 58px;
-  height: 58px;
-  border-radius: 16px;
-  font-size: 28px;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+
+  background: #edf4ff;
+  color: var(--blue);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 26px;
 }
 
 .kpi-label {
@@ -1951,6 +1959,7 @@ th {
 .quarter-btn.active {
   background: var(--blue);
   color: #fff;
+}
 .project-card-actions {
   display: flex;
   justify-content: space-between;
@@ -2014,4 +2023,149 @@ th {
   color: #f2f4f5;
   font-weight: 600;
   text-align: center;
+}
+.teams-dashboard-grid {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.team-bar-row {
+  margin-bottom: 14px;
+}
+
+.team-bar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  color: var(--blue);
+}
+
+.team-bar {
+  height: 10px;
+  background: #e7ebf3;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.team-bar span {
+  display: block;
+  height: 100%;
+  background: var(--blue);
+}
+
+.matrix-active-cell {
+  background: #fff4a3;
+  font-weight: 900;
+  color: var(--blue);
+}
+
+.scrum-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.scrum-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.scrum-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.scrum-card-header h3 {
+  margin: 0;
+}
+
+.scrum-card-header p {
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.scrum-meta {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  color: var(--muted);
+}
+
+.scrum-role-list {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.scrum-role-row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+}
+
+@media (max-width: 900px) {
+  .teams-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.scrum-kpis {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.scrum-kpi {
+  flex: 1;
+  text-align: center;
+}
+
+.scrum-kpi-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.scrum-kpi strong {
+  font-size: 1.15rem;
+  color: var(--blue);
+}
+.kpi-strip {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 18px;
+}
+.scrum-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.scrum-product-band {
+  height: 7px;
+  margin: -18px -18px 16px;
+  background: var(--product-color);
+}
+
+.scrum-product-pill {
+  display: inline-flex;
+  width: max-content;
+  margin-top: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--product-color) 14%, white);
+  color: var(--product-color);
+  font-size: 12px;
+  font-weight: 900;
 }
