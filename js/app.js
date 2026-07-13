@@ -2546,42 +2546,60 @@ function rcsStatusLabel(s) {
 }
 
 function renderProjectsView(programId) {
-  const p = DATA.programs.find((x) => x.id === programId);
+  const program = DATA.programs.find((item) => item.id === programId);
+
+  const productSelector = renderExecutiveProductSelector(programId);
+
+  const quarterSelector = renderExecutiveQuarterSelector(programId);
 
   view.innerHTML = "";
   view.append(tpl("#projects-template"));
+
   view.insertAdjacentHTML(
     "afterbegin",
     `
-    ${renderCountrySelector()}
-    ${renderExecutiveProductSelector()}
-    ${renderExecutiveQuarterSelector()}
-  `,
+      ${renderCountrySelector()}
+      ${productSelector}
+      ${quarterSelector}
+    `,
   );
 
   setHead(
-    `${p?.name || "Programa"}`,
+    program?.name || "Programa",
     `Projects and initiatives · ${selectedCountry}`,
-    `Retail Client Solutions > ${p?.name || programId} > Executive Summary`,
+    `Retail Client Solutions > ${
+      program?.name || programId
+    } > Executive Summary`,
   );
 
   const backButton = document.querySelector(".back-to-program-btn");
+
   if (backButton) {
     backButton.dataset.route = `program/${programId}`;
-    backButton.textContent = `← Volver a ${p?.name || "programa"}`;
+
+    backButton.textContent = `← Volver a ${program?.name || "programa"}`;
   }
 
   renderProjectsList(programId);
+
   view.insertAdjacentHTML(
     "beforeend",
     `
-    <section id="msas" class="panel projects-panel">
-      <div class="section-header">
-        <h3>MSAs</h3>
-      </div>
-    </section>
-    <section id="msaDetail" class="panel project-detail-panel" hidden></section>
-  `,
+      <section
+        id="msas"
+        class="panel projects-panel"
+      >
+        <div class="section-header">
+          <h3>MSAs</h3>
+        </div>
+      </section>
+
+      <section
+        id="msaDetail"
+        class="panel project-detail-panel"
+        hidden
+      ></section>
+    `,
   );
 
   renderMsasList(programId);
@@ -2589,21 +2607,25 @@ function renderProjectsView(programId) {
 
 function getProgramProjects(programId) {
   return (DATA.projects || []).filter(
-    (p) =>
-      p.programId === programId &&
-      (!p.country || p.country === selectedCountry) &&
-      (!p.product || p.product === selectedExecutiveProduct) &&
-      (executiveQuarter === "ALL" || p.quarter === executiveQuarter),
+    (project) =>
+      project.programId === programId &&
+      (!project.country || project.country === selectedCountry) &&
+      (!selectedExecutiveProduct ||
+        !project.product ||
+        project.product === selectedExecutiveProduct) &&
+      (executiveQuarter === "ALL" || project.quarter === executiveQuarter),
   );
 }
 
 function getProjectPhases(projectId) {
   return (DATA.projectPhases || [])
     .filter(
-      (p) =>
-        p.projectId === projectId &&
-        (!p.country || p.country === selectedCountry) &&
-        (!p.product || p.product === selectedExecutiveProduct),
+      (phase) =>
+        phase.projectId === projectId &&
+        (!phase.country || phase.country === selectedCountry) &&
+        (!selectedExecutiveProduct ||
+          !phase.product ||
+          phase.product === selectedExecutiveProduct),
     )
     .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
 }
@@ -2831,11 +2853,13 @@ function renderProjectDetailView(programId, projectId) {
 /*MSAs*/
 function getProgramMsas(programId) {
   return (DATA.msas || []).filter(
-    (m) =>
-      m.programId === programId &&
-      (!m.country || m.country === selectedCountry) &&
-      (!m.product || m.product === selectedExecutiveProduct) &&
-      (executiveQuarter === "ALL" || m.quarter === executiveQuarter),
+    (msa) =>
+      msa.programId === programId &&
+      (!msa.country || msa.country === selectedCountry) &&
+      (!selectedExecutiveProduct ||
+        !msa.product ||
+        msa.product === selectedExecutiveProduct) &&
+      (executiveQuarter === "ALL" || msa.quarter === executiveQuarter),
   );
 }
 
@@ -3226,11 +3250,35 @@ function renderExecutiveQuarterView(programId) {
     )
     .join("");
 }
-function renderExecutiveProductSelector() {
+function getExecutiveSourceItems(programId) {
+  const projects = Array.isArray(DATA.projects) ? DATA.projects : [];
+
+  const msas = Array.isArray(DATA.msas) ? DATA.msas : [];
+
+  return [...projects, ...msas].filter(
+    (item) =>
+      item.programId === programId &&
+      (!item.country || item.country === selectedCountry),
+  );
+}
+
+function renderExecutiveProductSelector(programId) {
   const products = [
-    { id: "blue-buddy", label: "Blue Buddy" },
-    { id: "panorama", label: "Panorama" },
+    ...new Set(
+      getExecutiveSourceItems(programId)
+        .map((item) => String(item.product || "").trim())
+        .filter(Boolean),
+    ),
   ];
+
+  if (!products.length) {
+    selectedExecutiveProduct = null;
+    return "";
+  }
+
+  if (!products.includes(selectedExecutiveProduct)) {
+    selectedExecutiveProduct = products[0];
+  }
 
   return `
     <div class="systems-product-selector">
@@ -3239,12 +3287,17 @@ function renderExecutiveProductSelector() {
           (product) => `
             <button
               class="systems-product-btn ${
-                selectedExecutiveProduct === product.id ? "active" : ""
+                selectedExecutiveProduct === product ? "active" : ""
               }"
               type="button"
-              data-executive-product="${product.id}"
+              data-executive-product="${rcsEsc(product)}"
             >
-              ${product.label}
+              ${rcsEsc(
+                product
+                  .split("-")
+                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(" "),
+              )}
             </button>
           `,
         )
@@ -3252,26 +3305,62 @@ function renderExecutiveProductSelector() {
     </div>
   `;
 }
-function renderExecutiveQuarterSelector() {
+function renderExecutiveQuarterSelector(programId) {
+  const availableItems = getExecutiveSourceItems(programId).filter(
+    (item) =>
+      !selectedExecutiveProduct ||
+      !item.product ||
+      item.product === selectedExecutiveProduct,
+  );
+
+  const availableQuarters = [
+    ...new Set(
+      availableItems
+        .map((item) =>
+          String(item.quarter || "")
+            .trim()
+            .toUpperCase(),
+        )
+        .filter((quarter) => ["Q1", "Q2", "Q3", "Q4"].includes(quarter)),
+    ),
+  ].sort((a, b) => getQuarterOrder(a) - getQuarterOrder(b));
+
+  if (!availableItems.length) {
+    executiveQuarter = "ALL";
+    return "";
+  }
+
+  if (
+    executiveQuarter !== "ALL" &&
+    !availableQuarters.includes(executiveQuarter)
+  ) {
+    executiveQuarter = "ALL";
+  }
+
   const quarters = [
-    { id: "ALL", label: "Todo" },
-    { id: "Q1", label: "Q1" },
-    { id: "Q2", label: "Q2" },
-    { id: "Q3", label: "Q3" },
-    { id: "Q4", label: "Q4" },
+    {
+      id: "ALL",
+      label: "Todo",
+    },
+    ...availableQuarters.map((quarter) => ({
+      id: quarter,
+      label: quarter,
+    })),
   ];
 
   return `
     <div class="executive-filter-row">
       ${quarters
         .map(
-          (q) => `
+          (quarter) => `
             <button
-              class="quarter-btn ${executiveQuarter === q.id ? "active" : ""}"
+              class="quarter-btn ${
+                executiveQuarter === quarter.id ? "active" : ""
+              }"
               type="button"
-              data-executive-quarter="${q.id}"
+              data-executive-quarter="${quarter.id}"
             >
-              ${q.label}
+              ${quarter.label}
             </button>
           `,
         )
