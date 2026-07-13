@@ -23,7 +23,7 @@ window.APP_CONFIG = {
       driveJsonUrl:
         "https://script.google.com/a/macros/bbva.com/s/AKfycbykkOQBqcwlrHlT9FZTW96k60hmYHVAb_s1NFHh4-44UjIIvg7NEZLq8ZGH9klA-6wPHQ/exec",
 
-      spreadsheetId: "1biJoA0LWDToy3Q2FAP48GNB1LLohS13nbRMzpuWu5qss",
+      spreadsheetId: "1biJoA0LWDToy3Q2FAP48GNB1LLohS13nbRMzpuWu5qs",
     },
 
     // Cuando Blue tenga su propia spreadsheet, añade:
@@ -40,8 +40,8 @@ window.APP_CONFIG = {
       id: "rosetta",
       label: "Rosetta",
       driveJsonUrl:
-        "https://script.google.com/a/macros/bbva.com/s/AKfycbwNKFIQEOIyBcXiKi8WyenjsZKKpUcMzOPjBvG-KCgKDxu0SesLBqDiyNmH9CyFWFKo/exec",
-      spreadsheetId: "1xQv47GEZ_qTy_ovwudLAxUjZX7mfWCkEvRvlfghfxhU",
+        "https://script.google.com/a/macros/bbva.com/s/AKfycbzz7KxmSjsGj5EXI-Zbpqy39ykjcDnhuTpmK-mHKD1BiSgfD4dD41lk5AgoEYBE4fUoBA/exec",
+      spreadsheetId: "1uM26AmFghy_c6NkoauSwQ_Fwo5vNhE7hLXx-S9f6WjM",
     },
 
     openmarket: {

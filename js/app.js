@@ -182,6 +182,688 @@ function getRoadmapQuarterLabel(quarter) {
 
   return quarter;
 }
+
+const ROADMAP_ITEM_ADAPTERS = {
+  project: {
+    sourceCollection: "projects",
+    phaseCollection: "projectPhases",
+    phaseForeignKey: "projectId",
+    typeLabel: "Proyecto",
+
+    adapt(item, phases) {
+      return {
+        id: String(item.id || "").trim(),
+        type: "project",
+        typeLabel: "Proyecto",
+
+        programId: String(item.programId || "").trim(),
+        product: normalizeRoadmapProduct(item.product),
+        country: String(item.country || "").trim(),
+        quarter: String(item.quarter || "")
+          .trim()
+          .toUpperCase(),
+
+        title: item.name || item.title || "Proyecto sin nombre",
+        summary: item.summary || item.description || "",
+        description: item.description || item.summary || "",
+
+        status: rcsNormalizeStatus(item.status),
+        progress: normalizeRoadmapProgress(item.progress),
+        priority: normalizeRoadmapPriority(item.priority),
+
+        owner: item.owner || "",
+        nextMilestoneTitle: item.nextMilestoneTitle || "",
+        nextMilestoneDate: item.nextMilestoneDate || "",
+
+        startDate:
+          item.startDate || getFirstRoadmapPhaseDate(phases, "startDate"),
+
+        endDate: item.endDate || getLastRoadmapPhaseDate(phases, "endDate"),
+
+        targetDate:
+          item.targetDate ||
+          item.nextMilestoneDate ||
+          getLastRoadmapPhaseDate(phases, "targetDate") ||
+          getLastRoadmapPhaseDate(phases, "endDate"),
+
+        lastUpdate: item.lastUpdate || "",
+
+        phases,
+        source: item,
+      };
+    },
+  },
+
+  msa: {
+    sourceCollection: "msas",
+    phaseCollection: "msaPhases",
+    phaseForeignKey: "msaId",
+    typeLabel: "MSA",
+
+    adapt(item, phases) {
+      return {
+        id: String(item.id || "").trim(),
+        type: "msa",
+        typeLabel: "MSA",
+
+        programId: String(item.programId || "").trim(),
+        product: normalizeRoadmapProduct(item.product),
+        country: String(item.country || "").trim(),
+        quarter: String(item.quarter || "")
+          .trim()
+          .toUpperCase(),
+
+        title: item.name || item.title || "MSA sin nombre",
+        summary: item.summary || item.description || "",
+        description: item.description || item.summary || "",
+
+        status: rcsNormalizeStatus(item.status),
+        progress: normalizeRoadmapProgress(item.progress),
+        priority: normalizeRoadmapPriority(item.priority),
+
+        owner: item.owner || "",
+        nextMilestoneTitle: item.nextMilestoneTitle || "",
+        nextMilestoneDate: item.nextMilestoneDate || "",
+
+        startDate:
+          item.startDate || getFirstRoadmapPhaseDate(phases, "startDate"),
+
+        endDate: item.endDate || getLastRoadmapPhaseDate(phases, "endDate"),
+
+        targetDate:
+          item.targetDate ||
+          item.nextMilestoneDate ||
+          getLastRoadmapPhaseDate(phases, "targetDate") ||
+          getLastRoadmapPhaseDate(phases, "endDate"),
+
+        lastUpdate: item.lastUpdate || "",
+
+        documentUrl: item.documentUrl || "",
+        documentLabel: item.documentLabel || "",
+
+        phases,
+        source: item,
+      };
+    },
+  },
+};
+
+function normalizeRoadmapProduct(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("_", "-")
+    .replace(/\s+/g, "-");
+}
+
+function normalizeRoadmapProgress(value) {
+  const progress = Number(value || 0);
+
+  if (!Number.isFinite(progress)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, progress));
+}
+
+function normalizeRoadmapPriority(value) {
+  const priority = Number(value);
+
+  return Number.isFinite(priority) ? priority : 999;
+}
+
+function getRoadmapItemPhases(adapter, itemId) {
+  const phases = Array.isArray(DATA[adapter.phaseCollection])
+    ? DATA[adapter.phaseCollection]
+    : [];
+
+  return phases
+    .filter(
+      (phase) =>
+        String(phase[adapter.phaseForeignKey] || "").trim() ===
+        String(itemId || "").trim(),
+    )
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+function getRoadmapPhaseDate(phase, field) {
+  if (!phase) {
+    return null;
+  }
+
+  const aliases = {
+    startDate: ["startDate", "start_date", "start", "beginDate"],
+
+    endDate: ["endDate", "end_date", "end"],
+
+    targetDate: ["targetDate", "target_date", "deliveryDate"],
+  };
+
+  const fields = aliases[field] || [field];
+
+  for (const candidate of fields) {
+    const value = phase[candidate];
+
+    if (value && parseValidDate(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function getFirstRoadmapPhaseDate(phases, field) {
+  const dates = phases
+    .map((phase) => getRoadmapPhaseDate(phase, field))
+    .filter(Boolean)
+    .sort((a, b) => parseValidDate(a) - parseValidDate(b));
+
+  return dates[0] || "";
+}
+
+function getLastRoadmapPhaseDate(phases, field) {
+  const dates = phases
+    .map((phase) => getRoadmapPhaseDate(phase, field))
+    .filter(Boolean)
+    .sort((a, b) => parseValidDate(a) - parseValidDate(b));
+
+  return dates.at(-1) || "";
+}
+
+function adaptRoadmapCollection(type) {
+  const adapter = ROADMAP_ITEM_ADAPTERS[type];
+
+  if (!adapter) {
+    return [];
+  }
+
+  const rows = Array.isArray(DATA[adapter.sourceCollection])
+    ? DATA[adapter.sourceCollection]
+    : [];
+
+  return rows
+    .map((item) => {
+      const phases = getRoadmapItemPhases(adapter, item.id);
+
+      return adapter.adapt(item, phases);
+    })
+    .filter((item) => item.id);
+}
+
+function getRoadmapItems(programId, productId, quarter = "ALL") {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const normalizedProductId = normalizeRoadmapProduct(productId);
+
+  const normalizedQuarter = String(quarter || "ALL")
+    .trim()
+    .toUpperCase();
+
+  const roadmapItems = Object.keys(ROADMAP_ITEM_ADAPTERS).flatMap((type) =>
+    adaptRoadmapCollection(type),
+  );
+
+  return roadmapItems
+    .filter((item) => {
+      const matchesProgram = item.programId === normalizedProgramId;
+
+      const matchesProduct = item.product === normalizedProductId;
+
+      const matchesCountry = !item.country || item.country === selectedCountry;
+
+      const matchesQuarter =
+        normalizedQuarter === "ALL" || item.quarter === normalizedQuarter;
+
+      return (
+        matchesProgram && matchesProduct && matchesCountry && matchesQuarter
+      );
+    })
+    .sort((a, b) => {
+      const quarterDifference =
+        getQuarterOrder(a.quarter) - getQuarterOrder(b.quarter);
+
+      if (quarterDifference !== 0) {
+        return quarterDifference;
+      }
+
+      const priorityDifference = a.priority - b.priority;
+
+      if (priorityDifference !== 0) {
+        return priorityDifference;
+      }
+
+      const dateA = parseValidDate(a.targetDate || a.endDate || a.startDate);
+
+      const dateB = parseValidDate(b.targetDate || b.endDate || b.startDate);
+
+      if (dateA && dateB) {
+        return dateA - dateB;
+      }
+
+      if (dateA) {
+        return -1;
+      }
+
+      if (dateB) {
+        return 1;
+      }
+
+      return a.title.localeCompare(b.title, "es");
+    });
+}
+function getRoadmapPeriod(quarter, year = new Date().getFullYear()) {
+  const normalizedQuarter = String(
+    quarter || getCurrentQuarter(),
+  ).toUpperCase();
+
+  if (normalizedQuarter === "ALL") {
+    return {
+      year,
+      quarter: "ALL",
+      startDate: new Date(year, 0, 1),
+      endDate: new Date(year, 11, 31),
+      months: Array.from(
+        { length: 12 },
+        (_, index) => new Date(year, index, 1),
+      ),
+    };
+  }
+
+  const quarterNumber = Number(normalizedQuarter.replace("Q", ""));
+
+  const safeQuarterNumber =
+    quarterNumber >= 1 && quarterNumber <= 4 ? quarterNumber : 1;
+
+  const startMonth = (safeQuarterNumber - 1) * 3;
+
+  return {
+    year,
+    quarter: `Q${safeQuarterNumber}`,
+    startDate: new Date(year, startMonth, 1),
+    endDate: new Date(year, startMonth + 3, 0),
+    months: Array.from(
+      { length: 3 },
+      (_, index) => new Date(year, startMonth + index, 1),
+    ),
+  };
+}
+
+function getRoadmapItemDates(item) {
+  const startDate = parseValidDate(item.startDate);
+
+  const endDate = parseValidDate(item.endDate);
+
+  const targetDate = parseValidDate(item.targetDate);
+
+  return {
+    startDate: startDate || targetDate || endDate || null,
+
+    endDate: endDate || targetDate || startDate || null,
+
+    targetDate,
+  };
+}
+
+function clampRoadmapDate(date, minimum, maximum) {
+  if (!date) {
+    return null;
+  }
+
+  if (date < minimum) {
+    return new Date(minimum);
+  }
+
+  if (date > maximum) {
+    return new Date(maximum);
+  }
+
+  return new Date(date);
+}
+
+function getRoadmapDatePosition(date, period) {
+  if (!date) {
+    return null;
+  }
+
+  const periodStart = period.startDate.getTime();
+
+  const periodEnd = period.endDate.getTime();
+
+  const dateTime = clampRoadmapDate(
+    date,
+    period.startDate,
+    period.endDate,
+  ).getTime();
+
+  const duration = periodEnd - periodStart;
+
+  if (duration <= 0) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.min(100, ((dateTime - periodStart) / duration) * 100),
+  );
+}
+
+function getRoadmapItemLayout(item, period) {
+  const { startDate, endDate, targetDate } = getRoadmapItemDates(item);
+
+  if (!startDate || !endDate) {
+    return {
+      hasDates: false,
+      isVisible: false,
+      startDate,
+      endDate,
+      targetDate,
+      left: 0,
+      width: 0,
+      targetPosition: null,
+    };
+  }
+
+  const isVisible = startDate <= period.endDate && endDate >= period.startDate;
+
+  if (!isVisible) {
+    return {
+      hasDates: true,
+      isVisible: false,
+      startDate,
+      endDate,
+      targetDate,
+      left: 0,
+      width: 0,
+      targetPosition: null,
+    };
+  }
+
+  const visibleStart = clampRoadmapDate(
+    startDate,
+    period.startDate,
+    period.endDate,
+  );
+
+  const visibleEnd = clampRoadmapDate(
+    endDate,
+    period.startDate,
+    period.endDate,
+  );
+
+  const left = getRoadmapDatePosition(visibleStart, period);
+
+  const right = getRoadmapDatePosition(visibleEnd, period);
+
+  const minimumWidth = period.quarter === "ALL" ? 1.2 : 2.5;
+
+  const width = Math.max(minimumWidth, right - left);
+
+  const targetIsVisible =
+    targetDate &&
+    targetDate >= period.startDate &&
+    targetDate <= period.endDate;
+
+  return {
+    hasDates: true,
+    isVisible: true,
+    startDate,
+    endDate,
+    targetDate,
+
+    left,
+    width: Math.min(width, 100 - left),
+
+    targetPosition: targetIsVisible
+      ? getRoadmapDatePosition(targetDate, period)
+      : null,
+  };
+}
+
+function getRoadmapStatusClass(status) {
+  return `roadmap-status-${rcsNormalizeStatus(status)}`;
+}
+
+function renderRoadmapMonths(period) {
+  return period.months
+    .map(
+      (month) => `
+        <div class="aixbanker-roadmap-month">
+          <strong>
+            ${month.toLocaleDateString("es-ES", {
+              month: "long",
+            })}
+          </strong>
+
+          <span>
+            ${month.getFullYear()}
+          </span>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function renderRoadmapItemRow(item, period) {
+  const layout = getRoadmapItemLayout(item, period);
+
+  if (!layout.isVisible) {
+    return "";
+  }
+
+  const status = rcsNormalizeStatus(item.status);
+
+  return `
+    <article
+      class="aixbanker-roadmap-row"
+      data-roadmap-item-type="${rcsEsc(item.type)}"
+      data-roadmap-item-id="${rcsEsc(item.id)}"
+    >
+      <div class="aixbanker-roadmap-item-info">
+        <div class="aixbanker-roadmap-item-top">
+          <span
+            class="status-pill status-${status}"
+          >
+            ${rcsEsc(rcsStatusLabel(status))}
+          </span>
+
+          <span class="aixbanker-roadmap-type">
+            ${rcsEsc(item.typeLabel)}
+          </span>
+        </div>
+
+        <strong class="aixbanker-roadmap-item-title">
+          ${rcsEsc(item.title)}
+        </strong>
+
+        <div class="aixbanker-roadmap-item-meta">
+          <span>
+            ${rcsEsc(item.owner || "Sin owner")}
+          </span>
+
+          <span>
+            ${rcsEsc(item.progress)}%
+          </span>
+        </div>
+      </div>
+
+      <div class="aixbanker-roadmap-track">
+        <div
+          class="
+            aixbanker-roadmap-bar
+            ${getRoadmapStatusClass(item.status)}
+          "
+          style="
+            left: ${layout.left}%;
+            width: ${layout.width}%;
+          "
+          title="${rcsEsc(
+            `${item.title}: ${formatDate(layout.startDate)} → ${formatDate(
+              layout.endDate,
+            )}`,
+          )}"
+        >
+          <span class="aixbanker-roadmap-bar-label">
+            ${rcsEsc(item.progress)}%
+          </span>
+        </div>
+
+        ${
+          layout.targetPosition !== null
+            ? `
+              <span
+                class="aixbanker-roadmap-milestone"
+                style="
+                  left: ${layout.targetPosition}%;
+                "
+                title="Entrega: ${rcsEsc(formatDate(layout.targetDate))}"
+              >
+                <span aria-hidden="true">
+                  ◆
+                </span>
+
+                <em>
+                  ${rcsEsc(formatDate(layout.targetDate))}
+                </em>
+              </span>
+            `
+            : ""
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderRoadmapUndatedItems(items) {
+  if (!items.length) {
+    return "";
+  }
+
+  return `
+    <section class="aixbanker-roadmap-undated">
+      <div class="section-header">
+        <div>
+          <h3>
+            Elementos sin planificación temporal
+          </h3>
+
+          <p class="empty-state">
+            Estos elementos no tienen fechas suficientes
+            para representarse en la línea temporal.
+          </p>
+        </div>
+
+        <span class="status-pill status-pending">
+          ${items.length}
+        </span>
+      </div>
+
+      <div class="aixbanker-roadmap-undated-grid">
+        ${items
+          .map((item) => {
+            const status = rcsNormalizeStatus(item.status);
+
+            return `
+              <article
+                class="project-card"
+                data-roadmap-item-type="${rcsEsc(item.type)}"
+                data-roadmap-item-id="${rcsEsc(item.id)}"
+              >
+                <div class="project-card-main">
+                  <div>
+                    <div class="project-name">
+                      ${rcsEsc(item.title)}
+                    </div>
+
+                    <div class="project-summary">
+                      ${rcsEsc(item.summary || "Sin descripción")}
+                    </div>
+                  </div>
+
+                  <span
+                    class="status-pill status-${status}"
+                  >
+                    ${rcsEsc(rcsStatusLabel(status))}
+                  </span>
+                </div>
+
+                <div class="project-meta">
+                  <span>
+                    ${rcsEsc(item.typeLabel)}
+                  </span>
+
+                  <span>
+                    ${rcsEsc(item.owner || "Sin owner")}
+                  </span>
+
+                  <span>
+                    ${rcsEsc(item.progress)}%
+                  </span>
+                </div>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderRoadmapTimeline(roadmapItems, selectedQuarter) {
+  const period = getRoadmapPeriod(selectedQuarter);
+
+  const visibleItems = [];
+  const undatedItems = [];
+
+  roadmapItems.forEach((item) => {
+    const layout = getRoadmapItemLayout(item, period);
+
+    if (!layout.hasDates) {
+      undatedItems.push(item);
+      return;
+    }
+
+    if (layout.isVisible) {
+      visibleItems.push(item);
+    }
+  });
+
+  return `
+    <section class="aixbanker-roadmap-board">
+      <div class="aixbanker-roadmap-scale">
+        <div class="aixbanker-roadmap-scale-title">
+          Iniciativa
+        </div>
+
+        <div
+          class="aixbanker-roadmap-month-grid"
+          style="
+            --roadmap-month-count:
+            ${period.months.length};
+          "
+        >
+          ${renderRoadmapMonths(period)}
+        </div>
+      </div>
+
+      <div class="aixbanker-roadmap-rows">
+        ${
+          visibleItems.length
+            ? visibleItems
+                .map((item) => renderRoadmapItemRow(item, period))
+                .join("")
+            : `
+              <div class="aixbanker-roadmap-empty">
+                No hay elementos con fechas dentro del
+                periodo seleccionado.
+              </div>
+            `
+        }
+      </div>
+    </section>
+
+    ${renderRoadmapUndatedItems(undatedItems)}
+  `;
+}
 function renderAIxBankerRoadmap(programId, productId, quarter = null) {
   const program = (DATA.programs || []).find((item) => item.id === programId);
 
@@ -203,7 +885,10 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
   }
 
   selectedExecutiveProduct = product.id;
+
   executiveQuarter = selectedQuarter;
+
+  const roadmapItems = getRoadmapItems(programId, productId, selectedQuarter);
 
   setHead(
     `${program.name || "AIxBanker"} · ${product.label}`,
@@ -238,6 +923,16 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
     },
   ];
 
+  const projectCount = roadmapItems.filter(
+    (item) => item.type === "project",
+  ).length;
+
+  const msaCount = roadmapItems.filter((item) => item.type === "msa").length;
+
+  const riskCount = roadmapItems.filter((item) =>
+    ["at-risk", "blocked"].includes(rcsNormalizeStatus(item.status)),
+  ).length;
+
   view.innerHTML = `
     <section class="aixbanker-home">
       <button
@@ -250,7 +945,7 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
 
       <header class="aixbanker-home-header">
         <p class="aixbanker-home-eyebrow">
-          ${product.label}
+          ${rcsEsc(product.label)}
         </p>
 
         <h2>
@@ -258,8 +953,9 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
         </h2>
 
         <p>
-          Iniciativas, proyectos y MSAs planificados para
-          ${getRoadmapQuarterLabel(selectedQuarter)}.
+          Iniciativas, proyectos y MSAs
+          planificados para
+          ${rcsEsc(getRoadmapQuarterLabel(selectedQuarter))}.
         </p>
       </header>
 
@@ -285,32 +981,53 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
           .join("")}
       </nav>
 
-      <section class="panel">
-        <div class="section-header">
-          <div>
-            <h3>
-              Roadmap de ${product.label}
-            </h3>
-
-            <p class="empty-state">
-              ${getRoadmapQuarterLabel(selectedQuarter)}
-            </p>
-          </div>
-
-          <span class="status-pill status-planned">
-            ${selectedQuarter === "ALL" ? "Vista anual" : "Vista trimestral"}
+      <section class="aixbanker-roadmap-summary">
+        <article>
+          <span>
+            Elementos
           </span>
-        </div>
 
-        <p class="empty-state">
-          La selección de trimestre ya está activa.
-          En el siguiente paso incorporaremos las iniciativas,
-          proyectos y MSAs correspondientes a esta selección.
-        </p>
+          <strong>
+            ${roadmapItems.length}
+          </strong>
+        </article>
+
+        <article>
+          <span>
+            Proyectos
+          </span>
+
+          <strong>
+            ${projectCount}
+          </strong>
+        </article>
+
+        <article>
+          <span>
+            MSAs
+          </span>
+
+          <strong>
+            ${msaCount}
+          </strong>
+        </article>
+
+        <article>
+          <span>
+            En riesgo
+          </span>
+
+          <strong>
+            ${riskCount}
+          </strong>
+        </article>
       </section>
+
+      ${renderRoadmapTimeline(roadmapItems, selectedQuarter)}
     </section>
   `;
 }
+
 function renderAIxBankerHome(programId) {
   const program = (DATA.programs || []).find((item) => item.id === programId);
 
