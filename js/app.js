@@ -13,7 +13,6 @@ let selectedCountry = "ES";
 let selectedSystemProduct = "blue-buddy";
 let selectedCapability = null;
 let selectedSystemComponent = null;
-let selectedFunctionalItem = null;
 let selectedArchitectureGap = null;
 let isSystemMapExpanded = false;
 let isToBeMapExpanded = false;
@@ -21,7 +20,6 @@ let showProgramLocalisms = false;
 let isLoadingData = false;
 let executiveQuarter = "ALL";
 let selectedExecutiveProduct = "blue-buddy";
-let selectedTeamScrum = null;
 let selectedTeamQuarter = "ALL";
 const view = document.querySelector("#view");
 const title = document.querySelector("#pageTitle");
@@ -1158,39 +1156,6 @@ function renderProgram(programId) {
   </article>
 `,
   );
-  // view.insertAdjacentHTML(
-  //   "beforeend",
-  //   `
-  //   <section class="panel executive-quarter-panel">
-  //     <div class="executive-quarter-header">
-  //       <div>
-  //         <h3>Executive Summary</h3>
-  //         <p>Vista por trimestre de proyectos y MSAs.</p>
-  //       </div>
-
-  //       <div class="executive-quarter-selector">
-  //         ${["ALL", "Q1", "Q2", "Q3", "Q4"]
-  //           .map(
-  //             (quarter) => `
-  //               <button
-  //                 class="quarter-btn ${
-  //                   executiveQuarter === quarter ? "active" : ""
-  //                 }"
-  //                 type="button"
-  //                 data-executive-quarter="${quarter}"
-  //               >
-  //                 ${quarter === "ALL" ? "Todo el año" : quarter}
-  //               </button>
-  //             `,
-  //           )
-  //           .join("")}
-  //       </div>
-  //     </div>
-
-  //     <div id="executiveQuarterView"></div>
-  //   </section>
-  // `,
-  // );
 
   renderExecutiveQuarterView(programId);
   view.insertAdjacentHTML(
@@ -1467,10 +1432,6 @@ function renderSystems(programId, mode = "systems") {
 
   const groupedDomains = {};
 
-  const sourceSystems = mode === "architecture" ? DATA.systems : DATA.systems;
-
-  const targetSystems = mode === "architecture" ? DATA.systemsToBe || [] : [];
-
   functionalItems.forEach((item) => {
     if (!groupedDomains[item.domain]) {
       groupedDomains[item.domain] = [];
@@ -1552,8 +1513,6 @@ function renderSystems(programId, mode = "systems") {
 
     groupedSystems[layerName][groupName].push(item);
   });
-  console.log("selectedCapability:", selectedCapability);
-  console.log("affectedSystems:", [...affectedSystems]);
 
   systemLayers.innerHTML = Object.entries(groupedSystems)
     .map(
@@ -2290,8 +2249,6 @@ function renderSystemRelationships(
     const fromRect = fromNode.getBoundingClientRect();
     const toRect = toNode.getBoundingClientRect();
 
-    const offset = ((index % 3) - 1) * 18;
-
     const fromCenterX = fromRect.left + fromRect.width / 2 - canvasRect.left;
     const fromBottomY = fromRect.bottom - canvasRect.top;
 
@@ -2405,7 +2362,7 @@ function renderSystemRelationships(
     }
   });
 }
-async function init(showMessage = true) {
+async function init() {
   if (isLoadingData) return;
 
   isLoadingData = true;
@@ -3127,12 +3084,6 @@ function renderMsaDetailView(programId, msaId) {
 }
 /*MSAs*/
 
-/* sample data */
-loadSampleData().then((data) => {
-  console.log(data);
-});
-/* sample data */
-
 /* loading overlay */
 function showLoadingOverlay(
   message = "Actualizando la información del cockpit...",
@@ -3567,13 +3518,18 @@ function getProgramTeamMembers(programId) {
       String(person.country || "").trim() ===
       String(selectedCountry || "").trim();
 
+    const isSameQuarter =
+      selectedTeamQuarter === "ALL" ||
+      String(person.quarter || "").trim() ===
+        String(selectedTeamQuarter).trim();
+
     const isActive =
       person.active === true ||
       String(person.active || "true")
         .toLowerCase()
         .trim() === "true";
 
-    return isSameProgram && isSameCountry && isActive;
+    return isSameProgram && isSameCountry && isSameQuarter && isActive;
   });
 }
 function renderTeamsDashboard(programId) {
@@ -3584,11 +3540,7 @@ function renderTeamsDashboard(programId) {
   renderTeamsProductCountryMatrix(programId);
   renderTeamsScrumCards(people);
 }
-function uniqueCount(rows, field) {
-  return new Set(
-    rows.map((row) => String(row[field] || "").trim()).filter(Boolean),
-  ).size;
-}
+
 function groupByField(rows, field) {
   return rows.reduce((acc, row) => {
     const key = String(row[field] || "Sin asignar").trim();
@@ -3864,29 +3816,7 @@ function renderTeamsQuarterSelector() {
     </div>
   `;
 }
-function getProgramTeamMembers(programId) {
-  return (DATA.teams || []).filter((person) => {
-    const isSameProgram =
-      String(person.programId || "").trim() === String(programId || "").trim();
 
-    const isSameCountry =
-      String(person.country || "").trim() ===
-      String(selectedCountry || "").trim();
-
-    const isSameQuarter =
-      selectedTeamQuarter === "ALL" ||
-      String(person.quarter || "").trim() ===
-        String(selectedTeamQuarter).trim();
-
-    const isActive =
-      person.active === true ||
-      String(person.active || "true")
-        .toLowerCase()
-        .trim() === "true";
-
-    return isSameProgram && isSameCountry && isSameQuarter && isActive;
-  });
-}
 function getProductColor(product) {
   const key = String(product || "")
     .toLowerCase()
@@ -3921,15 +3851,6 @@ document.addEventListener("click", (event) => {
   if (!quarterButton) return;
 
   selectedTeamQuarter = quarterButton.dataset.teamQuarter;
-
-  render();
-});
-document.addEventListener("click", (event) => {
-  const quarterButton = event.target.closest("[data-executive-quarter]");
-
-  if (!quarterButton) return;
-
-  executiveQuarter = quarterButton.dataset.executiveQuarter;
 
   render();
 });
@@ -3986,7 +3907,7 @@ document
       : "local-json";
     window.APP_CONFIG.useGoogleSheets = e.target.checked ? false : true;
 
-    await init(false);
+    await init();
   });
 document
   .getElementById("refreshDataBtn")
