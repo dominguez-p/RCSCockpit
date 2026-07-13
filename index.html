@@ -23,14 +23,15 @@
         <div>
           <p class="eyebrow" id="breadcrumb">Retail Client Solutions</p>
           <h1 id="pageTitle">Cockpit</h1>
-          <p id="pageSubtitle" class="subtitle">Portfolio overview, demanda estratégica y evolución de arquitectura</p>
+          <p id="pageSubtitle" class="subtitle">
+            Portfolio overview, demanda estratégica y evolución de arquitectura
+          </p>
         </div>
+
         <div class="data-status">
           <label class="data-source-toggle">
-            <!-- <span>Admin Data</span>
-            <input id="dataSourceToggle" type="checkbox" />
-            <span>Sheets</span> -->
           </label>
+
           <span class="dot"></span>
 
           <span id="dataStatus">Cargando datos…</span>
@@ -44,6 +45,7 @@
           </button>
         </div>
       </header>
+
       <div id="errorBanner" class="error-banner" hidden></div>
 
       <section id="view"></section>
@@ -52,34 +54,118 @@
 
   <template id="landing-template">
     <section class="kpi-strip" id="portfolioKpis"></section>
+
     <section class="section-title-row">
       <h2>Programas RCS</h2>
-      <p>Vista ejecutiva de avance funcional, sistemas y arquitectura.</p>
+      <p>
+        Vista ejecutiva de avance funcional, sistemas y arquitectura.
+      </p>
     </section>
+
     <section class="program-grid" id="programGrid"></section>
   </template>
 
   <template id="program-template">
     <section class="program-hero">
       <div>
-        <button class="ghost-button" data-route="landing">← Volver</button>
+        <button class="ghost-button" data-route="landing">
+          ← Volver
+        </button>
+
         <h2 id="programName"></h2>
         <p id="programDescription"></p>
       </div>
+
       <div class="hero-metrics" id="programMetrics"></div>
     </section>
-    <section class="module-grid" id="moduleGrid"></section>
 
+    <section class="module-grid" id="moduleGrid"></section>
+  </template>
+
+  <!--
+    Entrada específica del programa AIxBanker.
+
+    Por ahora esta plantilla no sustituye a la pantalla actual.
+    Se activará en el siguiente paso desde app.js.
+  -->
+  <template id="aixbanker-home-template">
+    <section class="aixbanker-home">
+      <button class="ghost-button" type="button" data-route="landing">
+        ← Volver al portfolio
+      </button>
+
+      <header class="aixbanker-home-header">
+        <p class="aixbanker-home-eyebrow">
+          AIxBanker
+        </p>
+
+        <h2>
+          Selecciona un producto
+        </h2>
+
+        <p>
+          Accede al roadmap, las iniciativas y la evolución de cada producto.
+        </p>
+      </header>
+
+      <section class="aixbanker-product-grid" aria-label="Productos de AIxBanker">
+        <article class="aixbanker-product-card aixbanker-product-card-blue-buddy">
+          <div class="aixbanker-product-card-content">
+            <span class="aixbanker-product-label">
+              Producto
+            </span>
+
+            <h3>
+              Blue Buddy
+            </h3>
+
+            <p>
+              Roadmap, iniciativas, evolución funcional y capacidades del
+              producto Blue Buddy.
+            </p>
+          </div>
+
+          <button class="aixbanker-product-action" type="button" data-aixbanker-product="blue-buddy">
+            Abrir roadmap
+            <span aria-hidden="true">→</span>
+          </button>
+        </article>
+
+        <article class="aixbanker-product-card aixbanker-product-card-panorama">
+          <div class="aixbanker-product-card-content">
+            <span class="aixbanker-product-label">
+              Producto
+            </span>
+
+            <h3>
+              Panorama
+            </h3>
+
+            <p>
+              Roadmap, iniciativas, evolución funcional y capacidades del
+              producto Panorama.
+            </p>
+          </div>
+
+          <button class="aixbanker-product-action" type="button" data-aixbanker-product="panorama">
+            Abrir roadmap
+            <span aria-hidden="true">→</span>
+          </button>
+        </article>
+      </section>
+    </section>
   </template>
 
   <template id="functional-template">
     <button class="ghost-button back-to-program-btn" data-route="">
       ← Volver al programa
     </button>
+
     <section class="section-title-row">
       <h2>Mapa de capacidades funcionales</h2>
       <p>Dominios, capacidades y funcionalidades de AIxBanker.</p>
     </section>
+
     <section class="functional-map" id="functionalMap"></section>
   </template>
 
@@ -90,29 +176,34 @@
 
     <section class="section-title-row">
       <h2>Mapa de sistemas</h2>
-      <p>Vista combinada de sistemas, inventario y capacidades funcionales.</p>
+      <p>
+        Vista combinada de sistemas, inventario y capacidades funcionales.
+      </p>
     </section>
-
 
     <section class="systems-dashboard-grid systems-two-columns" id="systemsDashboardGrid">
       <article class="panel systems-map-panel">
         <h3>Mapa de sistemas</h3>
+
         <button class="expand-map-btn" type="button" id="expandSystemMapBtn">
           Expandir mapa
         </button>
 
         <div class="system-map-canvas" id="systemMapCanvas">
           <svg class="system-links-svg" id="systemLinksSvg"></svg>
+
           <section class="system-layers" id="systemLayers"></section>
         </div>
       </article>
 
       <article class="panel systems-functional-panel">
         <h3>Mapa funcional</h3>
+
         <section class="systems-mini-functional-map" id="systemsFunctionalMap"></section>
       </article>
     </section>
   </template>
+
   <template id="impediments-template">
     <button class="ghost-button back-to-program-btn" data-route="">
       ← Volver al programa
@@ -139,15 +230,18 @@
     <section class="two-column">
       <article class="panel">
         <h3>Decisiones pendientes</h3>
+
         <div id="decisionsPendingList" class="management-list"></div>
       </article>
 
       <article class="panel">
         <h3>Decisiones tomadas</h3>
+
         <div id="decisionsDoneList" class="management-list"></div>
       </article>
     </section>
   </template>
+
   <template id="architecture-template">
     <button class="ghost-button back-to-program-btn" data-route="">
       ← Volver al programa
@@ -161,18 +255,21 @@
     <section class="systems-dashboard-grid" id="systemsDashboardGrid">
       <article class="panel systems-map-panel">
         <h3>Mapa de sistemas As-Is</h3>
+
         <button class="expand-map-btn" type="button" id="expandSystemMapBtn">
           Expandir mapa
         </button>
 
         <div class="system-map-canvas" id="systemMapCanvas">
           <svg class="system-links-svg" id="systemLinksSvg"></svg>
+
           <section class="system-layers" id="systemLayers"></section>
         </div>
       </article>
 
       <article class="panel">
         <h3>Features, gaps y dependencias</h3>
+
         <div class="table-wrap">
           <table id="systemsTable"></table>
         </div>
@@ -181,16 +278,21 @@
       <article class="panel systems-functional-panel">
         <article class="panel systems-tobe-panel">
           <h3>Mapa de sistemas To-Be</h3>
+
           <button class="expand-map-btn" type="button" id="expandToBeMapBtn">
             Expandir mapa
           </button>
+
           <div class="system-map-canvas" id="systemMapCanvasToBe">
             <svg class="system-links-svg" id="systemLinksSvgToBe"></svg>
+
             <section class="system-layers" id="systemLayersToBe"></section>
           </div>
         </article>
+      </article>
     </section>
   </template>
+
   <template id="projects-template">
     <button class="ghost-button back-to-program-btn" data-route="">
       ← Volver al programa
@@ -202,8 +304,10 @@
     </section>
 
     <section id="projects" class="panel projects-panel"></section>
+
     <section id="projectDetail" class="panel project-detail-panel" hidden></section>
   </template>
+
   <template id="msas-template">
     <button class="ghost-button back-to-program-btn" data-route="">
       ← Volver al programa
@@ -215,8 +319,10 @@
     </section>
 
     <section id="msas" class="panel projects-panel"></section>
+
     <section id="msaDetail" class="panel project-detail-panel" hidden></section>
   </template>
+
   <template id="teams-template">
     <button class="ghost-button back-to-program-btn" data-route="">
       ← Volver al programa
@@ -237,6 +343,7 @@
 
       <article class="panel">
         <h3>Producto × país</h3>
+
         <div class="table-wrap">
           <table id="teamsProductCountryMatrix"></table>
         </div>
@@ -268,6 +375,7 @@
   <script src="js/sample-data.js"></script>
   <script src="js/drive-json-source.js"></script>
   <script src="js/app.js"></script>
+
   <footer class="footer">
     © Pablo Domínguez 2026
   </footer>

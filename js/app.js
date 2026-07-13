@@ -148,7 +148,191 @@ function renderLanding() {
     )
     .join("");
 }
+function getAIxBankerProduct(productId) {
+  const products = {
+    "blue-buddy": {
+      id: "blue-buddy",
+      label: "Blue Buddy",
+      description: "Roadmap, iniciativas y evolución del producto Blue Buddy.",
+    },
+
+    panorama: {
+      id: "panorama",
+      label: "Panorama",
+      description: "Roadmap, iniciativas y evolución del producto Panorama.",
+    },
+  };
+
+  return products[productId] || null;
+}
+function getCurrentQuarter() {
+  const month = new Date().getMonth();
+
+  return `Q${Math.floor(month / 3) + 1}`;
+}
+
+function isValidRoadmapQuarter(quarter) {
+  return ["ALL", "Q1", "Q2", "Q3", "Q4"].includes(quarter);
+}
+
+function getRoadmapQuarterLabel(quarter) {
+  if (quarter === "ALL") {
+    return "Todo el año";
+  }
+
+  return quarter;
+}
+function renderAIxBankerRoadmap(programId, productId, quarter = null) {
+  const program = (DATA.programs || []).find((item) => item.id === programId);
+
+  const product = getAIxBankerProduct(productId);
+
+  if (!program || !product) {
+    route(`program/${programId}`);
+    return;
+  }
+
+  const selectedQuarter = isValidRoadmapQuarter(quarter)
+    ? quarter
+    : getCurrentQuarter();
+
+  if (quarter !== selectedQuarter) {
+    route(`roadmap/${programId}/${productId}/${selectedQuarter}`);
+
+    return;
+  }
+
+  selectedExecutiveProduct = product.id;
+  executiveQuarter = selectedQuarter;
+
+  setHead(
+    `${program.name || "AIxBanker"} · ${product.label}`,
+    `Roadmap · ${getRoadmapQuarterLabel(selectedQuarter)}`,
+    `Retail Client Solutions > ${
+      program.name || "AIxBanker"
+    } > ${product.label} > Roadmap > ${getRoadmapQuarterLabel(
+      selectedQuarter,
+    )}`,
+  );
+
+  const quarters = [
+    {
+      id: "ALL",
+      label: "Todo el año",
+    },
+    {
+      id: "Q1",
+      label: "Q1",
+    },
+    {
+      id: "Q2",
+      label: "Q2",
+    },
+    {
+      id: "Q3",
+      label: "Q3",
+    },
+    {
+      id: "Q4",
+      label: "Q4",
+    },
+  ];
+
+  view.innerHTML = `
+    <section class="aixbanker-home">
+      <button
+        class="ghost-button"
+        type="button"
+        data-route="program/${programId}"
+      >
+        ← Volver a productos
+      </button>
+
+      <header class="aixbanker-home-header">
+        <p class="aixbanker-home-eyebrow">
+          ${product.label}
+        </p>
+
+        <h2>
+          Roadmap
+        </h2>
+
+        <p>
+          Iniciativas, proyectos y MSAs planificados para
+          ${getRoadmapQuarterLabel(selectedQuarter)}.
+        </p>
+      </header>
+
+      <nav
+        class="executive-filter-row"
+        aria-label="Seleccionar trimestre del roadmap"
+      >
+        ${quarters
+          .map(
+            (item) => `
+              <button
+                class="quarter-btn ${
+                  selectedQuarter === item.id ? "active" : ""
+                }"
+                type="button"
+                data-route="roadmap/${programId}/${productId}/${item.id}"
+                aria-pressed="${selectedQuarter === item.id ? "true" : "false"}"
+              >
+                ${item.label}
+              </button>
+            `,
+          )
+          .join("")}
+      </nav>
+
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <h3>
+              Roadmap de ${product.label}
+            </h3>
+
+            <p class="empty-state">
+              ${getRoadmapQuarterLabel(selectedQuarter)}
+            </p>
+          </div>
+
+          <span class="status-pill status-planned">
+            ${selectedQuarter === "ALL" ? "Vista anual" : "Vista trimestral"}
+          </span>
+        </div>
+
+        <p class="empty-state">
+          La selección de trimestre ya está activa.
+          En el siguiente paso incorporaremos las iniciativas,
+          proyectos y MSAs correspondientes a esta selección.
+        </p>
+      </section>
+    </section>
+  `;
+}
+function renderAIxBankerHome(programId) {
+  const program = (DATA.programs || []).find((item) => item.id === programId);
+
+  if (!program) {
+    renderLanding();
+    return;
+  }
+
+  setHead(
+    program.name || "AIxBanker",
+    "Productos, roadmaps e iniciativas",
+    `Retail Client Solutions > ${program.name || "AIxBanker"}`,
+  );
+
+  view.innerHTML = "";
+  view.append(tpl("#aixbanker-home-template"));
+}
 function renderProgram(programId) {
+  if (programId === "aixbanker") {
+    renderAIxBankerHome(programId);
+    return;
+  }
   const data = DATA;
 
   if (!data || !Array.isArray(data.programs)) {
@@ -1004,11 +1188,17 @@ function renderSystems(programId, mode = "systems") {
 }
 function getCurrentRoute() {
   const hash = location.hash.replace("#", "") || "landing";
-  const [routeName, programId] = hash.split("/");
+
+  const [routeName, programId, productId, quarter, itemType, itemId] =
+    hash.split("/");
 
   return {
     routeName,
     programId: programId || null,
+    productId: productId || null,
+    quarter: quarter || null,
+    itemType: itemType || null,
+    itemId: itemId || null,
   };
 }
 
@@ -1144,9 +1334,18 @@ async function loadProgramData(programId, forceRefresh = false) {
   return programData;
 }
 
-function renderCurrentRoute(routeName, programId) {
+function renderCurrentRoute(
+  routeName,
+  programId,
+  productId = null,
+  quarter = null,
+  itemType = null,
+  itemId = null,
+) {
   if (routeName === "program") {
     renderProgram(programId);
+  } else if (routeName === "roadmap" && programId === "aixbanker") {
+    renderAIxBankerRoadmap(programId, productId, quarter, itemType, itemId);
   } else if (routeName === "functional") {
     renderFunctional(programId);
   } else if (routeName === "systems") {
@@ -1206,7 +1405,8 @@ function updateDataStatus(programId = null) {
     `(${formatLastLoadedDate(lastLoadedAt)})`;
 }
 async function render() {
-  const { routeName, programId } = getCurrentRoute();
+  const { routeName, programId, productId, quarter, itemType, itemId } =
+    getCurrentRoute();
 
   if (!programId || routeName === "landing") {
     DATA = PORTFOLIO_DATA;
@@ -1226,7 +1426,14 @@ async function render() {
 
     DATA = buildProgramData(programData);
 
-    renderCurrentRoute(routeName, programId);
+    renderCurrentRoute(
+      routeName,
+      programId,
+      productId,
+      quarter,
+      itemType,
+      itemId,
+    );
 
     updateDataStatus(programId);
   } catch (error) {
@@ -1239,7 +1446,14 @@ async function render() {
       ...getEmptyProgramData(),
     };
 
-    renderCurrentRoute(routeName, programId);
+    renderCurrentRoute(
+      routeName,
+      programId,
+      productId,
+      quarter,
+      itemType,
+      itemId,
+    );
   } finally {
     hideLoadingOverlay();
   }
@@ -3011,28 +3225,6 @@ document.addEventListener("click", (event) => {
 
   render();
 });
-// function isValidExternalUrl(url) {
-//   return /^https?:\/\//i.test(String(url || "").trim());
-// }
-
-// function rcsExternalLink(item, defaultLabel = "Abrir documento") {
-//   const url = String(item.documentUrl || "").trim();
-
-//   if (!isValidExternalUrl(url)) return "";
-
-//   const label = item.documentLabel || defaultLabel;
-
-//   return `
-//     <a
-//       class="document-link"
-//       href="${rcsEsc(url)}"
-//       target="_blank"
-//       rel="noopener noreferrer"
-//     >
-//       ${rcsEsc(label)} ↗
-//     </a>
-//   `;
-// }
 document.addEventListener("click", (event) => {
   const quarterButton = event.target.closest("[data-executive-quarter]");
 
@@ -3193,6 +3385,17 @@ document.addEventListener("click", (event) => {
   isToBeMapExpanded = !isToBeMapExpanded;
 
   render();
+});
+document.addEventListener("click", (event) => {
+  const productButton = event.target.closest("[data-aixbanker-product]");
+
+  if (!productButton) return;
+
+  const productId = productButton.dataset.aixbankerProduct;
+
+  const currentQuarter = getCurrentQuarter();
+
+  route(`roadmap/aixbanker/${productId}/${currentQuarter}`);
 });
 window.addEventListener("hashchange", () => {
   render().catch(console.error);

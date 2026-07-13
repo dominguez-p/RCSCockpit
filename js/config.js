@@ -34,5 +34,22 @@ window.APP_CONFIG = {
     //   driveJsonUrl: "URL_DEL_APPS_SCRIPT_BLUE",
     //   spreadsheetId: "ID_DE_LA_SPREADSHEET_BLUE",
     // },
+    // ROSETTA
+
+    rosetta: {
+      id: "rosetta",
+      label: "Rosetta",
+      driveJsonUrl:
+        "https://script.google.com/a/macros/bbva.com/s/AKfycbwNKFIQEOIyBcXiKi8WyenjsZKKpUcMzOPjBvG-KCgKDxu0SesLBqDiyNmH9CyFWFKo/exec",
+      spreadsheetId: "1xQv47GEZ_qTy_ovwudLAxUjZX7mfWCkEvRvlfghfxhU",
+    },
+
+    openmarket: {
+      id: "openmarket",
+      label: "Open Market",
+      driveJsonUrl:
+        "https://script.google.com/a/macros/bbva.com/s/AKfycbwNKFIQEOIyBcXiKi8WyenjsZKKpUcMzOPjBvG-KCgKDxu0SesLBqDiyNmH9CyFWFKo/exec",
+      spreadsheetId: "1xQv47GEZ_qTy_ovwudLAxUjZX7mfWCkEvRvlfghfxhU",
+    },
   },
 };
