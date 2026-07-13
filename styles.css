@@ -301,7 +301,7 @@ h4 {
   margin-bottom: 14px;
   line-height: 1.1;
 }
-.management-section .panel h3 {
+.panel h3 {
   margin-bottom: 18px;
 }
 .program-card p,
@@ -1031,19 +1031,6 @@ th {
 }
 .relationship-label {
   fill: var(--blue);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  pointer-events: none;
-  user-select: none;
-  text-anchor: middle;
-}
-.relationship-label-bg {
-  fill: rgba(255, 255, 255, 0.92);
-  stroke: rgba(29, 51, 176, 0.15);
-}
-.relationship-label {
-  fill: var(--blue);
   font-size: 10px;
   font-weight: 800;
   text-anchor: middle;
@@ -1121,15 +1108,6 @@ th {
 .empty-state {
   color: var(--muted);
   margin: 0;
-}
-.secondary-module-grid,
-.final-info-section {
-  margin-top: 22px;
-}
-.management-section,
-.secondary-module-grid,
-.final-info-section {
-  margin-top: 22px;
 }
 
 .secondary-module-grid {
@@ -1298,13 +1276,6 @@ th {
   box-shadow: 0 12px 28px rgba(7, 46, 111, 0.1);
 }
 
-.project-card-main {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  align-items: flex-start;
-}
-
 .project-name {
   color: var(--blue);
   font-weight: 900;
@@ -1420,11 +1391,6 @@ th {
 
 .phase-section {
   margin-top: 18px;
-}
-
-.phase-roadmap {
-  display: grid;
-  gap: 14px;
 }
 
 .phase-card {
@@ -1549,8 +1515,7 @@ th {
     grid-template-columns: 1fr;
   }
 
-  .project-detail-header,
-  .project-card-main {
+  .project-detail-header {
     flex-direction: column;
   }
 }
@@ -1701,21 +1666,6 @@ th {
   flex-wrap: wrap;
 }
 
-.quarter-btn {
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--blue);
-  border-radius: 999px;
-  padding: 9px 14px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.quarter-btn.active {
-  background: var(--blue);
-  color: #fff;
-}
-
 .executive-quarter-group {
   margin-top: 18px;
 }
@@ -1775,14 +1725,6 @@ th {
   color: var(--blue);
   font-size: 12px;
   font-weight: 900;
-}
-.phase-timeline-wrap {
-  margin-top: 22px;
-}
-
-.phase-timeline-wrap h4 {
-  margin: 0 0 12px;
-  color: var(--blue);
 }
 
 .phase-delivery {
@@ -1864,16 +1806,6 @@ th {
   transform: translateY(-50%);
   border-radius: 999px;
   z-index: 2;
-}
-
-.timeline-target {
-  position: absolute;
-  top: 10px;
-  bottom: 10px;
-  width: 2px;
-  background: var(--red);
-  border-radius: 999px;
-  z-index: 4;
 }
 
 .timeline-target::before {
@@ -1984,12 +1916,6 @@ th {
 .document-link:hover {
   filter: brightness(0.96);
   transform: translateY(-1px);
-}
-.project-name-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 
 .msa-inline-link {
