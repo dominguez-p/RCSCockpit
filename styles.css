@@ -2169,3 +2169,236 @@ th {
   font-size: 12px;
   font-weight: 900;
 }
+/* =========================================================
+   AIxBanker · Product home
+   ========================================================= */
+
+.aixbanker-home {
+  width: 100%;
+}
+
+.aixbanker-home-header {
+  max-width: 780px;
+  margin: 34px 0 30px;
+}
+
+.aixbanker-home-eyebrow {
+  margin: 0 0 8px;
+  color: var(--cyan);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.aixbanker-home-header h2 {
+  margin: 0;
+  color: var(--blue);
+  font-size: clamp(36px, 5vw, 58px);
+  line-height: 1.02;
+}
+
+.aixbanker-home-header > p:last-child {
+  max-width: 680px;
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 19px;
+  line-height: 1.55;
+}
+
+.aixbanker-product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.aixbanker-product-card {
+  position: relative;
+  display: flex;
+  min-height: 430px;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 34px;
+  border: 1px solid rgba(0, 19, 145, 0.14);
+  border-radius: 30px;
+  box-shadow: 0 22px 54px rgba(7, 46, 111, 0.12);
+  isolation: isolate;
+}
+
+.aixbanker-product-card::before,
+.aixbanker-product-card::after {
+  position: absolute;
+  content: "";
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.aixbanker-product-card::before {
+  width: 320px;
+  height: 320px;
+  top: -150px;
+  right: -100px;
+  opacity: 0.28;
+}
+
+.aixbanker-product-card::after {
+  width: 190px;
+  height: 190px;
+  right: 40px;
+  bottom: -110px;
+  opacity: 0.18;
+}
+
+.aixbanker-product-card-blue-buddy {
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(227, 240, 255, 0.96)
+  );
+}
+
+.aixbanker-product-card-blue-buddy::before {
+  background: linear-gradient(135deg, #001391, #37b7c9);
+}
+
+.aixbanker-product-card-blue-buddy::after {
+  background: #1464c9;
+}
+
+.aixbanker-product-card-panorama {
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(239, 235, 255, 0.96)
+  );
+}
+
+.aixbanker-product-card-panorama::before {
+  background: linear-gradient(135deg, #6755c4, #37b7c9);
+}
+
+.aixbanker-product-card-panorama::after {
+  background: #6755c4;
+}
+
+.aixbanker-product-card-content {
+  max-width: 520px;
+}
+
+.aixbanker-product-label {
+  display: inline-flex;
+  width: max-content;
+  margin-bottom: 24px;
+  padding: 7px 12px;
+  border: 1px solid rgba(0, 19, 145, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+
+.aixbanker-product-card h3 {
+  margin: 0;
+  color: var(--blue);
+  font-size: clamp(38px, 4.5vw, 62px);
+  line-height: 0.98;
+}
+
+.aixbanker-product-card p {
+  max-width: 470px;
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.aixbanker-product-action {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 42px;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(0, 19, 145, 0.2);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    filter 0.18s ease;
+}
+
+.aixbanker-product-action span {
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 0.18s ease;
+}
+
+.aixbanker-product-action:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(0, 19, 145, 0.26);
+}
+
+.aixbanker-product-action:hover span {
+  transform: translateX(4px);
+}
+
+.aixbanker-product-action:focus-visible {
+  outline: 3px solid rgba(55, 183, 201, 0.45);
+  outline-offset: 4px;
+}
+
+@media (max-width: 1050px) {
+  .aixbanker-product-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .aixbanker-product-card {
+    min-height: 350px;
+  }
+}
+
+@media (max-width: 760px) {
+  .aixbanker-home-header {
+    margin-top: 26px;
+  }
+
+  .aixbanker-product-grid {
+    gap: 18px;
+  }
+
+  .aixbanker-product-card {
+    min-height: 320px;
+    padding: 24px;
+    border-radius: 24px;
+  }
+
+  .aixbanker-product-card p {
+    font-size: 15px;
+  }
+
+  .aixbanker-product-action {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aixbanker-product-action,
+  .aixbanker-product-action span {
+    transition: none;
+  }
+}
