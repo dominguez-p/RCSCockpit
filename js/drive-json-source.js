@@ -21,14 +21,37 @@ function loadJsonp(url) {
   });
 }
 
-async function loadData() {
-  if (window.APP_CONFIG.runtime === "drive-json") {
-    return loadJsonp(window.APP_CONFIG.driveJsonUrl);
+async function loadPortfolioData() {
+  const source = window.APP_CONFIG.portfolio;
+
+  if (!source) {
+    throw new Error("No está configurado el origen general del portfolio");
   }
 
-  if (window.APP_CONFIG.useGoogleSheets) {
-    return loadGoogleSheetsData();
+  return loadJsonp(source.driveJsonUrl);
+}
+
+async function loadProgramData(programId, options = {}) {
+  const { forceRefresh = false } = options;
+
+  if (!forceRefresh && PROGRAM_DATA.has(programId)) {
+    return PROGRAM_DATA.get(programId);
   }
 
-  return window.SAMPLE_DATA;
+  const source = window.APP_CONFIG.programs?.[programId];
+
+  if (!source) {
+    throw new Error(`No existe un origen configurado para ${programId}`);
+  }
+
+  const data = await loadJsonp(source.driveJsonUrl);
+  const normalizedData = normalizeProgramData(programId, data);
+
+  PROGRAM_DATA.set(programId, normalizedData);
+
+  return normalizedData;
+}
+
+function getProgramData(programId) {
+  return PROGRAM_DATA.get(programId) || createEmptyProgramData();
 }
