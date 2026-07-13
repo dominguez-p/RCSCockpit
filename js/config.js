@@ -1,46 +1,38 @@
 window.APP_CONFIG = {
-  //runtime: "local-json", // "google-sheets-api" | "apps-script" | "local-json" | "sample"
   runtime: "drive-json",
-  driveJsonUrl:
-    // "https://script.google.com/a/macros/bbva.com/s/AKfycbyMx9rMzsa1nIKGA4jmbPgplrXx1wiK5wfb33LSOIsEwKk_ZWfrdB1nppCZ8wsYepTy/exec",
-    //"https://script.google.com/a/macros/bbva.com/s/AKfycby7hfNb_voJGFgHJKRStqi1Yl8_YA1-6cFtRRS4GYeb7aAIWaE1FPtusxLBkhkGpSWm/exec",
-    "https://script.google.com/a/macros/bbva.com/s/AKfycbwNKFIQEOIyBcXiKi8WyenjsZKKpUcMzOPjBvG-KCgKDxu0SesLBqDiyNmH9CyFWFKo/exec",
-  localDataUrl:
-    "https://drive.google.com/uc?export=download&id=1LuAoIq9K6ryPEZi8xh0-to1RlF6dCDgE",
 
-  // runtime: "google-sheets-api",
-  useGoogleSheets: false,
+  // Nueva spreadsheet general.
+  // Solo contiene los KPIs y los programas de la pantalla inicial.
+  portfolio: {
+    id: "portfolio",
+    label: "Portfolio general",
 
-  googleSheetsApi: {
-    spreadsheetId: "1xQv47GEZ_qTy_ovwudLAxUjZX7mfWCkEvRvlfghfxhU",
+    // Sustituye estos dos valores.
+    driveJsonUrl:
+      "https://script.google.com/a/macros/bbva.com/s/AKfycbwC8YMF1_ug66N1omjiQ3hiJoodChKCwvuiRor9DayX51wNh-2_BB7WyjXI6PUYuIfF/exec",
+    spreadsheetId: "19LTFh3GBHjSGnXfmjJNnK6vln_haAMFj91DtZwdn2W4",
   },
 
-  // sheets: {
-  //   programs: "programs",
-  //   portfolioKpis: "portfolio_kpis",
-  //   modules: "modules",
-  //   roles: "roles",
-  //   priorities: "priorities",
-  //   functional: "functional_map",
-  //   functionalSystemLinks: "functional_system_links",
-  //   systems: "systems_inventory",
-  //   architectureFeaturesGaps: "architecture_features_gaps",
-  //   systemRelationships: "system_relationships",
-  //   impediments: "impediments",
-  //   decisionsPending: "decisions_pending",
-  //   decisionsDone: "decisions_done",
-  //   systemsToBe: "systems_inventory_tobe",
-  //   systemRelationshipsToBe: "system_relationships_tobe",
-  //   projects: "projects",
-  //   projectPhases: "project_phases",
-  //   msas: "msas",
-  //   msaPhases: "msa_phases",
-  //   teams: "teams"
-  // },
+  // Una fuente independiente para cada programa.
+  programs: {
+    aixbanker: {
+      id: "aixbanker",
+      label: "AIxBanker",
+
+      // Nueva spreadsheet para AIxBanker.
+      driveJsonUrl:
+        "https://script.google.com/a/macros/bbva.com/s/AKfycbykkOQBqcwlrHlT9FZTW96k60hmYHVAb_s1NFHh4-44UjIIvg7NEZLq8ZGH9klA-6wPHQ/exec",
+
+      spreadsheetId: "1biJoA0LWDToy3Q2FAP48GNB1LLohS13nbRMzpuWu5qss",
+    },
+
+    // Cuando Blue tenga su propia spreadsheet, añade:
+    //
+    // blue: {
+    //   id: "blue",
+    //   label: "Blue",
+    //   driveJsonUrl: "URL_DEL_APPS_SCRIPT_BLUE",
+    //   spreadsheetId: "ID_DE_LA_SPREADSHEET_BLUE",
+    // },
+  },
 };
-window.APP_CONFIG.msaSpreadsheet = {
-  spreadsheetId: "18TfQl-xdPiM6Pc6Owfsko_EvyvP1_HB6Jj17BFU2uoA",
-  sheetName: "MdR - AI For Bankers",
-};
-window.APP_CONFIG.msaScriptUrl =
-  "https://script.google.com/a/macros/bbva.com/s/AKfycbwqzQ3TACdOdeBv_JLJdMHT5syTQ3T-dYSNLs94oW_PJ6kMEVAQ76DMQgryHEwDULEG/exec";

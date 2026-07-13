@@ -1,3 +1,13 @@
+let PORTFOLIO_DATA = {
+  portfolioKpis: [],
+  programs: [],
+};
+
+let PORTFOLIO_LAST_LOADED_AT = null;
+
+const PROGRAM_DATA_CACHE = new Map();
+const PROGRAM_LAST_LOADED_AT = new Map();
+
 let DATA = window.SAMPLE_DATA;
 let selectedCountry = "ES";
 let selectedSystemProduct = "blue-buddy";
@@ -992,21 +1002,247 @@ function renderSystems(programId, mode = "systems") {
       .join("");
   }
 }
-function render() {
-  const h = location.hash.replace("#", "") || "landing";
-  const [routeName, programId] = h.split("/");
+function getCurrentRoute() {
+  const hash = location.hash.replace("#", "") || "landing";
+  const [routeName, programId] = hash.split("/");
 
-  if (routeName === "program") renderProgram(programId);
-  else if (routeName === "functional") renderFunctional(programId);
-  else if (routeName === "systems") renderSystems(programId, "systems");
-  else if (routeName === "architecture")
+  return {
+    routeName,
+    programId: programId || null,
+  };
+}
+
+function getActiveDataSource() {
+  const { programId } = getCurrentRoute();
+
+  if (!programId) {
+    return window.APP_CONFIG.portfolio;
+  }
+
+  return window.APP_CONFIG.programs?.[programId] || null;
+}
+
+function getEmptyProgramData() {
+  return {
+    modules: [],
+    roles: [],
+    priorities: [],
+    functional: [],
+    functionalSystemLinks: [],
+    systems: [],
+    systemsToBe: [],
+    architectureFeaturesGaps: [],
+    systemRelationships: [],
+    systemRelationshipsToBe: [],
+    impediments: [],
+    decisionsPending: [],
+    decisionsDone: [],
+    projects: [],
+    projectPhases: [],
+    msas: [],
+    msaPhases: [],
+    teams: [],
+  };
+}
+
+function normalizePortfolioData(rawData) {
+  const source = rawData || {};
+
+  return {
+    portfolioKpis: Array.isArray(source.portfolioKpis)
+      ? source.portfolioKpis
+      : [],
+
+    programs: Array.isArray(source.programs) ? source.programs : [],
+  };
+}
+
+function normalizeProgramData(programId, rawData) {
+  const source = rawData || {};
+  const normalized = getEmptyProgramData();
+
+  Object.keys(normalized).forEach((collectionName) => {
+    const rows = Array.isArray(source[collectionName])
+      ? source[collectionName]
+      : [];
+
+    normalized[collectionName] = rows.map((row) => ({
+      ...row,
+      programId: row.programId || programId,
+    }));
+  });
+
+  return normalized;
+}
+
+function buildProgramData(programData) {
+  return {
+    ...PORTFOLIO_DATA,
+    ...getEmptyProgramData(),
+    ...programData,
+  };
+}
+
+async function loadConfiguredSource(source) {
+  if (
+    !source?.driveJsonUrl ||
+    source.driveJsonUrl.includes("URL_APPS_SCRIPT") ||
+    source.driveJsonUrl.includes("PEGA_AQUI")
+  ) {
+    throw new Error(`Origen no configurado: ${source?.label || "sin nombre"}`);
+  }
+
+  if (typeof loadJsonp !== "function") {
+    throw new Error(
+      "No está disponible la función loadJsonp. Revisa drive-json-source.js.",
+    );
+  }
+
+  return loadJsonp(source.driveJsonUrl);
+}
+
+async function loadPortfolioData(forceRefresh = false) {
+  if (
+    !forceRefresh &&
+    Array.isArray(PORTFOLIO_DATA.programs) &&
+    PORTFOLIO_DATA.programs.length
+  ) {
+    return PORTFOLIO_DATA;
+  }
+
+  const source = window.APP_CONFIG.portfolio;
+  const rawData = await loadConfiguredSource(source);
+
+  PORTFOLIO_DATA = normalizePortfolioData(rawData);
+
+  PORTFOLIO_LAST_LOADED_AT = new Date();
+
+  return PORTFOLIO_DATA;
+}
+
+async function loadProgramData(programId, forceRefresh = false) {
+  if (!forceRefresh && PROGRAM_DATA_CACHE.has(programId)) {
+    return PROGRAM_DATA_CACHE.get(programId);
+  }
+
+  const source = window.APP_CONFIG.programs?.[programId];
+
+  if (!source) {
+    throw new Error(
+      `No existe un origen configurado para el programa ${programId}`,
+    );
+  }
+
+  const rawData = await loadConfiguredSource(source);
+
+  const programData = normalizeProgramData(programId, rawData);
+
+  PROGRAM_DATA_CACHE.set(programId, programData);
+
+  PROGRAM_LAST_LOADED_AT.set(programId, new Date());
+
+  return programData;
+}
+
+function renderCurrentRoute(routeName, programId) {
+  if (routeName === "program") {
+    renderProgram(programId);
+  } else if (routeName === "functional") {
+    renderFunctional(programId);
+  } else if (routeName === "systems") {
+    renderSystems(programId, "systems");
+  } else if (routeName === "architecture") {
     renderSystems(programId, "architecture");
-  else if (routeName === "impediments") renderImpediments(programId);
-  else if (routeName === "decisions") renderDecisions(programId);
-  else if (routeName === "projects") renderProjectsView(programId);
-  else if (routeName === "msas") renderMsasView(programId);
-  else if (routeName === "teams") renderTeamsView(programId);
-  else renderLanding();
+  } else if (routeName === "impediments") {
+    renderImpediments(programId);
+  } else if (routeName === "decisions") {
+    renderDecisions(programId);
+  } else if (routeName === "projects") {
+    renderProjectsView(programId);
+  } else if (routeName === "msas") {
+    renderMsasView(programId);
+  } else if (routeName === "teams") {
+    renderTeamsView(programId);
+  } else {
+    renderLanding();
+  }
+}
+function formatLastLoadedDate(date) {
+  if (!(date instanceof Date)) {
+    return "Sin actualizar";
+  }
+
+  const datePart = date
+    .toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    })
+    .replaceAll(" de ", "-");
+
+  const timePart = date.toLocaleTimeString("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  return `${datePart} ${timePart}`;
+}
+
+function updateDataStatus(programId = null) {
+  if (!programId) {
+    statusEl.textContent =
+      `Últimos datos cargados: Portfolio General ` +
+      `(${formatLastLoadedDate(PORTFOLIO_LAST_LOADED_AT)})`;
+
+    return;
+  }
+
+  const source = window.APP_CONFIG.programs?.[programId];
+  const lastLoadedAt = PROGRAM_LAST_LOADED_AT.get(programId);
+
+  statusEl.textContent =
+    `Últimos datos cargados: ${source?.label || programId} ` +
+    `(${formatLastLoadedDate(lastLoadedAt)})`;
+}
+async function render() {
+  const { routeName, programId } = getCurrentRoute();
+
+  if (!programId || routeName === "landing") {
+    DATA = PORTFOLIO_DATA;
+
+    renderLanding();
+    updateDataStatus();
+
+    return;
+  }
+
+  try {
+    const source = window.APP_CONFIG.programs?.[programId];
+
+    showLoadingOverlay(`Cargando datos de ${source?.label || programId}...`);
+
+    const programData = await loadProgramData(programId);
+
+    DATA = buildProgramData(programData);
+
+    renderCurrentRoute(routeName, programId);
+
+    updateDataStatus(programId);
+  } catch (error) {
+    console.error(error);
+
+    statusEl.textContent = `⚠ No se pudieron cargar los datos de ${programId}`;
+
+    DATA = {
+      ...PORTFOLIO_DATA,
+      ...getEmptyProgramData(),
+    };
+
+    renderCurrentRoute(routeName, programId);
+  } finally {
+    hideLoadingOverlay();
+  }
 }
 function renderCountrySelector() {
   return `
@@ -1242,32 +1478,32 @@ async function init(showMessage = true) {
   if (isLoadingData) return;
 
   isLoadingData = true;
-  showLoadingOverlay();
+
+  showLoadingOverlay("Cargando datos generales del portfolio...");
 
   try {
-    DATA = await loadData();
-    statusEl.textContent =
-      window.APP_CONFIG.runtime === "drive-json"
-        ? "Datos Google Sheets de Drive cargados"
-        : "Datos Locales";
-    // statusEl.textContent =
-    //   window.APP_CONFIG.runtime === "local-json"
-    //     ? "Datos locales cargados"
-    //     : "Datos Google Sheets API v4 actualizados";
-  } catch (e) {
-    console.error(e);
+    await loadPortfolioData(true);
 
-    const response = await fetch("./data/app-data.json");
-    DATA = await response.json();
+    DATA = PORTFOLIO_DATA;
 
-    statusEl.textContent = "⚠ Error accediendo a la spreadsheet";
+    updateDataStatus();
+  } catch (error) {
+    console.error(error);
+
+    PORTFOLIO_DATA = normalizePortfolioData(window.SAMPLE_DATA);
+
+    DATA = PORTFOLIO_DATA;
+
+    statusEl.textContent = "⚠ Error accediendo a la spreadsheet general";
 
     const banner = document.getElementById("errorBanner");
 
     if (banner) {
       banner.hidden = false;
+
       banner.textContent =
-        "No se puede acceder a la spreadsheet. Revisa el acceso al documento o vuelve a iniciar sesión. La sesión puede haber caducado.";
+        "No se puede acceder a la spreadsheet general. " +
+        "Se muestran los datos locales disponibles.";
     }
   } finally {
     isLoadingData = false;
@@ -1275,31 +1511,69 @@ async function init(showMessage = true) {
   }
 
   syncDataSourceToggle();
-  render();
+
+  await render();
 }
-function openDataSource() {
-  if (window.APP_CONFIG.runtime === "apps-script") {
-    google.script.run
-      .withSuccessHandler((url) => window.open(url, "_blank"))
-      .getSpreadsheetUrl();
 
-    return;
+async function refreshCurrentDataSource() {
+  const { routeName, programId } = getCurrentRoute();
+
+  const source = programId
+    ? window.APP_CONFIG.programs?.[programId]
+    : window.APP_CONFIG.portfolio;
+
+  showLoadingOverlay(
+    programId
+      ? `Cargando datos de ${source?.label || programId}...`
+      : "Cargando datos generales...",
+  );
+
+  try {
+    if (!programId || routeName === "landing") {
+      await loadPortfolioData(true);
+
+      DATA = PORTFOLIO_DATA;
+
+      updateDataStatus();
+    } else {
+      const programData = await loadProgramData(programId, true);
+
+      DATA = buildProgramData(programData);
+
+      updateDataStatus(programId);
+    }
+
+    await render();
+  } finally {
+    hideLoadingOverlay();
   }
+}
 
-  const spreadsheetId = window.APP_CONFIG.googleSheetsApi?.spreadsheetId;
+function openDataSource() {
+  const source = getActiveDataSource();
 
-  if (!spreadsheetId || spreadsheetId.includes("REPLACE")) {
-    alert("Spreadsheet ID no configurado.");
+  if (
+    !source?.spreadsheetId ||
+    source.spreadsheetId.includes("SPREADSHEET_ID") ||
+    source.spreadsheetId.includes("PEGA_AQUI")
+  ) {
+    alert(
+      `Spreadsheet no configurada para ${source?.label || "esta pantalla"}.`,
+    );
+
     return;
   }
 
   window.open(
-    `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+    `https://docs.google.com/spreadsheets/d/${source.spreadsheetId}`,
     "_blank",
+    "noopener,noreferrer",
   );
 }
+
 function syncDataSourceToggle() {
   const toggle = document.getElementById("dataSourceToggle");
+
   if (!toggle) return;
 
   toggle.checked = window.APP_CONFIG.runtime === "drive-json";
@@ -2816,7 +3090,11 @@ document
     }
 
     try {
-      await init(false);
+      await refreshCurrentDataSource();
+    } catch (error) {
+      console.error(error);
+
+      statusEl.textContent = "⚠ No se pudieron actualizar los datos";
     } finally {
       if (button) {
         button.disabled = false;
@@ -2916,5 +3194,8 @@ document.addEventListener("click", (event) => {
 
   render();
 });
-window.addEventListener("hashchange", render);
+window.addEventListener("hashchange", () => {
+  render().catch(console.error);
+});
+
 init();
