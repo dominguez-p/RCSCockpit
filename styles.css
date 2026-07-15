@@ -2547,24 +2547,60 @@ th {
   font-weight: 900;
 }
 
-.roadmap-status-on-track,
-.roadmap-status-done {
-  background: var(--green);
+/* =========================================================
+   AIxBanker · Roadmap colors by item type
+   ========================================================= */
+
+.roadmap-type-project {
+  background: linear-gradient(90deg, #20a676, #43c995);
 }
 
-.roadmap-status-at-risk {
-  background: #f59e0b;
+.roadmap-type-msa {
+  background: linear-gradient(90deg, #6755c4, #8e7de0);
 }
 
-.roadmap-status-blocked {
-  background: var(--red);
+.roadmap-type-poc {
+  background: linear-gradient(90deg, #ff7a45, #ffad66);
 }
 
-.roadmap-status-planned,
-.roadmap-status-pending {
-  background: var(--blue);
+.roadmap-type-initiative {
+  background: linear-gradient(90deg, #1464c9, #4f8ee8);
 }
 
+.roadmap-type-epic {
+  background: linear-gradient(90deg, #001391, #1746bd);
+}
+
+.roadmap-type-unknown {
+  background: linear-gradient(90deg, #60708f, #8b98ad);
+}
+.aixbanker-roadmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: -4px 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.aixbanker-roadmap-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aixbanker-roadmap-legend-item i {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: 0 4px 10px rgba(7, 46, 111, 0.16);
+}
+
+.aixbanker-roadmap-legend-item i.roadmap-type-epic {
+  border-radius: 3px;
+}
 .aixbanker-roadmap-milestone {
   position: absolute;
   top: 18px;
