@@ -3233,35 +3233,7 @@ function renderProjectDetailView(programId, projectId, navigation = null) {
         </strong>
       </article>
     </div>
-    <section
-      class="phase-status-legend"
-      aria-label="Leyenda de estados"
-    >
-      <span class="phase-status-legend-item">
-        <i class="phase-status-dot phase-status-done"></i>
-        Hecho
-      </span>
-
-      <span class="phase-status-legend-item">
-        <i class="phase-status-dot phase-status-on-track"></i>
-        En curso
-      </span>
-
-      <span class="phase-status-legend-item">
-        <i class="phase-status-dot phase-status-pending"></i>
-        Planeado
-      </span>
-
-      <span class="phase-status-legend-item">
-        <i class="phase-status-dot phase-status-risk"></i>
-        Riesgo
-      </span>
-
-      <span class="phase-status-legend-item">
-        <i class="phase-status-dot phase-status-blocked"></i>
-        Bloqueado
-      </span>
-    </section>
+    
     <section class="phase-section">
       <h3>
         Actividades y grado de avance
@@ -3335,8 +3307,39 @@ function renderProjectDetailView(programId, projectId, navigation = null) {
       </div>
 
       <div id="phaseTimeline"></div>
-    </section>
+      <section
+        class="phase-status-legend"
+        aria-label="Leyenda de estados"
+      >
+        <span class="phase-status-legend-item">
+          <i class="phase-status-dot phase-status-done"></i>
+          Hecho
+        </span>
 
+        <span class="phase-status-legend-item">
+          <i class="phase-status-dot phase-status-on-track"></i>
+          En curso
+        </span>
+
+        <span class="phase-status-legend-item">
+          <i class="phase-status-dot phase-status-pending"></i>
+          Planeado
+        </span>
+
+        <span class="phase-status-legend-item">
+          <i class="phase-status-dot phase-status-risk"></i>
+          Riesgo
+        </span>
+
+        <span class="phase-status-legend-item">
+          <i class="phase-status-dot phase-status-blocked"></i>
+          Bloqueado
+        </span>
+      </section>
+      <div id="phaseTimeline"></div>
+    </section>
+    </section>
+    
     <section class="project-detail-notes">
       <article>
         <h3>
@@ -3637,35 +3640,7 @@ function renderMsaDetailView(programId, msaId, navigation = null) {
         </strong>
       </article>
     </div>
-    <section
-      class="phase-status-legend"
-      aria-label="Leyenda de estados"
-    >
-      <span class="phase-status-legend-item">
-        <i class="phase-status-dot phase-status-done"></i>
-        Hecho
-      </span>
-
-      <span class="phase-status-legend-item">
-        <i class="phase-status-dot phase-status-on-track"></i>
-        En curso
-      </span>
-
-      <span class="phase-status-legend-item">
-        <i class="phase-status-dot phase-status-pending"></i>
-        Planeado
-      </span>
-
-      <span class="phase-status-legend-item">
-        <i class="phase-status-dot phase-status-risk"></i>
-        Riesgo
-      </span>
-
-      <span class="phase-status-legend-item">
-        <i class="phase-status-dot phase-status-blocked"></i>
-        Bloqueado
-      </span>
-    </section>
+   
     <section class="phase-section">
       <h3>
         Actividades y grado de avance
