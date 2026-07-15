@@ -1831,28 +1831,28 @@ th {
   transform: translateY(-50%);
   z-index: 2;
 }
+/* =========================================================
+   Phase timeline · Status colours
+   ========================================================= */
 
 .timeline-cell.timeline-done .timeline-bar {
-  background: var(--green);
+  background: linear-gradient(90deg, #20a676, #43c995);
 }
-
 .timeline-cell.timeline-on-track .timeline-bar {
-  background: var(--blue);
+  background: linear-gradient(90deg, #7fbaf1, #a8dff4);
+}
+.timeline-cell.timeline-planned .timeline-bar,
+.timeline-cell.timeline-pending .timeline-bar {
+  background: linear-gradient(90deg, #aeb8c8, #d6dde8);
 }
 
 .timeline-cell.timeline-at-risk .timeline-bar {
-  background: #f59e0b;
-}
-
-.timeline-cell.timeline-planned .timeline-bar,
-.timeline-cell.timeline-pending .timeline-bar {
-  background: #9ed3ff;
+  background: linear-gradient(90deg, #ff9f1c, #ffc266);
 }
 
 .timeline-cell.timeline-blocked .timeline-bar {
-  background: var(--red);
+  background: linear-gradient(90deg, #d62839, #ef476f);
 }
-
 .timeline-target {
   position: absolute;
   top: 10px;
@@ -2831,4 +2831,51 @@ th {
   .aixbanker-roadmap-sublane-status {
     font-size: 8px;
   }
+}
+/* =========================================================
+   Phase detail legend
+   ========================================================= */
+
+.phase-status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  margin: 6px 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.phase-status-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.phase-status-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: 0 4px 8px rgba(7, 46, 111, 0.16);
+}
+
+.phase-status-done {
+  background: linear-gradient(90deg, #20a676, #43c995);
+}
+
+.phase-status-on-track {
+  background: linear-gradient(90deg, #7fbaf1, #a8dff4);
+}
+
+.phase-status-pending {
+  background: linear-gradient(90deg, #aeb8c8, #d6dde8);
+}
+
+.phase-status-risk {
+  background: linear-gradient(90deg, #ff9f1c, #ffc266);
+}
+
+.phase-status-blocked {
+  background: linear-gradient(90deg, #d62839, #ef476f);
 }
