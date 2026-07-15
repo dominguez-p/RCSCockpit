@@ -650,8 +650,12 @@ function getRoadmapItemLayout(item, period) {
   };
 }
 
-function getRoadmapStatusClass(status) {
-  return `roadmap-status-${rcsNormalizeStatus(status)}`;
+function getRoadmapTypeClass(type) {
+  return `roadmap-type-${String(type || "unknown")
+    .trim()
+    .toLowerCase()
+    .replaceAll("_", "-")
+    .replace(/\s+/g, "-")}`;
 }
 function normalizeRoadmapInitiativeKey(value) {
   return String(value || "")
@@ -848,8 +852,9 @@ function renderRoadmapInitiativeRow(group, period) {
                     class="
                       aixbanker-roadmap-bar
                       aixbanker-roadmap-bar-action
-                      ${getRoadmapStatusClass(item.status)}
+                      ${getRoadmapTypeClass(item.type)}                    
                     "
+
                     type="button"
                     data-roadmap-detail-type="${rcsEsc(item.type)}"
                     data-roadmap-detail-id="${rcsEsc(item.id)}"
@@ -1314,7 +1319,7 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
           </nav>
         </div>
       </section>
-
+      
       <section class="aixbanker-roadmap-summary">
         <article>
           <span>
@@ -1356,7 +1361,31 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
           </strong>
         </article>
       </section>
+      <section
+        class="aixbanker-roadmap-legend"
+        aria-label="Leyenda de tipos del roadmap"
+      >
+        <span class="aixbanker-roadmap-legend-item">
+          <i class="roadmap-type-project"></i>
+          Proyecto
+        </span>
 
+        <span class="aixbanker-roadmap-legend-item">
+          <i class="roadmap-type-msa"></i>
+          MSA
+        </span>
+
+        <span class="aixbanker-roadmap-legend-item">
+          <i class="roadmap-type-poc"></i>
+          PoC
+        </span>
+
+        <span class="aixbanker-roadmap-legend-item">
+          <i class="roadmap-type-initiative"></i>
+          Iniciativa
+        </span>
+
+      </section>
       ${
         roadmapItems.length
           ? renderRoadmapTimeline(roadmapItems, selectedQuarter)
