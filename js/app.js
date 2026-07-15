@@ -883,17 +883,20 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
   }
 
   selectedExecutiveProduct = product.id;
-
   executiveQuarter = selectedQuarter;
+
+  const country = COUNTRIES.find((item) => item.id === selectedCountry);
+
+  const countryLabel = country?.label || selectedCountry;
 
   const roadmapItems = getRoadmapItems(programId, productId, selectedQuarter);
 
   setHead(
     `${program.name || "AIxBanker"} · ${product.label}`,
-    `Roadmap · ${getRoadmapQuarterLabel(selectedQuarter)}`,
+    `Roadmap · ${countryLabel} · ${getRoadmapQuarterLabel(selectedQuarter)}`,
     `Retail Client Solutions > ${
       program.name || "AIxBanker"
-    } > ${product.label} > Roadmap > ${getRoadmapQuarterLabel(
+    } > ${product.label} > ${countryLabel} > Roadmap > ${getRoadmapQuarterLabel(
       selectedQuarter,
     )}`,
   );
@@ -951,33 +954,55 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
         </h2>
 
         <p>
-          Iniciativas, proyectos y MSAs
+          Iniciativas, proyectos y MSAs de
+          ${rcsEsc(countryLabel)}
           planificados para
           ${rcsEsc(getRoadmapQuarterLabel(selectedQuarter))}.
         </p>
       </header>
 
-      <nav
-        class="executive-filter-row"
-        aria-label="Seleccionar trimestre del roadmap"
+      <section
+        class="aixbanker-roadmap-filters"
+        aria-label="Filtros del roadmap"
       >
-        ${quarters
-          .map(
-            (item) => `
-              <button
-                class="quarter-btn ${
-                  selectedQuarter === item.id ? "active" : ""
-                }"
-                type="button"
-                data-route="roadmap/${programId}/${productId}/${item.id}"
-                aria-pressed="${selectedQuarter === item.id ? "true" : "false"}"
-              >
-                ${item.label}
-              </button>
-            `,
-          )
-          .join("")}
-      </nav>
+        <div class="aixbanker-roadmap-filter-group">
+          <span class="aixbanker-roadmap-filter-label">
+            País
+          </span>
+
+          ${renderCountrySelector()}
+        </div>
+
+        <div class="aixbanker-roadmap-filter-group">
+          <span class="aixbanker-roadmap-filter-label">
+            Periodo
+          </span>
+
+          <nav
+            class="executive-filter-row"
+            aria-label="Seleccionar trimestre del roadmap"
+          >
+            ${quarters
+              .map(
+                (item) => `
+                  <button
+                    class="quarter-btn ${
+                      selectedQuarter === item.id ? "active" : ""
+                    }"
+                    type="button"
+                    data-route="roadmap/${programId}/${productId}/${item.id}"
+                    aria-pressed="${
+                      selectedQuarter === item.id ? "true" : "false"
+                    }"
+                  >
+                    ${item.label}
+                  </button>
+                `,
+              )
+              .join("")}
+          </nav>
+        </div>
+      </section>
 
       <section class="aixbanker-roadmap-summary">
         <article>
@@ -1021,7 +1046,26 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
         </article>
       </section>
 
-      ${renderRoadmapTimeline(roadmapItems, selectedQuarter)}
+      ${
+        roadmapItems.length
+          ? renderRoadmapTimeline(roadmapItems, selectedQuarter)
+          : `
+            <section class="panel aixbanker-roadmap-no-data">
+              <h3>
+                Sin elementos para esta selección
+              </h3>
+
+              <p class="empty-state">
+                No hay iniciativas, proyectos ni MSAs de
+                ${rcsEsc(product.label)}
+                informados para
+                ${rcsEsc(countryLabel)}
+                y
+                ${rcsEsc(getRoadmapQuarterLabel(selectedQuarter))}.
+              </p>
+            </section>
+          `
+      }
     </section>
   `;
 }

@@ -2597,3 +2597,68 @@ th {
     grid-template-columns: 240px minmax(700px, 1fr);
   }
 }
+/* =========================================================
+   AIxBanker · Roadmap filters
+   ========================================================= */
+
+.aixbanker-roadmap-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(280px, auto);
+  gap: 22px;
+  align-items: end;
+  margin-bottom: 22px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.aixbanker-roadmap-filter-group {
+  min-width: 0;
+}
+
+.aixbanker-roadmap-filter-label {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.aixbanker-roadmap-filters .country-selector {
+  margin: 0;
+}
+
+.aixbanker-roadmap-filters .executive-filter-row {
+  justify-content: flex-end;
+  margin: 0;
+}
+
+.aixbanker-roadmap-no-data {
+  text-align: center;
+}
+
+.aixbanker-roadmap-no-data h3 {
+  margin-top: 0;
+}
+
+@media (max-width: 1000px) {
+  .aixbanker-roadmap-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .aixbanker-roadmap-filters .executive-filter-row {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .aixbanker-roadmap-filters {
+    padding: 16px;
+  }
+}
