@@ -228,6 +228,12 @@ const ROADMAP_ITEM_ADAPTERS = {
 
         phases,
         source: item,
+        roadmapOrder: normalizeRoadmapPriority(
+          item.roadmapOrder ??
+            item.roadmap_order ??
+            item.laneOrder ??
+            item.lane_order,
+        ),
       };
     },
   },
@@ -281,6 +287,12 @@ const ROADMAP_ITEM_ADAPTERS = {
 
         phases,
         source: item,
+        roadmapOrder: normalizeRoadmapPriority(
+          item.roadmapOrder ??
+            item.roadmap_order ??
+            item.laneOrder ??
+            item.lane_order,
+        ),
       };
     },
   },
@@ -409,33 +421,33 @@ function getRoadmapItems(programId, productId, quarter = "ALL") {
 
       const matchesCountry = !item.country || item.country === selectedCountry;
 
-      const matchesQuarter =
-        normalizedQuarter === "ALL" || item.quarter === normalizedQuarter;
+      const matchesPeriod = roadmapItemMatchesPeriod(item, normalizedQuarter);
 
       return (
-        matchesProgram && matchesProduct && matchesCountry && matchesQuarter
+        matchesProgram && matchesProduct && matchesCountry && matchesPeriod
       );
     })
     .sort((a, b) => {
-      const quarterDifference =
-        getQuarterOrder(a.quarter) - getQuarterOrder(b.quarter);
-
-      if (quarterDifference !== 0) {
-        return quarterDifference;
-      }
-
       const priorityDifference = a.priority - b.priority;
 
       if (priorityDifference !== 0) {
         return priorityDifference;
       }
 
-      const dateA = parseValidDate(a.targetDate || a.endDate || a.startDate);
+      const datesA = getRoadmapItemDates(a);
 
-      const dateB = parseValidDate(b.targetDate || b.endDate || b.startDate);
+      const datesB = getRoadmapItemDates(b);
+
+      const dateA = datesA.startDate || datesA.targetDate || datesA.endDate;
+
+      const dateB = datesB.startDate || datesB.targetDate || datesB.endDate;
 
       if (dateA && dateB) {
-        return dateA - dateB;
+        const dateDifference = dateA - dateB;
+
+        if (dateDifference !== 0) {
+          return dateDifference;
+        }
       }
 
       if (dateA) {
@@ -501,7 +513,28 @@ function getRoadmapItemDates(item) {
     targetDate,
   };
 }
+function roadmapItemMatchesPeriod(
+  item,
+  quarter,
+  year = new Date().getFullYear(),
+) {
+  const period = getRoadmapPeriod(quarter, year);
 
+  const { startDate, endDate } = getRoadmapItemDates(item);
+
+  /*
+   * Un elemento sin fechas no puede asignarse
+   * a un trimestre concreto.
+   *
+   * En la vista anual sí lo mantenemos para que
+   * aparezca en "Elementos sin planificación temporal".
+   */
+  if (!startDate || !endDate) {
+    return quarter === "ALL";
+  }
+
+  return startDate <= period.endDate && endDate >= period.startDate;
+}
 function clampRoadmapDate(date, minimum, maximum) {
   if (!date) {
     return null;
@@ -620,7 +653,102 @@ function getRoadmapItemLayout(item, period) {
 function getRoadmapStatusClass(status) {
   return `roadmap-status-${rcsNormalizeStatus(status)}`;
 }
+function normalizeRoadmapInitiativeKey(value) {
+  return String(value || "")
+    .trim()
+    .toLocaleLowerCase("es")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
 
+function getDefaultRoadmapTypeOrder(type) {
+  return (
+    {
+      initiative: 10,
+      epic: 20,
+      msa: 30,
+      project: 40,
+      poc: 50,
+    }[type] || 999
+  );
+}
+
+function getRoadmapItemStackOrder(item) {
+  const configuredOrder = Number(item.roadmapOrder);
+
+  if (Number.isFinite(configuredOrder) && configuredOrder !== 999) {
+    return configuredOrder;
+  }
+
+  return getDefaultRoadmapTypeOrder(item.type);
+}
+
+function groupRoadmapItemsByInitiative(items) {
+  const groups = new Map();
+
+  items.forEach((item) => {
+    const key =
+      normalizeRoadmapInitiativeKey(item.title) || `${item.type}-${item.id}`;
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        title: item.title || "Iniciativa sin nombre",
+        items: [],
+      });
+    }
+
+    groups.get(key).items.push(item);
+  });
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+
+      items: group.items.sort((a, b) => {
+        const orderDifference =
+          getRoadmapItemStackOrder(a) - getRoadmapItemStackOrder(b);
+
+        if (orderDifference !== 0) {
+          return orderDifference;
+        }
+
+        return String(a.typeLabel || a.type).localeCompare(
+          String(b.typeLabel || b.type),
+          "es",
+        );
+      }),
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title, "es"));
+}
+
+function getRoadmapGroupStatus(group) {
+  const statuses = group.items.map((item) => rcsNormalizeStatus(item.status));
+
+  if (statuses.includes("blocked")) {
+    return "blocked";
+  }
+
+  if (statuses.includes("at-risk")) {
+    return "at-risk";
+  }
+
+  if (statuses.length && statuses.every((status) => status === "done")) {
+    return "done";
+  }
+
+  if (statuses.includes("on-track")) {
+    return "on-track";
+  }
+
+  if (statuses.includes("planned")) {
+    return "planned";
+  }
+
+  return statuses[0] || "pending";
+}
 function renderRoadmapMonths(period) {
   return period.months
     .map(
@@ -641,96 +769,277 @@ function renderRoadmapMonths(period) {
     .join("");
 }
 
-function renderRoadmapItemRow(item, period) {
-  const layout = getRoadmapItemLayout(item, period);
+function renderRoadmapInitiativeRow(group, period) {
+  const visibleItems = group.items
+    .map((item) => ({
+      item,
+      layout: getRoadmapItemLayout(item, period),
+    }))
+    .filter(({ layout }) => layout.isVisible);
 
-  if (!layout.isVisible) {
+  if (!visibleItems.length) {
     return "";
   }
 
-  const status = rcsNormalizeStatus(item.status);
+  const groupStatus = getRoadmapGroupStatus(group);
+
+  const averageProgress = Math.round(
+    visibleItems.reduce(
+      (total, { item }) => total + Number(item.progress || 0),
+      0,
+    ) / visibleItems.length,
+  );
 
   return `
     <article
-      class="aixbanker-roadmap-row"
-      data-roadmap-item-type="${rcsEsc(item.type)}"
-      data-roadmap-item-id="${rcsEsc(item.id)}"
+      class="aixbanker-roadmap-row aixbanker-roadmap-initiative-row"
+      style="--roadmap-sublane-count:${visibleItems.length};"
+      data-roadmap-initiative="${rcsEsc(group.key)}"
     >
       <div class="aixbanker-roadmap-item-info">
         <div class="aixbanker-roadmap-item-top">
           <span
-            class="status-pill status-${status}"
+            class="status-pill status-${groupStatus}"
           >
-            ${rcsEsc(rcsStatusLabel(status))}
+            ${rcsEsc(rcsStatusLabel(groupStatus))}
           </span>
 
           <span class="aixbanker-roadmap-type">
-            ${rcsEsc(item.typeLabel)}
+            ${visibleItems.length}
+            ${visibleItems.length === 1 ? "elemento" : "elementos"}
           </span>
         </div>
 
         <strong class="aixbanker-roadmap-item-title">
-          ${rcsEsc(item.title)}
+          ${rcsEsc(group.title)}
         </strong>
 
         <div class="aixbanker-roadmap-item-meta">
           <span>
-            ${rcsEsc(item.owner || "Sin owner")}
+            Avance medio
+            ${averageProgress}%
           </span>
 
           <span>
-            ${rcsEsc(item.progress)}%
+            ${visibleItems
+              .map(({ item }) => item.typeLabel)
+              .filter((value, index, array) => array.indexOf(value) === index)
+              .map(rcsEsc)
+              .join(" · ")}
           </span>
         </div>
       </div>
 
-      <div class="aixbanker-roadmap-track">
-        <div
-          class="
-            aixbanker-roadmap-bar
-            ${getRoadmapStatusClass(item.status)}
-          "
-          style="
-            left: ${layout.left}%;
-            width: ${layout.width}%;
-          "
-          title="${rcsEsc(
-            `${item.title}: ${formatDate(layout.startDate)} → ${formatDate(
-              layout.endDate,
-            )}`,
-          )}"
-        >
-          <span class="aixbanker-roadmap-bar-label">
-            ${rcsEsc(item.progress)}%
-          </span>
-        </div>
+      <div class="aixbanker-roadmap-track aixbanker-roadmap-group-track">
+        ${visibleItems
+          .map(({ item, layout }, index) => {
+            const status = rcsNormalizeStatus(item.status);
 
-        ${
-          layout.targetPosition !== null
-            ? `
-              <span
-                class="aixbanker-roadmap-milestone"
-                style="
-                  left: ${layout.targetPosition}%;
-                "
-                title="Entrega: ${rcsEsc(formatDate(layout.targetDate))}"
-              >
-                <span aria-hidden="true">
-                  ◆
-                </span>
+            return `
+                <div
+                  class="aixbanker-roadmap-sublane"
+                  style="--roadmap-sublane-index:${index};"
+                >
+                  <span class="aixbanker-roadmap-sublane-label">
+                    ${rcsEsc(item.typeLabel)}
+                  </span>
 
-                <em>
-                  ${rcsEsc(formatDate(layout.targetDate))}
-                </em>
-              </span>
-            `
-            : ""
-        }
+                  <button
+                    class="
+                      aixbanker-roadmap-bar
+                      aixbanker-roadmap-bar-action
+                      ${getRoadmapStatusClass(item.status)}
+                    "
+                    type="button"
+                    data-roadmap-detail-type="${rcsEsc(item.type)}"
+                    data-roadmap-detail-id="${rcsEsc(item.id)}"
+                    style="
+                      left:${layout.left}%;
+                      width:${layout.width}%;
+                    "
+                    title="${rcsEsc(
+                      `${item.typeLabel} · ${item.title}: ${formatDate(
+                        layout.startDate,
+                      )} → ${formatDate(layout.endDate)}. Abrir detalle.`,
+                    )}"
+                    aria-label="${rcsEsc(
+                      `Abrir detalle de ${item.typeLabel} ${item.title}`,
+                    )}"
+                  >
+                    <span class="aixbanker-roadmap-bar-label">
+                      ${rcsEsc(item.progress)}%
+                    </span>
+                  </button>
+
+                  ${
+                    layout.targetPosition !== null
+                      ? `
+                        <span
+                          class="aixbanker-roadmap-milestone aixbanker-roadmap-sublane-milestone"
+                          style="
+                            left:${layout.targetPosition}%;
+                          "
+                          title="Entrega: ${rcsEsc(
+                            formatDate(layout.targetDate),
+                          )}"
+                        >
+                          <span aria-hidden="true">
+                            ◆
+                          </span>
+
+                          <em>
+                            ${rcsEsc(formatDate(layout.targetDate))}
+                          </em>
+                        </span>
+                      `
+                      : ""
+                  }
+
+                  <span
+                    class="aixbanker-roadmap-sublane-status status-${status}"
+                  >
+                    ${rcsEsc(rcsStatusLabel(status))}
+                  </span>
+                </div>
+              `;
+          })
+          .join("")}
       </div>
     </article>
   `;
 }
+function renderAIxBankerRoadmapDetail(
+  programId,
+  productId,
+  quarter,
+  itemType,
+  itemId,
+) {
+  const program = (DATA.programs || []).find((item) => item.id === programId);
 
+  const product = getAIxBankerProduct(productId);
+
+  if (!program || !product || !itemType || !itemId) {
+    route(
+      `roadmap/${programId}/${productId}/${quarter || getCurrentQuarter()}`,
+    );
+
+    return;
+  }
+
+  const selectedQuarter = isValidRoadmapQuarter(quarter)
+    ? quarter
+    : getCurrentQuarter();
+
+  selectedExecutiveProduct = product.id;
+
+  executiveQuarter = selectedQuarter;
+
+  const roadmapItems = getRoadmapItems(programId, productId, selectedQuarter);
+
+  const roadmapItem = roadmapItems.find(
+    (item) => item.type === itemType && String(item.id) === String(itemId),
+  );
+
+  if (!roadmapItem) {
+    view.innerHTML = `
+      <section class="panel">
+        <button
+          class="ghost-button"
+          type="button"
+          data-route="roadmap/${programId}/${productId}/${selectedQuarter}"
+        >
+          ← Volver al roadmap
+        </button>
+
+        <h3>
+          Elemento no encontrado
+        </h3>
+
+        <p class="empty-state">
+          El elemento solicitado no existe
+          para el producto, país y periodo
+          seleccionados.
+        </p>
+      </section>
+    `;
+
+    return;
+  }
+
+  const country = COUNTRIES.find((item) => item.id === selectedCountry);
+
+  const countryLabel = country?.label || selectedCountry;
+
+  setHead(
+    roadmapItem.title,
+    `${roadmapItem.typeLabel} · ${product.label} · ${countryLabel}`,
+    `Retail Client Solutions > ${
+      program.name || "AIxBanker"
+    } > ${product.label} > Roadmap > ${getRoadmapQuarterLabel(
+      selectedQuarter,
+    )} > ${roadmapItem.title}`,
+  );
+
+  if (itemType === "project") {
+    view.innerHTML = "";
+    view.append(tpl("#projects-template"));
+
+    const list = document.querySelector("#projects");
+
+    if (list) {
+      list.hidden = true;
+    }
+
+    renderProjectDetailView(programId, itemId, {
+      route: `roadmap/${programId}/${productId}/${selectedQuarter}`,
+
+      label: `Volver al roadmap de ${product.label}`,
+    });
+
+    return;
+  }
+
+  if (itemType === "msa") {
+    view.innerHTML = "";
+    view.append(tpl("#msas-template"));
+
+    const list = document.querySelector("#msas");
+
+    if (list) {
+      list.hidden = true;
+    }
+
+    renderMsaDetailView(programId, itemId, {
+      route: `roadmap/${programId}/${productId}/${selectedQuarter}`,
+
+      label: `Volver al roadmap de ${product.label}`,
+    });
+
+    return;
+  }
+
+  view.innerHTML = `
+    <section class="panel">
+      <button
+        class="ghost-button"
+        type="button"
+        data-route="roadmap/${programId}/${productId}/${selectedQuarter}"
+      >
+        ← Volver al roadmap
+      </button>
+
+      <h3>
+        Tipo de elemento no soportado
+      </h3>
+
+      <p class="empty-state">
+        Todavía no existe un detalle para
+        ${rcsEsc(roadmapItem.typeLabel || itemType)}.
+      </p>
+    </section>
+  `;
+}
 function renderRoadmapUndatedItems(items) {
   if (!items.length) {
     return "";
@@ -809,7 +1118,7 @@ function renderRoadmapUndatedItems(items) {
 function renderRoadmapTimeline(roadmapItems, selectedQuarter) {
   const period = getRoadmapPeriod(selectedQuarter);
 
-  const visibleItems = [];
+  const datedItems = [];
   const undatedItems = [];
 
   roadmapItems.forEach((item) => {
@@ -821,9 +1130,11 @@ function renderRoadmapTimeline(roadmapItems, selectedQuarter) {
     }
 
     if (layout.isVisible) {
-      visibleItems.push(item);
+      datedItems.push(item);
     }
   });
+
+  const initiativeGroups = groupRoadmapItemsByInitiative(datedItems);
 
   return `
     <section class="aixbanker-roadmap-board">
@@ -845,14 +1156,14 @@ function renderRoadmapTimeline(roadmapItems, selectedQuarter) {
 
       <div class="aixbanker-roadmap-rows">
         ${
-          visibleItems.length
-            ? visibleItems
-                .map((item) => renderRoadmapItemRow(item, period))
+          initiativeGroups.length
+            ? initiativeGroups
+                .map((group) => renderRoadmapInitiativeRow(group, period))
                 .join("")
             : `
               <div class="aixbanker-roadmap-empty">
-                No hay elementos con fechas dentro del
-                periodo seleccionado.
+                No hay elementos con fechas
+                dentro del periodo seleccionado.
               </div>
             `
         }
@@ -2065,7 +2376,15 @@ function renderCurrentRoute(
   if (routeName === "program") {
     renderProgram(programId);
   } else if (routeName === "roadmap" && programId === "aixbanker") {
-    renderAIxBankerRoadmap(programId, productId, quarter, itemType, itemId);
+    renderAIxBankerRoadmap(programId, productId, quarter);
+  } else if (routeName === "roadmap-detail" && programId === "aixbanker") {
+    renderAIxBankerRoadmapDetail(
+      programId,
+      productId,
+      quarter,
+      itemType,
+      itemId,
+    );
   } else if (routeName === "functional") {
     renderFunctional(programId);
   } else if (routeName === "systems") {
@@ -2552,6 +2871,10 @@ function rcsNormalizeStatus(s) {
       on_track: "on-track",
       "on track": "on-track",
 
+      "analysis in progress": "pending",
+      "in progress": "on-track",
+      analysis: "pending",
+
       "componente desarrollado": "on-track",
       "diseño liberado": "done",
       "n/a": "pending",
@@ -2751,72 +3074,141 @@ function renderProjectsList(programId) {
     });
 }
 
-function renderProjectDetailView(programId, projectId) {
+function renderProjectDetailView(programId, projectId, navigation = null) {
   const list = document.querySelector("#projects");
+
   const detail = document.querySelector("#projectDetail");
 
   if (!detail) return;
 
-  const project = getProgramProjects(programId).find((p) => p.id === projectId);
+  const project = (DATA.projects || []).find(
+    (item) =>
+      item.programId === programId && String(item.id) === String(projectId),
+  );
 
-  if (!project) {
-    detail.hidden = false;
-    detail.innerHTML = `
-      <button class="ghost-button" type="button" onclick="renderProjectsList('${programId}')">
+  const backRoute = navigation?.route || null;
+
+  const backLabel = navigation?.label || "Volver a proyectos";
+
+  const backButton = backRoute
+    ? `
+      <button
+        class="ghost-button"
+        type="button"
+        data-route="${rcsEsc(backRoute)}"
+      >
+        ← ${rcsEsc(backLabel)}
+      </button>
+    `
+    : `
+      <button
+        class="ghost-button"
+        type="button"
+        data-project-list-back="${rcsEsc(programId)}"
+      >
         ← Volver a proyectos
       </button>
-      <h3>Proyecto no encontrado</h3>
     `;
+
+  if (!project) {
+    if (list) {
+      list.hidden = true;
+    }
+
+    detail.hidden = false;
+
+    detail.innerHTML = `
+      ${backButton}
+
+      <h3>
+        Proyecto no encontrado
+      </h3>
+    `;
+
     return;
   }
 
   const phases = getProjectPhases(project.id);
+
   const status = rcsNormalizeStatus(project.status);
 
-  if (list) list.hidden = true;
+  if (list) {
+    list.hidden = true;
+  }
+
   detail.hidden = false;
 
   detail.innerHTML = `
     <div class="project-detail-header">
-      <button class="ghost-button" type="button" onclick="renderProjectsList('${programId}')">
-        ← Volver a proyectos
-      </button>
+      ${backButton}
 
       <div>
-        <h3>${rcsEsc(project.name)}</h3>
-        <p>${rcsEsc(project.description || project.summary)}</p>
+        <h3>
+          ${rcsEsc(project.name)}
+        </h3>
+
+        <p>
+          ${rcsEsc(project.description || project.summary)}
+        </p>
       </div>
 
-      <span class="status-pill status-${status}">
+      <span
+        class="status-pill status-${status}"
+      >
         ${rcsStatusLabel(status)}
       </span>
     </div>
 
     <div class="project-detail-grid">
       <article class="detail-card">
-        <span>Owner</span>
-        <strong>${rcsEsc(project.owner || "-")}</strong>
+        <span>
+          Owner
+        </span>
+
+        <strong>
+          ${rcsEsc(project.owner || "-")}
+        </strong>
       </article>
 
       <article class="detail-card">
-        <span>Avance global</span>
-        <strong>${rcsEsc(project.progress || 0)}%</strong>
+        <span>
+          Avance global
+        </span>
+
+        <strong>
+          ${rcsEsc(project.progress || 0)}%
+        </strong>
       </article>
 
       <article class="detail-card">
-        <span>Siguiente hito</span>
-        <strong>${rcsEsc(project.nextMilestoneTitle || "-")}</strong>
-        <small>${rcsEsc(formatDate(project.nextMilestoneDate) || "")}</small>
+        <span>
+          Siguiente hito
+        </span>
+
+        <strong>
+          ${rcsEsc(project.nextMilestoneTitle || "-")}
+        </strong>
+
+        <small>
+          ${rcsEsc(formatDate(project.nextMilestoneDate) || "")}
+        </small>
       </article>
 
       <article class="detail-card">
-        <span>Última actualización</span>
-        <strong>${rcsEsc(formatDate(project.lastUpdate) || "-")}</strong>
+        <span>
+          Última actualización
+        </span>
+
+        <strong>
+          ${rcsEsc(formatDate(project.lastUpdate) || "-")}
+        </strong>
       </article>
     </div>
 
     <section class="phase-section">
-      <h3>Avance por fases</h3>
+      <h3>
+        Actividades y grado de avance
+      </h3>
 
       <div class="phase-roadmap">
         ${
@@ -2824,6 +3216,7 @@ function renderProjectDetailView(programId, projectId) {
             ? phases
                 .map((phase) => {
                   const phaseStatus = rcsNormalizeStatus(phase.status);
+
                   const progress = Math.max(
                     0,
                     Math.min(100, Number(phase.progress || 0)),
@@ -2832,20 +3225,31 @@ function renderProjectDetailView(programId, projectId) {
                   return `
                     <article class="phase-card">
                       <div class="phase-card-head">
-                        <h4>${rcsEsc(phase.phaseName)}</h4>
-                        <span class="status-pill status-${phaseStatus}">
+                        <h4>
+                          ${rcsEsc(
+                            phase.phaseName || phase.name || "Actividad",
+                          )}
+                        </h4>
+
+                        <span
+                          class="status-pill status-${phaseStatus}"
+                        >
                           ${rcsStatusLabel(phaseStatus)}
                         </span>
                       </div>
 
                       <div class="phase-bar">
-                        <span style="width:${progress}%"></span>
+                        <span
+                          style="width:${progress}%"
+                        ></span>
                       </div>
 
                       <div class="phase-meta">
-                        <strong>${progress}%</strong>
+                        <strong>
+                          ${progress}%
+                        </strong>
+
                         <span>
-                          Marco:
                           ${rcsEsc(formatDate(phase.startDate))}
                           →
                           ${rcsEsc(formatDate(phase.endDate))}
@@ -2853,42 +3257,72 @@ function renderProjectDetailView(programId, projectId) {
                       </div>
 
                       <div class="phase-delivery">
-                        🚩 Entrega: ${rcsEsc(formatDate(phase.targetDate))}
+                        🚩 Entrega:
+                        ${rcsEsc(formatDate(phase.targetDate))}
                       </div>
 
-                      <p>${rcsEsc(phase.comments || "")}</p>
+                      <p>
+                        ${rcsEsc(phase.comments || "")}
+                      </p>
                     </article>
                   `;
                 })
                 .join("")
-            : `<p class="empty-state">No hay fases informadas para este proyecto.</p>`
+            : `
+              <p class="empty-state">
+                No hay actividades informadas
+                para este proyecto.
+              </p>
+            `
         }
       </div>
+
       <div id="phaseTimeline"></div>
     </section>
 
     <section class="project-detail-notes">
       <article>
-        <h3>Objetivo estratégico</h3>
-        <p>${rcsEsc(project.strategicGoal || "No informado.")}</p>
+        <h3>
+          Objetivo estratégico
+        </h3>
+
+        <p>
+          ${rcsEsc(project.strategicGoal || "No informado.")}
+        </p>
       </article>
 
       <article>
-        <h3>Valor de negocio</h3>
-        <p>${rcsEsc(project.businessValue || "No informado.")}</p>
+        <h3>
+          Valor de negocio
+        </h3>
+
+        <p>
+          ${rcsEsc(project.businessValue || "No informado.")}
+        </p>
       </article>
 
       <article>
-        <h3>Riesgos principales</h3>
-        <p>${rcsEsc(project.mainRisks || "No informado.")}</p>
+        <h3>
+          Riesgos principales
+        </h3>
+
+        <p>
+          ${rcsEsc(project.mainRisks || "No informado.")}
+        </p>
       </article>
 
       <article>
-        <h3>Dependencias</h3>
-        <p>${rcsEsc(project.dependencies || "No informado.")}</p>
+        <h3>
+          Dependencias
+        </h3>
+
+        <p>
+          ${rcsEsc(project.dependencies || "No informado.")}
+        </p>
       </article>
     </section>
   `;
+
   const timelineContainer = document.getElementById("phaseTimeline");
 
   renderPhaseTimeline(phases, timelineContainer);
@@ -3013,44 +3447,87 @@ function renderMsasList(programId) {
       });
     });
 }
-function renderMsaDetailView(programId, msaId) {
+function renderMsaDetailView(programId, msaId, navigation = null) {
   const list = document.querySelector("#msas");
+
   const detail = document.querySelector("#msaDetail");
 
   if (!detail) return;
 
-  const msa = getProgramMsas(programId).find((item) => item.id === msaId);
+  const msa = (DATA.msas || []).find(
+    (item) => item.programId === programId && String(item.id) === String(msaId),
+  );
 
-  if (!msa) {
-    detail.hidden = false;
-    detail.innerHTML = `
-      <button class="ghost-button" type="button" onclick="renderMsasList('${programId}')">
+  const backRoute = navigation?.route || null;
+
+  const backLabel = navigation?.label || "Volver a MSAs";
+
+  const backButton = backRoute
+    ? `
+      <button
+        class="ghost-button"
+        type="button"
+        data-route="${rcsEsc(backRoute)}"
+      >
+        ← ${rcsEsc(backLabel)}
+      </button>
+    `
+    : `
+      <button
+        class="ghost-button"
+        type="button"
+        data-msa-list-back="${rcsEsc(programId)}"
+      >
         ← Volver a MSAs
       </button>
-      <h3>MSA no encontrado</h3>
     `;
+
+  if (!msa) {
+    if (list) {
+      list.hidden = true;
+    }
+
+    detail.hidden = false;
+
+    detail.innerHTML = `
+      ${backButton}
+
+      <h3>
+        MSA no encontrado
+      </h3>
+    `;
+
     return;
   }
 
   const phases = getMsaPhases(msa.id);
+
   const status = rcsNormalizeStatus(msa.status);
 
-  if (list) list.hidden = true;
+  if (list) {
+    list.hidden = true;
+  }
+
   detail.hidden = false;
 
   detail.innerHTML = `
     <div class="project-detail-header">
-      <button class="ghost-button" type="button" onclick="renderMsasList('${programId}')">
-        ← Volver a MSAs
-      </button>
+      ${backButton}
 
       <div>
-        <h3>${rcsEsc(msa.name)}</h3>
-        <p>${rcsEsc(msa.description || msa.summary)}</p>
+        <h3>
+          ${rcsEsc(msa.name)}
+        </h3>
+
+        <p>
+          ${rcsEsc(msa.description || msa.summary)}
+        </p>
       </div>
 
       <div class="project-detail-actions">
-        <span class="status-pill status-${status}">
+        <span
+          class="status-pill status-${status}"
+        >
           ${rcsStatusLabel(status)}
         </span>
 
@@ -3060,29 +3537,54 @@ function renderMsaDetailView(programId, msaId) {
 
     <div class="project-detail-grid">
       <article class="detail-card">
-        <span>Owner</span>
-        <strong>${rcsEsc(msa.owner || "-")}</strong>
+        <span>
+          Owner
+        </span>
+
+        <strong>
+          ${rcsEsc(msa.owner || "-")}
+        </strong>
       </article>
 
       <article class="detail-card">
-        <span>Avance global</span>
-        <strong>${rcsEsc(msa.progress || 0)}%</strong>
+        <span>
+          Avance global
+        </span>
+
+        <strong>
+          ${rcsEsc(msa.progress || 0)}%
+        </strong>
       </article>
 
       <article class="detail-card">
-        <span>Siguiente hito</span>
-        <strong>${rcsEsc(msa.nextMilestoneTitle || "-")}</strong>
-        <small>${rcsEsc(msa.nextMilestoneDate || "")}</small>
+        <span>
+          Siguiente hito
+        </span>
+
+        <strong>
+          ${rcsEsc(msa.nextMilestoneTitle || "-")}
+        </strong>
+
+        <small>
+          ${rcsEsc(formatDate(msa.nextMilestoneDate))}
+        </small>
       </article>
 
       <article class="detail-card">
-        <span>Última actualización</span>
-        <strong>${rcsEsc(msa.lastUpdate || "-")}</strong>
+        <span>
+          Última actualización
+        </span>
+
+        <strong>
+          ${rcsEsc(formatDate(msa.lastUpdate))}
+        </strong>
       </article>
     </div>
 
     <section class="phase-section">
-      <h3>Avance por fases</h3>
+      <h3>
+        Actividades y grado de avance
+      </h3>
 
       <div class="phase-roadmap">
         ${
@@ -3090,6 +3592,7 @@ function renderMsaDetailView(programId, msaId) {
             ? phases
                 .map((phase) => {
                   const phaseStatus = rcsNormalizeStatus(phase.status);
+
                   const progress = Math.max(
                     0,
                     Math.min(100, Number(phase.progress || 0)),
@@ -3098,54 +3601,95 @@ function renderMsaDetailView(programId, msaId) {
                   return `
                     <article class="phase-card">
                       <div class="phase-card-head">
-                        <h4>${rcsEsc(phase.phaseName)}</h4>
-                        <span class="status-pill status-${phaseStatus}">
+                        <h4>
+                          ${rcsEsc(
+                            phase.phaseName || phase.name || "Actividad",
+                          )}
+                        </h4>
+
+                        <span
+                          class="status-pill status-${phaseStatus}"
+                        >
                           ${rcsStatusLabel(phaseStatus)}
                         </span>
                       </div>
 
                       <div class="phase-bar">
-                        <span style="width:${progress}%"></span>
+                        <span
+                          style="width:${progress}%"
+                        ></span>
                       </div>
 
                       <div class="phase-meta">
-                        <strong>${progress}%</strong>
+                        <strong>
+                          ${progress}%
+                        </strong>
+
                         <span>
-                          ${rcsEsc(formatDate(phase.startDate) || "-")}
+                          ${rcsEsc(formatDate(phase.startDate))}
                           →
-                          ${rcsEsc(formatDate(phase.targetDate || phase.endDate))}
+                          ${rcsEsc(
+                            formatDate(phase.targetDate || phase.endDate),
+                          )}
                         </span>
                       </div>
 
-                      <p>${rcsEsc(phase.comments || "")}</p>
+                      <p>
+                        ${rcsEsc(phase.comments || "")}
+                      </p>
                     </article>
                   `;
                 })
                 .join("")
-            : `<p class="empty-state">No hay fases informadas para este MSA.</p>`
+            : `
+              <p class="empty-state">
+                No hay actividades informadas
+                para este MSA.
+              </p>
+            `
         }
       </div>
     </section>
 
     <section class="project-detail-notes">
       <article>
-        <h3>Objetivo estratégico</h3>
-        <p>${rcsEsc(msa.strategicGoal || "No informado.")}</p>
+        <h3>
+          Objetivo estratégico
+        </h3>
+
+        <p>
+          ${rcsEsc(msa.strategicGoal || "No informado.")}
+        </p>
       </article>
 
       <article>
-        <h3>Valor de negocio</h3>
-        <p>${rcsEsc(msa.businessValue || "No informado.")}</p>
+        <h3>
+          Valor de negocio
+        </h3>
+
+        <p>
+          ${rcsEsc(msa.businessValue || "No informado.")}
+        </p>
       </article>
 
       <article>
-        <h3>Riesgos principales</h3>
-        <p>${rcsEsc(msa.mainRisks || "No informado.")}</p>
+        <h3>
+          Riesgos principales
+        </h3>
+
+        <p>
+          ${rcsEsc(msa.mainRisks || "No informado.")}
+        </p>
       </article>
 
       <article>
-        <h3>Dependencias</h3>
-        <p>${rcsEsc(msa.dependencies || "No informado.")}</p>
+        <h3>
+          Dependencias
+        </h3>
+
+        <p>
+          ${rcsEsc(msa.dependencies || "No informado.")}
+        </p>
       </article>
     </section>
   `;
@@ -4167,6 +4711,43 @@ document.addEventListener("click", (event) => {
   const currentQuarter = getCurrentQuarter();
 
   route(`roadmap/aixbanker/${productId}/${currentQuarter}`);
+});
+document.addEventListener("click", (event) => {
+  const detailButton = event.target.closest("[data-roadmap-detail-type]");
+
+  if (!detailButton) {
+    return;
+  }
+
+  const { programId, productId, quarter } = getCurrentRoute();
+
+  const itemType = detailButton.dataset.roadmapDetailType;
+
+  const itemId = detailButton.dataset.roadmapDetailId;
+
+  route(
+    `roadmap-detail/${programId}/${productId}/${quarter}/${itemType}/${itemId}`,
+  );
+});
+
+document.addEventListener("click", (event) => {
+  const projectBackButton = event.target.closest("[data-project-list-back]");
+
+  if (!projectBackButton) {
+    return;
+  }
+
+  renderProjectsList(projectBackButton.dataset.projectListBack);
+});
+
+document.addEventListener("click", (event) => {
+  const msaBackButton = event.target.closest("[data-msa-list-back]");
+
+  if (!msaBackButton) {
+    return;
+  }
+
+  renderMsasList(msaBackButton.dataset.msaListBack);
 });
 window.addEventListener("hashchange", () => {
   render().catch(console.error);

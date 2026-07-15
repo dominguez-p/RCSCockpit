@@ -1734,9 +1734,15 @@ th {
   font-size: 13px;
   font-weight: 800;
 }
+/* =========================================================
+   Project / MSA detail · Phase timeline
+   ========================================================= */
 
 .phase-timeline-wrap {
+  width: 100%;
+  min-width: 0;
   margin-top: 24px;
+  overflow: hidden;
 }
 
 .phase-timeline-wrap h4 {
@@ -1746,83 +1752,84 @@ th {
 
 .phase-timeline {
   display: grid;
-  grid-template-columns: 240px repeat(var(--month-count), minmax(220px, 1fr));
+  width: 100%;
+  min-width: 0;
+  grid-template-columns:
+    minmax(190px, 270px)
+    repeat(var(--month-count), minmax(0, 1fr));
   border: 1px solid var(--line);
   border-radius: 18px;
-  overflow: visible;
+  overflow: hidden;
   background: #fff;
 }
 
 .timeline-header,
 .timeline-month {
-  min-height: 44px;
-  padding: 12px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 10px 6px;
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   background: #f5f8ff;
   color: var(--blue);
+  font-size: clamp(11px, 1vw, 16px);
   font-weight: 900;
+  line-height: 1.15;
   text-align: center;
+  overflow: hidden;
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .timeline-phase-name {
-  min-height: 72px;
+  min-width: 0;
+  min-height: 88px;
   padding: 12px 14px;
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   background: #fff;
   color: var(--blue);
+  overflow: hidden;
 }
 
 .timeline-phase-name strong {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
 }
 
 .timeline-phase-name small {
   display: block;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.timeline-phase-name small br + * {
-  color: var(--red);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .timeline-cell {
-  min-height: 72px;
+  position: relative;
+  min-width: 0;
+  min-height: 88px;
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   background: #fff;
-  position: relative;
   overflow: visible;
 }
 
 .timeline-bar {
   position: absolute;
   top: 50%;
-  height: 16px;
-  transform: translateY(-50%);
+  height: 18px;
+  min-width: 3px;
   border-radius: 999px;
+  transform: translateY(-50%);
   z-index: 2;
-}
-
-.timeline-target::before {
-  position: absolute;
-  top: -3px;
-  left: 5px;
-  font-size: 12px;
-}
-
-.timeline-target::after {
-  position: absolute;
-  top: -4px;
-  left: 24px;
-  color: var(--red);
-  font-size: 11px;
-  font-weight: 900;
-  white-space: nowrap;
 }
 
 .timeline-cell.timeline-done .timeline-bar {
@@ -1845,31 +1852,62 @@ th {
 .timeline-cell.timeline-blocked .timeline-bar {
   background: var(--red);
 }
+
 .timeline-target {
   position: absolute;
   top: 10px;
   bottom: 10px;
   width: 2px;
-  background: var(--red);
   border-radius: 999px;
-  z-index: 10;
+  background: var(--red);
+  z-index: 4;
 }
 
 .timeline-target em {
   position: absolute;
-  top: -4px;
-  left: 8px;
-  font-style: normal;
+  top: -3px;
+  left: 7px;
+  max-width: 110px;
+  overflow: hidden;
   color: var(--red);
-  font-size: 11px;
+  font-size: 10px;
+  font-style: normal;
   font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .timeline-target.is-near-end em {
+  right: 7px;
   left: auto;
-  right: 8px;
   text-align: right;
+}
+
+@media (max-width: 900px) {
+  .phase-timeline {
+    grid-template-columns:
+      minmax(150px, 210px)
+      repeat(var(--month-count), minmax(0, 1fr));
+  }
+
+  .timeline-header,
+  .timeline-month {
+    padding-inline: 3px;
+    font-size: 10px;
+  }
+
+  .timeline-phase-name {
+    padding: 10px;
+  }
+
+  .timeline-phase-name strong {
+    font-size: 13px;
+  }
+
+  .timeline-phase-name small {
+    font-size: 10px;
+  }
 }
 .executive-filter-row {
   display: flex;
@@ -2496,6 +2534,10 @@ th {
   overflow: hidden;
   padding: 0 8px;
   border-radius: 999px;
+
+  background: var(--blue);
+  color: #fff;
+
   box-shadow: 0 8px 18px rgba(7, 46, 111, 0.16);
 }
 
@@ -2660,5 +2702,97 @@ th {
 @media (max-width: 760px) {
   .aixbanker-roadmap-filters {
     padding: 16px;
+  }
+}
+.aixbanker-roadmap-bar-action {
+  border: 0;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    filter 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.aixbanker-roadmap-bar-action:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+  box-shadow: 0 11px 24px rgba(7, 46, 111, 0.24);
+}
+
+.aixbanker-roadmap-bar-action:focus-visible {
+  outline: 3px solid rgba(55, 183, 201, 0.55);
+  outline-offset: 3px;
+}
+/* =========================================================
+   AIxBanker · Grouped roadmap initiatives
+   ========================================================= */
+
+.aixbanker-roadmap-initiative-row {
+  min-height: max(104px, calc(var(--roadmap-sublane-count) * 62px));
+}
+
+.aixbanker-roadmap-group-track {
+  min-height: max(104px, calc(var(--roadmap-sublane-count) * 62px));
+  padding: 8px 0;
+}
+
+.aixbanker-roadmap-sublane {
+  position: relative;
+  height: 62px;
+  border-bottom: 1px dashed rgba(0, 19, 145, 0.1);
+}
+
+.aixbanker-roadmap-sublane:last-child {
+  border-bottom: 0;
+}
+
+.aixbanker-roadmap-sublane .aixbanker-roadmap-bar {
+  top: 25px;
+  height: 22px;
+}
+
+.aixbanker-roadmap-sublane-label {
+  position: absolute;
+  top: 5px;
+  left: 10px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  z-index: 4;
+}
+
+.aixbanker-roadmap-sublane-status {
+  position: absolute;
+  top: 5px;
+  right: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 900;
+  z-index: 4;
+}
+
+.aixbanker-roadmap-sublane-milestone {
+  top: 8px;
+  bottom: 7px;
+}
+
+.aixbanker-roadmap-sublane-milestone em {
+  top: 0;
+  font-size: 9px;
+}
+
+.aixbanker-roadmap-sublane .aixbanker-roadmap-bar-action:hover {
+  z-index: 8;
+}
+
+@media (max-width: 760px) {
+  .aixbanker-roadmap-sublane-label,
+  .aixbanker-roadmap-sublane-status {
+    font-size: 8px;
   }
 }
