@@ -181,123 +181,229 @@ function getRoadmapQuarterLabel(quarter) {
   return quarter;
 }
 
-const ROADMAP_ITEM_ADAPTERS = {
-  project: {
-    sourceCollection: "projects",
-    phaseCollection: "projectPhases",
-    phaseForeignKey: "projectId",
-    typeLabel: "Proyecto",
+// const ROADMAP_ITEM_ADAPTERS = {
+//   project: {
+//     sourceCollection: "projects",
+//     phaseCollection: "projectPhases",
+//     phaseForeignKey: "projectId",
+//     typeLabel: "Proyecto",
 
-    adapt(item, phases) {
-      return {
-        id: String(item.id || "").trim(),
-        type: "project",
-        typeLabel: "Proyecto",
+//     adapt(item, phases) {
+//       return {
+//         id: String(item.id || "").trim(),
+//         type: "project",
+//         typeLabel: "Proyecto",
 
-        programId: String(item.programId || "").trim(),
-        product: normalizeRoadmapProduct(item.product),
-        country: String(item.country || "").trim(),
-        quarter: String(item.quarter || "")
-          .trim()
-          .toUpperCase(),
+//         programId: String(item.programId || "").trim(),
+//         product: normalizeRoadmapProduct(item.product),
+//         country: String(item.country || "").trim(),
+//         quarter: String(item.quarter || "")
+//           .trim()
+//           .toUpperCase(),
 
-        title: item.name || item.title || "Proyecto sin nombre",
-        summary: item.summary || item.description || "",
-        description: item.description || item.summary || "",
+//         title: item.name || item.title || "Proyecto sin nombre",
+//         summary: item.summary || item.description || "",
+//         description: item.description || item.summary || "",
 
-        status: rcsNormalizeStatus(item.status),
-        progress: normalizeRoadmapProgress(item.progress),
-        priority: normalizeRoadmapPriority(item.priority),
+//         status: rcsNormalizeStatus(item.status),
+//         progress: normalizeRoadmapProgress(item.progress),
+//         priority: normalizeRoadmapPriority(item.priority),
 
-        owner: item.owner || "",
-        nextMilestoneTitle: item.nextMilestoneTitle || "",
-        nextMilestoneDate: item.nextMilestoneDate || "",
+//         owner: item.owner || "",
+//         nextMilestoneTitle: item.nextMilestoneTitle || "",
+//         nextMilestoneDate: item.nextMilestoneDate || "",
 
-        startDate:
-          item.startDate || getFirstRoadmapPhaseDate(phases, "startDate"),
+//         startDate:
+//           item.startDate || getFirstRoadmapPhaseDate(phases, "startDate"),
 
-        endDate: item.endDate || getLastRoadmapPhaseDate(phases, "endDate"),
+//         endDate: item.endDate || getLastRoadmapPhaseDate(phases, "endDate"),
 
-        targetDate:
-          item.targetDate ||
-          item.nextMilestoneDate ||
-          getLastRoadmapPhaseDate(phases, "targetDate") ||
-          getLastRoadmapPhaseDate(phases, "endDate"),
+//         targetDate:
+//           item.targetDate ||
+//           item.nextMilestoneDate ||
+//           getLastRoadmapPhaseDate(phases, "targetDate") ||
+//           getLastRoadmapPhaseDate(phases, "endDate"),
 
-        lastUpdate: item.lastUpdate || "",
+//         lastUpdate: item.lastUpdate || "",
 
-        phases,
-        source: item,
-        roadmapOrder: normalizeRoadmapPriority(
-          item.roadmapOrder ??
-            item.roadmap_order ??
-            item.laneOrder ??
-            item.lane_order,
-        ),
-      };
-    },
-  },
+//         phases,
+//         source: item,
+//         roadmapOrder: normalizeRoadmapPriority(
+//           item.roadmapOrder ??
+//             item.roadmap_order ??
+//             item.laneOrder ??
+//             item.lane_order,
+//         ),
+//       };
+//     },
+//   },
 
-  msa: {
-    sourceCollection: "msas",
-    phaseCollection: "msaPhases",
-    phaseForeignKey: "msaId",
-    typeLabel: "MSA",
+//   msa: {
+//     sourceCollection: "msas",
+//     phaseCollection: "msaPhases",
+//     phaseForeignKey: "msaId",
+//     typeLabel: "MSA",
 
-    adapt(item, phases) {
-      return {
-        id: String(item.id || "").trim(),
-        type: "msa",
-        typeLabel: "MSA",
+//     adapt(item, phases) {
+//       return {
+//         id: String(item.id || "").trim(),
+//         type: "msa",
+//         typeLabel: "MSA",
 
-        programId: String(item.programId || "").trim(),
-        product: normalizeRoadmapProduct(item.product),
-        country: String(item.country || "").trim(),
-        quarter: String(item.quarter || "")
-          .trim()
-          .toUpperCase(),
+//         programId: String(item.programId || "").trim(),
+//         product: normalizeRoadmapProduct(item.product),
+//         country: String(item.country || "").trim(),
+//         quarter: String(item.quarter || "")
+//           .trim()
+//           .toUpperCase(),
 
-        title: item.name || item.title || "MSA sin nombre",
-        summary: item.summary || item.description || "",
-        description: item.description || item.summary || "",
+//         title: item.name || item.title || "MSA sin nombre",
+//         summary: item.summary || item.description || "",
+//         description: item.description || item.summary || "",
 
-        status: rcsNormalizeStatus(item.status),
-        progress: normalizeRoadmapProgress(item.progress),
-        priority: normalizeRoadmapPriority(item.priority),
+//         status: rcsNormalizeStatus(item.status),
+//         progress: normalizeRoadmapProgress(item.progress),
+//         priority: normalizeRoadmapPriority(item.priority),
 
-        owner: item.owner || "",
-        nextMilestoneTitle: item.nextMilestoneTitle || "",
-        nextMilestoneDate: item.nextMilestoneDate || "",
+//         owner: item.owner || "",
+//         nextMilestoneTitle: item.nextMilestoneTitle || "",
+//         nextMilestoneDate: item.nextMilestoneDate || "",
 
-        startDate:
-          item.startDate || getFirstRoadmapPhaseDate(phases, "startDate"),
+//         startDate:
+//           item.startDate || getFirstRoadmapPhaseDate(phases, "startDate"),
 
-        endDate: item.endDate || getLastRoadmapPhaseDate(phases, "endDate"),
+//         endDate: item.endDate || getLastRoadmapPhaseDate(phases, "endDate"),
 
-        targetDate:
-          item.targetDate ||
-          item.nextMilestoneDate ||
-          getLastRoadmapPhaseDate(phases, "targetDate") ||
-          getLastRoadmapPhaseDate(phases, "endDate"),
+//         targetDate:
+//           item.targetDate ||
+//           item.nextMilestoneDate ||
+//           getLastRoadmapPhaseDate(phases, "targetDate") ||
+//           getLastRoadmapPhaseDate(phases, "endDate"),
 
-        lastUpdate: item.lastUpdate || "",
+//         lastUpdate: item.lastUpdate || "",
 
-        documentUrl: item.documentUrl || "",
-        documentLabel: item.documentLabel || "",
+//         documentUrl: item.documentUrl || "",
+//         documentLabel: item.documentLabel || "",
 
-        phases,
-        source: item,
-        roadmapOrder: normalizeRoadmapPriority(
-          item.roadmapOrder ??
-            item.roadmap_order ??
-            item.laneOrder ??
-            item.lane_order,
-        ),
-      };
-    },
-  },
-};
+//         phases,
+//         source: item,
+//         roadmapOrder: normalizeRoadmapPriority(
+//           item.roadmapOrder ??
+//             item.roadmap_order ??
+//             item.laneOrder ??
+//             item.lane_order,
+//         ),
+//       };
+//     },
+//   },
+// };
+function adaptUnifiedRoadmapItem(item, activities = []) {
+  const type = String(item.type || "")
+    .trim()
+    .toLowerCase();
 
+  const typeLabels = {
+    project: "Proyecto",
+    msa: "MSA",
+    poc: "PoC",
+    initiative: "Iniciativa",
+    epic: "Epic",
+  };
+
+  return {
+    id: String(item.id || "").trim(),
+
+    type,
+    typeLabel: typeLabels[type] || type || "Elemento",
+
+    programId: String(item.programId || "").trim(),
+    product: normalizeRoadmapProduct(item.product),
+    country: String(item.country || "").trim(),
+
+    initiative: String(item.initiative || "").trim(),
+
+    title: item.name || item.title || item.initiative || "Elemento sin nombre",
+
+    summary: item.summary || item.description || "",
+    description: item.description || item.summary || "",
+
+    status: rcsNormalizeStatus(item.status),
+    progress: normalizeRoadmapProgress(item.progress),
+
+    priority: normalizeRoadmapPriority(item.priority),
+
+    roadmapOrder: normalizeRoadmapPriority(
+      item.roadmapOrder ??
+        item.roadmap_order ??
+        item.laneOrder ??
+        item.lane_order,
+    ),
+
+    owner: item.owner || "",
+
+    nextMilestoneTitle: item.nextMilestoneTitle || "",
+    nextMilestoneDate: item.nextMilestoneDate || "",
+
+    startDate:
+      item.startDate || getFirstRoadmapPhaseDate(activities, "startDate"),
+
+    endDate: item.endDate || getLastRoadmapPhaseDate(activities, "endDate"),
+
+    targetDate:
+      item.targetDate ||
+      item.nextMilestoneDate ||
+      getLastRoadmapPhaseDate(activities, "targetDate") ||
+      getLastRoadmapPhaseDate(activities, "endDate"),
+
+    lastUpdate: item.lastUpdate || "",
+
+    strategicGoal: item.strategicGoal || "",
+    businessValue: item.businessValue || "",
+    mainRisks: item.mainRisks || "",
+    dependencies: item.dependencies || "",
+
+    documentUrl: item.documentUrl || "",
+    documentLabel: item.documentLabel || "",
+
+    phases: activities,
+    activities,
+
+    source: item,
+  };
+}
+function adaptRoadmapItemActivity(activity) {
+  return {
+    id: String(activity.activityId || activity.id || "").trim(),
+
+    activityId: String(activity.activityId || activity.id || "").trim(),
+
+    itemId: String(activity.itemId || "").trim(),
+
+    phaseId: String(
+      activity.activityId || activity.phaseId || activity.id || "",
+    ).trim(),
+
+    phaseName:
+      activity.activityName || activity.phaseName || "Actividad sin nombre",
+
+    activityName:
+      activity.activityName || activity.phaseName || "Actividad sin nombre",
+
+    order: Number(activity.order) || 0,
+
+    progress: normalizeRoadmapProgress(activity.progress),
+
+    status: rcsNormalizeStatus(activity.status),
+
+    startDate: activity.startDate || "",
+    endDate: activity.endDate || "",
+    targetDate: activity.targetDate || "",
+
+    comments: activity.comments || "",
+
+    source: activity,
+  };
+}
 function normalizeRoadmapProduct(value) {
   return String(value || "")
     .trim()
@@ -322,19 +428,19 @@ function normalizeRoadmapPriority(value) {
   return Number.isFinite(priority) ? priority : 999;
 }
 
-function getRoadmapItemPhases(adapter, itemId) {
-  const phases = Array.isArray(DATA[adapter.phaseCollection])
-    ? DATA[adapter.phaseCollection]
-    : [];
+// function getRoadmapItemPhases(adapter, itemId) {
+//   const phases = Array.isArray(DATA[adapter.phaseCollection])
+//     ? DATA[adapter.phaseCollection]
+//     : [];
 
-  return phases
-    .filter(
-      (phase) =>
-        String(phase[adapter.phaseForeignKey] || "").trim() ===
-        String(itemId || "").trim(),
-    )
-    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
-}
+//   return phases
+//     .filter(
+//       (phase) =>
+//         String(phase[adapter.phaseForeignKey] || "").trim() ===
+//         String(itemId || "").trim(),
+//     )
+//     .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+// }
 
 function getRoadmapPhaseDate(phase, field) {
   if (!phase) {
@@ -380,26 +486,75 @@ function getLastRoadmapPhaseDate(phases, field) {
   return dates.at(-1) || "";
 }
 
-function adaptRoadmapCollection(type) {
-  const adapter = ROADMAP_ITEM_ADAPTERS[type];
+// function adaptRoadmapCollection(type) {
+//   const adapter = ROADMAP_ITEM_ADAPTERS[type];
 
-  if (!adapter) {
-    return [];
-  }
+//   if (!adapter) {
+//     return [];
+//   }
 
-  const rows = Array.isArray(DATA[adapter.sourceCollection])
-    ? DATA[adapter.sourceCollection]
+//   const rows = Array.isArray(DATA[adapter.sourceCollection])
+//     ? DATA[adapter.sourceCollection]
+//     : [];
+
+//   return rows
+//     .map((item) => {
+//       const phases = getRoadmapItemPhases(adapter, item.id);
+
+//       return adapter.adapt(item, phases);
+//     })
+//     .filter((item) => item.id);
+// }
+function adaptUnifiedRoadmapCollection() {
+  const items = Array.isArray(DATA.roadmapItems) ? DATA.roadmapItems : [];
+
+  const activities = Array.isArray(DATA.roadmapItemActivities)
+    ? DATA.roadmapItemActivities
     : [];
 
-  return rows
+  return items
     .map((item) => {
-      const phases = getRoadmapItemPhases(adapter, item.id);
+      const itemActivities = activities
+        .filter(
+          (activity) =>
+            String(activity.itemId || "").trim() ===
+            String(item.id || "").trim(),
+        )
+        .map(adaptRoadmapItemActivity)
+        .sort((a, b) => a.order - b.order);
 
-      return adapter.adapt(item, phases);
+      return adaptUnifiedRoadmapItem(item, itemActivities);
     })
     .filter((item) => item.id);
 }
+// function getAllAdaptedRoadmapItems() {
+//   const unifiedItems = adaptUnifiedRoadmapCollection();
 
+//   const legacyItems = Object.keys(ROADMAP_ITEM_ADAPTERS).flatMap((type) =>
+//     adaptRoadmapCollection(type),
+//   );
+
+//   const itemsByKey = new Map();
+
+//   /*
+//    * Primero introducimos el modelo legado.
+//    * Después el modelo nuevo sobrescribe cualquier
+//    * elemento que tenga el mismo type + id.
+//    */
+//   legacyItems.forEach((item) => {
+//     const key = `${item.type}::${item.id}`;
+
+//     itemsByKey.set(key, item);
+//   });
+
+//   unifiedItems.forEach((item) => {
+//     const key = `${item.type}::${item.id}`;
+
+//     itemsByKey.set(key, item);
+//   });
+
+//   return [...itemsByKey.values()];
+// }
 function getRoadmapItems(programId, productId, quarter = "ALL") {
   const normalizedProgramId = String(programId || "").trim();
 
@@ -409,9 +564,7 @@ function getRoadmapItems(programId, productId, quarter = "ALL") {
     .trim()
     .toUpperCase();
 
-  const roadmapItems = Object.keys(ROADMAP_ITEM_ADAPTERS).flatMap((type) =>
-    adaptRoadmapCollection(type),
-  );
+  const roadmapItems = adaptUnifiedRoadmapCollection();
 
   return roadmapItems
     .filter((item) => {
@@ -435,7 +588,6 @@ function getRoadmapItems(programId, productId, quarter = "ALL") {
       }
 
       const datesA = getRoadmapItemDates(a);
-
       const datesB = getRoadmapItemDates(b);
 
       const dateA = datesA.startDate || datesA.targetDate || datesA.endDate;
@@ -693,13 +845,17 @@ function groupRoadmapItemsByInitiative(items) {
   const groups = new Map();
 
   items.forEach((item) => {
+    const initiative = String(item.initiative || item.title || "").trim();
+
     const key =
-      normalizeRoadmapInitiativeKey(item.title) || `${item.type}-${item.id}`;
+      normalizeRoadmapInitiativeKey(initiative) || `${item.type}-${item.id}`;
 
     if (!groups.has(key)) {
       groups.set(key, {
         key,
-        title: item.title || "Iniciativa sin nombre",
+
+        title: initiative || item.title || "Iniciativa sin nombre",
+
         items: [],
       });
     }
@@ -913,6 +1069,325 @@ function renderRoadmapInitiativeRow(group, period) {
     </article>
   `;
 }
+function renderRoadmapItemDetailView(roadmapItem, navigation) {
+  if (!roadmapItem) {
+    return;
+  }
+
+  const activities = Array.isArray(roadmapItem.activities)
+    ? roadmapItem.activities
+    : Array.isArray(roadmapItem.phases)
+      ? roadmapItem.phases
+      : [];
+
+  const status = rcsNormalizeStatus(roadmapItem.status);
+
+  const backRoute = navigation?.route || "";
+
+  const backLabel = navigation?.label || "Volver al roadmap";
+
+  view.innerHTML = `
+    <section class="panel project-detail-panel">
+      <div class="project-detail-header">
+        <button
+          class="ghost-button"
+          type="button"
+          data-route="${rcsEsc(backRoute)}"
+        >
+          ← ${rcsEsc(backLabel)}
+        </button>
+
+        <div>
+          <div class="aixbanker-roadmap-item-top">
+            <span class="aixbanker-roadmap-type">
+              ${rcsEsc(roadmapItem.typeLabel)}
+            </span>
+
+            ${
+              roadmapItem.initiative
+                ? `
+                  <span class="aixbanker-roadmap-type">
+                    ${rcsEsc(roadmapItem.initiative)}
+                  </span>
+                `
+                : ""
+            }
+          </div>
+
+          <h3>
+            ${rcsEsc(roadmapItem.title)}
+          </h3>
+
+          <p>
+            ${rcsEsc(
+              roadmapItem.description ||
+                roadmapItem.summary ||
+                "Sin descripción.",
+            )}
+          </p>
+        </div>
+
+        <div class="project-detail-actions">
+          <span
+            class="status-pill status-${status}"
+          >
+            ${rcsEsc(rcsStatusLabel(status))}
+          </span>
+
+          ${rcsExternalLink(roadmapItem)}
+        </div>
+      </div>
+
+      <div class="project-detail-grid">
+        <article class="detail-card">
+          <span>
+            Tipo
+          </span>
+
+          <strong>
+            ${rcsEsc(roadmapItem.typeLabel || "-")}
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>
+            Owner
+          </span>
+
+          <strong>
+            ${rcsEsc(roadmapItem.owner || "-")}
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>
+            Avance global
+          </span>
+
+          <strong>
+            ${rcsEsc(roadmapItem.progress || 0)}%
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>
+            Siguiente hito
+          </span>
+
+          <strong>
+            ${rcsEsc(roadmapItem.nextMilestoneTitle || "-")}
+          </strong>
+
+          <small>
+            ${rcsEsc(formatDate(roadmapItem.nextMilestoneDate))}
+          </small>
+        </article>
+
+        <article class="detail-card">
+          <span>
+            Inicio
+          </span>
+
+          <strong>
+            ${rcsEsc(formatDate(roadmapItem.startDate))}
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>
+            Fin
+          </span>
+
+          <strong>
+            ${rcsEsc(formatDate(roadmapItem.endDate))}
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>
+            Entrega objetivo
+          </span>
+
+          <strong>
+            ${rcsEsc(formatDate(roadmapItem.targetDate))}
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>
+            Última actualización
+          </span>
+
+          <strong>
+            ${rcsEsc(formatDate(roadmapItem.lastUpdate))}
+          </strong>
+        </article>
+      </div>
+
+      <section class="phase-section">
+        <h3>
+          Actividades y grado de avance
+        </h3>
+
+        <div class="phase-roadmap">
+          ${
+            activities.length
+              ? activities
+                  .map((activity) => {
+                    const activityStatus = rcsNormalizeStatus(activity.status);
+
+                    const progress = Math.max(
+                      0,
+                      Math.min(100, Number(activity.progress || 0)),
+                    );
+
+                    return `
+                      <article class="phase-card">
+                        <div class="phase-card-head">
+                          <h4>
+                            ${rcsEsc(
+                              activity.activityName ||
+                                activity.phaseName ||
+                                activity.name ||
+                                "Actividad",
+                            )}
+                          </h4>
+
+                          <span
+                            class="status-pill status-${activityStatus}"
+                          >
+                            ${rcsEsc(rcsStatusLabel(activityStatus))}
+                          </span>
+                        </div>
+
+                        <div class="phase-bar">
+                          <span
+                            style="width:${progress}%"
+                          ></span>
+                        </div>
+
+                        <div class="phase-meta">
+                          <strong>
+                            ${progress}%
+                          </strong>
+
+                          <span>
+                            ${rcsEsc(formatDate(activity.startDate))}
+                            →
+                            ${rcsEsc(formatDate(activity.endDate))}
+                          </span>
+                        </div>
+
+                        <div class="phase-delivery">
+                          🚩 Entrega:
+                          ${rcsEsc(
+                            formatDate(activity.targetDate || activity.endDate),
+                          )}
+                        </div>
+
+                        ${
+                          activity.comments
+                            ? `
+                              <p>
+                                ${rcsEsc(activity.comments)}
+                              </p>
+                            `
+                            : ""
+                        }
+                      </article>
+                    `;
+                  })
+                  .join("")
+              : `
+                <p class="empty-state">
+                  No hay actividades informadas
+                  para este elemento.
+                </p>
+              `
+          }
+        </div>
+
+        <section
+          class="phase-status-legend"
+          aria-label="Leyenda de estados"
+        >
+          <span class="phase-status-legend-item">
+            <i class="phase-status-dot phase-status-done"></i>
+            Hecho
+          </span>
+
+          <span class="phase-status-legend-item">
+            <i class="phase-status-dot phase-status-on-track"></i>
+            OK
+          </span>
+
+          <span class="phase-status-legend-item">
+            <i class="phase-status-dot phase-status-pending"></i>
+            Pendiente
+          </span>
+
+          <span class="phase-status-legend-item">
+            <i class="phase-status-dot phase-status-risk"></i>
+            Riesgo
+          </span>
+
+          <span class="phase-status-legend-item">
+            <i class="phase-status-dot phase-status-blocked"></i>
+            Bloqueado
+          </span>
+        </section>
+
+        <div id="roadmapItemTimeline"></div>
+      </section>
+
+      <section class="project-detail-notes">
+        <article>
+          <h3>
+            Objetivo estratégico
+          </h3>
+
+          <p>
+            ${rcsEsc(roadmapItem.strategicGoal || "No informado.")}
+          </p>
+        </article>
+
+        <article>
+          <h3>
+            Valor de negocio
+          </h3>
+
+          <p>
+            ${rcsEsc(roadmapItem.businessValue || "No informado.")}
+          </p>
+        </article>
+
+        <article>
+          <h3>
+            Riesgos principales
+          </h3>
+
+          <p>
+            ${rcsEsc(roadmapItem.mainRisks || "No informado.")}
+          </p>
+        </article>
+
+        <article>
+          <h3>
+            Dependencias
+          </h3>
+
+          <p>
+            ${rcsEsc(roadmapItem.dependencies || "No informado.")}
+          </p>
+        </article>
+      </section>
+    </section>
+  `;
+
+  const timelineContainer = document.querySelector("#roadmapItemTimeline");
+
+  renderPhaseTimeline(activities, timelineContainer);
+}
 function renderAIxBankerRoadmapDetail(
   programId,
   productId,
@@ -937,22 +1412,38 @@ function renderAIxBankerRoadmapDetail(
     : getCurrentQuarter();
 
   selectedExecutiveProduct = product.id;
-
   executiveQuarter = selectedQuarter;
 
-  const roadmapItems = getRoadmapItems(programId, productId, selectedQuarter);
+  /*
+   * Buscamos en ALL para que el detalle no desaparezca
+   * cuando una actividad atraviesa varios trimestres
+   * o la URL conserva un trimestre distinto.
+   */
+  const roadmapItems = getRoadmapItems(programId, productId, "ALL");
 
   const roadmapItem = roadmapItems.find(
-    (item) => item.type === itemType && String(item.id) === String(itemId),
+    (item) =>
+      String(item.type || "").trim() === String(itemType || "").trim() &&
+      String(item.id || "").trim() === String(itemId || "").trim(),
   );
 
+  const backRoute = `roadmap/${programId}/${productId}/${selectedQuarter}`;
+
   if (!roadmapItem) {
+    setHead(
+      "Elemento no encontrado",
+      `${product.label} · ${selectedCountry}`,
+      `Retail Client Solutions > ${
+        program.name || "AIxBanker"
+      } > ${product.label} > Roadmap`,
+    );
+
     view.innerHTML = `
       <section class="panel">
         <button
           class="ghost-button"
           type="button"
-          data-route="roadmap/${programId}/${productId}/${selectedQuarter}"
+          data-route="${rcsEsc(backRoute)}"
         >
           ← Volver al roadmap
         </button>
@@ -963,8 +1454,7 @@ function renderAIxBankerRoadmapDetail(
 
         <p class="empty-state">
           El elemento solicitado no existe
-          para el producto, país y periodo
-          seleccionados.
+          para el producto y país seleccionados.
         </p>
       </section>
     `;
@@ -986,64 +1476,10 @@ function renderAIxBankerRoadmapDetail(
     )} > ${roadmapItem.title}`,
   );
 
-  if (itemType === "project") {
-    view.innerHTML = "";
-    view.append(tpl("#projects-template"));
-
-    const list = document.querySelector("#projects");
-
-    if (list) {
-      list.hidden = true;
-    }
-
-    renderProjectDetailView(programId, itemId, {
-      route: `roadmap/${programId}/${productId}/${selectedQuarter}`,
-
-      label: `Volver al roadmap de ${product.label}`,
-    });
-
-    return;
-  }
-
-  if (itemType === "msa") {
-    view.innerHTML = "";
-    view.append(tpl("#msas-template"));
-
-    const list = document.querySelector("#msas");
-
-    if (list) {
-      list.hidden = true;
-    }
-
-    renderMsaDetailView(programId, itemId, {
-      route: `roadmap/${programId}/${productId}/${selectedQuarter}`,
-
-      label: `Volver al roadmap de ${product.label}`,
-    });
-
-    return;
-  }
-
-  view.innerHTML = `
-    <section class="panel">
-      <button
-        class="ghost-button"
-        type="button"
-        data-route="roadmap/${programId}/${productId}/${selectedQuarter}"
-      >
-        ← Volver al roadmap
-      </button>
-
-      <h3>
-        Tipo de elemento no soportado
-      </h3>
-
-      <p class="empty-state">
-        Todavía no existe un detalle para
-        ${rcsEsc(roadmapItem.typeLabel || itemType)}.
-      </p>
-    </section>
-  `;
+  renderRoadmapItemDetailView(roadmapItem, {
+    route: backRoute,
+    label: `Volver al roadmap de ${product.label}`,
+  });
 }
 function renderRoadmapUndatedItems(items) {
   if (!items.length) {
@@ -2287,10 +2723,17 @@ function getEmptyProgramData() {
     impediments: [],
     decisionsPending: [],
     decisionsDone: [],
+
+    // Modelo unificado
+    roadmapItems: [],
+    roadmapItemActivities: [],
+
+    // Modelo legado
     projects: [],
     projectPhases: [],
     msas: [],
     msaPhases: [],
+
     teams: [],
   };
 }
@@ -2427,7 +2870,7 @@ function renderCurrentRoute(
   } else if (routeName === "projects") {
     renderProjectsView(programId);
   } else if (routeName === "msas") {
-    renderMsasView(programId);
+    route(`projects/${programId}`);
   } else if (routeName === "teams") {
     renderTeamsView(programId);
   } else {
@@ -2942,7 +3385,7 @@ function rcsStatusLabel(s) {
 }
 
 function renderProjectsView(programId) {
-  const program = DATA.programs.find((item) => item.id === programId);
+  const program = (DATA.programs || []).find((item) => item.id === programId);
 
   const productSelector = renderExecutiveProductSelector(programId);
 
@@ -2961,799 +3404,968 @@ function renderProjectsView(programId) {
   );
 
   setHead(
-    program?.name || "Programa",
-    `Projects and initiatives · ${selectedCountry}`,
-    `Retail Client Solutions > ${
-      program?.name || programId
-    } > Executive Summary`,
+    `${program?.name || "Programa"} · Seguimiento`,
+    `Iniciativas, Proyectos, MSAs y otros elementos · ${selectedCountry}`,
+    `Retail Client Solutions > ${program?.name || programId} > Seguimiento`,
   );
 
   const backButton = document.querySelector(".back-to-program-btn");
 
   if (backButton) {
     backButton.dataset.route = `program/${programId}`;
-
     backButton.textContent = `← Volver a ${program?.name || "programa"}`;
   }
 
-  renderProjectsList(programId);
-
-  view.insertAdjacentHTML(
-    "beforeend",
-    `
-      <section
-        id="msas"
-        class="panel projects-panel"
-      >
-        <div class="section-header">
-          <h3>MSAs</h3>
-        </div>
-      </section>
-
-      <section
-        id="msaDetail"
-        class="panel project-detail-panel"
-        hidden
-      ></section>
-    `,
-  );
-
-  renderMsasList(programId);
-}
-
-function getProgramProjects(programId) {
-  return (DATA.projects || []).filter(
-    (project) =>
-      project.programId === programId &&
-      (!project.country || project.country === selectedCountry) &&
-      (!selectedExecutiveProduct ||
-        !project.product ||
-        project.product === selectedExecutiveProduct) &&
-      (executiveQuarter === "ALL" || project.quarter === executiveQuarter),
-  );
-}
-
-function getProjectPhases(projectId) {
-  return (DATA.projectPhases || [])
-    .filter(
-      (phase) =>
-        phase.projectId === projectId &&
-        (!phase.country || phase.country === selectedCountry) &&
-        (!selectedExecutiveProduct ||
-          !phase.product ||
-          phase.product === selectedExecutiveProduct),
-    )
-    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
-}
-
-function renderProjectsList(programId) {
   const container = document.querySelector("#projects");
-  const detail = document.querySelector("#projectDetail");
-  if (!container) return;
 
-  if (detail) {
-    detail.hidden = true;
-    detail.innerHTML = "";
-  }
-
-  container.hidden = false;
-
-  const projects = getProgramProjects(programId);
-
-  container.innerHTML = `
-    <h3>Proyectos</h3>
-
-    <div class="project-list">
-      ${
-        projects.length
-          ? projects
-              .map((p) => {
-                const status = rcsNormalizeStatus(p.status);
-
-                return `
-                  <article
-                    class="project-card clickable-card"
-                    data-project-id="${rcsEsc(p.id)}"
-                    tabindex="0"
-                    role="button"
-                  >
-                    <div class="project-card-main">
-                      <div>
-                        <div class="project-name">${rcsEsc(p.name)}</div>
-                        <div class="project-summary">${rcsEsc(p.summary)}</div>
-                      </div>
-
-                      <div class="project-progress">${rcsEsc(p.progress || 0)}%</div>
-                    </div>
-
-                    <div class="project-meta">
-                      <span class="status-pill status-${status}">
-                        ${rcsStatusLabel(status)}
-                      </span>
-                      <span>Owner: ${rcsEsc(p.owner || "-")}</span>
-                      <span>
-                        Hito: ${rcsEsc(p.nextMilestoneTitle || "-")}
-                        · ${rcsEsc(formatDate(p.nextMilestoneDate) || "-")}
-                      </span>
-                    </div>
-
-                    <div class="project-card-action">Ver detalle →</div>
-                  </article>
-                `;
-              })
-              .join("")
-          : `<p class="empty-state">No hay proyectos informados para este país.</p>`
-      }
-    </div>
-  `;
-
-  document
-    .querySelectorAll(".project-card.clickable-card[data-project-id]")
-    .forEach((card) => {
-      const open = () =>
-        renderProjectDetailView(programId, card.dataset.projectId);
-
-      card.addEventListener("click", open);
-      card.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          open();
-        }
-      });
-    });
-}
-
-function renderProjectDetailView(programId, projectId, navigation = null) {
-  const list = document.querySelector("#projects");
-
-  const detail = document.querySelector("#projectDetail");
-
-  if (!detail) return;
-
-  const project = (DATA.projects || []).find(
-    (item) =>
-      item.programId === programId && String(item.id) === String(projectId),
-  );
-
-  const backRoute = navigation?.route || null;
-
-  const backLabel = navigation?.label || "Volver a proyectos";
-
-  const backButton = backRoute
-    ? `
-      <button
-        class="ghost-button"
-        type="button"
-        data-route="${rcsEsc(backRoute)}"
-      >
-        ← ${rcsEsc(backLabel)}
-      </button>
-    `
-    : `
-      <button
-        class="ghost-button"
-        type="button"
-        data-project-list-back="${rcsEsc(programId)}"
-      >
-        ← Volver a proyectos
-      </button>
-    `;
-
-  if (!project) {
-    if (list) {
-      list.hidden = true;
-    }
-
-    detail.hidden = false;
-
-    detail.innerHTML = `
-      ${backButton}
-
-      <h3>
-        Proyecto no encontrado
-      </h3>
-    `;
-
+  if (!container) {
     return;
   }
 
-  const phases = getProjectPhases(project.id);
+  const oldDetail = document.querySelector("#projectDetail");
 
-  const status = rcsNormalizeStatus(project.status);
-
-  if (list) {
-    list.hidden = true;
+  if (oldDetail) {
+    oldDetail.remove();
   }
 
-  detail.hidden = false;
+  renderRoadmapItemsTrackingList(programId, container);
+}
+function renderRoadmapTrackingGroup(group, programId, productId) {
+  const groupStatus = getRoadmapGroupStatus(group);
 
-  detail.innerHTML = `
-    <div class="project-detail-header">
-      ${backButton}
+  const averageProgress = group.items.length
+    ? Math.round(
+        group.items.reduce(
+          (total, item) => total + Number(item.progress || 0),
+          0,
+        ) / group.items.length,
+      )
+    : 0;
 
-      <div>
-        <h3>
-          ${rcsEsc(project.name)}
-        </h3>
+  return `
+    <section
+      class="panel roadmap-tracking-group"
+      data-roadmap-initiative="${rcsEsc(group.key)}"
+    >
+      <div class="section-header">
+        <div>
+          <div class="aixbanker-roadmap-item-top">
+            <span
+              class="status-pill status-${groupStatus}"
+            >
+              ${rcsEsc(rcsStatusLabel(groupStatus))}
+            </span>
 
-        <p>
-          ${rcsEsc(project.description || project.summary)}
-        </p>
+            <span class="aixbanker-roadmap-type">
+              ${group.items.length}
+              ${group.items.length === 1 ? "elemento" : "elementos"}
+            </span>
+          </div>
+
+          <h3>
+            ${rcsEsc(group.title)}
+          </h3>
+
+          <p class="empty-state">
+            Avance medio:
+            ${averageProgress}%
+          </p>
+        </div>
       </div>
 
-      <span
-        class="status-pill status-${status}"
-      >
-        ${rcsStatusLabel(status)}
-      </span>
-    </div>
-
-    <div class="project-detail-grid">
-      <article class="detail-card">
-        <span>
-          Owner
-        </span>
-
-        <strong>
-          ${rcsEsc(project.owner || "-")}
-        </strong>
-      </article>
-
-      <article class="detail-card">
-        <span>
-          Avance global
-        </span>
-
-        <strong>
-          ${rcsEsc(project.progress || 0)}%
-        </strong>
-      </article>
-
-      <article class="detail-card">
-        <span>
-          Siguiente hito
-        </span>
-
-        <strong>
-          ${rcsEsc(project.nextMilestoneTitle || "-")}
-        </strong>
-
-        <small>
-          ${rcsEsc(formatDate(project.nextMilestoneDate) || "")}
-        </small>
-      </article>
-
-      <article class="detail-card">
-        <span>
-          Última actualización
-        </span>
-
-        <strong>
-          ${rcsEsc(formatDate(project.lastUpdate) || "-")}
-        </strong>
-      </article>
-    </div>
-    
-    <section class="phase-section">
-      <h3>
-        Actividades y grado de avance
-      </h3>
-
-      <div class="phase-roadmap">
-        ${
-          phases.length
-            ? phases
-                .map((phase) => {
-                  const phaseStatus = rcsNormalizeStatus(phase.status);
-
-                  const progress = Math.max(
-                    0,
-                    Math.min(100, Number(phase.progress || 0)),
-                  );
-
-                  return `
-                    <article class="phase-card">
-                      <div class="phase-card-head">
-                        <h4>
-                          ${rcsEsc(
-                            phase.phaseName || phase.name || "Actividad",
-                          )}
-                        </h4>
-
-                        <span
-                          class="status-pill status-${phaseStatus}"
-                        >
-                          ${rcsStatusLabel(phaseStatus)}
-                        </span>
-                      </div>
-
-                      <div class="phase-bar">
-                        <span
-                          style="width:${progress}%"
-                        ></span>
-                      </div>
-
-                      <div class="phase-meta">
-                        <strong>
-                          ${progress}%
-                        </strong>
-
-                        <span>
-                          ${rcsEsc(formatDate(phase.startDate))}
-                          →
-                          ${rcsEsc(formatDate(phase.endDate))}
-                        </span>
-                      </div>
-
-                      <div class="phase-delivery">
-                        🚩 Entrega:
-                        ${rcsEsc(formatDate(phase.targetDate))}
-                      </div>
-
-                      <p>
-                        ${rcsEsc(phase.comments || "")}
-                      </p>
-                    </article>
-                  `;
-                })
-                .join("")
-            : `
-              <p class="empty-state">
-                No hay actividades informadas
-                para este proyecto.
-              </p>
-            `
-        }
+      <div class="project-list">
+        ${group.items
+          .map((item) => renderRoadmapTrackingItem(item, programId, productId))
+          .join("")}
       </div>
-
-      <div id="phaseTimeline"></div>
-      <section
-        class="phase-status-legend"
-        aria-label="Leyenda de estados"
-      >
-        <span class="phase-status-legend-item">
-          <i class="phase-status-dot phase-status-done"></i>
-          Hecho
-        </span>
-
-        <span class="phase-status-legend-item">
-          <i class="phase-status-dot phase-status-on-track"></i>
-          En curso
-        </span>
-
-        <span class="phase-status-legend-item">
-          <i class="phase-status-dot phase-status-pending"></i>
-          Planeado
-        </span>
-
-        <span class="phase-status-legend-item">
-          <i class="phase-status-dot phase-status-risk"></i>
-          Riesgo
-        </span>
-
-        <span class="phase-status-legend-item">
-          <i class="phase-status-dot phase-status-blocked"></i>
-          Bloqueado
-        </span>
-      </section>
-      <div id="phaseTimeline"></div>
-    </section>
-    </section>
-    
-    <section class="project-detail-notes">
-      <article>
-        <h3>
-          Objetivo estratégico
-        </h3>
-
-        <p>
-          ${rcsEsc(project.strategicGoal || "No informado.")}
-        </p>
-      </article>
-
-      <article>
-        <h3>
-          Valor de negocio
-        </h3>
-
-        <p>
-          ${rcsEsc(project.businessValue || "No informado.")}
-        </p>
-      </article>
-
-      <article>
-        <h3>
-          Riesgos principales
-        </h3>
-
-        <p>
-          ${rcsEsc(project.mainRisks || "No informado.")}
-        </p>
-      </article>
-
-      <article>
-        <h3>
-          Dependencias
-        </h3>
-
-        <p>
-          ${rcsEsc(project.dependencies || "No informado.")}
-        </p>
-      </article>
     </section>
   `;
-
-  const timelineContainer = document.getElementById("phaseTimeline");
-
-  renderPhaseTimeline(phases, timelineContainer);
 }
-/* dashboard inspired*/
-/*MSAs*/
-function getProgramMsas(programId) {
-  return (DATA.msas || []).filter(
-    (msa) =>
-      msa.programId === programId &&
-      (!msa.country || msa.country === selectedCountry) &&
-      (!selectedExecutiveProduct ||
-        !msa.product ||
-        msa.product === selectedExecutiveProduct) &&
-      (executiveQuarter === "ALL" || msa.quarter === executiveQuarter),
-  );
+function renderRoadmapTrackingItem(item, programId, productId) {
+  const status = rcsNormalizeStatus(item.status);
+
+  const detailRoute = [
+    "roadmap-detail",
+    programId,
+    productId,
+    executiveQuarter || "ALL",
+    item.type,
+    item.id,
+  ].join("/");
+
+  return `
+    <article
+      class="project-card clickable-card"
+      data-route="${rcsEsc(detailRoute)}"
+      tabindex="0"
+      role="link"
+      aria-label="${rcsEsc(`Abrir detalle de ${item.typeLabel} ${item.title}`)}"
+    >
+      <div class="project-card-main">
+        <div>
+          <div class="executive-item-top">
+            <span
+              class="
+                executive-item-type
+                ${getRoadmapTypeClass(item.type)}
+              "
+            >
+              ${rcsEsc(item.typeLabel)}
+            </span>
+
+            <span
+              class="status-pill status-${status}"
+            >
+              ${rcsEsc(rcsStatusLabel(status))}
+            </span>
+          </div>
+
+          <div class="project-name">
+            ${rcsEsc(item.title)}
+          </div>
+
+          <div class="project-summary">
+            ${rcsEsc(item.summary || item.description || "Sin descripción")}
+          </div>
+        </div>
+
+        <div class="project-progress">
+          ${rcsEsc(item.progress || 0)}%
+        </div>
+      </div>
+
+      <div class="project-meta">
+        <span>
+          Owner:
+          ${rcsEsc(item.owner || "-")}
+        </span>
+
+        <span>
+          Hito:
+          ${rcsEsc(item.nextMilestoneTitle || "-")}
+        </span>
+
+        <span>
+          ${rcsEsc(formatDate(item.nextMilestoneDate || item.targetDate))}
+        </span>
+      </div>
+
+      <div class="project-card-actions">
+        <span class="project-card-action">
+          Ver detalle →
+        </span>
+
+        ${rcsExternalLink(item)}
+      </div>
+    </article>
+  `;
 }
-
-function getMsaPhases(msaId) {
-  return (DATA.msaPhases || [])
-    .filter((p) => p.msaId === msaId)
-    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
-}
-
-function renderMsasView(programId) {
-  const p = DATA.programs.find((x) => x.id === programId);
-
-  view.innerHTML = "";
-  view.append(tpl("#msas-template"));
-  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
-
-  setHead(
-    `${p?.name || "Programa"} · MSAs`,
-    `Acuerdos y aprobaciones · ${selectedCountry}`,
-    `Retail Client Solutions > ${p?.name || programId} > MSAs`,
-  );
-
-  const backButton = document.querySelector(".back-to-program-btn");
-
-  if (backButton) {
-    backButton.dataset.route = `program/${programId}`;
-    backButton.textContent = `← Volver a ${p?.name || "programa"}`;
+function renderRoadmapItemsTrackingList(programId, container) {
+  if (!container) {
+    return;
   }
 
-  renderMsasList(programId);
-}
+  const productId = normalizeRoadmapProduct(selectedExecutiveProduct);
 
-function renderMsasList(programId) {
-  const container = document.querySelector("#msas");
-  const detail = document.querySelector("#msaDetail");
+  const items = productId
+    ? getRoadmapItems(programId, productId, executiveQuarter)
+    : [];
 
-  if (!container) return;
-
-  if (detail) {
-    detail.hidden = true;
-    detail.innerHTML = "";
-  }
+  const groupedItems = groupRoadmapItemsByInitiative(items);
 
   container.hidden = false;
-
-  const msas = getProgramMsas(programId);
 
   container.innerHTML = `
     <div class="section-header">
-      <h3>MSAs (En construcción)</h3>
-    </div>
-
-    <div class="project-list">
-      ${
-        msas.length
-          ? msas
-              .map((msa) => {
-                const status = rcsNormalizeStatus(msa.status);
-
-                return `
-                  <article
-                    class="project-card msa-clickable-card"
-                    data-msa-id="${rcsEsc(msa.id)}"
-                    tabindex="0"
-                    role="button"
-                  >
-                   <div class="project-card-main">
-                      <div>
-                        <div class="project-name">${rcsEsc(msa.name)}</div>
-                        <div class="project-summary">${rcsEsc(msa.summary)}</div>
-                      </div>
-
-                      <div class="project-progress">
-                        ${rcsEsc(msa.progress || 0)}%
-                      </div>
-                    </div>
-
-                    <div class="project-meta">
-                      <span class="status-pill status-${status}">
-                        ${rcsStatusLabel(status)}
-                      </span>
-                      <span>Owner: ${rcsEsc(msa.owner || "-")}</span>
-                      <span>
-                        Hito: ${rcsEsc(msa.nextMilestoneTitle || "-")}
-                        · ${rcsEsc(msa.nextMilestoneDate || "-")}
-                      </span>
-                    </div>
-
-                    <div class="project-card-actions">
-                      <span class="project-card-action">Ver detalle →</span>
-                      ${rcsExternalLink(msa, "Abrir MSA")}
-                    </div>
-                  </article>
-                `;
-              })
-              .join("")
-          : `<p class="empty-state">No hay MSAs informados para este país.</p>`
-      }
-    </div>
-  `;
-
-  document
-    .querySelectorAll(".msa-clickable-card[data-msa-id]")
-    .forEach((card) => {
-      card.addEventListener("click", () => {
-        renderMsaDetailView(programId, card.dataset.msaId);
-      });
-    });
-}
-function renderMsaDetailView(programId, msaId, navigation = null) {
-  const list = document.querySelector("#msas");
-
-  const detail = document.querySelector("#msaDetail");
-
-  if (!detail) return;
-
-  const msa = (DATA.msas || []).find(
-    (item) => item.programId === programId && String(item.id) === String(msaId),
-  );
-
-  const backRoute = navigation?.route || null;
-
-  const backLabel = navigation?.label || "Volver a MSAs";
-
-  const backButton = backRoute
-    ? `
-      <button
-        class="ghost-button"
-        type="button"
-        data-route="${rcsEsc(backRoute)}"
-      >
-        ← ${rcsEsc(backLabel)}
-      </button>
-    `
-    : `
-      <button
-        class="ghost-button"
-        type="button"
-        data-msa-list-back="${rcsEsc(programId)}"
-      >
-        ← Volver a MSAs
-      </button>
-    `;
-
-  if (!msa) {
-    if (list) {
-      list.hidden = true;
-    }
-
-    detail.hidden = false;
-
-    detail.innerHTML = `
-      ${backButton}
-
-      <h3>
-        MSA no encontrado
-      </h3>
-    `;
-
-    return;
-  }
-
-  const phases = getMsaPhases(msa.id);
-
-  const status = rcsNormalizeStatus(msa.status);
-
-  if (list) {
-    list.hidden = true;
-  }
-
-  detail.hidden = false;
-
-  detail.innerHTML = `
-    <div class="project-detail-header">
-      ${backButton}
-
       <div>
         <h3>
-          ${rcsEsc(msa.name)}
+          Seguimiento de iniciativas
         </h3>
 
-        <p>
-          ${rcsEsc(msa.description || msa.summary)}
+        <p class="empty-state">
+          Proyectos, MSAs y otros elementos
+          agrupados por iniciativa.
         </p>
       </div>
 
-      <div class="project-detail-actions">
-        <span
-          class="status-pill status-${status}"
-        >
-          ${rcsStatusLabel(status)}
-        </span>
-
-        ${rcsExternalLink(msa, "Abrir MSA")}
-      </div>
+      <span class="status-pill status-pending">
+        ${items.length}
+      </span>
     </div>
 
-    <div class="project-detail-grid">
-      <article class="detail-card">
-        <span>
-          Owner
-        </span>
-
-        <strong>
-          ${rcsEsc(msa.owner || "-")}
-        </strong>
-      </article>
-
-      <article class="detail-card">
-        <span>
-          Avance global
-        </span>
-
-        <strong>
-          ${rcsEsc(msa.progress || 0)}%
-        </strong>
-      </article>
-
-      <article class="detail-card">
-        <span>
-          Siguiente hito
-        </span>
-
-        <strong>
-          ${rcsEsc(msa.nextMilestoneTitle || "-")}
-        </strong>
-
-        <small>
-          ${rcsEsc(formatDate(msa.nextMilestoneDate))}
-        </small>
-      </article>
-
-      <article class="detail-card">
-        <span>
-          Última actualización
-        </span>
-
-        <strong>
-          ${rcsEsc(formatDate(msa.lastUpdate))}
-        </strong>
-      </article>
-    </div>
-   
-    <section class="phase-section">
-      <h3>
-        Actividades y grado de avance
-      </h3>
-
-      <div class="phase-roadmap">
-        ${
-          phases.length
-            ? phases
-                .map((phase) => {
-                  const phaseStatus = rcsNormalizeStatus(phase.status);
-
-                  const progress = Math.max(
-                    0,
-                    Math.min(100, Number(phase.progress || 0)),
-                  );
-
-                  return `
-                    <article class="phase-card">
-                      <div class="phase-card-head">
-                        <h4>
-                          ${rcsEsc(
-                            phase.phaseName || phase.name || "Actividad",
-                          )}
-                        </h4>
-
-                        <span
-                          class="status-pill status-${phaseStatus}"
-                        >
-                          ${rcsStatusLabel(phaseStatus)}
-                        </span>
-                      </div>
-
-                      <div class="phase-bar">
-                        <span
-                          style="width:${progress}%"
-                        ></span>
-                      </div>
-
-                      <div class="phase-meta">
-                        <strong>
-                          ${progress}%
-                        </strong>
-
-                        <span>
-                          ${rcsEsc(formatDate(phase.startDate))}
-                          →
-                          ${rcsEsc(
-                            formatDate(phase.targetDate || phase.endDate),
-                          )}
-                        </span>
-                      </div>
-
-                      <p>
-                        ${rcsEsc(phase.comments || "")}
-                      </p>
-                    </article>
-                  `;
-                })
-                .join("")
-            : `
-              <p class="empty-state">
-                No hay actividades informadas
-                para este MSA.
-              </p>
-            `
-        }
-      </div>
-    </section>
-
-    <section class="project-detail-notes">
-      <article>
-        <h3>
-          Objetivo estratégico
-        </h3>
-
-        <p>
-          ${rcsEsc(msa.strategicGoal || "No informado.")}
-        </p>
-      </article>
-
-      <article>
-        <h3>
-          Valor de negocio
-        </h3>
-
-        <p>
-          ${rcsEsc(msa.businessValue || "No informado.")}
-        </p>
-      </article>
-
-      <article>
-        <h3>
-          Riesgos principales
-        </h3>
-
-        <p>
-          ${rcsEsc(msa.mainRisks || "No informado.")}
-        </p>
-      </article>
-
-      <article>
-        <h3>
-          Dependencias
-        </h3>
-
-        <p>
-          ${rcsEsc(msa.dependencies || "No informado.")}
-        </p>
-      </article>
-    </section>
+    ${
+      groupedItems.length
+        ? `
+          <div class="project-list">
+            ${groupedItems
+              .map((group) =>
+                renderRoadmapTrackingGroup(group, programId, productId),
+              )
+              .join("")}
+          </div>
+        `
+        : `
+          <p class="empty-state">
+            No hay elementos informados para
+            el país, producto y periodo seleccionados.
+          </p>
+        `
+    }
   `;
 }
+// function getProgramProjects(programId) {
+//   return (DATA.projects || []).filter(
+//     (project) =>
+//       project.programId === programId &&
+//       (!project.country || project.country === selectedCountry) &&
+//       (!selectedExecutiveProduct ||
+//         !project.product ||
+//         project.product === selectedExecutiveProduct) &&
+//       (executiveQuarter === "ALL" || project.quarter === executiveQuarter),
+//   );
+// }
+
+// function getProjectPhases(projectId) {
+//   return (DATA.projectPhases || [])
+//     .filter(
+//       (phase) =>
+//         phase.projectId === projectId &&
+//         (!phase.country || phase.country === selectedCountry) &&
+//         (!selectedExecutiveProduct ||
+//           !phase.product ||
+//           phase.product === selectedExecutiveProduct),
+//     )
+//     .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+// }
+
+// function renderProjectsList(programId) {
+//   const container = document.querySelector("#projects");
+//   const detail = document.querySelector("#projectDetail");
+//   if (!container) return;
+
+//   if (detail) {
+//     detail.hidden = true;
+//     detail.innerHTML = "";
+//   }
+
+//   container.hidden = false;
+
+//   const projects = getProgramProjects(programId);
+
+//   container.innerHTML = `
+//     <h3>Proyectos</h3>
+
+//     <div class="project-list">
+//       ${
+//         projects.length
+//           ? projects
+//               .map((p) => {
+//                 const status = rcsNormalizeStatus(p.status);
+
+//                 return `
+//                   <article
+//                     class="project-card clickable-card"
+//                     data-project-id="${rcsEsc(p.id)}"
+//                     tabindex="0"
+//                     role="button"
+//                   >
+//                     <div class="project-card-main">
+//                       <div>
+//                         <div class="project-name">${rcsEsc(p.name)}</div>
+//                         <div class="project-summary">${rcsEsc(p.summary)}</div>
+//                       </div>
+
+//                       <div class="project-progress">${rcsEsc(p.progress || 0)}%</div>
+//                     </div>
+
+//                     <div class="project-meta">
+//                       <span class="status-pill status-${status}">
+//                         ${rcsStatusLabel(status)}
+//                       </span>
+//                       <span>Owner: ${rcsEsc(p.owner || "-")}</span>
+//                       <span>
+//                         Hito: ${rcsEsc(p.nextMilestoneTitle || "-")}
+//                         · ${rcsEsc(formatDate(p.nextMilestoneDate) || "-")}
+//                       </span>
+//                     </div>
+
+//                     <div class="project-card-action">Ver detalle →</div>
+//                   </article>
+//                 `;
+//               })
+//               .join("")
+//           : `<p class="empty-state">No hay proyectos informados para este país.</p>`
+//       }
+//     </div>
+//   `;
+
+//   document
+//     .querySelectorAll(".project-card.clickable-card[data-project-id]")
+//     .forEach((card) => {
+//       const open = () =>
+//         renderProjectDetailView(programId, card.dataset.projectId);
+
+//       card.addEventListener("click", open);
+//       card.addEventListener("keydown", (event) => {
+//         if (event.key === "Enter" || event.key === " ") {
+//           event.preventDefault();
+//           open();
+//         }
+//       });
+//     });
+// }
+
+// function renderProjectDetailView(programId, projectId, navigation = null) {
+//   const list = document.querySelector("#projects");
+
+//   const detail = document.querySelector("#projectDetail");
+
+//   if (!detail) return;
+
+//   const project = (DATA.projects || []).find(
+//     (item) =>
+//       item.programId === programId && String(item.id) === String(projectId),
+//   );
+
+//   const backRoute = navigation?.route || null;
+
+//   const backLabel = navigation?.label || "Volver a proyectos";
+
+//   const backButton = backRoute
+//     ? `
+//       <button
+//         class="ghost-button"
+//         type="button"
+//         data-route="${rcsEsc(backRoute)}"
+//       >
+//         ← ${rcsEsc(backLabel)}
+//       </button>
+//     `
+//     : `
+//       <button
+//         class="ghost-button"
+//         type="button"
+//         data-project-list-back="${rcsEsc(programId)}"
+//       >
+//         ← Volver a proyectos
+//       </button>
+//     `;
+
+//   if (!project) {
+//     if (list) {
+//       list.hidden = true;
+//     }
+
+//     detail.hidden = false;
+
+//     detail.innerHTML = `
+//       ${backButton}
+
+//       <h3>
+//         Proyecto no encontrado
+//       </h3>
+//     `;
+
+//     return;
+//   }
+
+//   const phases = getProjectPhases(project.id);
+
+//   const status = rcsNormalizeStatus(project.status);
+
+//   if (list) {
+//     list.hidden = true;
+//   }
+
+//   detail.hidden = false;
+
+//   detail.innerHTML = `
+//     <div class="project-detail-header">
+//       ${backButton}
+
+//       <div>
+//         <h3>
+//           ${rcsEsc(project.name)}
+//         </h3>
+
+//         <p>
+//           ${rcsEsc(project.description || project.summary)}
+//         </p>
+//       </div>
+
+//       <span
+//         class="status-pill status-${status}"
+//       >
+//         ${rcsStatusLabel(status)}
+//       </span>
+//     </div>
+
+//     <div class="project-detail-grid">
+//       <article class="detail-card">
+//         <span>
+//           Owner
+//         </span>
+
+//         <strong>
+//           ${rcsEsc(project.owner || "-")}
+//         </strong>
+//       </article>
+
+//       <article class="detail-card">
+//         <span>
+//           Avance global
+//         </span>
+
+//         <strong>
+//           ${rcsEsc(project.progress || 0)}%
+//         </strong>
+//       </article>
+
+//       <article class="detail-card">
+//         <span>
+//           Siguiente hito
+//         </span>
+
+//         <strong>
+//           ${rcsEsc(project.nextMilestoneTitle || "-")}
+//         </strong>
+
+//         <small>
+//           ${rcsEsc(formatDate(project.nextMilestoneDate) || "")}
+//         </small>
+//       </article>
+
+//       <article class="detail-card">
+//         <span>
+//           Última actualización
+//         </span>
+
+//         <strong>
+//           ${rcsEsc(formatDate(project.lastUpdate) || "-")}
+//         </strong>
+//       </article>
+//     </div>
+
+//     <section class="phase-section">
+//       <h3>
+//         Actividades y grado de avance
+//       </h3>
+
+//       <div class="phase-roadmap">
+//         ${
+//           phases.length
+//             ? phases
+//                 .map((phase) => {
+//                   const phaseStatus = rcsNormalizeStatus(phase.status);
+
+//                   const progress = Math.max(
+//                     0,
+//                     Math.min(100, Number(phase.progress || 0)),
+//                   );
+
+//                   return `
+//                     <article class="phase-card">
+//                       <div class="phase-card-head">
+//                         <h4>
+//                           ${rcsEsc(
+//                             phase.phaseName || phase.name || "Actividad",
+//                           )}
+//                         </h4>
+
+//                         <span
+//                           class="status-pill status-${phaseStatus}"
+//                         >
+//                           ${rcsStatusLabel(phaseStatus)}
+//                         </span>
+//                       </div>
+
+//                       <div class="phase-bar">
+//                         <span
+//                           style="width:${progress}%"
+//                         ></span>
+//                       </div>
+
+//                       <div class="phase-meta">
+//                         <strong>
+//                           ${progress}%
+//                         </strong>
+
+//                         <span>
+//                           ${rcsEsc(formatDate(phase.startDate))}
+//                           →
+//                           ${rcsEsc(formatDate(phase.endDate))}
+//                         </span>
+//                       </div>
+
+//                       <div class="phase-delivery">
+//                         🚩 Entrega:
+//                         ${rcsEsc(formatDate(phase.targetDate))}
+//                       </div>
+
+//                       <p>
+//                         ${rcsEsc(phase.comments || "")}
+//                       </p>
+//                     </article>
+//                   `;
+//                 })
+//                 .join("")
+//             : `
+//               <p class="empty-state">
+//                 No hay actividades informadas
+//                 para este proyecto.
+//               </p>
+//             `
+//         }
+//       </div>
+
+//       <div id="phaseTimeline"></div>
+//       <section
+//         class="phase-status-legend"
+//         aria-label="Leyenda de estados"
+//       >
+//         <span class="phase-status-legend-item">
+//           <i class="phase-status-dot phase-status-done"></i>
+//           Hecho
+//         </span>
+
+//         <span class="phase-status-legend-item">
+//           <i class="phase-status-dot phase-status-on-track"></i>
+//           En curso
+//         </span>
+
+//         <span class="phase-status-legend-item">
+//           <i class="phase-status-dot phase-status-pending"></i>
+//           Planeado
+//         </span>
+
+//         <span class="phase-status-legend-item">
+//           <i class="phase-status-dot phase-status-risk"></i>
+//           Riesgo
+//         </span>
+
+//         <span class="phase-status-legend-item">
+//           <i class="phase-status-dot phase-status-blocked"></i>
+//           Bloqueado
+//         </span>
+//       </section>
+//       <div id="phaseTimeline"></div>
+//     </section>
+//     </section>
+
+//     <section class="project-detail-notes">
+//       <article>
+//         <h3>
+//           Objetivo estratégico
+//         </h3>
+
+//         <p>
+//           ${rcsEsc(project.strategicGoal || "No informado.")}
+//         </p>
+//       </article>
+
+//       <article>
+//         <h3>
+//           Valor de negocio
+//         </h3>
+
+//         <p>
+//           ${rcsEsc(project.businessValue || "No informado.")}
+//         </p>
+//       </article>
+
+//       <article>
+//         <h3>
+//           Riesgos principales
+//         </h3>
+
+//         <p>
+//           ${rcsEsc(project.mainRisks || "No informado.")}
+//         </p>
+//       </article>
+
+//       <article>
+//         <h3>
+//           Dependencias
+//         </h3>
+
+//         <p>
+//           ${rcsEsc(project.dependencies || "No informado.")}
+//         </p>
+//       </article>
+//     </section>
+//   `;
+
+//   const timelineContainer = document.getElementById("phaseTimeline");
+
+//   renderPhaseTimeline(phases, timelineContainer);
+// }
+/* dashboard inspired*/
+/*MSAs*/
+// function getProgramMsas(programId) {
+//   return (DATA.msas || []).filter(
+//     (msa) =>
+//       msa.programId === programId &&
+//       (!msa.country || msa.country === selectedCountry) &&
+//       (!selectedExecutiveProduct ||
+//         !msa.product ||
+//         msa.product === selectedExecutiveProduct) &&
+//       (executiveQuarter === "ALL" || msa.quarter === executiveQuarter),
+//   );
+// }
+
+// function getMsaPhases(msaId) {
+//   return (DATA.msaPhases || [])
+//     .filter((p) => p.msaId === msaId)
+//     .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+// }
+
+// function renderMsasView(programId) {
+//   const p = DATA.programs.find((x) => x.id === programId);
+
+//   view.innerHTML = "";
+//   view.append(tpl("#msas-template"));
+//   view.insertAdjacentHTML("afterbegin", renderCountrySelector());
+
+//   setHead(
+//     `${p?.name || "Programa"} · MSAs`,
+//     `Acuerdos y aprobaciones · ${selectedCountry}`,
+//     `Retail Client Solutions > ${p?.name || programId} > MSAs`,
+//   );
+
+//   const backButton = document.querySelector(".back-to-program-btn");
+
+//   if (backButton) {
+//     backButton.dataset.route = `program/${programId}`;
+//     backButton.textContent = `← Volver a ${p?.name || "programa"}`;
+//   }
+
+//   renderMsasList(programId);
+// }
+
+// function renderMsasList(programId) {
+//   const container = document.querySelector("#msas");
+//   const detail = document.querySelector("#msaDetail");
+
+//   if (!container) return;
+
+//   if (detail) {
+//     detail.hidden = true;
+//     detail.innerHTML = "";
+//   }
+
+//   container.hidden = false;
+
+//   const msas = getProgramMsas(programId);
+
+//   container.innerHTML = `
+//     <div class="section-header">
+//       <h3>MSAs (En construcción)</h3>
+//     </div>
+
+//     <div class="project-list">
+//       ${
+//         msas.length
+//           ? msas
+//               .map((msa) => {
+//                 const status = rcsNormalizeStatus(msa.status);
+
+//                 return `
+//                   <article
+//                     class="project-card msa-clickable-card"
+//                     data-msa-id="${rcsEsc(msa.id)}"
+//                     tabindex="0"
+//                     role="button"
+//                   >
+//                    <div class="project-card-main">
+//                       <div>
+//                         <div class="project-name">${rcsEsc(msa.name)}</div>
+//                         <div class="project-summary">${rcsEsc(msa.summary)}</div>
+//                       </div>
+
+//                       <div class="project-progress">
+//                         ${rcsEsc(msa.progress || 0)}%
+//                       </div>
+//                     </div>
+
+//                     <div class="project-meta">
+//                       <span class="status-pill status-${status}">
+//                         ${rcsStatusLabel(status)}
+//                       </span>
+//                       <span>Owner: ${rcsEsc(msa.owner || "-")}</span>
+//                       <span>
+//                         Hito: ${rcsEsc(msa.nextMilestoneTitle || "-")}
+//                         · ${rcsEsc(msa.nextMilestoneDate || "-")}
+//                       </span>
+//                     </div>
+
+//                     <div class="project-card-actions">
+//                       <span class="project-card-action">Ver detalle →</span>
+//                       ${rcsExternalLink(msa, "Abrir MSA")}
+//                     </div>
+//                   </article>
+//                 `;
+//               })
+//               .join("")
+//           : `<p class="empty-state">No hay MSAs informados para este país.</p>`
+//       }
+//     </div>
+//   `;
+
+//   document
+//     .querySelectorAll(".msa-clickable-card[data-msa-id]")
+//     .forEach((card) => {
+//       card.addEventListener("click", () => {
+//         renderMsaDetailView(programId, card.dataset.msaId);
+//       });
+//     });
+// }
+// function renderMsaDetailView(programId, msaId, navigation = null) {
+//   const list = document.querySelector("#msas");
+
+//   const detail = document.querySelector("#msaDetail");
+
+//   if (!detail) return;
+
+//   const msa = (DATA.msas || []).find(
+//     (item) => item.programId === programId && String(item.id) === String(msaId),
+//   );
+
+//   const backRoute = navigation?.route || null;
+
+//   const backLabel = navigation?.label || "Volver a MSAs";
+
+//   const backButton = backRoute
+//     ? `
+//       <button
+//         class="ghost-button"
+//         type="button"
+//         data-route="${rcsEsc(backRoute)}"
+//       >
+//         ← ${rcsEsc(backLabel)}
+//       </button>
+//     `
+//     : `
+//       <button
+//         class="ghost-button"
+//         type="button"
+//         data-msa-list-back="${rcsEsc(programId)}"
+//       >
+//         ← Volver a MSAs
+//       </button>
+//     `;
+
+//   if (!msa) {
+//     if (list) {
+//       list.hidden = true;
+//     }
+
+//     detail.hidden = false;
+
+//     detail.innerHTML = `
+//       ${backButton}
+
+//       <h3>
+//         MSA no encontrado
+//       </h3>
+//     `;
+
+//     return;
+//   }
+
+//   const phases = getMsaPhases(msa.id);
+
+//   const status = rcsNormalizeStatus(msa.status);
+
+//   if (list) {
+//     list.hidden = true;
+//   }
+
+//   detail.hidden = false;
+
+//   detail.innerHTML = `
+//     <div class="project-detail-header">
+//       ${backButton}
+
+//       <div>
+//         <h3>
+//           ${rcsEsc(msa.name)}
+//         </h3>
+
+//         <p>
+//           ${rcsEsc(msa.description || msa.summary)}
+//         </p>
+//       </div>
+
+//       <div class="project-detail-actions">
+//         <span
+//           class="status-pill status-${status}"
+//         >
+//           ${rcsStatusLabel(status)}
+//         </span>
+
+//         ${rcsExternalLink(msa, "Abrir MSA")}
+//       </div>
+//     </div>
+
+//     <div class="project-detail-grid">
+//       <article class="detail-card">
+//         <span>
+//           Owner
+//         </span>
+
+//         <strong>
+//           ${rcsEsc(msa.owner || "-")}
+//         </strong>
+//       </article>
+
+//       <article class="detail-card">
+//         <span>
+//           Avance global
+//         </span>
+
+//         <strong>
+//           ${rcsEsc(msa.progress || 0)}%
+//         </strong>
+//       </article>
+
+//       <article class="detail-card">
+//         <span>
+//           Siguiente hito
+//         </span>
+
+//         <strong>
+//           ${rcsEsc(msa.nextMilestoneTitle || "-")}
+//         </strong>
+
+//         <small>
+//           ${rcsEsc(formatDate(msa.nextMilestoneDate))}
+//         </small>
+//       </article>
+
+//       <article class="detail-card">
+//         <span>
+//           Última actualización
+//         </span>
+
+//         <strong>
+//           ${rcsEsc(formatDate(msa.lastUpdate))}
+//         </strong>
+//       </article>
+//     </div>
+
+//     <section class="phase-section">
+//       <h3>
+//         Actividades y grado de avance
+//       </h3>
+
+//       <div class="phase-roadmap">
+//         ${
+//           phases.length
+//             ? phases
+//                 .map((phase) => {
+//                   const phaseStatus = rcsNormalizeStatus(phase.status);
+
+//                   const progress = Math.max(
+//                     0,
+//                     Math.min(100, Number(phase.progress || 0)),
+//                   );
+
+//                   return `
+//                     <article class="phase-card">
+//                       <div class="phase-card-head">
+//                         <h4>
+//                           ${rcsEsc(
+//                             phase.phaseName || phase.name || "Actividad",
+//                           )}
+//                         </h4>
+
+//                         <span
+//                           class="status-pill status-${phaseStatus}"
+//                         >
+//                           ${rcsStatusLabel(phaseStatus)}
+//                         </span>
+//                       </div>
+
+//                       <div class="phase-bar">
+//                         <span
+//                           style="width:${progress}%"
+//                         ></span>
+//                       </div>
+
+//                       <div class="phase-meta">
+//                         <strong>
+//                           ${progress}%
+//                         </strong>
+
+//                         <span>
+//                           ${rcsEsc(formatDate(phase.startDate))}
+//                           →
+//                           ${rcsEsc(
+//                             formatDate(phase.targetDate || phase.endDate),
+//                           )}
+//                         </span>
+//                       </div>
+
+//                       <p>
+//                         ${rcsEsc(phase.comments || "")}
+//                       </p>
+//                     </article>
+//                   `;
+//                 })
+//                 .join("")
+//             : `
+//               <p class="empty-state">
+//                 No hay actividades informadas
+//                 para este MSA.
+//               </p>
+//             `
+//         }
+//       </div>
+//     </section>
+
+//     <section class="project-detail-notes">
+//       <article>
+//         <h3>
+//           Objetivo estratégico
+//         </h3>
+
+//         <p>
+//           ${rcsEsc(msa.strategicGoal || "No informado.")}
+//         </p>
+//       </article>
+
+//       <article>
+//         <h3>
+//           Valor de negocio
+//         </h3>
+
+//         <p>
+//           ${rcsEsc(msa.businessValue || "No informado.")}
+//         </p>
+//       </article>
+
+//       <article>
+//         <h3>
+//           Riesgos principales
+//         </h3>
+
+//         <p>
+//           ${rcsEsc(msa.mainRisks || "No informado.")}
+//         </p>
+//       </article>
+
+//       <article>
+//         <h3>
+//           Dependencias
+//         </h3>
+
+//         <p>
+//           ${rcsEsc(msa.dependencies || "No informado.")}
+//         </p>
+//       </article>
+//     </section>
+//   `;
+// }
 /*MSAs*/
 
 /* loading overlay */
@@ -3899,11 +4511,7 @@ function renderExecutiveQuarterView(programId) {
     .join("");
 }
 function getExecutiveSourceItems(programId) {
-  const projects = Array.isArray(DATA.projects) ? DATA.projects : [];
-
-  const msas = Array.isArray(DATA.msas) ? DATA.msas : [];
-
-  return [...projects, ...msas].filter(
+  return adaptUnifiedRoadmapCollection().filter(
     (item) =>
       item.programId === programId &&
       (!item.country || item.country === selectedCountry),
@@ -3957,31 +4565,15 @@ function renderExecutiveQuarterSelector(programId) {
   const availableItems = getExecutiveSourceItems(programId).filter(
     (item) =>
       !selectedExecutiveProduct ||
-      !item.product ||
-      item.product === selectedExecutiveProduct,
+      item.product === normalizeRoadmapProduct(selectedExecutiveProduct),
   );
-
-  const availableQuarters = [
-    ...new Set(
-      availableItems
-        .map((item) =>
-          String(item.quarter || "")
-            .trim()
-            .toUpperCase(),
-        )
-        .filter((quarter) => ["Q1", "Q2", "Q3", "Q4"].includes(quarter)),
-    ),
-  ].sort((a, b) => getQuarterOrder(a) - getQuarterOrder(b));
 
   if (!availableItems.length) {
     executiveQuarter = "ALL";
     return "";
   }
 
-  if (
-    executiveQuarter !== "ALL" &&
-    !availableQuarters.includes(executiveQuarter)
-  ) {
+  if (!isValidRoadmapQuarter(executiveQuarter)) {
     executiveQuarter = "ALL";
   }
 
@@ -3990,10 +4582,22 @@ function renderExecutiveQuarterSelector(programId) {
       id: "ALL",
       label: "Todo",
     },
-    ...availableQuarters.map((quarter) => ({
-      id: quarter,
-      label: quarter,
-    })),
+    {
+      id: "Q1",
+      label: "Q1",
+    },
+    {
+      id: "Q2",
+      label: "Q2",
+    },
+    {
+      id: "Q3",
+      label: "Q3",
+    },
+    {
+      id: "Q4",
+      label: "Q4",
+    },
   ];
 
   return `
@@ -4808,6 +5412,15 @@ document.addEventListener("click", (event) => {
   }
 
   renderMsasList(msaBackButton.dataset.msaListBack);
+});
+document.addEventListener("click", (event) => {
+  const externalLink = event.target.closest(".document-link");
+
+  if (!externalLink) {
+    return;
+  }
+
+  event.stopPropagation();
 });
 window.addEventListener("hashchange", () => {
   render().catch(console.error);
