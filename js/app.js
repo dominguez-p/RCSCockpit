@@ -7,6 +7,7 @@ let PORTFOLIO_LAST_LOADED_AT = null;
 
 const PROGRAM_DATA_CACHE = new Map();
 const PROGRAM_LAST_LOADED_AT = new Map();
+const PROGRAM_SOURCES = new Map();
 
 let DATA = window.SAMPLE_DATA;
 let selectedCountry = "ES";
@@ -2697,7 +2698,31 @@ function getCurrentRoute() {
     itemId: itemId || null,
   };
 }
+function buildProgramSources(programs) {
+  PROGRAM_SOURCES.clear();
 
+  (programs || []).forEach((program) => {
+    const programId = String(program.id || "").trim();
+
+    if (!programId) {
+      return;
+    }
+
+    PROGRAM_SOURCES.set(programId, {
+      id: programId,
+
+      label: program.sourceLabel || program.name || programId,
+
+      spreadsheetId: String(program.spreadsheetId || "").trim(),
+
+      driveJsonUrl: String(program.driveJsonUrl || "").trim(),
+    });
+  });
+}
+
+function getProgramSource(programId) {
+  return PROGRAM_SOURCES.get(String(programId || "").trim()) || null;
+}
 function getActiveDataSource() {
   const { programId } = getCurrentRoute();
 
@@ -2705,7 +2730,7 @@ function getActiveDataSource() {
     return window.APP_CONFIG.portfolio;
   }
 
-  return window.APP_CONFIG.programs?.[programId] || null;
+  return getProgramSource(programId);
 }
 
 function getEmptyProgramData() {
@@ -2800,13 +2825,18 @@ async function loadPortfolioData(forceRefresh = false) {
     Array.isArray(PORTFOLIO_DATA.programs) &&
     PORTFOLIO_DATA.programs.length
   ) {
+    buildProgramSources(PORTFOLIO_DATA.programs);
+
     return PORTFOLIO_DATA;
   }
 
   const source = window.APP_CONFIG.portfolio;
+
   const rawData = await loadConfiguredSource(source);
 
   PORTFOLIO_DATA = normalizePortfolioData(rawData);
+
+  buildProgramSources(PORTFOLIO_DATA.programs);
 
   PORTFOLIO_LAST_LOADED_AT = new Date();
 
@@ -2818,11 +2848,17 @@ async function loadProgramData(programId, forceRefresh = false) {
     return PROGRAM_DATA_CACHE.get(programId);
   }
 
-  const source = window.APP_CONFIG.programs?.[programId];
+  const source = getProgramSource(programId);
 
   if (!source) {
     throw new Error(
       `No existe un origen configurado para el programa ${programId}`,
+    );
+  }
+
+  if (!source.driveJsonUrl) {
+    throw new Error(
+      `El programa ${programId} no tiene driveJsonUrl configurado`,
     );
   }
 
@@ -2908,11 +2944,13 @@ function updateDataStatus(programId = null) {
     return;
   }
 
-  const source = window.APP_CONFIG.programs?.[programId];
+  const source = getProgramSource(programId);
+
   const lastLoadedAt = PROGRAM_LAST_LOADED_AT.get(programId);
 
   statusEl.textContent =
-    `Últimos datos cargados: ${source?.label || programId} ` +
+    `Últimos datos cargados: ` +
+    `${source?.label || programId} ` +
     `(${formatLastLoadedDate(lastLoadedAt)})`;
 }
 async function render() {
@@ -2929,7 +2967,7 @@ async function render() {
   }
 
   try {
-    const source = window.APP_CONFIG.programs?.[programId];
+    const source = getProgramSource(programId);
 
     showLoadingOverlay(`Cargando datos de ${source?.label || programId}...`);
 
@@ -3242,7 +3280,7 @@ async function refreshCurrentDataSource() {
   const { routeName, programId } = getCurrentRoute();
 
   const source = programId
-    ? window.APP_CONFIG.programs?.[programId]
+    ? getProgramSource(programId)
     : window.APP_CONFIG.portfolio;
 
   showLoadingOverlay(
