@@ -21,7 +21,7 @@ window.APP_CONFIG = {
 
       // Nueva spreadsheet para AIxBanker.
       driveJsonUrl:
-        "https://script.google.com/a/macros/bbva.com/s/AKfycbykkOQBqcwlrHlT9FZTW96k60hmYHVAb_s1NFHh4-44UjIIvg7NEZLq8ZGH9klA-6wPHQ/exec",
+        "https://script.google.com/a/macros/bbva.com/s/AKfycbxS5sOUrD2uteuE-F93dT9z0AAVfoUvl7zGa7nXypp1VyHEkBZu5VJw7LvTcjTMoLqvPA/exec",
 
       spreadsheetId: "1biJoA0LWDToy3Q2FAP48GNB1LLohS13nbRMzpuWu5qs",
     },
