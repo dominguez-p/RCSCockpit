@@ -405,6 +405,109 @@ function adaptRoadmapItemActivity(activity) {
     source: activity,
   };
 }
+function getGroupedActivityStatus(tasks) {
+  const statuses = (tasks || [])
+    .map((task) => rcsNormalizeStatus(task.status))
+    .filter(Boolean);
+
+  if (!statuses.length) {
+    return "planned";
+  }
+
+  const uniqueStatuses = [...new Set(statuses)];
+
+  /*
+   * Si todas las tareas están en el mismo estado,
+   * la actividad hereda ese estado.
+   *
+   * Ejemplos:
+   * - todas done      -> done
+   * - todas blocked   -> blocked
+   * - todas pending   -> pending
+   * - todas on-track  -> on-track
+   */
+  if (uniqueStatuses.length === 1) {
+    return uniqueStatuses[0];
+  }
+
+  /*
+   * Si hay mezcla de estados:
+   * - si alguna está bloqueada -> la actividad queda en riesgo
+   * - en cualquier otro caso   -> la actividad queda en progreso
+   */
+  if (uniqueStatuses.includes("blocked")) {
+    return "at-risk";
+  }
+
+  return "on-track";
+}
+
+function groupRoadmapItemActivities(tasks) {
+  const groups = new Map();
+
+  (tasks || []).forEach((task) => {
+    const activityId = String(
+      task.activityId || task.id || task.phaseId || task.activityName || "",
+    ).trim();
+
+    if (!activityId) {
+      return;
+    }
+
+    if (!groups.has(activityId)) {
+      groups.set(activityId, []);
+    }
+
+    groups.get(activityId).push(task);
+  });
+
+  return [...groups.entries()]
+    .map(([activityId, activityTasks]) => {
+      const progress =
+        activityTasks.length > 0
+          ? Math.round(
+              activityTasks.reduce(
+                (total, task) =>
+                  total + normalizeRoadmapProgress(task.progress),
+                0,
+              ) / activityTasks.length,
+            )
+          : 0;
+
+      const startDate = getFirstRoadmapPhaseDate(activityTasks, "startDate");
+
+      const endDate = getLastRoadmapPhaseDate(activityTasks, "endDate");
+
+      const targetDate = getLastRoadmapPhaseDate(activityTasks, "targetDate");
+
+      const order = Math.min(
+        ...activityTasks.map((task) =>
+          Number.isFinite(Number(task.order)) ? Number(task.order) : 999,
+        ),
+      );
+
+      return {
+        id: activityId,
+        activityId,
+        phaseId: activityId,
+
+        activityName: activityId,
+        phaseName: activityId,
+
+        order,
+        progress,
+        status: getGroupedActivityStatus(activityTasks),
+
+        startDate,
+        endDate,
+        targetDate,
+
+        taskCount: activityTasks.length,
+        tasks: activityTasks,
+      };
+    })
+    .sort((a, b) => a.order - b.order);
+}
 function normalizeRoadmapProduct(value) {
   return String(value || "")
     .trim()
@@ -1074,13 +1177,21 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
   if (!roadmapItem) {
     return;
   }
-
-  const activities = Array.isArray(roadmapItem.activities)
+  const tasks = Array.isArray(roadmapItem.activities)
     ? roadmapItem.activities
     : Array.isArray(roadmapItem.phases)
       ? roadmapItem.phases
       : [];
 
+  const activities = groupRoadmapItemActivities(tasks).map((activity) => ({
+    ...activity,
+
+    detailRoute: navigation?.activityRouteBase
+      ? `${navigation.activityRouteBase}/${encodeURIComponent(
+          activity.activityId,
+        )}`
+      : "",
+  }));
   const status = rcsNormalizeStatus(roadmapItem.status);
 
   const backRoute = navigation?.route || "";
@@ -1227,86 +1338,9 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
 
       <section class="phase-section">
         <h3>
-          Actividades y grado de avance
+          Roadmap de actividades
         </h3>
 
-        <div class="phase-roadmap">
-          ${
-            activities.length
-              ? activities
-                  .map((activity) => {
-                    const activityStatus = rcsNormalizeStatus(activity.status);
-
-                    const progress = Math.max(
-                      0,
-                      Math.min(100, Number(activity.progress || 0)),
-                    );
-
-                    return `
-                      <article class="phase-card">
-                        <div class="phase-card-head">
-                          <h4>
-                            ${rcsEsc(
-                              activity.activityName ||
-                                activity.phaseName ||
-                                activity.name ||
-                                "Actividad",
-                            )}
-                          </h4>
-
-                          <span
-                            class="status-pill status-${activityStatus}"
-                          >
-                            ${rcsEsc(rcsStatusLabel(activityStatus))}
-                          </span>
-                        </div>
-
-                        <div class="phase-bar">
-                          <span
-                            style="width:${progress}%"
-                          ></span>
-                        </div>
-
-                        <div class="phase-meta">
-                          <strong>
-                            ${progress}%
-                          </strong>
-
-                          <span>
-                            ${rcsEsc(formatDate(activity.startDate))}
-                            →
-                            ${rcsEsc(formatDate(activity.endDate))}
-                          </span>
-                        </div>
-
-                        <div class="phase-delivery">
-                          🚩 Entrega:
-                          ${rcsEsc(
-                            formatDate(activity.targetDate || activity.endDate),
-                          )}
-                        </div>
-
-                        ${
-                          activity.comments
-                            ? `
-                              <p>
-                                ${rcsEsc(activity.comments)}
-                              </p>
-                            `
-                            : ""
-                        }
-                      </article>
-                    `;
-                  })
-                  .join("")
-              : `
-                <p class="empty-state">
-                  No hay actividades informadas
-                  para este elemento.
-                </p>
-              `
-          }
-        </div>
 
         <section
           class="phase-status-legend"
@@ -1319,7 +1353,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
 
           <span class="phase-status-legend-item">
             <i class="phase-status-dot phase-status-on-track"></i>
-            OK
+            En progreso
           </span>
 
           <span class="phase-status-legend-item">
@@ -1387,7 +1421,10 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
 
   const timelineContainer = document.querySelector("#roadmapItemTimeline");
 
-  renderPhaseTimeline(activities, timelineContainer);
+  renderPhaseTimeline(activities, timelineContainer, {
+    firstColumnLabel: "Actividad",
+    showMissingDates: false,
+  });
 }
 function renderAIxBankerRoadmapDetail(
   programId,
@@ -1479,7 +1516,327 @@ function renderAIxBankerRoadmapDetail(
 
   renderRoadmapItemDetailView(roadmapItem, {
     route: backRoute,
+
     label: `Volver al roadmap de ${product.label}`,
+
+    activityRouteBase:
+      `roadmap-activity/` +
+      `${programId}/` +
+      `${productId}/` +
+      `${selectedQuarter}/` +
+      `${itemType}/` +
+      `${itemId}`,
+  });
+}
+function hasRoadmapTaskPlanning(task) {
+  return [task?.startDate, task?.endDate, task?.targetDate].some((value) => {
+    if (value instanceof Date) {
+      return !Number.isNaN(value.getTime());
+    }
+
+    return value !== null && value !== undefined && String(value).trim() !== "";
+  });
+}
+function renderRoadmapActivityTasksView(roadmapItem, activity, navigation) {
+  const tasks = Array.isArray(activity.tasks) ? activity.tasks : [];
+  const plannedTasks = tasks.filter(hasRoadmapTaskPlanning);
+
+  const unplannedTasks = tasks.filter((task) => !hasRoadmapTaskPlanning(task));
+  const status = rcsNormalizeStatus(activity.status);
+
+  view.innerHTML = `
+    <section class="panel project-detail-panel">
+      <div class="project-detail-header">
+        <button
+          class="ghost-button"
+          type="button"
+          data-route="${rcsEsc(navigation.route)}"
+        >
+          ← ${rcsEsc(navigation.label)}
+        </button>
+
+        <div>
+          <div class="aixbanker-roadmap-item-top">
+            <span class="aixbanker-roadmap-type">
+              Actividad
+            </span>
+
+            <span class="aixbanker-roadmap-type">
+              ${rcsEsc(roadmapItem.title)}
+            </span>
+          </div>
+
+          <h3>
+            ${rcsEsc(activity.activityName)}
+          </h3>
+
+          <p>
+            ${tasks.length}
+            ${tasks.length === 1 ? "tarea" : "tareas"}
+          </p>
+        </div>
+
+        <div class="project-detail-actions">
+          <span
+            class="status-pill status-${status}"
+          >
+            ${rcsEsc(rcsStatusLabel(status))}
+          </span>
+        </div>
+      </div>
+
+      <div class="project-detail-grid">
+        <article class="detail-card">
+          <span>Estado</span>
+
+          <strong>
+            ${rcsEsc(rcsStatusLabel(status))}
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>Avance</span>
+
+          <strong>
+            ${rcsEsc(activity.progress || 0)}%
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>Número de tareas</span>
+
+          <strong>
+            ${tasks.length}
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>Inicio</span>
+
+          <strong>
+            ${rcsEsc(formatDate(activity.startDate))}
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>Fin</span>
+
+          <strong>
+            ${rcsEsc(formatDate(activity.endDate))}
+          </strong>
+        </article>
+
+        <article class="detail-card">
+          <span>Entrega objetivo</span>
+
+          <strong>
+            ${rcsEsc(formatDate(activity.targetDate))}
+          </strong>
+        </article>
+      </div>
+
+      <section class="phase-section">
+  <h3>
+    Roadmap de tareas
+  </h3>
+
+  <section
+    class="phase-status-legend"
+    aria-label="Leyenda de estados"
+  >
+    <span class="phase-status-legend-item">
+      <i class="phase-status-dot phase-status-done"></i>
+      Hecho
+    </span>
+
+    <span class="phase-status-legend-item">
+      <i class="phase-status-dot phase-status-on-track"></i>
+      En progreso
+    </span>
+
+    <span class="phase-status-legend-item">
+      <i class="phase-status-dot phase-status-pending"></i>
+      Pendiente
+    </span>
+
+    <span class="phase-status-legend-item">
+      <i class="phase-status-dot phase-status-risk"></i>
+      Riesgo
+    </span>
+
+    <span class="phase-status-legend-item">
+      <i class="phase-status-dot phase-status-blocked"></i>
+      Bloqueado
+    </span>
+  </section>
+
+  ${
+    plannedTasks.length
+      ? `
+          <div id="roadmapTaskTimeline"></div>
+        `
+      : `
+          <p class="empty-state">
+            No hay tareas con planificación temporal.
+          </p>
+        `
+  }
+</section>
+
+${
+  unplannedTasks.length
+    ? `
+        <section class="phase-section unplanned-tasks-section">
+          <div class="unplanned-tasks-heading">
+            <h3>
+              Tareas sin planificación
+            </h3>
+
+            <span class="unplanned-tasks-count">
+              ${unplannedTasks.length}
+            </span>
+          </div>
+
+          <div class="unplanned-task-list">
+            ${unplannedTasks
+              .map((task) => {
+                const taskStatus = rcsNormalizeStatus(task.status);
+
+                const taskName =
+                  task.activityName ||
+                  task.phaseName ||
+                  task.name ||
+                  "Tarea sin nombre";
+
+                const progress = Math.max(
+                  0,
+                  Math.min(100, Number(task.progress || 0)),
+                );
+
+                return `
+                  <article class="unplanned-task-row">
+                    <div class="unplanned-task-content">
+                      <strong>
+                        ${rcsEsc(taskName)}
+                      </strong>
+
+                      ${
+                        task.comments
+                          ? `
+                              <small>
+                                ${rcsEsc(task.comments)}
+                              </small>
+                            `
+                          : ""
+                      }
+                    </div>
+
+                    <div class="unplanned-task-status">
+                      <span
+                        class="status-pill status-${taskStatus}"
+                      >
+                        ${rcsEsc(rcsStatusLabel(taskStatus))}
+                      </span>
+
+                      <strong>
+                        ${progress}%
+                      </strong>
+                    </div>
+                  </article>
+                `;
+              })
+              .join("")}
+          </div>
+        </section>
+      `
+    : ""
+}
+  `;
+
+  const timelineContainer = document.querySelector("#roadmapTaskTimeline");
+
+  if (timelineContainer && plannedTasks.length) {
+    renderPhaseTimeline(plannedTasks, timelineContainer, {
+      firstColumnLabel: "Tarea",
+      showMissingDates: false,
+    });
+  }
+}
+function renderAIxBankerRoadmapActivityDetail(
+  programId,
+  productId,
+  quarter,
+  itemType,
+  itemId,
+  activityId,
+) {
+  const program = (DATA.programs || []).find((item) => item.id === programId);
+
+  const product = getAIxBankerProduct(productId);
+
+  const selectedQuarter = isValidRoadmapQuarter(quarter)
+    ? quarter
+    : getCurrentQuarter();
+
+  const backRoute =
+    `roadmap-detail/` +
+    `${programId}/` +
+    `${productId}/` +
+    `${selectedQuarter}/` +
+    `${itemType}/` +
+    `${itemId}`;
+
+  if (!program || !product || !itemType || !itemId || !activityId) {
+    route(backRoute);
+    return;
+  }
+
+  const roadmapItems = getRoadmapItems(programId, productId, "ALL");
+
+  const roadmapItem = roadmapItems.find(
+    (item) =>
+      String(item.type || "").trim() === String(itemType || "").trim() &&
+      String(item.id || "").trim() === String(itemId || "").trim(),
+  );
+
+  if (!roadmapItem) {
+    route(backRoute);
+    return;
+  }
+
+  const tasks = Array.isArray(roadmapItem.activities)
+    ? roadmapItem.activities
+    : [];
+
+  const groupedActivities = groupRoadmapItemActivities(tasks);
+
+  const activity = groupedActivities.find(
+    (item) =>
+      String(item.activityId || "").trim() === String(activityId || "").trim(),
+  );
+
+  if (!activity) {
+    route(backRoute);
+    return;
+  }
+
+  const country = COUNTRIES.find((item) => item.id === selectedCountry);
+
+  const countryLabel = country?.label || selectedCountry;
+
+  setHead(
+    activity.activityName,
+    `${roadmapItem.title} · ${countryLabel}`,
+    `Retail Client Solutions > ${
+      program.name || "AIxBanker"
+    } > ${product.label} > Roadmap > ${
+      roadmapItem.title
+    } > ${activity.activityName}`,
+  );
+
+  renderRoadmapActivityTasksView(roadmapItem, activity, {
+    route: backRoute,
+    label: "Volver al roadmap de actividades",
   });
 }
 function renderRoadmapUndatedItems(items) {
@@ -2686,8 +3043,25 @@ function renderSystems(programId, mode = "systems") {
 function getCurrentRoute() {
   const hash = location.hash.replace("#", "") || "landing";
 
-  const [routeName, programId, productId, quarter, itemType, itemId] =
-    hash.split("/");
+  const [
+    routeName,
+    programId,
+    productId,
+    quarter,
+    itemType,
+    itemId,
+    encodedActivityId,
+  ] = hash.split("/");
+
+  let activityId = null;
+
+  if (encodedActivityId) {
+    try {
+      activityId = decodeURIComponent(encodedActivityId);
+    } catch {
+      activityId = encodedActivityId;
+    }
+  }
 
   return {
     routeName,
@@ -2696,6 +3070,7 @@ function getCurrentRoute() {
     quarter: quarter || null,
     itemType: itemType || null,
     itemId: itemId || null,
+    activityId,
   };
 }
 function buildProgramSources(programs) {
@@ -2880,6 +3255,7 @@ function renderCurrentRoute(
   quarter = null,
   itemType = null,
   itemId = null,
+  activityId = null,
 ) {
   if (routeName === "program") {
     renderProgram(programId);
@@ -2892,6 +3268,15 @@ function renderCurrentRoute(
       quarter,
       itemType,
       itemId,
+    );
+  } else if (routeName === "roadmap-activity" && programId === "aixbanker") {
+    renderAIxBankerRoadmapActivityDetail(
+      programId,
+      productId,
+      quarter,
+      itemType,
+      itemId,
+      activityId,
     );
   } else if (routeName === "functional") {
     renderFunctional(programId);
@@ -2954,8 +3339,15 @@ function updateDataStatus(programId = null) {
     `(${formatLastLoadedDate(lastLoadedAt)})`;
 }
 async function render() {
-  const { routeName, programId, productId, quarter, itemType, itemId } =
-    getCurrentRoute();
+  const {
+    routeName,
+    programId,
+    productId,
+    quarter,
+    itemType,
+    itemId,
+    activityId,
+  } = getCurrentRoute();
 
   if (!programId || routeName === "landing") {
     DATA = PORTFOLIO_DATA;
@@ -2982,6 +3374,7 @@ async function render() {
       quarter,
       itemType,
       itemId,
+      activityId,
     );
 
     updateDataStatus(programId);
@@ -3002,6 +3395,7 @@ async function render() {
       quarter,
       itemType,
       itemId,
+      activityId,
     );
   } finally {
     hideLoadingOverlay();
@@ -3380,45 +3774,71 @@ function rcsNormalizeStatus(s) {
       green: "on-track",
       on_track: "on-track",
       "on track": "on-track",
+      "en curso": "on-track",
+      "en progreso": "on-track",
+      progreso: "on-track",
+      "en proceso": "on-track",
+      ready: "on-track",
+      stretch: "on-track",
 
       "analysis in progress": "pending",
-      "in progress": "on-track",
       analysis: "pending",
 
-      "componente desarrollado": "on-track",
-      "diseño liberado": "done",
-      "n/a": "pending",
-      na: "pending",
+      pending: "pending",
+      pendiente: "pending",
+      dependiente: "pending",
+      dependencia: "pending",
+
+      planned: "planned",
+      planificado: "planned",
+      planificada: "planned",
+      "sin iniciar": "planned",
+      "no iniciado": "planned",
+      "no iniciada": "planned",
 
       risk: "at-risk",
+      riesgo: "at-risk",
+      "en riesgo": "at-risk",
       amber: "at-risk",
       at_risk: "at-risk",
       "at risk": "at-risk",
+
       red: "blocked",
       blocker: "blocked",
       blocked: "blocked",
-      planned: "planned",
-      planificado: "planned",
+      bloqueado: "blocked",
+      bloqueada: "blocked",
+
       done: "done",
       closed: "done",
       completed: "done",
-      pending: "pending",
+      hecho: "done",
+      hecha: "done",
+      completado: "done",
+      completada: "done",
+      finalizado: "done",
+      finalizada: "done",
+
+      deprecated: "planned",
+      deprecado: "planned",
+      deprecada: "planned",
+
+      "n/a": "pending",
+      na: "pending",
     }[v] || v.replaceAll("_", "-")
   );
 }
 
-function rcsStatusLabel(s) {
+function rcsStatusLabel(status) {
   return (
     {
-      "on-track": "OK",
+      done: "Hecho",
+      "on-track": "En progreso",
+      pending: "Pendiente",
+      planned: "Pendiente",
       "at-risk": "Riesgo",
       blocked: "Bloqueado",
-      planned: "Planificado",
-      done: "Hecho",
-      pending: "Pendiente",
-    }[rcsNormalizeStatus(s)] ||
-    s ||
-    "-"
+    }[status] || "Pendiente"
   );
 }
 
@@ -4698,83 +5118,334 @@ function parseValidDate(value) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function renderPhaseTimeline(phases, container) {
-  if (!container || !Array.isArray(phases) || !phases.length) return;
+function renderPhaseTimeline(phases, container, options = {}) {
+  if (!container || !Array.isArray(phases)) {
+    return;
+  }
 
-  const validPhases = phases
-    .map((phase) => ({
-      ...phase,
-      _start: getPhaseStartDate(phase),
-      _end: getPhaseEndDate(phase),
-      _target: getPhaseTargetDate(phase),
-    }))
-    .filter((phase) => phase._start && phase._end);
-
-  if (!validPhases.length) {
+  if (!phases.length) {
     container.innerHTML = `
       <p class="empty-state">
-        No hay fechas válidas para pintar el calendario.
+        No hay actividades informadas.
       </p>
     `;
     return;
   }
 
+  const now = new Date();
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const timelinePhases = phases.map((phase) => {
+    const startDate = getPhaseStartDate(phase);
+    const endDate = getPhaseEndDate(phase);
+    const targetDate = getPhaseTargetDate(phase);
+
+    const hasInvalidRange = Boolean(
+      startDate && endDate && endDate < startDate,
+    );
+
+    let effectiveBarEnd = null;
+
+    if (startDate && !hasInvalidRange) {
+      if (endDate) {
+        effectiveBarEnd = endDate;
+      } else if (startDate <= today) {
+        effectiveBarEnd = today;
+      }
+    }
+
+    return {
+      ...phase,
+
+      _start: startDate,
+      _end: endDate,
+      _target: targetDate,
+
+      _effectiveBarEnd: effectiveBarEnd,
+      _hasInvalidRange: hasInvalidRange,
+    };
+  });
+
+  const dateCandidates = [today];
+
+  timelinePhases.forEach((phase) => {
+    if (phase._start) {
+      dateCandidates.push(phase._start);
+    }
+
+    if (phase._end) {
+      dateCandidates.push(phase._end);
+    }
+
+    if (phase._target) {
+      dateCandidates.push(phase._target);
+    }
+
+    if (phase._effectiveBarEnd) {
+      dateCandidates.push(phase._effectiveBarEnd);
+    }
+  });
+
   const minDate = new Date(
-    Math.min(...validPhases.map((phase) => phase._start.getTime())),
+    Math.min(...dateCandidates.map((date) => date.getTime())),
   );
 
   const maxDate = new Date(
-    Math.max(
-      ...validPhases.map((phase) =>
-        Math.max(
-          phase._end.getTime(),
-          phase._target ? phase._target.getTime() : phase._end.getTime(),
-        ),
-      ),
-    ),
+    Math.max(...dateCandidates.map((date) => date.getTime())),
   );
 
   const months = [];
-  const current = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
 
-  while (current <= maxDate) {
-    months.push(new Date(current));
-    current.setMonth(current.getMonth() + 1);
+  const currentMonth = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+
+  const lastMonth = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+
+  while (currentMonth <= lastMonth) {
+    months.push(new Date(currentMonth));
+
+    currentMonth.setMonth(currentMonth.getMonth() + 1);
   }
+
+  /*
+   * Debe calcularse después de construir months.
+   */
+  const timelineMinWidth = 280 + months.length * 190;
 
   container.innerHTML = `
     <div class="phase-timeline-wrap">
-      <h4>Calendario por meses</h4>
-
-      <div class="phase-timeline" style="--month-count:${months.length}">
-        ${buildTimeline(months, validPhases)}
+      <div
+        class="phase-timeline"
+        style="
+          --month-count:${months.length};
+          min-width:${timelineMinWidth}px;
+        "
+      >
+        ${buildTimeline(months, timelinePhases, options)}
       </div>
     </div>
   `;
-}
 
-function buildTimeline(months, phases) {
-  let html = `<div class="timeline-header">Fase</div>`;
+  requestAnimationFrame(() => {
+    const timelineWrap = container.querySelector(".phase-timeline-wrap");
+
+    const currentMonthHeader = container.querySelector(
+      ".timeline-month.timeline-current-month",
+    );
+
+    const todayLine = currentMonthHeader?.querySelector(".timeline-today-line");
+
+    if (!timelineWrap || !currentMonthHeader || !todayLine) {
+      return;
+    }
+
+    const todayPosition = currentMonthHeader.offsetLeft + todayLine.offsetLeft;
+
+    const targetScrollLeft = todayPosition - timelineWrap.clientWidth / 2;
+
+    timelineWrap.scrollLeft = Math.max(0, targetScrollLeft);
+  });
+}
+function getTimelineTodayData(month) {
+  const now = new Date();
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const isCurrentMonth =
+    today.getFullYear() === month.getFullYear() &&
+    today.getMonth() === month.getMonth();
+
+  if (!isCurrentMonth) {
+    return {
+      isCurrentMonth: false,
+      position: 0,
+      label: "",
+    };
+  }
+
+  const daysInMonth = new Date(
+    month.getFullYear(),
+    month.getMonth() + 1,
+    0,
+  ).getDate();
+
+  /*
+   * Se sitúa la línea en el centro del día actual.
+   */
+  const position = ((today.getDate() - 0.5) / daysInMonth) * 100;
+
+  return {
+    isCurrentMonth: true,
+    position,
+    label: today.toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "short",
+    }),
+  };
+}
+function buildTimelineDateMeta(phase, showMissingDates = true) {
+  const lines = [];
+
+  if (phase._start && phase._end) {
+    lines.push(`
+      <small>
+        Marco:
+        ${rcsEsc(formatDate(phase._start))}
+        →
+        ${rcsEsc(formatDate(phase._end))}
+      </small>
+    `);
+  } else {
+    if (phase._start) {
+      lines.push(`
+        <small>
+          Inicio:
+          ${rcsEsc(formatDate(phase._start))}
+        </small>
+      `);
+    }
+
+    if (phase._end) {
+      lines.push(`
+        <small>
+          Fin:
+          ${rcsEsc(formatDate(phase._end))}
+        </small>
+      `);
+    }
+  }
+
+  if (phase._target) {
+    lines.push(`
+      <small>
+        Entrega:
+        ${rcsEsc(formatDate(phase._target))}
+      </small>
+    `);
+  }
+
+  if (!lines.length && showMissingDates) {
+    lines.push(`
+      <small class="timeline-unplanned-label">
+        Sin fechas informadas
+      </small>
+    `);
+  }
+
+  return lines.join("");
+}
+function buildTimeline(months, phases, options = {}) {
+  const firstColumnLabel = options.firstColumnLabel || "Actividad";
+
+  const showMissingDates = options.showMissingDates !== false;
+
+  let html = `
+    <div class="timeline-header">
+      ${rcsEsc(firstColumnLabel)}
+    </div>
+  `;
 
   months.forEach((month) => {
+    const todayData = getTimelineTodayData(month);
+
     html += `
-      <div class="timeline-month">
+      <div
+        class="timeline-month ${
+          todayData.isCurrentMonth ? "timeline-current-month" : ""
+        }"
+      >
         ${month.toLocaleDateString("es-ES", {
           month: "short",
           year: "numeric",
         })}
+
+        ${
+          todayData.isCurrentMonth
+            ? `
+              <span
+                class="
+                  timeline-today-line
+                  timeline-today-header
+                "
+                style="left:${todayData.position}%"
+              >
+                <em>
+                  Hoy · ${rcsEsc(todayData.label)}
+                </em>
+              </span>
+            `
+            : ""
+        }
       </div>
     `;
   });
 
   phases.forEach((phase) => {
+    const itemName =
+      phase.activityName ||
+      phase.phaseName ||
+      phase.name ||
+      "Elemento sin nombre";
+
+    const status = rcsNormalizeStatus(phase.status);
+
+    const progress = Math.max(0, Math.min(100, Number(phase.progress || 0)));
+
+    const hasTimelineBar = Boolean(
+      phase._start &&
+      phase._effectiveBarEnd &&
+      !phase._hasInvalidRange &&
+      phase._start <= phase._effectiveBarEnd,
+    );
+
+    const itemNameHtml =
+      phase.detailRoute && !hasTimelineBar
+        ? `
+        <button
+          type="button"
+          class="timeline-item-link"
+          data-route="${rcsEsc(phase.detailRoute)}"
+        >
+          ${rcsEsc(itemName)}
+        </button>
+      `
+        : `
+        <strong>
+          ${rcsEsc(itemName)}
+        </strong>
+      `;
     html += `
       <div class="timeline-phase-name">
-        <strong>${rcsEsc(phase.phaseName || phase.name || "-")}</strong>
-          <small>
-            Marco: ${formatDate(phase.startDate)} → ${formatDate(phase.endDate)}
-            Entrega: ${formatDate(phase.targetDate)}
-          </small>
+        ${itemNameHtml}
+
+        <div class="timeline-activity-status">
+          <span
+            class="status-pill status-${status}"
+          >
+            ${rcsEsc(rcsStatusLabel(status))}
+          </span>
+
+          <strong
+            class="timeline-activity-progress"
+          >
+            ${progress}%
+          </strong>
+        </div>
+
+        ${
+          phase.taskCount !== undefined
+            ? `
+                <small
+                  class="timeline-activity-task-count"
+                >
+                  ${phase.taskCount}
+                  ${phase.taskCount === 1 ? "tarea" : "tareas"}
+                </small>
+              `
+            : ""
+        }
+
+        ${buildTimelineDateMeta(phase, showMissingDates)}
       </div>
     `;
 
@@ -4788,33 +5459,106 @@ function buildTimeline(months, phases) {
 
 function buildMonthCell(phase, month) {
   const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
-  const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
 
-  const overlaps = phase._start <= monthEnd && phase._end >= monthStart;
+  const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+  const todayData = getTimelineTodayData(month);
+
+  const todayHtml = todayData.isCurrentMonth
+    ? `
+    <span
+      class="timeline-today-line"
+      style="left:${todayData.position}%"
+      aria-hidden="true"
+    ></span>
+  `
+    : "";
+  /*
+   * La barra solo puede pintarse si existe:
+   *
+   * - fecha de inicio
+   * - fecha final efectiva
+   *
+   * _effectiveBarEnd será:
+   * - endDate, cuando existe fecha fin
+   * - hoy, cuando solo existe fecha inicio y ya ha comenzado
+   * - null, cuando no debe pintarse barra
+   */
+  const barStart = phase._start;
+  const barEnd = phase._effectiveBarEnd;
+
+  const hasValidBar = Boolean(
+    barStart && barEnd && barStart <= barEnd && !phase._hasInvalidRange,
+  );
+
+  const overlaps = hasValidBar && barStart <= monthEnd && barEnd >= monthStart;
+
+  /*
+   * El target es independiente de la barra.
+   * Puede existir aunque no haya inicio ni fin.
+   */
   const targetInMonth =
     phase._target &&
     phase._target.getFullYear() === month.getFullYear() &&
     phase._target.getMonth() === month.getMonth();
 
   if (!overlaps && !targetInMonth) {
-    return `<div class="timeline-cell"></div>`;
+    return `
+    <div
+      class="timeline-cell ${
+        todayData.isCurrentMonth ? "timeline-current-month" : ""
+      }"
+    >
+      ${todayHtml}
+    </div>
+  `;
   }
 
   const status = rcsNormalizeStatus(phase.status);
+
   let barHtml = "";
 
   if (overlaps) {
-    const visibleStart = phase._start > monthStart ? phase._start : monthStart;
-    const visibleEnd = phase._end < monthEnd ? phase._end : monthEnd;
+    const visibleStart = barStart > monthStart ? barStart : monthStart;
+
+    const visibleEnd = barEnd < monthEnd ? barEnd : monthEnd;
 
     const daysInMonth = monthEnd.getDate();
+
     const startDay = visibleStart.getDate();
     const endDay = visibleEnd.getDate();
 
     const left = ((startDay - 1) / daysInMonth) * 100;
+
     const width = ((endDay - startDay + 1) / daysInMonth) * 100;
 
-    barHtml = `<span class="timeline-bar" style="left:${left}%; width:${width}%"></span>`;
+    const itemName =
+      phase.activityName || phase.phaseName || phase.name || "Actividad";
+
+    if (phase.detailRoute) {
+      barHtml = `
+    <button
+      type="button"
+      class="timeline-bar timeline-bar-link"
+      data-route="${rcsEsc(phase.detailRoute)}"
+      aria-label="Abrir detalle de ${rcsEsc(itemName)}"
+      title="Abrir detalle de ${rcsEsc(itemName)}"
+      style="
+        left:${left}%;
+        width:${Math.max(width, 1)}%;
+      "
+    ></button>
+  `;
+    } else {
+      barHtml = `
+    <span
+      class="timeline-bar"
+      style="
+        left:${left}%;
+        width:${Math.max(width, 1)}%;
+      "
+    ></span>
+  `;
+    }
   }
 
   let targetHtml = "";
@@ -4822,27 +5566,36 @@ function buildMonthCell(phase, month) {
   if (targetInMonth) {
     const daysInMonth = monthEnd.getDate();
     const targetDay = phase._target.getDate();
-    const left = Math.min(((targetDay - 1) / daysInMonth) * 100, 96);
+
+    const targetPosition = ((targetDay - 1) / daysInMonth) * 100;
 
     const isNearEnd = targetDay >= daysInMonth - 2;
-    const safeLeft = isNearEnd ? 96 : left;
+
+    const safeLeft = isNearEnd ? 96 : Math.max(0, Math.min(targetPosition, 96));
 
     targetHtml = `
-          <span
-            class="timeline-target ${isNearEnd ? "is-near-end" : ""}"
-            style="left:${safeLeft}%"
-          >
-            <em>🚩 ${formatDate(phase._target)}</em>
-          </span>
-        `;
+      <span
+        class="timeline-target ${isNearEnd ? "is-near-end" : ""}"
+        style="left:${safeLeft}%"
+      >
+        <em>
+          🚩 ${formatDate(phase._target)}
+        </em>
+      </span>
+    `;
   }
 
   return `
-    <div class="timeline-cell timeline-${status}">
-      ${barHtml}
-      ${targetHtml}
-    </div>
-  `;
+  <div
+    class="timeline-cell timeline-${status} ${
+      todayData.isCurrentMonth ? "timeline-current-month" : ""
+    }"
+  >
+    ${barHtml}
+    ${targetHtml}
+    ${todayHtml}
+  </div>
+`;
 }
 
 function formatDate(value) {
