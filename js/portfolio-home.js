@@ -195,8 +195,7 @@ function renderPortfolioKpis(kpis) {
         .map((kpi) => {
           const label = kpi.label || kpi.title || kpi.name || kpi[0] || "";
           const value = kpi.value || kpi.metric || kpi[1] || "";
-          const description =
-            kpi.subtitle || kpi.description || kpi[2] || "";
+          const description = kpi.subtitle || kpi.description || kpi[2] || "";
           const icon = kpi.icon || kpi[3] || "◎";
 
           return `
@@ -350,7 +349,7 @@ function renderPortfolioPrograms(programs) {
 
 renderLanding = function renderPortfolioLanding() {
   setHead(
-    "RCS Portfolio Control Tower",
+    "RCS Portfolio Cockpit",
     "Ambiciones estratégicas y programas de Retail Client Solutions",
   );
 

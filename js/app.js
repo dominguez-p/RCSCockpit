@@ -1260,9 +1260,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </article>
 
         <article class="detail-card">
-          <span>
-            Fin
-          </span>
+          <span>Fin</span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.endDate))}
@@ -1270,9 +1268,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </article>
 
         <article class="detail-card">
-          <span>
-            Entrega objetivo
-          </span>
+          <span>Entrega objetivo</span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.targetDate))}
@@ -1280,9 +1276,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </article>
 
         <article class="detail-card">
-          <span>
-            Última actualización
-          </span>
+          <span>Última actualización</span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.lastUpdate))}
