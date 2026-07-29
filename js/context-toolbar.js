@@ -190,29 +190,6 @@ document.addEventListener("click", (event) => {
   }
 });
 
-function contextToolbarLoadNavigationUxFixes() {
-  if (!document.querySelector("#navigationUxFixesStyles")) {
-    const stylesheet = document.createElement("link");
-    stylesheet.id = "navigationUxFixesStyles";
-    stylesheet.rel = "stylesheet";
-    stylesheet.href = "styles/navigation-ux-fixes.css";
-    document.head.append(stylesheet);
-  }
-
-  if (document.querySelector("#navigationUxFixesScript")) {
-    return;
-  }
-
-  const script = document.createElement("script");
-  script.id = "navigationUxFixesScript";
-  script.src = "js/navigation-ux-fixes.js";
-  script.onerror = () => {
-    console.error("No se pudieron cargar los ajustes de navegación y cabecera.");
-  };
-
-  document.body.append(script);
-}
-
 function contextToolbarLoadPortfolioUxPolish() {
   if (!document.querySelector("#portfolioUxPolishStyles")) {
     const stylesheet = document.createElement("link");
@@ -223,7 +200,6 @@ function contextToolbarLoadPortfolioUxPolish() {
   }
 
   if (document.querySelector("#portfolioUxPolishScript")) {
-    contextToolbarLoadNavigationUxFixes();
     return;
   }
 
@@ -235,7 +211,10 @@ function contextToolbarLoadPortfolioUxPolish() {
 
     if (view.querySelector(".portfolio-home")) {
       renderLanding();
-    } else if (
+      return;
+    }
+
+    if (
       context.routeName === "program" &&
       context.programId &&
       view.querySelector(".program-home")
@@ -243,12 +222,32 @@ function contextToolbarLoadPortfolioUxPolish() {
       renderProgram(context.programId);
       requestAnimationFrame(renderGlobalContextFilters);
     }
-
-    contextToolbarLoadNavigationUxFixes();
   };
   script.onerror = () => {
     console.error("No se pudo cargar la mejora de portfolio y landing.");
-    contextToolbarLoadNavigationUxFixes();
+  };
+
+  document.body.append(script);
+}
+
+function contextToolbarLoadNavigationUxFixes() {
+  if (!document.querySelector("#navigationUxFixesStyles")) {
+    const stylesheet = document.createElement("link");
+    stylesheet.id = "navigationUxFixesStyles";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "styles/navigation-ux-fixes.css?v=2";
+    document.head.append(stylesheet);
+  }
+
+  if (document.querySelector("#navigationUxFixesScript")) {
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.id = "navigationUxFixesScript";
+  script.src = "js/navigation-ux-fixes.js?v=2";
+  script.onerror = () => {
+    console.error("No se pudieron cargar los ajustes de navegación.");
   };
 
   document.body.append(script);
@@ -256,3 +255,4 @@ function contextToolbarLoadPortfolioUxPolish() {
 
 requestAnimationFrame(renderGlobalContextFilters);
 contextToolbarLoadPortfolioUxPolish();
+contextToolbarLoadNavigationUxFixes();
