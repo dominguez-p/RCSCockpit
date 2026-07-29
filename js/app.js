@@ -1250,55 +1250,9 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </div>
       </div>
 
-      <div class="project-detail-grid">
+      <div class="project-detail-grid project-detail-grid-dates">
         <article class="detail-card">
-          <span>
-            Tipo
-          </span>
-
-          <strong>
-            ${rcsEsc(roadmapItem.typeLabel || "-")}
-          </strong>
-        </article>
-
-        <article class="detail-card">
-          <span>
-            Owner
-          </span>
-
-          <strong>
-            ${rcsEsc(roadmapItem.owner || "-")}
-          </strong>
-        </article>
-
-        <article class="detail-card">
-          <span>
-            Avance global
-          </span>
-
-          <strong>
-            ${rcsEsc(roadmapItem.progress || 0)}%
-          </strong>
-        </article>
-
-        <article class="detail-card">
-          <span>
-            Siguiente hito
-          </span>
-
-          <strong>
-            ${rcsEsc(roadmapItem.nextMilestoneTitle || "-")}
-          </strong>
-
-          <small>
-            ${rcsEsc(formatDate(roadmapItem.nextMilestoneDate))}
-          </small>
-        </article>
-
-        <article class="detail-card">
-          <span>
-            Inicio
-          </span>
+          <span>Inicio</span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.startDate))}
@@ -1375,47 +1329,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         <div id="roadmapItemTimeline"></div>
       </section>
 
-      <section class="project-detail-notes">
-        <article>
-          <h3>
-            Objetivo estratégico
-          </h3>
-
-          <p>
-            ${rcsEsc(roadmapItem.strategicGoal || "No informado.")}
-          </p>
-        </article>
-
-        <article>
-          <h3>
-            Valor de negocio
-          </h3>
-
-          <p>
-            ${rcsEsc(roadmapItem.businessValue || "No informado.")}
-          </p>
-        </article>
-
-        <article>
-          <h3>
-            Riesgos principales
-          </h3>
-
-          <p>
-            ${rcsEsc(roadmapItem.mainRisks || "No informado.")}
-          </p>
-        </article>
-
-        <article>
-          <h3>
-            Dependencias
-          </h3>
-
-          <p>
-            ${rcsEsc(roadmapItem.dependencies || "No informado.")}
-          </p>
-        </article>
-      </section>
+      
     </section>
   `;
 
