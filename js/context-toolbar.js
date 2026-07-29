@@ -235,7 +235,7 @@ function contextToolbarLoadNavigationUxFixes() {
     const stylesheet = document.createElement("link");
     stylesheet.id = "navigationUxFixesStyles";
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "styles/navigation-ux-fixes.css?v=2";
+    stylesheet.href = "styles/navigation-ux-fixes.css?v=3";
     document.head.append(stylesheet);
   }
 
@@ -245,7 +245,7 @@ function contextToolbarLoadNavigationUxFixes() {
 
   const script = document.createElement("script");
   script.id = "navigationUxFixesScript";
-  script.src = "js/navigation-ux-fixes.js?v=2";
+  script.src = "js/navigation-ux-fixes.js?v=3";
   script.onerror = () => {
     console.error("No se pudieron cargar los ajustes de navegación.");
   };
