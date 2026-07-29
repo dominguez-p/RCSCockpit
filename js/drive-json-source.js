@@ -1,19 +1,41 @@
+let jsonpRequestSequence = 0;
+
 function loadJsonp(url) {
   return new Promise((resolve, reject) => {
-    const callbackName = `portfolioJsonCallback_${Date.now()}`;
+    /*
+     * Varias tarjetas del portfolio cargan orígenes en paralelo. Date.now()
+     * por sí solo puede generar el mismo callback dentro del mismo milisegundo,
+     * haciendo que una petición sobrescriba o elimine el callback de otra.
+     */
+    const callbackName =
+      `portfolioJsonCallback_${Date.now()}_${jsonpRequestSequence++}`;
+    const script = document.createElement("script");
+    let settled = false;
+
+    const cleanup = () => {
+      script.remove();
+      delete window[callbackName];
+    };
 
     window[callbackName] = (data) => {
-      delete window[callbackName];
-      script.remove();
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
       resolve(data);
     };
 
-    const script = document.createElement("script");
     const separator = url.includes("?") ? "&" : "?";
     script.src = `${url}${separator}callback=${callbackName}`;
     script.onerror = () => {
-      delete window[callbackName];
-      script.remove();
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
       reject(new Error("No se pudo cargar el JSON desde Apps Script"));
     };
 
