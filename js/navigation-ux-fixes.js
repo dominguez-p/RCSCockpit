@@ -72,10 +72,46 @@ function navigationUxCompactProgramLanding() {
   );
 
   if (backButton) {
-    backButton.classList.add("program-home-back-button");
+    backButton.classList.add(
+      "program-home-back-button",
+      "navigation-back-button",
+    );
     backButton.textContent = "← Portfolio";
     backButton.setAttribute("aria-label", "Volver al portfolio");
   }
+}
+
+function navigationUxProgramLabel(programId) {
+  const normalizedProgramId = String(programId || "").trim();
+  const program = (Array.isArray(DATA?.programs) ? DATA.programs : []).find(
+    (item) => String(item.id || "").trim() === normalizedProgramId,
+  );
+
+  return String(program?.name || normalizedProgramId || "Programa").trim();
+}
+
+function navigationUxCompactProgramBackButtons() {
+  const controls = [...view.querySelectorAll('[data-route^="program/"]')].filter(
+    (control) =>
+      control.classList.contains("back-to-program-btn") ||
+      control.classList.contains("ghost-button") ||
+      /volver/i.test(control.textContent || ""),
+  );
+
+  controls.forEach((control) => {
+    const [routeName, programId] = navigationUxRouteParts(
+      control.dataset.route,
+    );
+
+    if (routeName !== "program" || !programId) {
+      return;
+    }
+
+    const programLabel = navigationUxProgramLabel(programId);
+    control.classList.add("navigation-back-button");
+    control.textContent = `← ${programLabel}`;
+    control.setAttribute("aria-label", `Volver a ${programLabel}`);
+  });
 }
 
 const navigationUxBaseRoute = route;
@@ -84,7 +120,10 @@ route = function routeWithConsistentScroll(routeValue) {
   const currentKey = navigationUxPageKey(location.hash);
   const nextKey = navigationUxPageKey(routeValue);
 
-  if (navigationUxPendingTarget === null || navigationUxPendingTarget === undefined) {
+  if (
+    navigationUxPendingTarget === null ||
+    navigationUxPendingTarget === undefined
+  ) {
     navigationUxPendingTarget = currentKey === nextKey ? null : "top";
   }
 
@@ -119,7 +158,10 @@ window.addEventListener("hashchange", (event) => {
   const previousKey = navigationUxPageKey(event.oldURL.split("#")[1] || "");
   const nextKey = navigationUxPageKey(event.newURL.split("#")[1] || "");
 
-  if (navigationUxPendingTarget === null || navigationUxPendingTarget === undefined) {
+  if (
+    navigationUxPendingTarget === null ||
+    navigationUxPendingTarget === undefined
+  ) {
     navigationUxPendingTarget = previousKey === nextKey ? null : "top";
   }
 });
@@ -130,6 +172,7 @@ renderCurrentRoute = function renderRouteWithNavigationUx(...args) {
   const result = navigationUxBaseRenderCurrentRoute(...args);
 
   navigationUxCompactProgramLanding();
+  navigationUxCompactProgramBackButtons();
   navigationUxScheduleScroll();
 
   return result;
@@ -146,4 +189,5 @@ renderLanding = function renderLandingWithNavigationUx(...args) {
 };
 
 navigationUxCompactProgramLanding();
+navigationUxCompactProgramBackButtons();
 navigationUxScheduleScroll();
