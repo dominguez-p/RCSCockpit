@@ -2267,7 +2267,6 @@ function renderProgram(programId) {
   view.innerHTML = "";
   view.append(tpl("#program-template"));
   document.querySelector("#rolesList")?.closest(".two-column")?.remove();
-  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
   programName.textContent = p.name;
   programDescription.textContent = p.description;
 
@@ -2478,7 +2477,6 @@ function renderFunctional(programId) {
 
   view.innerHTML = "";
   view.append(tpl("#functional-template"));
-  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
   const backButton = document.querySelector(".back-to-program-btn");
 
   if (backButton) {
@@ -2664,7 +2662,6 @@ function renderSystems(programId, mode = "systems") {
     "afterbegin",
     renderSystemsProductSelector(programId),
   );
-  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
 
   const backButton = document.querySelector(".back-to-program-btn");
 

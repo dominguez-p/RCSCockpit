@@ -647,17 +647,6 @@ renderProgram = function renderStandardProgramLanding(programId) {
         ${programHomeRenderProgress(program)}
       </header>
 
-      <section class="program-home-country-filter">
-        <div>
-          <span>País seleccionado</span>
-          <p>
-            La información de la landing se recalcula con el país activo cuando
-            el origen dispone de ese dato.
-          </p>
-        </div>
-
-        ${renderCountrySelector()}
-      </section>
 
       ${programHomeRenderSnapshot(program, context)}
 

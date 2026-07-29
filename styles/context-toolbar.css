@@ -1,0 +1,181 @@
+.data-status {
+  display: grid;
+  gap: 10px;
+  justify-items: end;
+  min-width: min(100%, 590px);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  color: var(--muted);
+  white-space: normal;
+}
+
+.data-status-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.data-status-main .dot {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.data-status-main .data-source-btn {
+  margin-left: 0;
+}
+
+.global-context-filters[hidden] {
+  display: none !important;
+}
+
+.global-context-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px 16px;
+  width: 100%;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.global-context-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.global-context-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+/* País */
+
+.global-context-country .country-selector {
+  flex-wrap: nowrap;
+  gap: 5px;
+  margin: 0;
+}
+
+.global-context-country .country-flag {
+  width: 30px;
+  height: 30px;
+  border-color: transparent;
+  box-shadow: none;
+  opacity: 0.48;
+}
+
+.global-context-country .country-flag:hover {
+  opacity: 0.8;
+  filter: grayscale(0.35);
+  transform: none;
+}
+
+.global-context-country .country-flag.active {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px #eaf1ff;
+  opacity: 1;
+  transform: none;
+}
+
+/* Periodo */
+
+.global-context-period-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--light);
+}
+
+.global-context-period-button {
+  min-width: 38px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.global-context-period-button:hover {
+  background: #fff;
+  color: var(--blue);
+}
+
+.global-context-period-button.active {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 3px 9px rgba(0, 19, 145, 0.18);
+}
+
+.global-context-period.is-disabled {
+  opacity: 0.45;
+}
+
+.global-context-period-button:disabled {
+  cursor: not-allowed;
+}
+
+/*
+ * Producto y Ambición RCS permanecen como filtros secundarios
+ * dentro del workspace.
+ */
+.roadmap-workspace-filters {
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+}
+
+.roadmap-workspace-filters .roadmap-workspace-filter-group:first-child {
+  grid-column: auto;
+}
+
+@media (max-width: 1050px) {
+  .topbar {
+    flex-direction: column;
+  }
+
+  .data-status {
+    width: 100%;
+    justify-items: stretch;
+  }
+
+  .data-status-main,
+  .global-context-filters {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 680px) {
+  .global-context-filters {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .global-context-control {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .global-context-country .country-selector {
+    flex-wrap: wrap;
+  }
+
+  .roadmap-workspace-filters {
+    grid-template-columns: 1fr;
+  }
+}
