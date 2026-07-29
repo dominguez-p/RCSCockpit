@@ -112,7 +112,7 @@ function programGovernanceSeverityLabel(value) {
     {
       critical: "Crítica",
       critica: "Crítica",
-      "crítica": "Crítica",
+      crítica: "Crítica",
       high: "Alta",
       alta: "Alta",
       medium: "Media",
@@ -121,7 +121,9 @@ function programGovernanceSeverityLabel(value) {
       moderada: "Media",
       low: "Baja",
       baja: "Baja",
-    }[severity] || value || "Baja"
+    }[severity] ||
+    value ||
+    "Baja"
   );
 }
 
@@ -192,7 +194,6 @@ renderImpediments = function renderProgramImpediments(programId) {
 
   view.innerHTML = "";
   view.append(tpl("#impediments-template"));
-  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
 
   programGovernanceConfigureBackButton(programId, program.name);
 
@@ -261,9 +262,7 @@ function programGovernanceRenderDecisionList(container, rows, decisionType) {
       : "No hay decisiones pendientes.";
 
   container.innerHTML = rows.length
-    ? rows
-        .map((item) => renderProgramDecisionCard(item, decisionType))
-        .join("")
+    ? rows.map((item) => renderProgramDecisionCard(item, decisionType)).join("")
     : `<p class="empty-state">${emptyMessage}</p>`;
 }
 
@@ -287,7 +286,6 @@ renderDecisions = function renderProgramDecisions(programId) {
 
   view.innerHTML = "";
   view.append(tpl("#decisions-template"));
-  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
 
   programGovernanceConfigureBackButton(programId, program.name);
 

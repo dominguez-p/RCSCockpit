@@ -1250,55 +1250,9 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </div>
       </div>
 
-      <div class="project-detail-grid">
+      <div class="project-detail-grid project-detail-grid-dates">
         <article class="detail-card">
-          <span>
-            Tipo
-          </span>
-
-          <strong>
-            ${rcsEsc(roadmapItem.typeLabel || "-")}
-          </strong>
-        </article>
-
-        <article class="detail-card">
-          <span>
-            Owner
-          </span>
-
-          <strong>
-            ${rcsEsc(roadmapItem.owner || "-")}
-          </strong>
-        </article>
-
-        <article class="detail-card">
-          <span>
-            Avance global
-          </span>
-
-          <strong>
-            ${rcsEsc(roadmapItem.progress || 0)}%
-          </strong>
-        </article>
-
-        <article class="detail-card">
-          <span>
-            Siguiente hito
-          </span>
-
-          <strong>
-            ${rcsEsc(roadmapItem.nextMilestoneTitle || "-")}
-          </strong>
-
-          <small>
-            ${rcsEsc(formatDate(roadmapItem.nextMilestoneDate))}
-          </small>
-        </article>
-
-        <article class="detail-card">
-          <span>
-            Inicio
-          </span>
+          <span>Inicio</span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.startDate))}
@@ -1306,9 +1260,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </article>
 
         <article class="detail-card">
-          <span>
-            Fin
-          </span>
+          <span>Fin</span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.endDate))}
@@ -1316,9 +1268,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </article>
 
         <article class="detail-card">
-          <span>
-            Entrega objetivo
-          </span>
+          <span>Entrega objetivo</span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.targetDate))}
@@ -1326,9 +1276,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </article>
 
         <article class="detail-card">
-          <span>
-            Última actualización
-          </span>
+          <span>Última actualización</span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.lastUpdate))}
@@ -1375,47 +1323,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         <div id="roadmapItemTimeline"></div>
       </section>
 
-      <section class="project-detail-notes">
-        <article>
-          <h3>
-            Objetivo estratégico
-          </h3>
-
-          <p>
-            ${rcsEsc(roadmapItem.strategicGoal || "No informado.")}
-          </p>
-        </article>
-
-        <article>
-          <h3>
-            Valor de negocio
-          </h3>
-
-          <p>
-            ${rcsEsc(roadmapItem.businessValue || "No informado.")}
-          </p>
-        </article>
-
-        <article>
-          <h3>
-            Riesgos principales
-          </h3>
-
-          <p>
-            ${rcsEsc(roadmapItem.mainRisks || "No informado.")}
-          </p>
-        </article>
-
-        <article>
-          <h3>
-            Dependencias
-          </h3>
-
-          <p>
-            ${rcsEsc(roadmapItem.dependencies || "No informado.")}
-          </p>
-        </article>
-      </section>
+      
     </section>
   `;
 
@@ -2267,7 +2175,6 @@ function renderProgram(programId) {
   view.innerHTML = "";
   view.append(tpl("#program-template"));
   document.querySelector("#rolesList")?.closest(".two-column")?.remove();
-  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
   programName.textContent = p.name;
   programDescription.textContent = p.description;
 
@@ -2478,7 +2385,6 @@ function renderFunctional(programId) {
 
   view.innerHTML = "";
   view.append(tpl("#functional-template"));
-  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
   const backButton = document.querySelector(".back-to-program-btn");
 
   if (backButton) {
@@ -2664,7 +2570,6 @@ function renderSystems(programId, mode = "systems") {
     "afterbegin",
     renderSystemsProductSelector(programId),
   );
-  view.insertAdjacentHTML("afterbegin", renderCountrySelector());
 
   const backButton = document.querySelector(".back-to-program-btn");
 

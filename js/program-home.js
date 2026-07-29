@@ -116,7 +116,8 @@ const PROGRAM_HOME_GOVERNANCE_MODULES = [
   {
     id: "decisions",
     title: "Decisiones",
-    description: "Decisiones pendientes y tomadas que condicionan la ejecución.",
+    description:
+      "Decisiones pendientes y tomadas que condicionan la ejecución.",
     route(programId) {
       return `decisions/${programId}`;
     },
@@ -316,60 +317,9 @@ function programHomeRiskCount(items) {
   }).length;
 }
 
-function programHomeAverageProgress(program) {
-  const values = [
-    programHomeNumber(program.functional),
-    programHomeNumber(program.systems),
-    programHomeNumber(program.architecture),
-  ];
-
-  return Math.round(
-    values.reduce((total, value) => total + value, 0) / values.length,
-  );
-}
-
-function programHomeRenderProgress(program) {
-  const metrics = [
-    {
-      key: "functional",
-      label: "Funcional",
-    },
-    {
-      key: "systems",
-      label: "Sistemas",
-    },
-    {
-      key: "architecture",
-      label: "Arquitectura",
-    },
-  ];
-
-  return `
-    <section class="program-home-progress" aria-label="Avance del programa">
-      ${metrics
-        .map((metric) => {
-          const value = programHomeNumber(program[metric.key]);
-
-          return `
-            <article>
-              <span>${programHomeEscape(metric.label)}</span>
-              <strong>${value}%</strong>
-              <progress max="100" value="${value}">${value}%</progress>
-            </article>
-          `;
-        })
-        .join("")}
-    </section>
-  `;
-}
-
 function programHomeRenderSnapshot(program, context) {
   const riskCount = programHomeRiskCount(context.roadmapItems);
   const metrics = [
-    {
-      label: "Avance medio",
-      value: `${programHomeAverageProgress(program)}%`,
-    },
     {
       label: "Elementos de roadmap",
       value: context.roadmapItems.length,
@@ -506,10 +456,12 @@ function programHomeRenderProducts(programId, context) {
         ${context.products
           .map((product) => {
             const roadmapCount = context.roadmapItems.filter(
-              (item) => programHomeNormalizeProduct(item.product) === product.id,
+              (item) =>
+                programHomeNormalizeProduct(item.product) === product.id,
             ).length;
             const systemsCount = context.systems.filter(
-              (item) => programHomeNormalizeProduct(item.product) === product.id,
+              (item) =>
+                programHomeNormalizeProduct(item.product) === product.id,
             ).length;
 
             return `
@@ -644,20 +596,8 @@ renderProgram = function renderStandardProgramLanding(programId) {
           </div>
         </div>
 
-        ${programHomeRenderProgress(program)}
       </header>
 
-      <section class="program-home-country-filter">
-        <div>
-          <span>País seleccionado</span>
-          <p>
-            La información de la landing se recalcula con el país activo cuando
-            el origen dispone de ese dato.
-          </p>
-        </div>
-
-        ${renderCountrySelector()}
-      </section>
 
       ${programHomeRenderSnapshot(program, context)}
 

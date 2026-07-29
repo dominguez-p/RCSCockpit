@@ -47,27 +47,25 @@ function roadmapWorkspaceRenderTabs(programId, state) {
 
 function roadmapWorkspaceRenderFilters(programId, items, state) {
   const products = roadmapWorkspaceProducts(items);
-  const quarters = [
-    { id: "ALL", label: "Todo el año" },
-    { id: "Q1", label: "Q1" },
-    { id: "Q2", label: "Q2" },
-    { id: "Q3", label: "Q3" },
-    { id: "Q4", label: "Q4" },
-  ];
 
   return `
-    <section class="roadmap-workspace-filters" aria-label="Filtros del roadmap">
-      <div class="roadmap-workspace-filter-group">
-        <span>País</span>
-        ${renderCountrySelector()}
-      </div>
-
+    <section
+      class="roadmap-workspace-filters"
+      aria-label="Filtros específicos del roadmap"
+    >
       <label class="roadmap-workspace-filter-group">
         <span>Producto</span>
-        <select data-roadmap-workspace-product="${roadmapWorkspaceEscape(programId)}">
-          <option value="ALL" ${state.productId === "ALL" ? "selected" : ""}>
+
+        <select
+          data-roadmap-workspace-product="${roadmapWorkspaceEscape(programId)}"
+        >
+          <option
+            value="ALL"
+            ${state.productId === "ALL" ? "selected" : ""}
+          >
             Todos los productos
           </option>
+
           ${products
             .map(
               (product) => `
@@ -82,29 +80,6 @@ function roadmapWorkspaceRenderFilters(programId, items, state) {
             .join("")}
         </select>
       </label>
-
-      <div class="roadmap-workspace-filter-group ${
-        state.view === "backlog" ? "is-disabled" : ""
-      }">
-        <span>Periodo</span>
-        <nav class="roadmap-workspace-quarter-filter" aria-label="Periodo">
-          ${quarters
-            .map(
-              (quarter) => `
-                <button
-                  type="button"
-                  data-roadmap-workspace-quarter="${quarter.id}"
-                  data-program-id="${roadmapWorkspaceEscape(programId)}"
-                  class="${state.quarter === quarter.id ? "active" : ""}"
-                  ${state.view === "backlog" ? "disabled" : ""}
-                >
-                  ${roadmapWorkspaceEscape(quarter.label)}
-                </button>
-              `,
-            )
-            .join("")}
-        </nav>
-      </div>
     </section>
   `;
 }
@@ -173,7 +148,8 @@ function roadmapWorkspaceMetricDefinitions(track) {
 
 function roadmapWorkspaceRenderMetricLane(track, items, state) {
   const definitions = roadmapWorkspaceMetricDefinitions(track);
-  const laneTitle = track === "technical" ? "Carril técnico" : "Carril funcional";
+  const laneTitle =
+    track === "technical" ? "Carril técnico" : "Carril funcional";
   const selectedMetric = String(state.summaryMetric || "functional:all");
 
   return `
@@ -242,7 +218,9 @@ function roadmapWorkspaceRenderItemCard(item, programId, state, options = {}) {
 
         <span class="status-pill status-${roadmapWorkspaceEscape(status)}">
           ${roadmapWorkspaceEscape(
-            typeof rcsStatusLabel === "function" ? rcsStatusLabel(status) : status,
+            typeof rcsStatusLabel === "function"
+              ? rcsStatusLabel(status)
+              : status,
           )}
         </span>
       </div>
@@ -254,7 +232,9 @@ function roadmapWorkspaceRenderItemCard(item, programId, state, options = {}) {
         <span>Owner: ${roadmapWorkspaceEscape(item.owner || "-")}</span>
         <span>Avance: ${roadmapWorkspaceEscape(item.progress || 0)}%</span>
         <span>Producto: ${roadmapWorkspaceEscape(
-          item.product ? roadmapWorkspaceProductLabel(item.product) : "Sin producto",
+          item.product
+            ? roadmapWorkspaceProductLabel(item.product)
+            : "Sin producto",
         )}</span>
       </div>
 
@@ -277,10 +257,13 @@ function roadmapWorkspaceSummarySelection(items, state) {
   const [track = "functional", metric = "all"] = String(
     state.summaryMetric || "functional:all",
   ).split(":");
-  const trackItems = items.filter((item) => roadmapWorkspaceTrack(item) === track);
+  const trackItems = items.filter(
+    (item) => roadmapWorkspaceTrack(item) === track,
+  );
   const definition =
-    roadmapWorkspaceMetricDefinitions(track).find((item) => item.key === metric) ||
-    roadmapWorkspaceMetricDefinitions(track)[0];
+    roadmapWorkspaceMetricDefinitions(track).find(
+      (item) => item.key === metric,
+    ) || roadmapWorkspaceMetricDefinitions(track)[0];
 
   return {
     track,

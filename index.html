@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="styles/roadmap-workspace.css" />
   <link rel="stylesheet" href="styles/roadmap-ambitions.css" />
   <link rel="stylesheet" href="styles/program-adaptive-cards.css" />
+  <link rel="stylesheet" href="styles/context-toolbar.css" />
   <link rel="icon" href="assets/favicon.ico">
 </head>
 
@@ -34,20 +35,22 @@
         </div>
 
         <div class="data-status">
-          <label class="data-source-toggle">
-          </label>
+          <div class="data-status-main">
+            <span class="dot" aria-hidden="true"></span>
 
-          <span class="dot"></span>
+            <span id="dataStatus">Cargando datos…</span>
 
-          <span id="dataStatus">Cargando datos…</span>
+            <button id="refreshDataBtn" class="data-source-btn" type="button">
+              Actualizar datos
+            </button>
 
-          <button id="refreshDataBtn" class="data-source-btn" type="button">
-            Actualizar datos
-          </button>
+            <button id="openDataSourceBtn" class="data-source-btn secondary" type="button">
+              Abrir origen
+            </button>
+          </div>
 
-          <button id="openDataSourceBtn" class="data-source-btn secondary" type="button">
-            Abrir origen
-          </button>
+          <div id="globalContextFilters" class="global-context-filters" aria-label="Contexto de visualización" hidden>
+          </div>
         </div>
       </header>
 
@@ -390,6 +393,7 @@
   <script src="js/roadmap-ambitions-data.js"></script>
   <script src="js/roadmap-ambitions-ui.js"></script>
   <script src="js/program-adaptive-cards.js"></script>
+  <script src="js/context-toolbar.js"></script>
 
   <footer class="footer">
     © Pablo Domínguez 2026

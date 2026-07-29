@@ -5,7 +5,7 @@
 
 .program-home-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.75fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 28px;
   align-items: stretch;
   padding: 28px;
@@ -60,62 +60,6 @@
   line-height: 1.55;
 }
 
-.program-home-progress {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.program-home-progress article {
-  display: grid;
-  align-content: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: #f7f9fe;
-}
-
-.program-home-progress span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.program-home-progress strong {
-  color: var(--blue);
-  font-size: 28px;
-}
-
-.program-home progress,
-.program-home progress::-webkit-progress-bar,
-.program-home progress::-webkit-progress-value {
-  border-radius: 999px;
-}
-
-.program-home progress {
-  width: 100%;
-  height: 8px;
-  border: 0;
-  background: #e6ebf4;
-}
-
-.program-home progress::-webkit-progress-bar {
-  background: #e6ebf4;
-}
-
-.program-home progress::-webkit-progress-value {
-  background: var(--blue);
-}
-
-.program-home progress::-moz-progress-bar {
-  border-radius: 999px;
-  background: var(--blue);
-}
-
 .program-home-country-filter {
   display: flex;
   justify-content: space-between;
@@ -149,7 +93,7 @@
 
 .program-home-snapshot {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 

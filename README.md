@@ -3,14 +3,14 @@ El repositorio no tiene releases publicados, por lo que se propone un versionado
 ### v0.1.0 - Base inicial del proyecto
 
 **Fecha aproximada:** 29 mayo 2026  
-**Commits relacionados:** `first commit`, `First version of Control-Tower-AIxBanker`
+**Commits relacionados:** `first commit`, `First version of Cockpit-AIxBanker`
 
-Primera versión de la aplicación Control Tower para AIxBanker.
+Primera versión de la aplicación Cockpit para AIxBanker.
 
 Incluye:
 
 - Estructura web inicial.
-- Pantalla base de Control Tower.
+- Pantalla base de Cockpit.
 - Primer modelo de portfolio.
 - Primeras vistas de AIxBanker.
 
@@ -99,14 +99,14 @@ Incluye:
 - Botones para alternar entre productos como Blue Buddy y Panorama.
 - Ajustes del mapa de sistemas en función del producto seleccionado.
 
-### v0.9.0 - Rebranding de Cockpit a Control Tower
+### v0.9.0 - Rebranding de Cockpit a Cockpit
 
 **Fecha aproximada:** 4 junio 2026  
 **Pull request:** `feature/new-name`
 
 Incluye:
 
-- Cambio de naming de Cockpit a Control Tower.
+- Cambio de naming de Cockpit a Cockpit.
 - Actualización de títulos y textos visibles.
 - Refuerzo del posicionamiento como vista ejecutiva de portfolio.
 
