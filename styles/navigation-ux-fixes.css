@@ -1,0 +1,62 @@
+.global-context-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 8px;
+}
+
+.global-context-control,
+.global-context-country,
+.global-context-period {
+  width: 100%;
+  justify-content: center;
+}
+
+.global-context-country .country-selector {
+  justify-content: center;
+}
+
+.global-context-period {
+  grid-row: 2;
+}
+
+.program-home > .program-home-back-button {
+  width: auto;
+  max-width: max-content;
+  justify-self: start;
+  align-self: start;
+  padding: 8px 13px;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.program-home-section,
+.roadmap-workspace,
+.panel {
+  scroll-margin-top: 24px;
+}
+
+@media (max-width: 1050px) {
+  .global-context-filters {
+    justify-items: center;
+  }
+
+  .global-context-control {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 680px) {
+  .global-context-filters {
+    align-items: center;
+  }
+
+  .global-context-control {
+    align-items: center;
+  }
+
+  .program-home > .program-home-back-button {
+    padding: 8px 12px;
+  }
+}
