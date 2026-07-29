@@ -22,7 +22,8 @@
 
 .navigation-back-button,
 .program-home > .program-home-back-button,
-#view > .back-to-program-btn {
+#view > .back-to-program-btn,
+.roadmap-workspace > .back-to-program-btn {
   display: inline-flex !important;
   width: auto !important;
   max-width: max-content !important;
@@ -66,7 +67,8 @@
 
   .navigation-back-button,
   .program-home > .program-home-back-button,
-  #view > .back-to-program-btn {
+  #view > .back-to-program-btn,
+  .roadmap-workspace > .back-to-program-btn {
     max-width: 100% !important;
     padding: 8px 12px;
     white-space: normal;
