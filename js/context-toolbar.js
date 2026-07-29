@@ -230,5 +230,29 @@ function contextToolbarLoadPortfolioUxPolish() {
   document.body.append(script);
 }
 
+function contextToolbarLoadNavigationUxFixes() {
+  if (!document.querySelector("#navigationUxFixesStyles")) {
+    const stylesheet = document.createElement("link");
+    stylesheet.id = "navigationUxFixesStyles";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "styles/navigation-ux-fixes.css?v=3";
+    document.head.append(stylesheet);
+  }
+
+  if (document.querySelector("#navigationUxFixesScript")) {
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.id = "navigationUxFixesScript";
+  script.src = "js/navigation-ux-fixes.js?v=3";
+  script.onerror = () => {
+    console.error("No se pudieron cargar los ajustes de navegación.");
+  };
+
+  document.body.append(script);
+}
+
 requestAnimationFrame(renderGlobalContextFilters);
 contextToolbarLoadPortfolioUxPolish();
+contextToolbarLoadNavigationUxFixes();
