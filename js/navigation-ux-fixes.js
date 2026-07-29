@@ -67,6 +67,17 @@ function navigationUxCompactProgramLanding() {
 
   home.querySelector(":scope > .program-home-hero")?.remove();
 
+  const staticAmbitionsSection = [
+    ...home.querySelectorAll(":scope > .program-home-section"),
+  ].find(
+    (section) =>
+      section
+        .querySelector(":scope > .program-home-section-header span")
+        ?.textContent?.trim() === "Ambiciones RCS",
+  );
+
+  staticAmbitionsSection?.remove();
+
   const backButton = home.querySelector(
     ':scope > .ghost-button[data-route="landing"]',
   );
