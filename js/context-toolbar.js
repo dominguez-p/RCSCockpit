@@ -190,4 +190,45 @@ document.addEventListener("click", (event) => {
   }
 });
 
+function contextToolbarLoadPortfolioUxPolish() {
+  if (!document.querySelector("#portfolioUxPolishStyles")) {
+    const stylesheet = document.createElement("link");
+    stylesheet.id = "portfolioUxPolishStyles";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "styles/portfolio-ux-polish.css";
+    document.head.append(stylesheet);
+  }
+
+  if (document.querySelector("#portfolioUxPolishScript")) {
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.id = "portfolioUxPolishScript";
+  script.src = "js/portfolio-ux-polish.js";
+  script.onload = () => {
+    const context = contextToolbarRoute();
+
+    if (view.querySelector(".portfolio-home")) {
+      renderLanding();
+      return;
+    }
+
+    if (
+      context.routeName === "program" &&
+      context.programId &&
+      view.querySelector(".program-home")
+    ) {
+      renderProgram(context.programId);
+      requestAnimationFrame(renderGlobalContextFilters);
+    }
+  };
+  script.onerror = () => {
+    console.error("No se pudo cargar la mejora de portfolio y landing.");
+  };
+
+  document.body.append(script);
+}
+
 requestAnimationFrame(renderGlobalContextFilters);
+contextToolbarLoadPortfolioUxPolish();
