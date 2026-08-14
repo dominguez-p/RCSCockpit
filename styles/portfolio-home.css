@@ -1,49 +1,15 @@
 .portfolio-home {
   display: grid;
-  gap: 32px;
+  gap: 28px;
 }
 
-.portfolio-hero,
 .portfolio-summary-card,
 .portfolio-ambition-card,
-.portfolio-program-card {
+.portfolio-program-card,
+.portfolio-ambitions-disclosure {
   background: #fff;
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
-}
-
-.portfolio-hero {
-  display: flex;
-  justify-content: space-between;
-  gap: 28px;
-  padding: 28px;
-  border-radius: 22px;
-}
-
-.portfolio-hero h2,
-.portfolio-home-section-header h2,
-.portfolio-section-header h3 {
-  margin: 0;
-}
-
-.portfolio-hero h2 {
-  margin-top: 6px;
-  font-size: 38px;
-}
-
-.portfolio-hero p,
-.portfolio-home-section-header p,
-.portfolio-section-header p,
-.portfolio-program-card p,
-.portfolio-ambition-card p {
-  color: var(--muted);
-}
-
-.portfolio-hero p {
-  max-width: 760px;
-  margin: 10px 0 0;
-  font-size: 18px;
-  line-height: 1.5;
 }
 
 .portfolio-section-eyebrow {
@@ -54,33 +20,15 @@
   text-transform: uppercase;
 }
 
-.portfolio-hero-summary {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 10px;
-  min-width: 250px;
-  align-content: center;
-  padding: 18px;
-  border-radius: 16px;
-  background: #f5f8ff;
-}
-
-.portfolio-hero-summary strong {
-  color: var(--blue);
-  font-family: Georgia, serif;
-  font-size: 28px;
-}
-
-.portfolio-hero-summary span {
-  align-self: center;
-  color: var(--muted);
-  font-weight: 700;
-}
+/* =========================================================
+   PORTFOLIO KPIS
+   ========================================================= */
 
 .portfolio-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
+  margin-top: 2px;
 }
 
 .portfolio-summary-card {
@@ -121,9 +69,13 @@
   font-size: 28px;
 }
 
+/* =========================================================
+   SECCIONES
+   ========================================================= */
+
 .portfolio-home-section {
   display: grid;
-  gap: 20px;
+  gap: 18px;
 }
 
 .portfolio-home-section-header,
@@ -132,6 +84,11 @@
   justify-content: space-between;
   gap: 24px;
   align-items: flex-end;
+}
+
+.portfolio-home-section-header h2,
+.portfolio-section-header h3 {
+  margin: 0;
 }
 
 .portfolio-home-section-header h2 {
@@ -143,150 +100,84 @@
 .portfolio-section-header p {
   max-width: 620px;
   margin: 0;
-  line-height: 1.45;
-}
-
-.portfolio-ambition-axis {
-  display: grid;
-  gap: 14px;
-  padding: 20px;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.52);
-}
-
-.portfolio-section-header {
-  align-items: flex-start;
-}
-
-.portfolio-section-header h3 {
-  margin-top: 4px;
-  font-size: 24px;
-}
-
-.portfolio-ambition-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.portfolio-ambition-card {
-  padding: 18px;
-  border-radius: 16px;
-}
-
-.portfolio-ambition-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-}
-
-.portfolio-ambition-number {
-  color: var(--blue);
-  font-family: Georgia, serif;
-  font-size: 24px;
-  font-weight: 900;
-}
-
-.portfolio-ambition-state {
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: #eaf1ff;
-  color: var(--blue);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.portfolio-ambition-card h3 {
-  margin: 12px 0 8px;
-  font-size: 20px;
-}
-
-.portfolio-ambition-card p {
-  margin: 0;
-  line-height: 1.45;
-}
-
-.portfolio-ambition-detail {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.portfolio-ambition-detail summary {
-  color: var(--blue);
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.portfolio-ambition-detail ul {
-  display: grid;
-  gap: 8px;
-  margin: 12px 0 0;
-  padding-left: 20px;
   color: var(--muted);
-  line-height: 1.4;
+  line-height: 1.45;
+}
+
+/* =========================================================
+   PROGRAMAS RCS
+   ========================================================= */
+
+.portfolio-programs-section {
+  gap: 16px;
 }
 
 .portfolio-program-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
 }
 
-.portfolio-program-card {
+.portfolio-programs-section .portfolio-program-card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-height: 330px;
-  padding: 20px;
-  border-radius: 20px;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  border-radius: 19px;
 }
 
 .portfolio-program-heading {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: flex-start;
+}
+
+.portfolio-program-heading > div {
+  min-width: 0;
 }
 
 .portfolio-program-heading h3 {
   margin: 0;
-  font-size: 23px;
+  font-size: 22px;
+  line-height: 1.05;
 }
 
 .portfolio-program-heading p {
-  margin: 5px 0 0;
-  line-height: 1.4;
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.3;
 }
 
 .portfolio-program-icon {
   display: grid;
   place-items: center;
-  flex: 0 0 52px;
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
   background: linear-gradient(135deg, var(--bbva), #1464c9);
   color: #fff;
-  font-size: 25px;
+  font-size: 23px;
 }
 
 .portfolio-program-progress {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .portfolio-program-progress > div {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 5px 12px;
+  gap: 4px 10px;
   align-items: center;
 }
 
 .portfolio-program-progress span {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -297,21 +188,22 @@
 .portfolio-program-progress progress {
   grid-column: 1 / -1;
   width: 100%;
-  height: 8px;
+  height: 7px;
 }
 
 .portfolio-program-traceability-note {
   margin: 0;
-  padding: 10px 12px;
+  padding: 9px 10px;
   border-radius: 10px;
   background: #f5f8ff;
-  font-size: 12px;
-  line-height: 1.4;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .portfolio-program-action {
   margin-top: auto;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border: 0;
   border-top: 1px solid var(--line);
   background: transparent;
@@ -326,33 +218,486 @@
   cursor: not-allowed;
 }
 
-@media (max-width: 1000px) {
-  .portfolio-hero,
+/* =========================================================
+   CONTRIBUCIÓN DE ROADMAP EN TARJETAS
+   Compactación de los estilos definidos por portfolio-ux-polish
+   ========================================================= */
+
+.portfolio-programs-section .portfolio-program-contribution {
+  display: grid;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #f7f9fd;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-metric strong {
+  color: var(--blue);
+  font-family: Georgia, serif;
+  font-size: 29px;
+  line-height: 1;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-metric span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-stats span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-list {
+  display: grid;
+  gap: 4px;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-list > span {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-list b {
+  color: var(--blue);
+}
+
+.portfolio-programs-section .portfolio-program-contribution-list strong {
+  color: var(--blue);
+  font-size: 12px;
+}
+
+.portfolio-programs-section
+  .portfolio-program-contribution-list
+  .is-unassigned {
+  display: block;
+  color: var(--muted);
+}
+
+.portfolio-programs-section .portfolio-program-contribution-empty {
+  display: grid;
+  gap: 4px;
+  min-height: 54px;
+  align-content: center;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-empty strong {
+  color: var(--blue);
+}
+
+.portfolio-programs-section .portfolio-program-contribution-empty span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.portfolio-programs-section
+  .portfolio-program-contribution-empty.is-error
+  strong {
+  color: #b92a2a;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-loading {
+  display: grid;
+  grid-template-columns: 1fr 0.72fr;
+  gap: 6px;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-loading span {
+  height: 11px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e8edf6, #f8faff, #e8edf6);
+  background-size: 200% 100%;
+  animation: portfolio-contribution-loading 1.2s linear infinite;
+}
+
+.portfolio-programs-section
+  .portfolio-program-contribution-loading
+  span:nth-child(2) {
+  width: 72%;
+}
+
+.portfolio-programs-section .portfolio-program-contribution-loading small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* =========================================================
+   AMBICIÓN RCS
+   ========================================================= */
+
+.portfolio-ambitions-section {
+  gap: 0;
+}
+
+.portfolio-ambitions-disclosure {
+  overflow: hidden;
+  border-radius: 20px;
+}
+
+.portfolio-ambitions-summary {
+  display: grid;
+  grid-template-columns:
+    minmax(320px, 1.15fr)
+    minmax(420px, 1fr)
+    auto;
+  gap: 24px;
+  align-items: center;
+  padding: 22px 24px;
+  list-style: none;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.portfolio-ambitions-summary::-webkit-details-marker {
+  display: none;
+}
+
+.portfolio-ambitions-summary::marker {
+  content: "";
+}
+
+.portfolio-ambitions-summary:hover {
+  background: #fbfcff;
+}
+
+.portfolio-ambitions-summary-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.portfolio-ambitions-summary-title {
+  color: var(--blue);
+  font-family: Georgia, serif;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.portfolio-ambitions-summary-description {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.portfolio-ambitions-axis-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.portfolio-ambitions-axis-tag {
+  padding: 7px 10px;
+  border: 1px solid #e1e8f5;
+  border-radius: 999px;
+  background: #f7f9fd;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.portfolio-ambitions-summary-action {
+  display: grid;
+  gap: 10px;
+  justify-items: end;
+  min-width: 190px;
+}
+
+.portfolio-ambitions-count {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.portfolio-ambitions-count strong {
+  color: var(--blue);
+  font-family: Georgia, serif;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.portfolio-ambitions-count span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.portfolio-ambitions-toggle {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.portfolio-ambitions-toggle-open {
+  display: none;
+}
+
+.portfolio-ambitions-chevron {
+  display: inline-block;
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.portfolio-ambitions-disclosure[open] .portfolio-ambitions-toggle-closed {
+  display: none;
+}
+
+.portfolio-ambitions-disclosure[open] .portfolio-ambitions-toggle-open {
+  display: inline;
+}
+
+.portfolio-ambitions-disclosure[open] .portfolio-ambitions-chevron {
+  transform: rotate(180deg);
+}
+
+.portfolio-ambitions-content {
+  display: grid;
+  gap: 18px;
+  padding: 22px 24px 24px;
+  border-top: 1px solid var(--line);
+  background: #f8faff;
+}
+
+.portfolio-ambitions-expanded-header {
+  align-items: flex-start;
+}
+
+.portfolio-ambition-axes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.portfolio-ambition-axis {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.portfolio-section-header {
+  align-items: flex-start;
+}
+
+.portfolio-section-header > div {
+  min-width: 0;
+}
+
+.portfolio-section-header h3 {
+  margin-top: 4px;
+  font-size: 22px;
+}
+
+.portfolio-section-header p {
+  max-width: 360px;
+  font-size: 13px;
+}
+
+.portfolio-ambition-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.portfolio-ambition-card {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 15px;
+  box-shadow: 0 8px 22px rgba(7, 46, 111, 0.05);
+}
+
+.portfolio-ambition-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.portfolio-ambition-number {
+  color: var(--blue);
+  font-family: Georgia, serif;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.portfolio-ambition-card h3 {
+  margin: 9px 0 7px;
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.portfolio-ambition-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.portfolio-ambition-detail {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.portfolio-ambition-detail summary {
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.portfolio-ambition-detail ul {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1450px) {
+  .portfolio-program-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .portfolio-ambitions-summary {
+    grid-template-columns:
+      minmax(300px, 1fr)
+      minmax(360px, 1fr);
+  }
+
+  .portfolio-ambitions-summary-action {
+    grid-column: 1 / -1;
+    grid-template-columns: auto auto;
+    align-items: center;
+    justify-content: space-between;
+    justify-items: stretch;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 1100px) {
+  .portfolio-program-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .portfolio-home-section-header,
   .portfolio-section-header {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .portfolio-hero-summary {
-    min-width: 0;
+  .portfolio-ambitions-summary {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 
-  .portfolio-ambition-grid {
+  .portfolio-ambitions-axis-list {
+    justify-content: flex-start;
+  }
+
+  .portfolio-ambition-axes-grid {
     grid-template-columns: 1fr;
+  }
+
+  .portfolio-ambitions-summary-action {
+    grid-column: auto;
   }
 }
 
 @media (max-width: 760px) {
-  .portfolio-hero {
-    padding: 20px;
+  .portfolio-home {
+    gap: 24px;
   }
 
-  .portfolio-hero h2 {
-    font-size: 30px;
+  .portfolio-program-grid,
+  .portfolio-ambition-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-home-section-header h2 {
+    font-size: 28px;
+  }
+
+  .portfolio-ambitions-summary {
+    padding: 18px;
+  }
+
+  .portfolio-ambitions-summary-title {
+    font-size: 25px;
+  }
+
+  .portfolio-ambitions-axis-list {
+    display: none;
+  }
+
+  .portfolio-ambitions-summary-action {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .portfolio-ambitions-content {
+    padding: 18px;
   }
 
   .portfolio-ambition-axis {
     padding: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-program-contribution-loading span {
+    animation: none;
+  }
+
+  .portfolio-ambitions-chevron {
+    transition: none;
   }
 }
