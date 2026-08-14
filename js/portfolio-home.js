@@ -160,6 +160,20 @@ function portfolioNumber(value) {
   return Math.max(0, Math.min(100, Math.round(number)));
 }
 
+function portfolioProgramEnabled(value) {
+  if (value === null || value === undefined || value === "") {
+    return false;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  return !["false", "0", "no", "off", "disabled", "inactivo"].includes(
+    String(value).trim().toLowerCase(),
+  );
+}
+
 function portfolioStatusClass(status) {
   const normalized = String(status || "")
     .trim()
@@ -219,16 +233,13 @@ function renderPortfolioKpis(kpis) {
 
 function renderPortfolioAmbitionCard(ambition) {
   return `
-    <article class="portfolio-ambition-card" id="ambition-${portfolioEscape(
-      ambition.id,
-    )}">
+    <article
+      class="portfolio-ambition-card"
+      id="ambition-${portfolioEscape(ambition.id)}"
+    >
       <div class="portfolio-ambition-heading">
         <span class="portfolio-ambition-number">
           ${String(ambition.order).padStart(2, "0")}
-        </span>
-
-        <span class="portfolio-ambition-state">
-          Marco estratégico
         </span>
       </div>
 
@@ -237,6 +248,7 @@ function renderPortfolioAmbitionCard(ambition) {
 
       <details class="portfolio-ambition-detail">
         <summary>Ver líneas de actuación</summary>
+
         <ul>
           ${ambition.actions
             .map((action) => `<li>${portfolioEscape(action)}</li>`)
@@ -248,32 +260,39 @@ function renderPortfolioAmbitionCard(ambition) {
 }
 
 function renderPortfolioAmbitions() {
-  return PORTFOLIO_AMBITION_AXES.map((axis) => {
-    const ambitions = PORTFOLIO_AMBITIONS.filter(
-      (ambition) => ambition.axis === axis.id,
-    ).sort((left, right) => left.order - right.order);
+  return `
+    <div class="portfolio-ambition-axes-grid">
+      ${PORTFOLIO_AMBITION_AXES.map((axis) => {
+        const ambitions = PORTFOLIO_AMBITIONS.filter(
+          (ambition) => ambition.axis === axis.id,
+        ).sort((left, right) => left.order - right.order);
 
-    return `
-      <section class="portfolio-ambition-axis">
-        <header class="portfolio-section-header">
-          <div>
-            <span class="portfolio-section-eyebrow">Eje estratégico</span>
-            <h3>${portfolioEscape(axis.label)}</h3>
-          </div>
+        return `
+          <section class="portfolio-ambition-axis">
+            <header class="portfolio-section-header">
+              <div>
+                <span class="portfolio-section-eyebrow">
+                  Eje estratégico
+                </span>
 
-          <p>${portfolioEscape(axis.description)}</p>
-        </header>
+                <h3>${portfolioEscape(axis.label)}</h3>
+              </div>
 
-        <div class="portfolio-ambition-grid">
-          ${ambitions.map(renderPortfolioAmbitionCard).join("")}
-        </div>
-      </section>
-    `;
-  }).join("");
+              <p>${portfolioEscape(axis.description)}</p>
+            </header>
+
+            <div class="portfolio-ambition-grid">
+              ${ambitions.map(renderPortfolioAmbitionCard).join("")}
+            </div>
+          </section>
+        `;
+      }).join("")}
+    </div>
+  `;
 }
 
 function renderPortfolioProgramCard(program) {
-  const enabled = Boolean(program.enabled);
+  const enabled = portfolioProgramEnabled(program.enabled);
   const functional = portfolioNumber(program.functional);
   const systems = portfolioNumber(program.systems);
   const architecture = portfolioNumber(program.architecture);
@@ -300,19 +319,28 @@ function renderPortfolioProgramCard(program) {
         <div>
           <span>Funcional</span>
           <strong>${functional}%</strong>
-          <progress max="100" value="${functional}">${functional}%</progress>
+
+          <progress max="100" value="${functional}">
+            ${functional}%
+          </progress>
         </div>
 
         <div>
           <span>Sistemas</span>
           <strong>${systems}%</strong>
-          <progress max="100" value="${systems}">${systems}%</progress>
+
+          <progress max="100" value="${systems}">
+            ${systems}%
+          </progress>
         </div>
 
         <div>
           <span>Arquitectura</span>
           <strong>${architecture}%</strong>
-          <progress max="100" value="${architecture}">${architecture}%</progress>
+
+          <progress max="100" value="${architecture}">
+            ${architecture}%
+          </progress>
         </div>
       </div>
 
@@ -323,9 +351,17 @@ function renderPortfolioProgramCard(program) {
       <button
         class="portfolio-program-action"
         type="button"
-        ${enabled ? `data-route="program/${portfolioEscape(program.id)}"` : "disabled"}
+        ${
+          enabled
+            ? `data-route="program/${portfolioEscape(program.id)}"`
+            : "disabled"
+        }
       >
-        ${enabled ? "Entrar en el programa →" : "Programa próximamente disponible"}
+        ${
+          enabled
+            ? "Entrar en el programa →"
+            : "Programa próximamente disponible"
+        }
       </button>
     </article>
   `;
@@ -335,82 +371,150 @@ function renderPortfolioPrograms(programs) {
   if (!Array.isArray(programs) || !programs.length) {
     return `
       <section class="panel">
-        <p class="empty-state">No hay programas configurados en el portfolio.</p>
+        <p class="empty-state">
+          No hay programas configurados en el portfolio.
+        </p>
       </section>
     `;
   }
 
   return `
-    <section class="portfolio-program-grid" aria-label="Programas RCS">
+    <section
+      class="portfolio-program-grid"
+      aria-label="Programas RCS"
+    >
       ${programs.map(renderPortfolioProgramCard).join("")}
     </section>
   `;
 }
 
+function renderPortfolioAmbitionAxisTags() {
+  return PORTFOLIO_AMBITION_AXES.map(
+    (axis) => `
+      <span class="portfolio-ambitions-axis-tag">
+        ${portfolioEscape(axis.label)}
+      </span>
+    `,
+  ).join("");
+}
+
 renderLanding = function renderPortfolioLanding() {
   setHead(
     "RCS Portfolio Cockpit",
-    "Ambiciones estratégicas y programas de Retail Client Solutions",
+    "Programas y ambiciones estratégicas de Retail Client Solutions",
   );
 
   const portfolioKpis = Array.isArray(DATA?.portfolioKpis)
     ? DATA.portfolioKpis
     : [];
+
   const programs = Array.isArray(DATA?.programs) ? DATA.programs : [];
 
   view.innerHTML = `
     <section class="portfolio-home">
-      <header class="portfolio-hero">
-        <div>
-          <span class="portfolio-section-eyebrow">Portfolio SRCS 2026</span>
-          <h2>De la ambición a la ejecución</h2>
-          <p>
-            Una portada común para entender qué queremos conseguir como RCS
-            y qué programas materializan esa visión.
-          </p>
-        </div>
 
-        <aside class="portfolio-hero-summary" aria-label="Resumen de alcance">
-          <strong>${PORTFOLIO_AMBITIONS.length}</strong>
-          <span>ambiciones estratégicas</span>
-          <strong>${programs.length}</strong>
-          <span>programas configurados</span>
-        </aside>
-      </header>
-
-      ${renderPortfolioKpis(portfolioKpis)}
-
-      <section class="portfolio-home-section">
+      <section class="portfolio-home-section portfolio-programs-section">
         <header class="portfolio-home-section-header">
           <div>
-            <span class="portfolio-section-eyebrow">Visión estratégica</span>
-            <h2>Ambiciones RCS</h2>
-          </div>
+            <span class="portfolio-section-eyebrow">
+              Ejecución
+            </span>
 
-          <p>
-            Las ocho ambiciones se muestran como marco común del portfolio.
-            La trazabilidad con programas y roadmap se incorporará en las siguientes iteraciones.
-          </p>
-        </header>
-
-        ${renderPortfolioAmbitions()}
-      </section>
-
-      <section class="portfolio-home-section">
-        <header class="portfolio-home-section-header">
-          <div>
-            <span class="portfolio-section-eyebrow">Ejecución</span>
             <h2>Programas RCS</h2>
           </div>
 
           <p>
-            Acceso a cada programa y lectura básica de su avance funcional,
-            de sistemas y de arquitectura.
+            Los programas que materializan la estrategia de Retail Client Solutions.
           </p>
         </header>
 
         ${renderPortfolioPrograms(programs)}
+
+        ${renderPortfolioKpis(portfolioKpis)}
       </section>
+
+      <section class="portfolio-home-section portfolio-ambitions-section">
+        <details class="portfolio-ambitions-disclosure">
+
+          <summary class="portfolio-ambitions-summary">
+
+            <span class="portfolio-ambitions-summary-copy">
+              <span class="portfolio-section-eyebrow">
+                Marco estratégico
+              </span>
+
+              <span class="portfolio-ambitions-summary-title">
+                Ambición RCS 2026
+              </span>
+
+              <span class="portfolio-ambitions-summary-description">
+                El marco estratégico que orienta la ejecución de los programas.
+              </span>
+            </span>
+
+            <span
+              class="portfolio-ambitions-axis-list"
+              aria-label="Ejes estratégicos"
+            >
+              ${renderPortfolioAmbitionAxisTags()}
+            </span>
+
+            <span class="portfolio-ambitions-summary-action">
+
+              <span class="portfolio-ambitions-count">
+                <strong>${PORTFOLIO_AMBITIONS.length}</strong>
+                <span>ambiciones estratégicas</span>
+              </span>
+
+              <span class="portfolio-ambitions-toggle">
+
+                <span class="portfolio-ambitions-toggle-closed">
+                  Ver marco estratégico
+                </span>
+
+                <span class="portfolio-ambitions-toggle-open">
+                  Ocultar marco estratégico
+                </span>
+
+                <span
+                  class="portfolio-ambitions-chevron"
+                  aria-hidden="true"
+                >
+                  ⌄
+                </span>
+
+              </span>
+            </span>
+
+          </summary>
+
+          <div class="portfolio-ambitions-content">
+
+            <header
+              class="portfolio-home-section-header portfolio-ambitions-expanded-header"
+            >
+              <div>
+                <span class="portfolio-section-eyebrow">
+                  Visión estratégica
+                </span>
+
+                <h2>Ambiciones RCS</h2>
+              </div>
+
+              <p>
+                Las ocho ambiciones forman el marco común del portfolio y
+                permiten entender cómo se conecta la ejecución de los programas
+                con la estrategia.
+              </p>
+            </header>
+
+            ${renderPortfolioAmbitions()}
+
+          </div>
+
+        </details>
+      </section>
+
     </section>
   `;
 };
