@@ -224,3 +224,19 @@
     text-align: left;
   }
 }
+
+/*
+ * =======================================================
+ * TEMPORALMENTE DESACTIVADO
+ * =======================================================
+ *
+ * La lectura adaptativa se conserva completamente en
+ * program-adaptive-cards.js para poder recuperarla más
+ * adelante.
+ *
+ * Para volver a mostrarla, eliminar únicamente este bloque.
+ */
+
+.program-adaptive-section {
+  display: none !important;
+}
