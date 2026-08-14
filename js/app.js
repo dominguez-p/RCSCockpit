@@ -10,7 +10,7 @@ const PROGRAM_LAST_LOADED_AT = new Map();
 const PROGRAM_SOURCES = new Map();
 
 let DATA = window.SAMPLE_DATA;
-let selectedCountry = "ES";
+let selectedCountry = "HL";
 let selectedSystemProduct = "blue-buddy";
 let selectedCapability = null;
 let selectedSystemComponent = null;
