@@ -3040,6 +3040,10 @@ function getEmptyProgramData() {
     msaPhases: [],
 
     teams: [],
+
+    // Catálogo global de producto
+    productCatalog: [],
+    productFeatures: [],
   };
 }
 
