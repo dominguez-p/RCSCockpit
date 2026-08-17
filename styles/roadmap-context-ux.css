@@ -1,0 +1,370 @@
+/* =========================================================
+   ROADMAP SCOPE
+   ========================================================= */
+
+.roadmap-workspace.is-product-scope .roadmap-workspace-hero {
+  border-top: 4px solid var(--blue);
+}
+
+.roadmap-workspace.is-product-scope .roadmap-workspace-hero > div > span {
+  color: var(--blue);
+}
+
+.roadmap-workspace.is-program-scope .roadmap-workspace-hero > div > span {
+  color: var(--muted);
+}
+
+/* =========================================================
+   NAVEGACIÓN DEL ROADMAP
+   ========================================================= */
+
+.roadmap-context-navigation-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.roadmap-context-navigation-row .roadmap-workspace-tabs {
+  min-width: 0;
+}
+
+/* =========================================================
+   SELECTOR COMPACTO DE PRODUCTO
+   ========================================================= */
+
+.roadmap-context-product-filter {
+  display: grid;
+  grid-template-columns:
+    auto
+    minmax(210px, 260px);
+  gap: 14px;
+  align-items: center;
+  min-width: 390px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.roadmap-context-product-filter-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.roadmap-context-product-filter-copy > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.roadmap-context-product-filter-copy > strong {
+  overflow: hidden;
+  color: var(--blue);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roadmap-context-product-filter-control {
+  display: grid;
+  gap: 4px;
+}
+
+.roadmap-context-product-filter-control > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.roadmap-context-product-filter-control select {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 30px 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* =========================================================
+   TRAZABILIDAD ESTRATÉGICA
+   ========================================================= */
+
+.roadmap-context-strategy {
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.roadmap-context-strategy-disclosure {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.roadmap-context-strategy-summary {
+  display: grid;
+  grid-template-columns:
+    minmax(320px, 1fr)
+    auto
+    auto;
+  gap: 24px;
+  align-items: center;
+  padding: 20px 22px;
+  list-style: none;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.roadmap-context-strategy-summary::-webkit-details-marker {
+  display: none;
+}
+
+.roadmap-context-strategy-summary::marker {
+  content: "";
+}
+
+.roadmap-context-strategy-summary:hover {
+  background: #fbfcff;
+}
+
+.roadmap-context-strategy-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.roadmap-context-strategy-eyebrow {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.roadmap-context-strategy-title {
+  color: var(--blue);
+  font-family: Georgia, serif;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.roadmap-context-strategy-description {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.roadmap-context-strategy-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(82px, auto));
+  gap: 8px;
+}
+
+.roadmap-context-strategy-kpis > span {
+  display: grid;
+  gap: 2px;
+  min-width: 88px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f7f9fd;
+}
+
+.roadmap-context-strategy-kpis strong {
+  color: var(--blue);
+  font-family: Georgia, serif;
+  font-size: 21px;
+  line-height: 1;
+}
+
+.roadmap-context-strategy-kpis small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.roadmap-context-strategy-action {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-self: end;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.roadmap-context-strategy-toggle-open {
+  display: none;
+}
+
+.roadmap-context-strategy-chevron {
+  display: inline-block;
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.roadmap-context-strategy-disclosure[open]
+  .roadmap-context-strategy-toggle-closed {
+  display: none;
+}
+
+.roadmap-context-strategy-disclosure[open]
+  .roadmap-context-strategy-toggle-open {
+  display: inline;
+}
+
+.roadmap-context-strategy-disclosure[open] .roadmap-context-strategy-chevron {
+  transform: rotate(180deg);
+}
+
+/* =========================================================
+   CONTENIDO ESTRATÉGICO EXPANDIDO
+   ========================================================= */
+
+.roadmap-context-strategy-content {
+  display: grid;
+  gap: 18px;
+  padding: 20px 22px 22px;
+  border-top: 1px solid var(--line);
+  background: #f8faff;
+}
+
+.roadmap-context-strategy-content-header {
+  display: flex;
+  gap: 24px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.roadmap-context-strategy-content-header > div > span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.roadmap-context-strategy-content-header h3 {
+  margin: 0;
+  color: var(--blue);
+  font-family: Georgia, serif;
+  font-size: 24px;
+}
+
+.roadmap-context-strategy-content-header p {
+  max-width: 680px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.roadmap-context-strategy-filter {
+  width: min(360px, 100%);
+  min-width: 300px;
+}
+
+.roadmap-context-strategy .roadmap-ambition-coverage-grid {
+  margin-top: 2px;
+}
+
+.roadmap-context-strategy .roadmap-ambition-active-filter {
+  margin-bottom: 0;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1200px) {
+  .roadmap-context-navigation-row {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap-context-product-filter {
+    width: fit-content;
+    min-width: 390px;
+    justify-self: end;
+  }
+
+  .roadmap-context-strategy-summary {
+    grid-template-columns:
+      minmax(280px, 1fr)
+      auto;
+  }
+
+  .roadmap-context-strategy-action {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 900px) {
+  .roadmap-context-product-filter {
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+  }
+
+  .roadmap-context-strategy-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap-context-strategy-kpis {
+    width: 100%;
+  }
+
+  .roadmap-context-strategy-action {
+    grid-column: auto;
+    justify-self: start;
+  }
+
+  .roadmap-context-strategy-content-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .roadmap-context-strategy-filter {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .roadmap-context-product-filter {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap-context-strategy-summary {
+    gap: 16px;
+    padding: 18px;
+  }
+
+  .roadmap-context-strategy-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap-context-strategy-content {
+    padding: 18px;
+  }
+}
