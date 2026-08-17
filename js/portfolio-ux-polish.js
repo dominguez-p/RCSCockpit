@@ -19,6 +19,9 @@ const PORTFOLIO_UX_AMBITION_FIELDS = [
   "rcsAmbitionIds",
 ];
 
+const PROGRAM_UX_HOLDING_PRODUCT_COPY =
+  "Productos, capacidades y casos funcionales a nivel global.";
+
 let portfolioUxContributionGeneration = 0;
 let portfolioUxForceContributionRefresh = false;
 
@@ -81,6 +84,7 @@ function portfolioUxResolveAmbitionId(value) {
   const ambitions = Array.isArray(PORTFOLIO_AMBITIONS)
     ? PORTFOLIO_AMBITIONS
     : [];
+
   const exactMatch = ambitions.find((ambition) => ambition.id === rawValue);
 
   if (exactMatch) {
@@ -88,6 +92,7 @@ function portfolioUxResolveAmbitionId(value) {
   }
 
   const normalized = portfolioUxNormalizeAmbition(rawValue);
+
   const aliases = {
     ejecucion: "execution",
     delivery: "execution",
@@ -133,6 +138,7 @@ function portfolioUxAmbitionIds(item) {
   }
 
   const source = item?.source || item || {};
+
   const ids = PORTFOLIO_UX_AMBITION_FIELDS.flatMap((field) =>
     portfolioUxSplit(item?.[field] ?? source?.[field]),
   )
@@ -159,11 +165,13 @@ function portfolioUxRoadmapItems(programData) {
 
 function portfolioUxContributionSummary(programData) {
   const items = portfolioUxRoadmapItems(programData);
+
   const byAmbition = new Map(
     (Array.isArray(PORTFOLIO_AMBITIONS) ? PORTFOLIO_AMBITIONS : []).map(
       (ambition) => [ambition.id, 0],
     ),
   );
+
   let linked = 0;
 
   items.forEach((item) => {
@@ -194,6 +202,7 @@ function portfolioUxContributionSummary(programData) {
     })
     .sort((left, right) => {
       const countDifference = right.count - left.count;
+
       return countDifference || left.order - right.order;
     })
     .slice(0, 3);
@@ -224,7 +233,9 @@ function portfolioUxRenderContribution(summary) {
     </div>
 
     <div class="portfolio-program-contribution-stats">
-      <span>${summary.linked} de ${summary.total} elementos vinculados</span>
+      <span>
+        ${summary.linked} de ${summary.total} elementos vinculados
+      </span>
       <span>${summary.unassigned} sin ambición</span>
     </div>
 
@@ -235,7 +246,9 @@ function portfolioUxRenderContribution(summary) {
               .map(
                 (ambition) => `
                   <span title="${portfolioUxEscape(ambition.title)}">
-                    <b>${String(ambition.order).padStart(2, "0")}</b>
+                    <b>
+                      ${String(ambition.order).padStart(2, "0")}
+                    </b>
                     ${portfolioUxEscape(ambition.title)}
                     <strong>${ambition.count}</strong>
                   </span>
@@ -253,7 +266,9 @@ function portfolioUxRenderContribution(summary) {
 }
 
 function portfolioUxContributionContainer(programId) {
-  return [...document.querySelectorAll("[data-portfolio-program-contribution]")].find(
+  return [
+    ...document.querySelectorAll("[data-portfolio-program-contribution]"),
+  ].find(
     (element) => element.dataset.portfolioProgramContribution === programId,
   );
 }
@@ -288,6 +303,7 @@ async function portfolioUxLoadProgramContribution(
     }
 
     const summary = portfolioUxContributionSummary(programData);
+
     portfolioUxUpdateContribution(
       programId,
       portfolioUxRenderContribution(summary),
@@ -302,9 +318,19 @@ async function portfolioUxLoadProgramContribution(
     portfolioUxUpdateContribution(
       programId,
       `
-        <div class="portfolio-program-contribution-empty is-error">
-          <strong>Contribución no disponible</strong>
-          <span>No se pudo leer el origen de datos de este programa.</span>
+        <div
+          class="
+            portfolio-program-contribution-empty
+            is-error
+          "
+        >
+          <strong>
+            Contribución no disponible
+          </strong>
+
+          <span>
+            No se pudo leer el origen de datos de este programa.
+          </span>
         </div>
       `,
       "error",
@@ -320,76 +346,129 @@ function portfolioUxRefreshContributions(programs, forceRefresh = false) {
   });
 }
 
-renderPortfolioProgramCard = function renderProgramCardWithContribution(program) {
+renderPortfolioProgramCard = function renderProgramCardWithContribution(
+  program,
+) {
   const enabled = portfolioUxProgramEnabled(program.enabled);
+
   const status = program.status || "Sin estado";
+
   const programId = String(program.id || "").trim();
 
   return `
-    <article class="portfolio-program-card ${enabled ? "" : "disabled"}">
-      <header class="portfolio-program-heading">
-        <span class="portfolio-program-icon" aria-hidden="true">
-          ${portfolioUxEscape(program.icon || "●")}
+      <article
+        class="
+          portfolio-program-card
+          ${enabled ? "" : "disabled"}
+        "
+      >
+        <header class="portfolio-program-heading">
+          <span
+            class="portfolio-program-icon"
+            aria-hidden="true"
+          >
+            ${portfolioUxEscape(program.icon || "●")}
+          </span>
+
+          <div>
+            <h3>
+              ${portfolioUxEscape(program.name || "Programa")}
+            </h3>
+
+            <p>
+              ${portfolioUxEscape(program.description || "")}
+            </p>
+          </div>
+        </header>
+
+        <span
+          class="
+            pill
+            ${portfolioStatusClass(status)}
+          "
+        >
+          ${portfolioUxEscape(status)}
         </span>
 
-        <div>
-          <h3>${portfolioUxEscape(program.name || "Programa")}</h3>
-          <p>${portfolioUxEscape(program.description || "")}</p>
-        </div>
-      </header>
+        <section
+          class="portfolio-program-contribution"
+          data-portfolio-program-contribution="${portfolioUxEscape(programId)}"
+          data-state="${enabled ? "loading" : "disabled"}"
+          aria-label="Contribución real a las ambiciones RCS"
+        >
+          ${
+            enabled
+              ? `
+                  <div
+                    class="
+                      portfolio-program-contribution-loading
+                    "
+                  >
+                    <span></span>
+                    <span></span>
 
-      <span class="pill ${portfolioStatusClass(status)}">
-        ${portfolioUxEscape(status)}
-      </span>
+                    <small>
+                      Calculando contribución real…
+                    </small>
+                  </div>
+                `
+              : `
+                  <div
+                    class="
+                      portfolio-program-contribution-empty
+                    "
+                  >
+                    <strong>
+                      Sin datos disponibles
+                    </strong>
 
-      <section
-        class="portfolio-program-contribution"
-        data-portfolio-program-contribution="${portfolioUxEscape(programId)}"
-        data-state="${enabled ? "loading" : "disabled"}"
-        aria-label="Contribución real a las ambiciones RCS"
-      >
-        ${
-          enabled
-            ? `
-                <div class="portfolio-program-contribution-loading">
-                  <span></span>
-                  <span></span>
-                  <small>Calculando contribución real…</small>
-                </div>
-              `
-            : `
-                <div class="portfolio-program-contribution-empty">
-                  <strong>Sin datos disponibles</strong>
-                  <span>El programa todavía no está habilitado.</span>
-                </div>
-              `
-        }
-      </section>
+                    <span>
+                      El programa todavía no está habilitado.
+                    </span>
+                  </div>
+                `
+          }
+        </section>
 
-      <button
-        class="portfolio-program-action"
-        type="button"
-        ${enabled ? `data-route="program/${portfolioUxEscape(programId)}"` : "disabled"}
-      >
-        ${enabled ? "Entrar en el programa →" : "Programa próximamente disponible"}
-      </button>
-    </article>
-  `;
+        <button
+          class="portfolio-program-action"
+          type="button"
+          ${
+            enabled
+              ? `data-route="program/${portfolioUxEscape(programId)}"`
+              : "disabled"
+          }
+        >
+          ${
+            enabled
+              ? "Entrar en el programa →"
+              : "Programa próximamente disponible"
+          }
+        </button>
+      </article>
+    `;
 };
 
 const portfolioUxBaseRenderLanding = renderLanding;
 
 renderLanding = function renderLandingWithProgramContributions(...args) {
   const result = portfolioUxBaseRenderLanding(...args);
+
   const programs = Array.isArray(DATA?.programs) ? DATA.programs : [];
+
   const forceRefresh = portfolioUxForceContributionRefresh;
+
   portfolioUxForceContributionRefresh = false;
 
-  const programsSection = [...document.querySelectorAll(".portfolio-home-section")].find(
+  const programsSection = [
+    ...document.querySelectorAll(".portfolio-home-section"),
+  ].find(
     (section) =>
-      section.querySelector(".portfolio-home-section-header h2")?.textContent?.trim() ===
-      "Programas RCS",
+      section
+        .querySelector(".portfolio-home-section-header h2")
+        ?.textContent?.trim() === "Programas RCS",
   );
+
   const description = programsSection?.querySelector(
     ".portfolio-home-section-header > p",
   );
@@ -399,11 +478,15 @@ renderLanding = function renderLandingWithProgramContributions(...args) {
       "Cada tarjeta agrega la contribución real de su roadmap a las ambiciones RCS.";
   }
 
-  const ambitionsSection = [...document.querySelectorAll(".portfolio-home-section")].find(
+  const ambitionsSection = [
+    ...document.querySelectorAll(".portfolio-home-section"),
+  ].find(
     (section) =>
-      section.querySelector(".portfolio-home-section-header h2")?.textContent?.trim() ===
-      "Ambiciones RCS",
+      section
+        .querySelector(".portfolio-home-section-header h2")
+        ?.textContent?.trim() === "Ambiciones RCS",
   );
+
   const ambitionsDescription = ambitionsSection?.querySelector(
     ".portfolio-home-section-header > p",
   );
@@ -441,15 +524,23 @@ function programUxBuildMetricsSection(home) {
   }
 
   const section = document.createElement("section");
+
   section.className = "program-home-section program-home-metrics-section";
+
   section.innerHTML = `
-    <header class="program-home-section-header">
+    <header
+      class="
+        program-home-section-header
+      "
+    >
       <div>
         <span>Resumen</span>
         <h2>Métricas principales</h2>
       </div>
 
-      <p>Indicadores básicos de alcance, riesgo, productos y equipos.</p>
+      <p>
+        Indicadores básicos de alcance, riesgo, productos y equipos.
+      </p>
     </header>
   `;
 
@@ -457,6 +548,50 @@ function programUxBuildMetricsSection(home) {
   section.append(snapshot);
 
   return section;
+}
+
+function programUxIsHoldingProductLanding(programId) {
+  return (
+    String(programId || "").trim() === "aixbanker" &&
+    String(selectedCountry || "").trim() === "HL"
+  );
+}
+
+function programUxPolishHoldingProductIntro(programId) {
+  if (!programUxIsHoldingProductLanding(programId)) {
+    return;
+  }
+
+  const home = view.querySelector(".program-home");
+
+  if (!home) {
+    return;
+  }
+
+  const products = programUxFindSection(home, "Productos");
+
+  if (!products) {
+    return;
+  }
+
+  const heading = products.querySelector(
+    ":scope > .program-home-section-header h2",
+  );
+
+  if (heading && heading.textContent.trim() !== "Visión global de producto") {
+    heading.textContent = "Visión global de producto";
+  }
+
+  const description = products.querySelector(
+    ":scope > .program-home-section-header > p",
+  );
+
+  if (
+    description &&
+    description.textContent.trim() !== PROGRAM_UX_HOLDING_PRODUCT_COPY
+  ) {
+    description.textContent = PROGRAM_UX_HOLDING_PRODUCT_COPY;
+  }
 }
 
 function programUxReorderLanding(programId) {
@@ -475,25 +610,51 @@ function programUxReorderLanding(programId) {
   const adaptive = home.querySelector(
     `:scope > [data-program-adaptive-cards="${CSS.escape(programId)}"]`,
   );
+
   const programView = programUxFindSection(home, "Vista del programa");
+
   const products = programUxFindSection(home, "Productos");
+
   const governance = programUxFindSection(home, "Gobierno");
-  const configuredModules = programUxFindSection(home, "Configuración del programa");
+
+  const configuredModules = programUxFindSection(
+    home,
+    "Configuración del programa",
+  );
+
   const ambitions = programUxFindSection(home, "Ambiciones RCS");
+
   const metrics = programUxBuildMetricsSection(home);
-  const orderedSections = [
-    adaptive,
-    programView,
-    products,
-    governance,
-    configuredModules,
-    ambitions,
-    metrics,
-  ].filter(Boolean);
+
+  const holdingProductFirst = programUxIsHoldingProductLanding(programId);
+
+  const orderedSections = (
+    holdingProductFirst
+      ? [
+          adaptive,
+          products,
+          programView,
+          governance,
+          configuredModules,
+          ambitions,
+          metrics,
+        ]
+      : [
+          adaptive,
+          programView,
+          products,
+          governance,
+          configuredModules,
+          ambitions,
+          metrics,
+        ]
+  ).filter(Boolean);
+
   let cursor = hero;
 
   orderedSections.forEach((section) => {
     cursor.insertAdjacentElement("afterend", section);
+
     cursor = section;
   });
 }
@@ -501,8 +662,22 @@ function programUxReorderLanding(programId) {
 const programUxBaseRenderProgram = renderProgram;
 
 renderProgram = function renderProgramWithRequestedOrder(programId) {
+  const normalizedProgramId = String(programId || "").trim();
+
   const result = programUxBaseRenderProgram(programId);
-  programUxReorderLanding(String(programId || "").trim());
+
+  programUxReorderLanding(normalizedProgramId);
+
+  /*
+   * product-experience.js termina de enriquecer
+   * el bloque de productos mediante MutationObserver.
+   * Ejecutamos el copy definitivo en el siguiente frame
+   * para evitar que vuelva a aparecer el texto anterior.
+   */
+  requestAnimationFrame(() => {
+    programUxPolishHoldingProductIntro(normalizedProgramId);
+  });
+
   return result;
 };
 
