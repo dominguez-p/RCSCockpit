@@ -686,7 +686,7 @@
 
   /*
    * =======================================================
-   * HOLDING
+   * PROGRAM LANDING / PRODUCT
    * =======================================================
    */
 
@@ -700,9 +700,25 @@
       .filter((product) => product.productId);
   }
 
-  function pxHoldingProductCard(product) {
-    const productId = pxNormalizeId(product.productId);
+  function pxSelectedCountryId() {
+    return String(selectedCountry || HOLDING_COUNTRY_ID).trim();
+  }
 
+  function pxSelectedCountryLabel() {
+    const countryId = pxSelectedCountryId();
+
+    if (countryId === HOLDING_COUNTRY_ID) {
+      return "Holding";
+    }
+
+    const country = pxCountries().find(
+      (candidate) => String(candidate.id || "").trim() === countryId,
+    );
+
+    return country?.label || countryId;
+  }
+
+  function pxProductDefinitionStats(productId) {
     const features = pxFeatures(productId);
 
     const capabilityCount = new Set(
@@ -715,76 +731,218 @@
       pxClean(feature.deliverableName),
     ).length;
 
-    return `
-      <article
-        class="
-          product-experience-program-card
-        "
-        data-route="product/${PROGRAM_ID}/${pxEsc(productId)}"
-      >
-        <div
-          class="
-            product-experience-program-card-topline
-          "
-        >
-          <span>
-            Producto global
-          </span>
-
-          <small>
-            Holding
-          </small>
-        </div>
-
-        <div
-          class="
-            product-experience-program-card-heading
-          "
-        >
-          <span
-            class="
-              product-experience-product-icon
-            "
-            aria-hidden="true"
-          >
-            ${pxEsc(product.icon || "◇")}
-          </span>
-
-          <div>
-            <h3>
-              ${pxEsc(product.productName || productId)}
-            </h3>
-
-            <p>
-              ${pxEsc(product.tagline || product.overview || "")}
-            </p>
-          </div>
-        </div>
-
-        <footer>
-          <span>
-            ${capabilityCount}
-            ${capabilityCount === 1 ? "capacidad" : "capacidades"}
-            ·
-            ${deliverableCount}
-            ${deliverableCount === 1 ? "caso funcional" : "casos funcionales"}
-          </span>
-
-          <strong>
-            Explorar producto →
-          </strong>
-        </footer>
-      </article>
-    `;
+    return {
+      capabilityCount,
+      deliverableCount,
+    };
   }
 
-  function pxEnhanceHoldingLanding() {
+  function pxHoldingProductCard(product) {
+    const productId = pxNormalizeId(product.productId);
+
+    const { capabilityCount, deliverableCount } =
+      pxProductDefinitionStats(productId);
+
+    return `
+    <article
+      class="
+        product-experience-program-card
+      "
+      data-route="product/${PROGRAM_ID}/${pxEsc(productId)}"
+    >
+      <div
+        class="
+          product-experience-program-card-topline
+        "
+      >
+        <span>
+          Producto global
+        </span>
+
+        <small>
+          Holding
+        </small>
+      </div>
+
+      <div
+        class="
+          product-experience-program-card-heading
+        "
+      >
+        <span
+          class="
+            product-experience-product-icon
+          "
+          aria-hidden="true"
+        >
+          ${pxEsc(product.icon || "◇")}
+        </span>
+
+        <div>
+          <h3>
+            ${pxEsc(product.productName || productId)}
+          </h3>
+
+          <p>
+            ${pxEsc(product.tagline || product.overview || "")}
+          </p>
+        </div>
+      </div>
+
+      <footer>
+        <span>
+          ${capabilityCount}
+          ${capabilityCount === 1 ? "capacidad" : "capacidades"}
+          ·
+          ${deliverableCount}
+          ${deliverableCount === 1 ? "caso funcional" : "casos funcionales"}
+        </span>
+
+        <strong>
+          Explorar producto →
+        </strong>
+      </footer>
+    </article>
+  `;
+  }
+
+  function pxLocalProductStats(productId, countryId) {
+    const normalizedProductId = pxNormalizeId(productId);
+
+    const normalizedCountryId = String(countryId || "").trim();
+
+    const roadmapItems = pxProductRoadmapItems(normalizedProductId).filter(
+      (item) => String(item?.country || "").trim() === normalizedCountryId,
+    );
+
+    const systems = pxRows("systems").filter((item) => {
+      const programId = String(item?.programId || PROGRAM_ID).trim();
+
+      const itemCountry = String(
+        item?.country || item?.["RtC Anchor Country"] || "",
+      ).trim();
+
+      const itemProduct = pxNormalizeId(item?.product);
+
+      return (
+        programId === PROGRAM_ID &&
+        itemCountry === normalizedCountryId &&
+        itemProduct === normalizedProductId
+      );
+    });
+
+    const riskCount = roadmapItems.filter(pxRoadmapIsRisk).length;
+
+    const averageProgress = roadmapItems.length
+      ? Math.round(
+          roadmapItems.reduce(
+            (total, item) => total + pxRoadmapProgress(item),
+            0,
+          ) / roadmapItems.length,
+        )
+      : 0;
+
+    return {
+      roadmapCount: roadmapItems.length,
+
+      systemsCount: systems.length,
+
+      riskCount,
+
+      averageProgress,
+    };
+  }
+
+  function pxLocalProductCard(product) {
+    const productId = pxNormalizeId(product.productId);
+
+    const countryId = pxSelectedCountryId();
+
+    const countryLabel = pxSelectedCountryLabel();
+
+    const stats = pxLocalProductStats(productId, countryId);
+
+    const hasExecution = stats.roadmapCount > 0;
+
+    const routeValue = hasExecution ? pxCountryRoadmapRoute(productId) : "";
+
+    return `
+    <article
+      class="
+        product-experience-program-card
+        ${hasExecution ? "" : "is-pending"}
+      "
+      ${hasExecution ? `data-route="${pxEsc(routeValue)}"` : ""}
+    >
+      <div
+        class="
+          product-experience-program-card-topline
+        "
+      >
+        <span>
+          Producto global
+        </span>
+
+        <small>
+          ${pxEsc(countryLabel)}
+        </small>
+      </div>
+
+      <div
+        class="
+          product-experience-program-card-heading
+        "
+      >
+        <span
+          class="
+            product-experience-product-icon
+          "
+          aria-hidden="true"
+        >
+          ${pxEsc(product.icon || "◇")}
+        </span>
+
+        <div>
+          <h3>
+            ${pxEsc(product.productName || productId)}
+          </h3>
+
+          <p>
+            ${pxEsc(product.tagline || product.overview || "")}
+          </p>
+        </div>
+      </div>
+
+      <footer>
+        <span>
+          ${stats.roadmapCount}
+          ${stats.roadmapCount === 1 ? "elemento" : "elementos"}
+          de roadmap
+          ·
+          ${stats.systemsCount}
+          ${stats.systemsCount === 1 ? "elemento" : "elementos"}
+          de sistema
+          ${
+            stats.roadmapCount
+              ? ` · ${stats.averageProgress}% avance · ${stats.riskCount} en riesgo`
+              : ""
+          }
+        </span>
+
+        <strong>
+          ${hasExecution ? "Abrir roadmap →" : "Sin ejecución informada"}
+        </strong>
+      </footer>
+    </article>
+  `;
+  }
+
+  function pxEnhanceProgramLanding() {
     const currentRoute = pxRoute();
 
     if (
       currentRoute.routeName !== "program" ||
-      currentRoute.programId !== PROGRAM_ID ||
-      String(selectedCountry || "").trim() !== HOLDING_COUNTRY_ID
+      currentRoute.programId !== PROGRAM_ID
     ) {
       return;
     }
@@ -804,7 +962,7 @@
           ?.textContent?.trim() === "Productos",
     );
 
-    if (!section || section.dataset.productExperienceEnhanced) {
+    if (!section) {
       return;
     }
 
@@ -818,44 +976,79 @@
       return;
     }
 
+    const countryId = pxSelectedCountryId();
+
+    /*
+     * El render base genera una sección
+     * nueva cuando cambia el ámbito.
+     *
+     * Este marcador evita volver a
+     * modificar continuamente el mismo
+     * DOM desde el MutationObserver.
+     */
+    if (section.dataset.productExperienceEnhanced === countryId) {
+      return;
+    }
+
     const products = pxLandingProducts();
 
+    const isHolding = countryId === HOLDING_COUNTRY_ID;
+
+    const countryLabel = pxSelectedCountryLabel();
+
     header.innerHTML = `
-      <div>
-        <span>
-          Productos
-        </span>
+    <div>
+      <span>
+        Productos
+      </span>
 
-        <h2>
-          Visión global de producto
-        </h2>
-      </div>
+      <h2>
+        ${
+          isHolding
+            ? "Visión global de producto"
+            : "Visión local del producto global"
+        }
+      </h2>
+    </div>
 
-      <p>
-        Holding explica qué es cada
-        producto y qué capacidades
-        contiene. La ejecución y el
-        roadmap se consultan desde
-        las vistas de país.
-      </p>
-    `;
+    <p>
+      ${
+        isHolding
+          ? `
+              Productos, capacidades
+              y casos funcionales
+              a nivel global.
+            `
+          : `
+              Ejecución en
+              ${pxEsc(countryLabel)}
+              de los productos
+              globales de AIxBanker.
+            `
+      }
+    </p>
+  `;
 
     grid.classList.add("product-experience-program-grid");
 
-    grid.innerHTML = products.length
-      ? products.map(pxHoldingProductCard).join("")
-      : `
-            <p
-              class="
-                product-experience-empty-copy
-              "
-            >
-              No hay productos
-              globales informados.
-            </p>
-          `;
+    if (!products.length) {
+      grid.innerHTML = `
+      <p
+        class="
+          product-experience-empty-copy
+        "
+      >
+        No hay productos
+        informados.
+      </p>
+    `;
+    } else if (isHolding) {
+      grid.innerHTML = products.map(pxHoldingProductCard).join("");
+    } else {
+      grid.innerHTML = products.map(pxLocalProductCard).join("");
+    }
 
-    section.dataset.productExperienceEnhanced = "true";
+    section.dataset.productExperienceEnhanced = countryId;
   }
 
   /*
@@ -1692,7 +1885,7 @@
       return;
     }
 
-    pxEnhanceHoldingLanding();
+    pxEnhanceProgramLanding();
     pxRefreshRoadmapBackButton();
   }
 

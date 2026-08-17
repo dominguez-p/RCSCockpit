@@ -550,9 +550,13 @@ function programUxBuildMetricsSection(home) {
   return section;
 }
 
+function programUxIsAIxBankerLanding(programId) {
+  return String(programId || "").trim() === "aixbanker";
+}
+
 function programUxIsHoldingProductLanding(programId) {
   return (
-    String(programId || "").trim() === "aixbanker" &&
+    programUxIsAIxBankerLanding(programId) &&
     String(selectedCountry || "").trim() === "HL"
   );
 }
@@ -626,10 +630,17 @@ function programUxReorderLanding(programId) {
 
   const metrics = programUxBuildMetricsSection(home);
 
-  const holdingProductFirst = programUxIsHoldingProductLanding(programId);
+  /*
+   * AIxBanker utiliza producto como primer nivel
+   * tanto en Holding como en cualquier país.
+   *
+   * La definición del producto es global.
+   * La ejecución geográfica se presenta después.
+   */
+  const productFirst = programUxIsAIxBankerLanding(programId);
 
   const orderedSections = (
-    holdingProductFirst
+    productFirst
       ? [
           adaptive,
           products,
