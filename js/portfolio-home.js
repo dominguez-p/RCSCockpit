@@ -344,10 +344,6 @@ function renderPortfolioProgramCard(program) {
         </div>
       </div>
 
-      <p class="portfolio-program-traceability-note">
-        La contribución del programa a las ambiciones se incorporará en la cuarta iteración.
-      </p>
-
       <button
         class="portfolio-program-action"
         type="button"
