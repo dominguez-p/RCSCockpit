@@ -1,0 +1,51 @@
+name: Validate cockpit
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          find js -type f -name '*.js' -print0 | sort -z | xargs -0 -n1 node --check
+
+      - name: Reject operational JSON snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          tracked_data="$(git ls-files 'data/*.json')"
+          if [ -n "$tracked_data" ]; then
+            echo "Operational JSON snapshots must not be committed:"
+            echo "$tracked_data"
+            exit 1
+          fi
+
+      - name: Reject backup files
+        shell: bash
+        run: |
+          set -euo pipefail
+          backups="$(git ls-files | grep -E '(^|/).*_old($|\.)|(^|/).*\.old($|\.)' || true)"
+          if [ -n "$backups" ]; then
+            echo "Backup files must not be committed:"
+            echo "$backups"
+            exit 1
+          fi
