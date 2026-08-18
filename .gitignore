@@ -1,0 +1,15 @@
+# Operational data exports must never be versioned.
+data/*.json
+
+# Local or historical backup copies.
+*_old
+*_old.*
+*.old
+*.old.*
+
+# Local-only configuration variants.
+*.local.*
+
+# OS/editor noise.
+.DS_Store
+Thumbs.db
