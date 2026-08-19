@@ -338,11 +338,21 @@ function buildDemoRoadmapItems(programId) {
     CO: 31,
   };
 
+  function capabilityIdForProduct(product) {
+    if (programId !== "aixbanker") {
+      return "demo-capability";
+    }
+
+    return product.id === "panorama" ? "executive-view" : "meeting-prep";
+  }
+
   const holding = products.flatMap((product, index) => [
     demoRoadmapItem({
       id: `DEMO-${programId}-` + `${product.id}-HL-01`,
 
       product: product.id,
+
+      capabilityIds: capabilityIdForProduct(product),
 
       country: "HL",
 
@@ -374,6 +384,8 @@ function buildDemoRoadmapItems(programId) {
       type: "msa",
 
       product: product.id,
+
+      capabilityIds: capabilityIdForProduct(product),
 
       country: "HL",
 
@@ -412,6 +424,8 @@ function buildDemoRoadmapItems(programId) {
         id: `DEMO-${programId}-` + `${product.id}-` + `${country}-01`,
 
         product: product.id,
+
+        capabilityIds: capabilityIdForProduct(product),
 
         country,
 
@@ -683,16 +697,23 @@ function buildDemoProductFeatures(programId) {
 
       capabilityId: "meeting-prep",
 
-      capabilityType: "capability",
+      capabilityType: "agent",
 
-      capabilityName: "Preparación de interacción",
+      capabilityName: "Demo Assistant",
 
       capabilityOverview:
-        "Capacidad ficticia para " + "demostrar la experiencia.",
+        "Agente sintético utilizado para demostrar " +
+        "la experiencia de producto y su ejecución " +
+        "por geografías.",
 
-      deliverableName: "Resumen previo de contexto",
+      country: "ES",
 
-      overview: "Genera un resumen sintético " + "y siguientes acciones.",
+      deliverableName: "Preparación contextual de demostración",
+
+      overview:
+        "Caso funcional completamente sintético " +
+        "para demostrar la preparación de una " +
+        "interacción en España.",
 
       functionalBullets: [
         "Consolidar información ficticia.",
@@ -721,6 +742,57 @@ function buildDemoProductFeatures(programId) {
     },
 
     {
+      productId: "blue-buddy",
+
+      productName: "Blue Buddy",
+
+      capabilityId: "meeting-prep",
+
+      capabilityType: "agent",
+
+      capabilityName: "Demo Assistant",
+
+      capabilityOverview:
+        "Agente sintético utilizado para demostrar " +
+        "la experiencia de producto y su ejecución " +
+        "por geografías.",
+
+      country: "MX",
+
+      deliverableName: "Contexto comercial de demostración",
+
+      overview:
+        "Caso funcional completamente sintético " +
+        "para demostrar una implantación diferente " +
+        "de la misma capacidad en México.",
+
+      functionalBullets: [
+        "Consultar información sintética.",
+        "Preparar contexto de demostración.",
+        "Mostrar diferencias por geografía.",
+      ],
+
+      experienceBullets: [
+        "Experiencia integrada.",
+        "Información contextual ficticia.",
+      ],
+
+      functionalRequirements: [
+        "Filtrar los casos funcionales por país.",
+        "Mantener la agregación en Holding.",
+      ],
+
+      nonFunctionalRequirements: [
+        "No utilizar información corporativa.",
+        "No contener identificadores reales.",
+      ],
+
+      documentUrl: "",
+
+      figmaUrl: "",
+    },
+
+    {
       productId: "panorama",
 
       productName: "Panorama",
@@ -732,11 +804,16 @@ function buildDemoProductFeatures(programId) {
       capabilityName: "Visión ejecutiva",
 
       capabilityOverview:
-        "Capacidad ficticia para " + "demostrar indicadores y filtros.",
+        "Capacidad sintética para demostrar " +
+        "indicadores y filtros de seguimiento.",
 
-      deliverableName: "Panel consolidado",
+      country: "ES|MX",
 
-      overview: "Muestra indicadores sintéticos " + "de avance y riesgo.",
+      deliverableName: "Panel consolidado de demostración",
+
+      overview:
+        "Muestra indicadores sintéticos de avance " +
+        "y riesgo en más de una geografía.",
 
       functionalBullets: [
         "Consolidar métricas ficticias.",

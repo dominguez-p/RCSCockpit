@@ -705,15 +705,27 @@ function buildProductFeatures_(sheet) {
       capabilityOverview: textValue_(row.capability_overview),
 
       /*
+       * Geografía.
+       *
+       * Se permite:
+       *
+       * ES
+       * MX
+       * ES|MX
+       *
+       * Holding no se informa:
+       * se construye como agregado
+       * de todas las geografías.
+       */
+      country: textValue_(row.country),
+
+      /*
        * Entregable.
        */
       deliverableName: textValue_(row["Entregable"]),
 
       /*
        * Información Gemini.
-       *
-       * Aquí SOLO leemos los resultados
-       * que ya existen en Sheets.
        */
       overview: textValue_(row["Gemini - Project overview"]),
 
