@@ -1,8 +1,10 @@
 # Tarjetas adaptativas de programa
 
+> **Estado actual:** la implementación permanece disponible en el código, pero la lectura adaptativa está temporalmente fuera de la experiencia principal de programa. Este documento describe el modelo y las reglas para su reactivación o evolución posterior.
+
 ## Objetivo
 
-La landing de programa incorpora una lectura ejecutiva que selecciona y ordena tarjetas según:
+La landing de programa puede incorporar una lectura ejecutiva que selecciona y ordena tarjetas según:
 
 - datos disponibles;
 - país seleccionado;
@@ -13,7 +15,7 @@ La landing de programa incorpora una lectura ejecutiva que selecciona y ordena t
 - equipos y productos;
 - cobertura de ambiciones RCS.
 
-La landing muestra un máximo de seis tarjetas por defecto. El límite puede modificarse en el registro del programa mediante `adaptiveCardsLimit`.
+La implementación admite un máximo de seis tarjetas por defecto. El límite puede modificarse en el registro del programa mediante `adaptiveCardsLimit`.
 
 ## Tarjetas automáticas
 
@@ -101,15 +103,17 @@ enabled: false
 
 ## Reglas de funcionamiento
 
-1. Se generan las tarjetas automáticas aplicables.
-2. Se eliminan las que estén desactivadas desde datos.
-3. Las tarjetas configuradas sustituyen a las automáticas con el mismo ID.
-4. Se ordenan por prioridad descendente.
-5. Se muestran las primeras tarjetas hasta alcanzar el límite del programa.
-6. Al cambiar de país, la selección se vuelve a calcular.
+Cuando la lectura adaptativa está habilitada:
+
+1. se generan las tarjetas automáticas aplicables;
+2. se eliminan las que estén desactivadas desde datos;
+3. las tarjetas configuradas sustituyen a las automáticas con el mismo ID;
+4. se ordenan por prioridad descendente;
+5. se muestran las primeras tarjetas hasta alcanzar el límite del programa;
+6. al cambiar de país, la selección se vuelve a calcular.
 
 ## Compatibilidad
 
-Los nuevos datos son opcionales. Si no existe ninguna colección de tarjetas, la landing utiliza únicamente las señales calculadas con los datos actuales.
+Los datos son opcionales. Si no existe ninguna colección de tarjetas, la implementación utiliza únicamente las señales calculadas con los datos actuales.
 
-No se modifica `js/app.js` ni los módulos funcionales, de sistemas, arquitectura, roadmap, equipos, impedimentos o decisiones.
+El módulo está aislado de `js/app.js` y de las vistas funcionales, de sistemas, arquitectura, roadmap, equipos, impedimentos y decisiones.
