@@ -701,3 +701,216 @@
     transition: none;
   }
 }
+/* =========================================================
+   MODO DEMOSTRACIÓN
+   ========================================================= */
+
+/*
+ * El modo demo debe ser inequívocamente distinto
+ * del estado real y del estado de error.
+ *
+ * Ámbar:
+ * - no transmite fallo;
+ * - destaca frente al azul corporativo;
+ * - permite identificar rápidamente información sintética.
+ */
+
+.portfolio-programs-section .portfolio-program-card.is-demo {
+  position: relative;
+  overflow: hidden;
+  padding-top: 50px;
+  border: 2px solid #d99b21;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 248, 226, 0.96),
+    rgba(255, 252, 243, 0.98)
+  );
+  box-shadow: 0 12px 30px rgba(160, 105, 0, 0.12);
+}
+
+/*
+ * Banda superior inequívoca.
+ */
+
+.portfolio-programs-section .portfolio-program-card.is-demo::before {
+  content: "MODO DEMO · DATOS SINTÉTICOS";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 14px;
+  background: repeating-linear-gradient(
+    -45deg,
+    #fff1bd,
+    #fff1bd 10px,
+    #ffe8a0 10px,
+    #ffe8a0 20px
+  );
+  border-bottom: 1px solid #d99b21;
+  color: #704600;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/*
+ * Icono del programa.
+ */
+
+.portfolio-programs-section
+  .portfolio-program-card.is-demo
+  .portfolio-program-icon {
+  border: 2px solid #d99b21;
+  background: linear-gradient(135deg, #8c5d00, #d99b21);
+  box-shadow: 0 4px 12px rgba(140, 93, 0, 0.18);
+}
+
+/*
+ * Estado general del programa.
+ */
+
+.portfolio-programs-section .portfolio-program-card.is-demo > .pill {
+  border: 1px solid #e0b34e;
+  background: #fff3ce;
+  color: #704600;
+}
+
+/*
+ * Contenedor de contribución.
+ */
+
+.portfolio-programs-section
+  .portfolio-program-card.is-demo
+  .portfolio-program-contribution {
+  border-color: #e4bc61;
+  background: rgba(255, 248, 224, 0.86);
+}
+
+/*
+ * Cabecera interna del modo demo.
+ */
+
+.portfolio-program-demo-message {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(217, 155, 33, 0.35);
+}
+
+.portfolio-program-demo-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 46px;
+  min-height: 25px;
+  padding: 0 9px;
+  border: 1px solid #c78600;
+  border-radius: 999px;
+  background: #d99b21;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.portfolio-program-demo-message > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.portfolio-program-demo-message strong {
+  color: #704600;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.portfolio-program-demo-message small {
+  color: #896b32;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/*
+ * Métrica principal.
+ */
+
+.portfolio-programs-section
+  .portfolio-program-card.is-demo
+  .portfolio-program-contribution-metric
+  strong {
+  color: #8c5d00;
+}
+
+.portfolio-programs-section
+  .portfolio-program-card.is-demo
+  .portfolio-program-contribution-list
+  b,
+.portfolio-programs-section
+  .portfolio-program-card.is-demo
+  .portfolio-program-contribution-list
+  strong {
+  color: #8c5d00;
+}
+
+/*
+ * Chips.
+ */
+
+.portfolio-programs-section
+  .portfolio-program-card.is-demo
+  .portfolio-program-contribution-stats
+  span {
+  border: 1px solid rgba(217, 155, 33, 0.24);
+  background: #fffdf7;
+}
+
+/*
+ * Filas de ambiciones.
+ */
+
+.portfolio-programs-section
+  .portfolio-program-card.is-demo
+  .portfolio-program-contribution-list
+  > span {
+  border: 1px solid rgba(217, 155, 33, 0.18);
+  background: #fffdf7;
+}
+
+/*
+ * CTA.
+ */
+
+.portfolio-programs-section
+  .portfolio-program-card.is-demo
+  .portfolio-program-action {
+  border-top-color: rgba(217, 155, 33, 0.45);
+  color: #704600;
+}
+
+.portfolio-programs-section
+  .portfolio-program-card.is-demo
+  .portfolio-program-action:hover {
+  background: rgba(217, 155, 33, 0.09);
+}
+
+/*
+ * Un error sigue siendo diferente del modo demo.
+ */
+
+.portfolio-programs-section .portfolio-program-card.has-data-error {
+  border-color: #e4b7b7;
+}
+
+.portfolio-programs-section
+  .portfolio-program-card.has-data-error
+  .portfolio-program-contribution {
+  background: #fff8f8;
+}

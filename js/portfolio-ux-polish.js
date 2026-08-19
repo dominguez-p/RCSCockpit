@@ -282,14 +282,45 @@ function portfolioUxUpdateContribution(programId, content, state = "ready") {
 
   container.dataset.state = state;
   container.innerHTML = content;
-}
 
+  const card = container.closest(".portfolio-program-card");
+
+  if (!card) {
+    return;
+  }
+
+  const isDemo = state === "demo";
+  const isError = state === "error";
+
+  card.classList.toggle("is-demo", isDemo);
+
+  card.classList.toggle("has-data-error", isError);
+
+  const action = card.querySelector(".portfolio-program-action");
+
+  if (action && !action.disabled) {
+    if (isDemo) {
+      action.textContent = "Entrar en modo demo →";
+
+      action.setAttribute(
+        "aria-label",
+        `Entrar en ${programId} ` +
+          "utilizando datos sintéticos " +
+          "de demostración",
+      );
+    } else {
+      action.textContent = "Entrar en el programa →";
+
+      action.setAttribute("aria-label", `Entrar en el programa ${programId}`);
+    }
+  }
+}
 async function portfolioUxLoadProgramContribution(
   program,
   generation,
   forceRefresh,
 ) {
-  const programId = String(program.id || "").trim();
+  const programId = String(program?.id || "").trim();
 
   if (!programId || !portfolioUxProgramEnabled(program.enabled)) {
     return;
@@ -307,11 +338,60 @@ async function portfolioUxLoadProgramContribution(
     portfolioUxUpdateContribution(
       programId,
       portfolioUxRenderContribution(summary),
+      "ready",
     );
   } catch (error) {
-    console.error(`No se pudo calcular la contribución de ${programId}`, error);
+    console.warn(
+      `[RCS Cockpit] No se pudo calcular ` +
+        `la contribución real de ${programId}.`,
+      error,
+    );
 
     if (generation !== portfolioUxContributionGeneration) {
+      return;
+    }
+
+    const demoProgramData =
+      typeof getDemoProgramData === "function"
+        ? getDemoProgramData(programId)
+        : null;
+
+    if (demoProgramData) {
+      const demoSummary = portfolioUxContributionSummary(demoProgramData);
+
+      portfolioUxUpdateContribution(
+        programId,
+        `
+          <div
+            class="
+              portfolio-program-demo-message
+            "
+          >
+            <span
+              class="
+                portfolio-program-demo-badge
+              "
+            >
+              DEMO
+            </span>
+
+            <div>
+              <strong>
+                Datos sintéticos
+              </strong>
+
+              <small>
+                No representan información
+                operativa real
+              </small>
+            </div>
+          </div>
+
+          ${portfolioUxRenderContribution(demoSummary)}
+        `,
+        "demo",
+      );
+
       return;
     }
 
@@ -325,11 +405,15 @@ async function portfolioUxLoadProgramContribution(
           "
         >
           <strong>
-            Contribución no disponible
+            Contribución temporalmente
+            no disponible
           </strong>
 
           <span>
-            No se pudo leer el origen de datos de este programa.
+            El origen del programa no
+            ha respondido.
+            Los datos reales no se
+            sustituyen por ceros.
           </span>
         </div>
       `,
@@ -341,9 +425,50 @@ async function portfolioUxLoadProgramContribution(
 function portfolioUxRefreshContributions(programs, forceRefresh = false) {
   const generation = ++portfolioUxContributionGeneration;
 
-  (Array.isArray(programs) ? programs : []).forEach((program) => {
-    portfolioUxLoadProgramContribution(program, generation, forceRefresh);
+  const queue = (Array.isArray(programs) ? programs : []).filter((program) => {
+    const programId = String(program?.id || "").trim();
+
+    return programId && portfolioUxProgramEnabled(program.enabled);
   });
+
+  /*
+   * Evitamos lanzar todos los Apps Script simultáneamente.
+   *
+   * Dos workers permiten mantener una carga razonablemente
+   * rápida sin provocar una ráfaga de peticiones contra
+   * diferentes Web Apps.
+   */
+  const concurrency = Math.min(2, queue.length);
+
+  let nextIndex = 0;
+
+  async function runWorker() {
+    while (true) {
+      if (generation !== portfolioUxContributionGeneration) {
+        return;
+      }
+
+      const index = nextIndex;
+
+      nextIndex += 1;
+
+      if (index >= queue.length) {
+        return;
+      }
+
+      const program = queue[index];
+
+      await portfolioUxLoadProgramContribution(
+        program,
+        generation,
+        forceRefresh,
+      );
+    }
+  }
+
+  for (let workerIndex = 0; workerIndex < concurrency; workerIndex += 1) {
+    void runWorker();
+  }
 }
 
 renderPortfolioProgramCard = function renderProgramCardWithContribution(
