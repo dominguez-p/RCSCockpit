@@ -303,7 +303,68 @@ function contextToolbarRenderPeriod(programId) {
     </div>
   `;
 }
+function contextToolbarShouldShowScope(context) {
+  if (!context?.programId) {
+    return false;
+  }
 
+  const capabilityScopedRoutes = new Set([
+    "roadmap",
+    "roadmap-detail",
+    "roadmap-activity",
+    "roadmap-workspace-detail",
+    "roadmap-workspace-activity",
+  ]);
+
+  if (!capabilityScopedRoutes.has(context.routeName)) {
+    return true;
+  }
+
+  /*
+   * Para las rutas de roadmap utilizamos el parser
+   * del workspace, que conoce el nuevo contexto:
+   *
+   * programa
+   * producto
+   * periodo
+   * ambición
+   * capacidad
+   * país
+   */
+  if (typeof roadmapWorkspaceParseRoute === "function") {
+    const roadmapContext = roadmapWorkspaceParseRoute();
+
+    const capabilityId = String(roadmapContext?.capabilityId || "")
+      .trim()
+      .toUpperCase();
+
+    if (capabilityId && capabilityId !== "ALL") {
+      return false;
+    }
+  }
+
+  /*
+   * En detalle y actividad parte del contexto puede
+   * vivir ya en el estado del workspace.
+   *
+   * Esto evita que el selector vuelva a aparecer
+   * al bajar desde una capacidad a un elemento
+   * o a una actividad.
+   */
+  if (typeof roadmapWorkspaceState === "function") {
+    const state = roadmapWorkspaceState(context.programId);
+
+    const capabilityId = String(state?.capabilityId || "")
+      .trim()
+      .toUpperCase();
+
+    if (capabilityId && capabilityId !== "ALL") {
+      return false;
+    }
+  }
+
+  return true;
+}
 function renderGlobalContextFilters() {
   const container = document.querySelector("#globalContextFilters");
 
@@ -317,12 +378,6 @@ function renderGlobalContextFilters() {
     Boolean(context.programId) &&
     CONTEXT_TOOLBAR_PROGRAM_ROUTES.has(context.routeName);
 
-  /*
-   * Periodo solo se muestra en la pantalla principal de Roadmap.
-   * En los detalles se conserva el periodo en la URL, pero no se modifica.
-   */
-  const showPeriod = context.routeName === "roadmap";
-
   if (!hasProgramContext) {
     container.hidden = true;
     container.innerHTML = "";
@@ -330,11 +385,59 @@ function renderGlobalContextFilters() {
     return;
   }
 
-  const scopeMarkup = contextToolbarRenderScope();
+  /*
+   * El selector geográfico sólo se muestra
+   * cuando la geografía sigue siendo una
+   * dimensión navegable.
+   *
+   * En un roadmap de capacidad concreta:
+   *
+   * producto + capacidad + país
+   *
+   * forman un contexto cerrado.
+   */
+  const showScope = contextToolbarShouldShowScope(context);
+
+  /*
+   * El periodo sólo se ofrece en el roadmap
+   * general de producto.
+   *
+   * Si showScope === false significa que
+   * estamos dentro de una capacidad concreta.
+   * En ese caso tampoco mostramos:
+   *
+   * Año / Q1 / Q2 / Q3 / Q4
+   *
+   * La capacidad se consulta como un ámbito
+   * completo mediante:
+   *
+   * Resumen / Cronograma / Backlog.
+   */
+  const showPeriod = context.routeName === "roadmap" && showScope;
+
+  const scopeMarkup = showScope ? contextToolbarRenderScope() : "";
 
   const periodMarkup = showPeriod
     ? contextToolbarRenderPeriod(context.programId)
     : "";
+
+  /*
+   * Si el contexto actual no admite
+   * ni navegación geográfica ni temporal,
+   * ocultamos completamente el toolbar.
+   *
+   * Esto ocurre, por ejemplo, en:
+   *
+   * Sales Assistant · España
+   * Knowledge Assistant · España
+   * Marko · México
+   */
+  if (!scopeMarkup && !periodMarkup) {
+    container.hidden = true;
+    container.innerHTML = "";
+
+    return;
+  }
 
   container.innerHTML = `
     ${scopeMarkup}

@@ -106,14 +106,23 @@
         }
       });
 
+    const routeName = parts[0] || "landing";
+
     return {
-      routeName: parts[0] || "landing",
+      routeName,
 
       programId: parts[1] || "",
 
       productId: parts[2] || "",
 
-      capabilityId: parts[3] || "",
+      capabilityId: routeName === "capability" ? parts[3] || "" : "",
+
+      countryId:
+        routeName === "product"
+          ? parts[3] || ""
+          : routeName === "capability"
+            ? parts[4] || ""
+            : "",
     };
   }
 
@@ -196,7 +205,389 @@
 
     return pxCapabilities(productId).find((capability) => capability.id === id);
   }
+  function pxFeatureCountryIds(feature) {
+    const raw = feature?.country ?? feature?.countries ?? "";
 
+    return [
+      ...new Set(
+        String(raw || "")
+          .split(/[|,;\n]+/)
+          .map((value) =>
+            String(value || "")
+              .trim()
+              .toUpperCase(),
+          )
+          .filter(
+            (value) => value && value !== HOLDING_COUNTRY_ID && value !== "ALL",
+          ),
+      ),
+    ];
+  }
+
+  function pxCountryDefinition(countryId) {
+    const normalized = String(countryId || "")
+      .trim()
+      .toUpperCase();
+
+    return pxCountries().find(
+      (country) =>
+        String(country.id || "")
+          .trim()
+          .toUpperCase() === normalized,
+    );
+  }
+
+  function pxCountryBadge(countryId) {
+    const country = pxCountryDefinition(countryId);
+
+    const label = country?.label || countryId;
+
+    const flagSrc = String(country?.flagSrc || "").trim();
+
+    return `
+    <span
+      class="
+        product-experience-country-badge
+      "
+      title="${pxEsc(label)}"
+    >
+      ${
+        flagSrc
+          ? `
+            <img
+              src="${pxEsc(flagSrc)}"
+              alt=""
+              aria-hidden="true"
+            />
+          `
+          : ""
+      }
+
+      <span>
+        ${pxEsc(countryId)}
+      </span>
+    </span>
+  `;
+  }
+
+  function pxDeliverableGeography(deliverable) {
+    const countryIds = pxFeatureCountryIds(deliverable);
+
+    if (!countryIds.length) {
+      return `
+      <span
+        class="
+          product-experience-country-unassigned
+        "
+      >
+        Sin geografía
+      </span>
+    `;
+    }
+
+    return `
+    <div
+      class="
+        product-experience-deliverable-countries
+      "
+      aria-label="
+        Geografías del caso funcional
+      "
+    >
+      ${countryIds.map(pxCountryBadge).join("")}
+    </div>
+  `;
+  }
+  function pxCapabilityCountryIds(capability) {
+    const deliverables = Array.isArray(capability?.deliverables)
+      ? capability.deliverables
+      : [];
+
+    const result = new Set();
+
+    deliverables.forEach((deliverable) => {
+      pxFeatureCountryIds(deliverable).forEach((countryId) => {
+        result.add(
+          String(countryId || "")
+            .trim()
+            .toUpperCase(),
+        );
+      });
+    });
+
+    const countryOrder = pxCountries().map((country) =>
+      String(country.id || "")
+        .trim()
+        .toUpperCase(),
+    );
+
+    return [...result].sort((left, right) => {
+      const leftIndex = countryOrder.indexOf(left);
+
+      const rightIndex = countryOrder.indexOf(right);
+
+      if (leftIndex === -1 && rightIndex === -1) {
+        return left.localeCompare(right);
+      }
+
+      if (leftIndex === -1) {
+        return 1;
+      }
+
+      if (rightIndex === -1) {
+        return -1;
+      }
+
+      return leftIndex - rightIndex;
+    });
+  }
+
+  function pxGlobalCapabilityCard(capability, productId) {
+    const countryIds = pxCapabilityCountryIds(capability);
+
+    const countriesMarkup = countryIds.length
+      ? countryIds.map(pxCountryBadge).join("")
+      : `
+          <span
+            class="
+              product-experience-country-unassigned
+            "
+          >
+            Sin geografía
+          </span>
+        `;
+
+    return `
+    <article
+      class="
+        product-experience-capability-card
+      "
+      data-route="${pxEsc(pxCapabilityRoute(productId, capability.id))}"
+      tabindex="0"
+      role="link"
+    >
+      <div
+        class="
+          product-experience-capability-topline
+        "
+      >
+        <span>
+          ${pxEsc(pxTypeLabel(capability.type))}
+        </span>
+
+        <small>
+          ${capability.deliverables.length}
+          ${
+            capability.deliverables.length === 1
+              ? "caso funcional"
+              : "casos funcionales"
+          }
+        </small>
+      </div>
+
+      <div
+        class="
+          product-experience-capability-availability
+        "
+      >
+        <span>
+          Disponible en
+        </span>
+
+        <div
+          class="
+            product-experience-deliverable-countries
+          "
+        >
+          ${countriesMarkup}
+        </div>
+      </div>
+
+      <h3>
+        ${pxEsc(capability.name)}
+      </h3>
+
+      <p>
+        ${pxEsc(
+          capability.overview ||
+            capability.deliverables[0]?.overview ||
+            "Descripción no informada.",
+        )}
+      </p>
+
+      <strong>
+        Explorar capacidad →
+      </strong>
+    </article>
+  `;
+  }
+  function pxDeliverableWithGeography(
+    deliverable,
+    index,
+    showGeography = false,
+  ) {
+    return pxDeliverable(deliverable, index, {
+      showGeography,
+    });
+  }
+
+  function pxCapabilityRoute(productId, capabilityId, countryId = "") {
+    const product = pxNormalizeId(productId);
+
+    const capability = pxNormalizeId(capabilityId);
+
+    const country = pxValidCountryId(countryId);
+
+    const parts = ["capability", PROGRAM_ID, product, capability];
+
+    if (country && country !== HOLDING_COUNTRY_ID) {
+      parts.push(country);
+    }
+
+    return parts.join("/");
+  }
+
+  function pxCapabilityDeliverables(capability, countryId = "") {
+    const all = Array.isArray(capability?.deliverables)
+      ? capability.deliverables
+      : [];
+
+    const country = pxValidCountryId(countryId);
+
+    if (!country || country === HOLDING_COUNTRY_ID) {
+      /*
+       * Holding:
+       * agregado completo.
+       *
+       * Los casos todavía sin
+       * geografía siguen visibles
+       * como control de calidad.
+       */
+      return all;
+    }
+
+    return all.filter((deliverable) =>
+      pxFeatureCountryIds(deliverable).includes(country),
+    );
+  }
+
+  function pxCapabilityExecutionSection(productId, capability, countryId) {
+    const stats = pxCapabilityLocalStats(productId, capability.id, countryId);
+
+    if (!stats.itemCount) {
+      return "";
+    }
+
+    const views = [
+      {
+        id: "summary",
+
+        title: "Resumen",
+
+        description: "Carriles funcional y técnico " + "de la capacidad.",
+      },
+
+      {
+        id: "timeline",
+
+        title: "Cronograma",
+
+        description: "Planificación temporal " + "de la capacidad.",
+      },
+
+      {
+        id: "backlog",
+
+        title: "Backlog",
+
+        description: "Elementos todavía " + "sin planificación.",
+      },
+    ];
+
+    return `
+    <section
+      class="
+        product-experience-section
+      "
+    >
+      <header
+        class="
+          product-experience-section-header
+        "
+      >
+        <div>
+          <span
+            class="
+              product-experience-eyebrow
+            "
+          >
+            Ejecución
+          </span>
+
+          <h2>
+            Seguimiento de
+            ${pxEsc(capability.name)}
+          </h2>
+        </div>
+
+        <p>
+          ${stats.itemCount}
+          ${stats.itemCount === 1 ? "elemento" : "elementos"}
+          de roadmap asociados
+          a esta capacidad.
+        </p>
+      </header>
+
+      <div
+        class="
+          product-experience-roadmap-grid
+        "
+      >
+        ${views
+          .map(
+            (item) => `
+              <article
+                class="
+                  product-experience-roadmap-card
+                "
+                data-route="${pxEsc(
+                  pxCapabilityRoadmapRoute(
+                    productId,
+                    capability.id,
+                    countryId,
+                    item.id,
+                  ),
+                )}"
+                tabindex="0"
+                role="link"
+              >
+                <span
+                  class="
+                    product-experience-eyebrow
+                  "
+                >
+                  Roadmap
+                </span>
+
+                <h3>
+                  ${pxEsc(item.title)}
+                </h3>
+
+                <p>
+                  ${pxEsc(item.description)}
+                </p>
+
+                <strong>
+                  Abrir ${pxEsc(item.title.toLowerCase())} →
+                </strong>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+  }
   function pxExternalLink(value, label) {
     const url = pxSafeUrl(value);
 
@@ -456,7 +847,603 @@
 
     return Math.max(0, Math.min(100, value));
   }
+  function pxCapabilityScopeId(value) {
+    const raw = String(value || "").trim();
 
+    if (!raw || raw.toUpperCase() === "ALL") {
+      return "ALL";
+    }
+
+    return pxNormalizeId(raw);
+  }
+
+  function pxValidCountryId(value) {
+    const raw = String(value || "")
+      .trim()
+      .toUpperCase();
+
+    if (!raw) {
+      return "";
+    }
+
+    const validCountries = new Set([
+      HOLDING_COUNTRY_ID,
+      ...pxCountries().map((country) =>
+        String(country.id || "")
+          .trim()
+          .toUpperCase(),
+      ),
+    ]);
+
+    return validCountries.has(raw) ? raw : "";
+  }
+
+  function pxRoadmapCapabilityIds(item) {
+    const source = item?.source || {};
+
+    const value =
+      item?.capabilityIds ??
+      item?.capabilityId ??
+      source?.capabilityIds ??
+      source?.capabilityId ??
+      source?.capability_ids ??
+      source?.capability_id ??
+      "";
+
+    if (Array.isArray(value)) {
+      return [
+        ...new Set(
+          value.map(pxCapabilityScopeId).filter((id) => id && id !== "ALL"),
+        ),
+      ];
+    }
+
+    return [
+      ...new Set(
+        String(value || "")
+          .split(/[|,;\n]+/)
+          .map(pxCapabilityScopeId)
+          .filter((id) => id && id !== "ALL"),
+      ),
+    ];
+  }
+
+  function pxFilterRoadmapItemsByCapability(items, state) {
+    const capabilityId = pxCapabilityScopeId(state?.capabilityId);
+
+    if (capabilityId === "ALL") {
+      return Array.isArray(items) ? items : [];
+    }
+
+    return (Array.isArray(items) ? items : []).filter((item) =>
+      pxRoadmapCapabilityIds(item).includes(capabilityId),
+    );
+  }
+
+  function pxLocalProductRoute(productId, countryId) {
+    return [
+      "product",
+      PROGRAM_ID,
+      pxNormalizeId(productId),
+      pxValidCountryId(countryId),
+    ].join("/");
+  }
+
+  function pxLocalProductRoadmapItems(productId, countryId) {
+    const normalizedProductId = pxNormalizeId(productId);
+
+    const normalizedCountryId = pxValidCountryId(countryId);
+
+    return pxProductRoadmapItems(normalizedProductId).filter(
+      (item) =>
+        String(item?.country || "")
+          .trim()
+          .toUpperCase() === normalizedCountryId,
+    );
+  }
+
+  function pxCapabilityLocalStats(productId, capabilityId, countryId) {
+    const normalizedCapabilityId = pxCapabilityScopeId(capabilityId);
+
+    const items = pxLocalProductRoadmapItems(productId, countryId).filter(
+      (item) => pxRoadmapCapabilityIds(item).includes(normalizedCapabilityId),
+    );
+
+    const riskCount = items.filter(pxRoadmapIsRisk).length;
+
+    const averageProgress = items.length
+      ? Math.round(
+          items.reduce((total, item) => total + pxRoadmapProgress(item), 0) /
+            items.length,
+        )
+      : 0;
+
+    return {
+      itemCount: items.length,
+
+      riskCount,
+
+      averageProgress,
+
+      items,
+    };
+  }
+
+  function pxCapabilityRoadmapRoute(
+    productId,
+    capabilityId,
+    countryId,
+    viewName = "summary",
+  ) {
+    const product = pxNormalizeId(productId);
+
+    const capability = pxCapabilityScopeId(capabilityId);
+
+    const country = pxValidCountryId(countryId);
+
+    const ambition =
+      typeof ROADMAP_AMBITION_ALL !== "undefined"
+        ? ROADMAP_AMBITION_ALL
+        : "ALL";
+
+    if (typeof roadmapWorkspaceRoute === "function") {
+      return roadmapWorkspaceRoute(
+        PROGRAM_ID,
+        viewName,
+        product,
+        "ALL",
+        ambition,
+        capability,
+        country,
+      );
+    }
+
+    return [
+      "roadmap",
+      PROGRAM_ID,
+      viewName,
+      product,
+      "ALL",
+      ambition,
+      capability,
+      country,
+    ].join("/");
+  }
+
+  function pxLocalCapabilityCard(capability, productId, countryId) {
+    const stats = pxCapabilityLocalStats(productId, capability.id, countryId);
+
+    const hasExecution = stats.itemCount > 0;
+
+    const routeValue = hasExecution
+      ? pxCapabilityRoute(productId, capability.id, countryId)
+      : "";
+
+    return `
+    <article
+      class="
+        product-experience-capability-card
+        ${hasExecution ? "" : "is-pending is-disabled"}
+      "
+      ${
+        hasExecution
+          ? `
+            data-route="${pxEsc(routeValue)}"
+            tabindex="0"
+            role="link"
+          `
+          : `
+            aria-disabled="true"
+          `
+      }
+    >
+      <div
+        class="
+          product-experience-capability-topline
+        "
+      >
+        <span>
+          ${pxEsc(pxTypeLabel(capability.type))}
+        </span>
+
+        <small>
+          ${
+            hasExecution
+              ? `
+                ${stats.itemCount}
+                ${stats.itemCount === 1 ? "elemento" : "elementos"}
+                de roadmap
+              `
+              : "Sin ejecución"
+          }
+        </small>
+      </div>
+
+      <h3>
+        ${pxEsc(capability.name)}
+      </h3>
+
+      <p>
+        ${pxEsc(
+          capability.overview ||
+            capability.deliverables[0]?.overview ||
+            "Descripción no informada.",
+        )}
+      </p>
+
+      <p>
+        ${
+          hasExecution
+            ? `
+              ${stats.averageProgress}%
+              avance medio ·
+              ${stats.riskCount}
+              en riesgo
+            `
+            : `
+              Esta capacidad forma
+              parte del producto global,
+              pero no tiene ejecución
+              informada en esta geografía.
+            `
+        }
+      </p>
+
+      <strong>
+        ${hasExecution ? "Explorar capacidad →" : "Sin ejecución informada"}
+      </strong>
+    </article>
+  `;
+  }
+
+  function pxRenderLocalProduct(productId, countryId) {
+    const normalizedCountryId = pxValidCountryId(countryId);
+
+    const product = pxFindProduct(productId);
+
+    if (
+      !product ||
+      !normalizedCountryId ||
+      normalizedCountryId === HOLDING_COUNTRY_ID
+    ) {
+      pxNotFound(
+        "Producto local no disponible",
+        "No existe una ficha local válida para este producto y geografía.",
+        `program/${PROGRAM_ID}`,
+      );
+
+      return;
+    }
+
+    selectedCountry = normalizedCountryId;
+
+    const country = pxCountries().find(
+      (candidate) =>
+        String(candidate.id || "")
+          .trim()
+          .toUpperCase() === normalizedCountryId,
+    );
+
+    const countryLabel = country?.label || normalizedCountryId;
+
+    const capabilities = pxCapabilities(productId);
+
+    const roadmapItems = pxLocalProductRoadmapItems(
+      productId,
+      normalizedCountryId,
+    );
+
+    const linkedItems = roadmapItems.filter(
+      (item) => pxRoadmapCapabilityIds(item).length > 0,
+    );
+
+    const unassignedItems = roadmapItems.length - linkedItems.length;
+
+    const riskCount = roadmapItems.filter(pxRoadmapIsRisk).length;
+
+    const averageProgress = roadmapItems.length
+      ? Math.round(
+          roadmapItems.reduce(
+            (total, item) => total + pxRoadmapProgress(item),
+            0,
+          ) / roadmapItems.length,
+        )
+      : 0;
+
+    const timelineState = {
+      view: "timeline",
+
+      productId: pxNormalizeId(productId),
+
+      quarter: "ALL",
+
+      summaryMetric: "functional:all",
+
+      ambitionId:
+        typeof ROADMAP_AMBITION_ALL !== "undefined"
+          ? ROADMAP_AMBITION_ALL
+          : "ALL",
+
+      capabilityId: "ALL",
+
+      countryId: normalizedCountryId,
+    };
+
+    const timeline =
+      roadmapItems.length &&
+      typeof roadmapWorkspaceRenderTimeline === "function"
+        ? roadmapWorkspaceRenderTimeline(
+            PROGRAM_ID,
+            roadmapItems,
+            timelineState,
+          )
+        : `
+        <p
+          class="
+            product-experience-empty-copy
+          "
+        >
+          No hay elementos
+          de roadmap informados
+          para este producto
+          en ${pxEsc(countryLabel)}.
+        </p>
+      `;
+
+    const fullRoadmapRoute = pxCapabilityRoadmapRoute(
+      productId,
+      "ALL",
+      normalizedCountryId,
+      "timeline",
+    );
+
+    setHead(
+      `${product.productName} · ${countryLabel}`,
+      product.tagline || `Visión local de ${product.productName}`,
+      [
+        "Retail Client Solutions",
+        "AIxBanker",
+        countryLabel,
+        product.productName,
+      ].join(" > "),
+    );
+
+    view.innerHTML = `
+    <section
+      class="
+        product-experience
+        product-experience-product-view
+      "
+      data-product-experience-view="local-product"
+      data-product-experience-product="${pxEsc(productId)}"
+      data-product-experience-country="${pxEsc(normalizedCountryId)}"
+    >
+      <button
+        class="
+          ghost-button
+          navigation-back-button
+          product-experience-back
+        "
+        type="button"
+        data-route="program/${PROGRAM_ID}"
+        aria-label="Volver"
+      >
+        ← Volver
+      </button>
+
+      <section
+        class="
+          product-experience-overview-panel
+        "
+      >
+        <div
+          class="
+            product-experience-overview-copy
+          "
+        >
+          <span
+            class="
+              product-experience-eyebrow
+            "
+          >
+            Qué es
+          </span>
+
+          <h2>
+            Visión del producto
+          </h2>
+
+          <p>
+            ${pxEsc(
+              product.overview || "Descripción de producto no informada.",
+            )}
+          </p>
+        </div>
+
+        <aside
+          class="
+            product-experience-product-summary
+          "
+        >
+          <article>
+            <span>
+              País
+            </span>
+
+            <strong>
+              ${pxEsc(countryLabel)}
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Capacidades
+            </span>
+
+            <strong>
+              ${capabilities.length}
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Elementos roadmap
+            </span>
+
+            <strong>
+              ${roadmapItems.length}
+            </strong>
+          </article>
+        </aside>
+      </section>
+
+      <section
+        class="
+          product-experience-value-panel
+        "
+      >
+        <div>
+          <span
+            class="
+              product-experience-eyebrow
+            "
+          >
+            Propuesta de valor
+          </span>
+
+          <h3>
+            Qué aporta
+          </h3>
+        </div>
+
+        <p>
+          ${pxEsc(
+            product.valueProposition || "Propuesta de valor no informada.",
+          )}
+        </p>
+      </section>
+
+      <section
+        class="
+          product-experience-section
+        "
+      >
+        <header
+          class="
+            product-experience-section-header
+          "
+        >
+          <div>
+            <span
+              class="
+                product-experience-eyebrow
+              "
+            >
+              Capacidades
+            </span>
+
+            <h2>
+              Qué contiene
+              ${pxEsc(product.productName)}
+              en
+              ${pxEsc(countryLabel)}
+            </h2>
+          </div>
+
+          <p>
+            Definición global del
+            producto y situación
+            de ejecución de cada
+            capacidad en
+            ${pxEsc(countryLabel)}.
+          </p>
+        </header>
+
+        <div
+          class="
+            product-experience-capability-grid
+          "
+        >
+          ${
+            capabilities.length
+              ? capabilities
+                  .map((capability) =>
+                    pxLocalCapabilityCard(
+                      capability,
+                      productId,
+                      normalizedCountryId,
+                    ),
+                  )
+                  .join("")
+              : `
+                  <p
+                    class="
+                      product-experience-empty-copy
+                    "
+                  >
+                    No hay capacidades
+                    informadas para este
+                    producto.
+                  </p>
+                `
+          }
+        </div>
+      </section>
+
+      <section
+        class="
+          product-experience-section
+        "
+      >
+        <header
+          class="
+            product-experience-section-header
+          "
+        >
+          <div>
+            <span
+              class="
+                product-experience-eyebrow
+              "
+            >
+              Roadmap del producto
+            </span>
+
+            <h2>
+              Cronograma de
+              ${pxEsc(product.productName)}
+            </h2>
+          </div>
+
+          <p>
+            ${roadmapItems.length}
+            elementos ·
+            ${linkedItems.length}
+            vinculados a capacidades ·
+            ${unassignedItems}
+            sin capacidad asignada ·
+            ${averageProgress}%
+            avance medio ·
+            ${riskCount}
+            en riesgo.
+          </p>
+        </header>
+
+        ${timeline}
+
+        <button
+          class="
+            ghost-button
+          "
+          type="button"
+          data-route="${pxEsc(fullRoadmapRoute)}"
+        >
+          Abrir roadmap completo →
+        </button>
+      </section>
+    </section>
+  `;
+  }
   function pxProductRoadmapItems(productId) {
     const normalizedProductId = pxNormalizeId(productId);
 
@@ -530,105 +1517,78 @@
   function pxCountryCard(country, productId) {
     const hasRoadmap = country.itemCount > 0;
 
-    if (!hasRoadmap) {
-      return `
-        <article
-          class="
-            product-experience-program-card
-            is-pending
-          "
-        >
-          <div
-            class="
-              product-experience-program-card-topline
-            "
-          >
-            <span>
-              País
-            </span>
-
-            <small>
-              ${pxEsc(country.id)}
-            </small>
-          </div>
-
-          <div>
-            <h3>
-              ${pxEsc(country.label)}
-            </h3>
-
-            <p>
-              Sin elementos de
-              roadmap informados
-              para este producto.
-            </p>
-          </div>
-
-          <footer>
-            <span>
-              0 elementos
-            </span>
-
-            <strong>
-              Sin despliegue
-              informado
-            </strong>
-          </footer>
-        </article>
-      `;
-    }
+    const routeValue = pxLocalProductRoute(productId, country.id);
 
     return `
-      <article
+    <article
+      class="
+        product-experience-program-card
+        ${hasRoadmap ? "" : "is-pending"}
+      "
+      data-route="${pxEsc(routeValue)}"
+      tabindex="0"
+      role="link"
+    >
+      <div
         class="
-          product-experience-program-card
+          product-experience-program-card-topline
         "
-        data-product-country="${pxEsc(country.id)}"
-        data-product-id="${pxEsc(productId)}"
-        tabindex="0"
-        role="link"
       >
-        <div
-          class="
-            product-experience-program-card-topline
-          "
-        >
-          <span>
-            País
-          </span>
+        <span>
+          País
+        </span>
 
-          <small>
-            ${pxEsc(country.id)}
-          </small>
-        </div>
+        <small>
+          ${pxEsc(country.id)}
+        </small>
+      </div>
 
-        <div>
-          <h3>
-            ${pxEsc(country.label)}
-          </h3>
+      <div>
+        <h3>
+          ${pxEsc(country.label)}
+        </h3>
 
-          <p>
-            ${country.itemCount}
-            ${country.itemCount === 1 ? "elemento" : "elementos"}
-            de roadmap para este
-            producto.
-          </p>
-        </div>
+        <p>
+          ${
+            hasRoadmap
+              ? `
+                ${country.itemCount}
+                ${country.itemCount === 1 ? "elemento" : "elementos"}
+                de roadmap para
+                este producto.
+              `
+              : `
+                Sin elementos de
+                roadmap informados
+                para este producto.
+              `
+          }
+        </p>
+      </div>
 
-        <footer>
-          <span>
-            ${country.averageProgress}%
-            avance medio ·
-            ${country.riskCount}
-            en riesgo
-          </span>
+      <footer>
+        <span>
+          ${
+            hasRoadmap
+              ? `
+                ${country.averageProgress}%
+                avance medio ·
+                ${country.riskCount}
+                en riesgo
+              `
+              : `
+                Sin ejecución
+                informada
+              `
+          }
+        </span>
 
-          <strong>
-            Abrir roadmap →
-          </strong>
-        </footer>
-      </article>
-    `;
+        <strong>
+          Abrir producto →
+        </strong>
+      </footer>
+    </article>
+  `;
   }
 
   function pxCountrySection(product) {
@@ -864,7 +1824,7 @@
 
     const hasExecution = stats.roadmapCount > 0;
 
-    const routeValue = hasExecution ? pxCountryRoadmapRoute(productId) : "";
+    const routeValue = pxLocalProductRoute(productId, countryId);
 
     return `
     <article
@@ -872,7 +1832,9 @@
         product-experience-program-card
         ${hasExecution ? "" : "is-pending"}
       "
-      ${hasExecution ? `data-route="${pxEsc(routeValue)}"` : ""}
+      data-route="${pxEsc(routeValue)}"
+      tabindex="0"
+      role="link"
     >
       <div
         class="
@@ -922,15 +1884,23 @@
           ${stats.systemsCount}
           ${stats.systemsCount === 1 ? "elemento" : "elementos"}
           de sistema
+
           ${
-            stats.roadmapCount
-              ? ` · ${stats.averageProgress}% avance · ${stats.riskCount} en riesgo`
+            hasExecution
+              ? `
+                ·
+                ${stats.averageProgress}%
+                avance
+                ·
+                ${stats.riskCount}
+                en riesgo
+              `
               : ""
           }
         </span>
 
         <strong>
-          ${hasExecution ? "Abrir roadmap →" : "Sin ejecución informada"}
+          Explorar producto →
         </strong>
       </footer>
     </article>
@@ -1129,100 +2099,131 @@
     setHead(
       `${product.productName} · Producto`,
       product.tagline || "Visión global de producto",
-      `Retail Client Solutions > AIxBanker > ${product.productName}`,
+      ["Retail Client Solutions", "AIxBanker", product.productName].join(" > "),
     );
 
     view.innerHTML = `
+    <section
+      class="
+        product-experience
+        product-experience-product-view
+      "
+      data-product-experience-view="product"
+      data-product-experience-product="${pxEsc(productId)}"
+    >
+      <button
+        class="
+          ghost-button
+          navigation-back-button
+          product-experience-back
+        "
+        type="button"
+        data-route="program/${PROGRAM_ID}"
+        aria-label="Volver"
+      >
+        ← Volver
+      </button>
+
       <section
         class="
-          product-experience
-          product-experience-product-view
+          product-experience-overview-panel
         "
-        data-product-experience-view="product"
-        data-product-experience-product="${pxEsc(productId)}"
       >
-        <button
+        <div
           class="
-            ghost-button
-            navigation-back-button
-            product-experience-back
-          "
-          type="button"
-          data-route="program/${PROGRAM_ID}"
-          aria-label="Volver"
-        >
-          ← Volver
-        </button>
-
-        <section
-          class="
-            product-experience-overview-panel
+            product-experience-overview-copy
           "
         >
-          <div
+          <span
             class="
-              product-experience-overview-copy
+              product-experience-eyebrow
             "
           >
-            <span
-              class="
-                product-experience-eyebrow
-              "
-            >
-              Qué es
+            Qué es
+          </span>
+
+          <h2>
+            Visión del producto
+          </h2>
+
+          <p>
+            ${pxEsc(
+              product.overview || "Descripción de producto no informada.",
+            )}
+          </p>
+        </div>
+
+        <aside
+          class="
+            product-experience-product-summary
+          "
+        >
+          <article>
+            <span>
+              Usuarios
             </span>
 
-            <h2>
-              Visión del producto
-            </h2>
+            <strong>
+              ${pxEsc(product.targetUsers || "No informado")}
+            </strong>
+          </article>
 
-            <p>
-              ${pxEsc(
-                product.overview || "Descripción de producto no informada.",
-              )}
-            </p>
-          </div>
+          <article>
+            <span>
+              Capacidades
+            </span>
 
-          <aside
+            <strong>
+              ${capabilities.length}
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Casos funcionales
+            </span>
+
+            <strong>
+              ${deliverableCount}
+            </strong>
+          </article>
+        </aside>
+      </section>
+
+      <section
+        class="
+          product-experience-value-panel
+        "
+      >
+        <div>
+          <span
             class="
-              product-experience-product-summary
+              product-experience-eyebrow
             "
           >
-            <article>
-              <span>
-                Usuarios
-              </span>
+            Propuesta de valor
+          </span>
 
-              <strong>
-                ${pxEsc(product.targetUsers || "No informado")}
-              </strong>
-            </article>
+          <h3>
+            Qué aporta
+          </h3>
+        </div>
 
-            <article>
-              <span>
-                Capacidades
-              </span>
+        <p>
+          ${pxEsc(
+            product.valueProposition || "Propuesta de valor no informada.",
+          )}
+        </p>
+      </section>
 
-              <strong>
-                ${capabilities.length}
-              </strong>
-            </article>
-
-            <article>
-              <span>
-                Casos funcionales
-              </span>
-
-              <strong>
-                ${deliverableCount}
-              </strong>
-            </article>
-          </aside>
-        </section>
-
-        <section
+      <section
+        class="
+          product-experience-section
+        "
+      >
+        <header
           class="
-            product-experience-value-panel
+            product-experience-section-header
           "
         >
           <div>
@@ -1231,128 +2232,54 @@
                 product-experience-eyebrow
               "
             >
-              Propuesta de valor
+              Capacidades
             </span>
 
-            <h3>
-              Qué aporta
-            </h3>
+            <h2>
+              Qué contiene
+              ${pxEsc(product.productName)}
+            </h2>
           </div>
 
           <p>
-            ${pxEsc(
-              product.valueProposition || "Propuesta de valor no informada.",
-            )}
+            Agentes, subproductos y
+            capacidades que forman parte
+            de la experiencia global,
+            junto con las geografías
+            donde están disponibles.
           </p>
-        </section>
+        </header>
 
-        <section
+        <div
           class="
-            product-experience-section
+            product-experience-capability-grid
           "
         >
-          <header
-            class="
-              product-experience-section-header
-            "
-          >
-            <div>
-              <span
-                class="
-                  product-experience-eyebrow
-                "
-              >
-                Capacidades
-              </span>
-
-              <h2>
-                Qué contiene
-                ${pxEsc(product.productName)}
-              </h2>
-            </div>
-
-            <p>
-              Agentes, subproductos y
-              capacidades que forman
-              parte de la experiencia
-              global del producto.
-            </p>
-          </header>
-
-          <div
-            class="
-              product-experience-capability-grid
-            "
-          >
-            ${
-              capabilities.length
-                ? capabilities
-                    .map(
-                      (capability) => `
-                        <article
-                          class="
-                            product-experience-capability-card
-                          "
-                          data-route="capability/${PROGRAM_ID}/${pxEsc(
-                            productId,
-                          )}/${pxEsc(capability.id)}"
-                        >
-                          <div
-                            class="
-                              product-experience-capability-topline
-                            "
-                          >
-                            <span>
-                              ${pxEsc(pxTypeLabel(capability.type))}
-                            </span>
-
-                            <small>
-                              ${capability.deliverables.length}
-                              ${
-                                capability.deliverables.length === 1
-                                  ? "caso funcional"
-                                  : "casos funcionales"
-                              }
-                            </small>
-                          </div>
-
-                          <h3>
-                            ${pxEsc(capability.name)}
-                          </h3>
-
-                          <p>
-                            ${pxEsc(
-                              capability.overview ||
-                                capability.deliverables[0]?.overview ||
-                                "Descripción no informada.",
-                            )}
-                          </p>
-
-                          <strong>
-                            Explorar capacidad →
-                          </strong>
-                        </article>
-                      `,
-                    )
-                    .join("")
-                : `
-                    <p
-                      class="
-                        product-experience-empty-copy
-                      "
-                    >
-                      No hay capacidades
-                      informadas para este
-                      producto.
-                    </p>
-                  `
-            }
-          </div>
-        </section>
-
-        ${pxCountrySection(product)}
+          ${
+            capabilities.length
+              ? capabilities
+                  .map((capability) =>
+                    pxGlobalCapabilityCard(capability, productId),
+                  )
+                  .join("")
+              : `
+                  <p
+                    class="
+                      product-experience-empty-copy
+                    "
+                  >
+                    No hay capacidades
+                    informadas para este
+                    producto.
+                  </p>
+                `
+          }
+        </div>
       </section>
-    `;
+
+      ${pxCountrySection(product)}
+    </section>
+  `;
   }
 
   /*
@@ -1432,7 +2359,9 @@
     `;
   }
 
-  function pxDeliverable(deliverable, index) {
+  function pxDeliverable(deliverable, index, options = {}) {
+    const showGeography = options?.showGeography === true;
+
     const documentLink = pxExternalLink(
       deliverable.documentUrl,
       "Abrir documento funcional",
@@ -1443,73 +2372,150 @@
       "Abrir diseño en Figma",
     );
 
-    return `
-      <details
-        class="
-          product-experience-deliverable
-        "
-      >
-        <summary>
+    const geographyMarkup = showGeography
+      ? `
           <div
             class="
-              product-experience-deliverable-index
+              product-experience-deliverable-card-availability
             "
           >
-            ${String(index + 1).padStart(2, "0")}
-          </div>
+            <span>
+              Disponible en
+            </span>
 
+            ${pxDeliverableGeography(deliverable)}
+          </div>
+        `
+      : "";
+
+    return `
+    <details
+      class="
+        product-experience-deliverable
+      "
+    >
+      <summary>
+        <div
+          class="
+            product-experience-deliverable-index
+          "
+        >
+          ${String(index + 1).padStart(2, "0")}
+        </div>
+
+        <div
+          class="
+            product-experience-deliverable-summary-copy
+          "
+        >
           <div
             class="
-              product-experience-deliverable-summary-copy
+              product-experience-deliverable-summary-meta
             "
           >
             <span>
               Caso funcional
             </span>
 
-            <h3>
-              ${pxEsc(deliverable.deliverableName || "Caso funcional")}
-            </h3>
-
-            <p>
-              ${pxEsc(
-                pxExcerpt(deliverable.overview || "Descripción no informada."),
-              )}
-            </p>
+            ${geographyMarkup}
           </div>
 
-          <strong
-            class="
-              product-experience-deliverable-action
-              product-experience-when-closed
-            "
-          >
-            Ver detalle +
-          </strong>
+          <h3>
+            ${pxEsc(deliverable.deliverableName || "Caso funcional")}
+          </h3>
 
-          <strong
-            class="
-              product-experience-deliverable-action
-              product-experience-when-open
-            "
-          >
-            Ocultar −
-          </strong>
-        </summary>
+          <p>
+            ${pxEsc(
+              pxExcerpt(deliverable.overview || "Descripción no informada."),
+            )}
+          </p>
+        </div>
 
-        <div
+        <strong
           class="
-            product-experience-deliverable-body
+            product-experience-deliverable-action
+            product-experience-when-closed
           "
         >
-          <section
+          Ver detalle +
+        </strong>
+
+        <strong
+          class="
+            product-experience-deliverable-action
+            product-experience-when-open
+          "
+        >
+          Ocultar −
+        </strong>
+      </summary>
+
+      <div
+        class="
+          product-experience-deliverable-body
+        "
+      >
+        <section
+          class="
+            product-experience-quick-read
+          "
+        >
+          <div
             class="
-              product-experience-quick-read
+              product-experience-quick-read-header
             "
           >
-            <div
+            <span
               class="
-                product-experience-quick-read-header
+                product-experience-eyebrow
+              "
+            >
+              Lectura rápida
+            </span>
+
+            <h4>
+              Qué cambia para el gestor
+            </h4>
+          </div>
+
+          ${pxQuickRead(deliverable)}
+        </section>
+
+        <details
+          class="
+            product-experience-functional-detail
+          "
+        >
+          <summary>
+            <span>
+              Detalle funcional y experiencia
+            </span>
+
+            <strong
+              class="
+                product-experience-when-closed
+              "
+            >
+              Ver detalle +
+            </strong>
+
+            <strong
+              class="
+                product-experience-when-open
+              "
+            >
+              Ocultar −
+            </strong>
+          </summary>
+
+          <div
+            class="
+              product-experience-functional-detail-body
+            "
+          >
+            <section
+              class="
+                product-experience-deliverable-overview
               "
             >
               <span
@@ -1517,52 +2523,22 @@
                   product-experience-eyebrow
                 "
               >
-                Lectura rápida
+                Resumen ejecutivo
               </span>
 
-              <h4>
-                Qué cambia para el gestor
-              </h4>
-            </div>
-
-            ${pxQuickRead(deliverable)}
-          </section>
-
-          <details
-            class="
-              product-experience-functional-detail
-            "
-          >
-            <summary>
-              <span>
-                Detalle funcional y experiencia
-              </span>
-
-              <strong
-                class="
-                  product-experience-when-closed
-                "
-              >
-                Ver detalle +
-              </strong>
-
-              <strong
-                class="
-                  product-experience-when-open
-                "
-              >
-                Ocultar −
-              </strong>
-            </summary>
+              <p>
+                ${pxEsc(deliverable.overview || "Descripción no informada.")}
+              </p>
+            </section>
 
             <div
               class="
-                product-experience-functional-detail-body
+                product-experience-detail-grid
               "
             >
               <section
                 class="
-                  product-experience-deliverable-overview
+                  product-experience-detail-panel
                 "
               >
                 <span
@@ -1570,85 +2546,65 @@
                     product-experience-eyebrow
                   "
                 >
-                  Resumen ejecutivo
+                  Funcionalidad
                 </span>
 
-                <p>
-                  ${pxEsc(deliverable.overview || "Descripción no informada.")}
-                </p>
+                <h4>
+                  Capacidades funcionales
+                </h4>
+
+                ${pxBulletList(deliverable.functionalBullets)}
               </section>
 
-              <div
+              <section
                 class="
-                  product-experience-detail-grid
+                  product-experience-detail-panel
                 "
               >
-                <section
+                <span
                   class="
-                    product-experience-detail-panel
+                    product-experience-eyebrow
                   "
                 >
-                  <span
-                    class="
-                      product-experience-eyebrow
-                    "
-                  >
-                    Funcionalidad
-                  </span>
+                  Experiencia
+                </span>
 
-                  <h4>
-                    Capacidades funcionales
-                  </h4>
+                <h4>
+                  Experiencia del gestor
+                </h4>
 
-                  ${pxBulletList(deliverable.functionalBullets)}
-                </section>
-
-                <section
-                  class="
-                    product-experience-detail-panel
-                  "
-                >
-                  <span
-                    class="
-                      product-experience-eyebrow
-                    "
-                  >
-                    Experiencia
-                  </span>
-
-                  <h4>
-                    Experiencia del gestor
-                  </h4>
-
-                  ${pxBulletList(deliverable.experienceBullets, true)}
-                </section>
-              </div>
+                ${pxBulletList(deliverable.experienceBullets, true)}
+              </section>
             </div>
-          </details>
+          </div>
+        </details>
 
-          ${pxRequirements(deliverable)}
+        ${pxRequirements(deliverable)}
 
-          ${
-            documentLink || figmaLink
-              ? `
-                  <footer
-                    class="
-                      product-experience-deliverable-links
-                    "
-                  >
-                    ${documentLink}
-                    ${figmaLink}
-                  </footer>
-                `
-              : ""
-          }
-        </div>
-      </details>
-    `;
+        ${
+          documentLink || figmaLink
+            ? `
+                <footer
+                  class="
+                    product-experience-deliverable-links
+                  "
+                >
+                  ${documentLink}
+                  ${figmaLink}
+                </footer>
+              `
+            : ""
+        }
+      </div>
+    </details>
+  `;
   }
+  function pxRenderCapability(productId, capabilityId, countryId = "") {
+    const country = pxValidCountryId(countryId);
 
-  function pxRenderCapability(productId, capabilityId) {
-    selectedCountry = HOLDING_COUNTRY_ID;
+    const isLocal = Boolean(country) && country !== HOLDING_COUNTRY_ID;
+
+    selectedCountry = isLocal ? country : HOLDING_COUNTRY_ID;
 
     const product = pxFindProduct(productId);
 
@@ -1658,152 +2614,216 @@
       pxNotFound(
         "Capacidad no disponible",
         "No existe una ficha funcional para esta capacidad.",
-        `product/${PROGRAM_ID}/${productId}`,
+        isLocal
+          ? pxLocalProductRoute(productId, country)
+          : `product/${PROGRAM_ID}/${productId}`,
       );
 
       return;
     }
 
+    const countryDefinition = isLocal ? pxCountryDefinition(country) : null;
+
+    const countryLabel = countryDefinition?.label || country;
+
+    const deliverables = pxCapabilityDeliverables(capability, country);
+
+    const backRoute = isLocal
+      ? pxLocalProductRoute(productId, country)
+      : `product/${PROGRAM_ID}/${productId}`;
+
     setHead(
-      `${capability.name} · ${product.productName}`,
-      `${pxTypeLabel(capability.type)} de ${product.productName}`,
-      `Retail Client Solutions > AIxBanker > ${product.productName} > ${capability.name}`,
+      isLocal
+        ? `${capability.name} · ${countryLabel}`
+        : `${capability.name} · ${product.productName}`,
+
+      isLocal
+        ? `${pxTypeLabel(
+            capability.type,
+          )} de ${product.productName} en ${countryLabel}`
+        : `${pxTypeLabel(capability.type)} de ${product.productName}`,
+
+      isLocal
+        ? [
+            "Retail Client Solutions",
+            "AIxBanker",
+            countryLabel,
+            product.productName,
+            capability.name,
+          ].join(" > ")
+        : [
+            "Retail Client Solutions",
+            "AIxBanker",
+            product.productName,
+            capability.name,
+          ].join(" > "),
     );
 
     view.innerHTML = `
+    <section
+      class="
+        product-experience
+        product-experience-capability-view
+      "
+      data-product-experience-view="capability"
+      data-product-experience-product="${pxEsc(productId)}"
+      data-product-experience-capability="${pxEsc(capabilityId)}"
+      data-product-experience-country="${pxEsc(
+        isLocal ? country : HOLDING_COUNTRY_ID,
+      )}"
+    >
+      <button
+        class="
+          ghost-button
+          navigation-back-button
+          product-experience-back
+        "
+        type="button"
+        data-route="${pxEsc(backRoute)}"
+        aria-label="Volver"
+      >
+        ← Volver
+      </button>
+
       <section
         class="
-          product-experience
-          product-experience-capability-view
+          product-experience-overview-panel
+          product-experience-capability-overview
         "
-        data-product-experience-view="capability"
-        data-product-experience-product="${pxEsc(productId)}"
-        data-product-experience-capability="${pxEsc(capabilityId)}"
       >
-        <button
+        <div
           class="
-            ghost-button
-            navigation-back-button
-            product-experience-back
-          "
-          type="button"
-          data-route="product/${PROGRAM_ID}/${pxEsc(productId)}"
-          aria-label="Volver"
-        >
-          ← Volver
-        </button>
-
-        <section
-          class="
-            product-experience-overview-panel
-            product-experience-capability-overview
+            product-experience-overview-copy
           "
         >
           <div
             class="
-              product-experience-overview-copy
-            "
-          >
-            <div
-              class="
-                product-experience-kicker-row
-              "
-            >
-              <span>
-                ${pxEsc(pxTypeLabel(capability.type))}
-              </span>
-
-              <span>
-                ${pxEsc(product.productName)}
-              </span>
-
-              <span>
-                Visión global
-              </span>
-            </div>
-
-            <h2>
-              Qué hace
-            </h2>
-
-            <p>
-              ${pxEsc(capability.overview || "Descripción no informada.")}
-            </p>
-          </div>
-
-          <aside
-            class="
-              product-experience-capability-stat
+              product-experience-kicker-row
             "
           >
             <span>
+              ${pxEsc(pxTypeLabel(capability.type))}
+            </span>
+
+            <span>
+              ${pxEsc(product.productName)}
+            </span>
+
+            <span>
+              ${isLocal ? pxEsc(countryLabel) : "Holding · agregado"}
+            </span>
+          </div>
+
+          <h2>
+            Qué hace
+          </h2>
+
+          <p>
+            ${pxEsc(capability.overview || "Descripción no informada.")}
+          </p>
+        </div>
+
+        <aside
+          class="
+            product-experience-capability-stat
+          "
+        >
+          <span>
+            Casos funcionales
+          </span>
+
+          <strong>
+            ${deliverables.length}
+          </strong>
+        </aside>
+      </section>
+
+      <section
+        class="
+          product-experience-section
+        "
+      >
+        <header
+          class="
+            product-experience-section-header
+          "
+        >
+          <div>
+            <span
+              class="
+                product-experience-eyebrow
+              "
+            >
               Casos funcionales
             </span>
 
-            <strong>
-              ${capability.deliverables.length}
-            </strong>
-          </aside>
-        </section>
+            <h2>
+              ${
+                isLocal
+                  ? `
+                    Disponibles en
+                    ${pxEsc(countryLabel)}
+                  `
+                  : "Cómo se materializa"
+              }
+            </h2>
+          </div>
 
-        <section
+          <p>
+            ${
+              isLocal
+                ? `
+                  Casos funcionales
+                  disponibles para esta
+                  capacidad en
+                  ${pxEsc(countryLabel)}.
+                `
+                : `
+                  Holding agrega los casos
+                  funcionales disponibles
+                  en las distintas
+                  geografías.
+                `
+            }
+          </p>
+        </header>
+
+        <div
           class="
-            product-experience-section
+            product-experience-deliverable-list
           "
         >
-          <header
-            class="
-              product-experience-section-header
-            "
-          >
-            <div>
-              <span
-                class="
-                  product-experience-eyebrow
-                "
-              >
-                Casos funcionales
-              </span>
-
-              <h2>
-                Cómo se materializa
-              </h2>
-            </div>
-
-            <p>
-              Abre cada caso para
-              consultar funcionalidad,
-              experiencia, requisitos y
-              documentación de origen.
-            </p>
-          </header>
-
-          <div
-            class="
-              product-experience-deliverable-list
-            "
-          >
-            ${
-              capability.deliverables.length
-                ? capability.deliverables.map(pxDeliverable).join("")
-                : `
-                    <p
-                      class="
-                        product-experience-empty-copy
-                      "
-                    >
-                      No hay casos
-                      funcionales
-                      informados.
-                    </p>
-                  `
-            }
-          </div>
-        </section>
+          ${
+            deliverables.length
+              ? deliverables
+                  .map((deliverable, index) =>
+                    pxDeliverableWithGeography(deliverable, index, !isLocal),
+                  )
+                  .join("")
+              : `
+                <p
+                  class="
+                    product-experience-empty-copy
+                  "
+                >
+                  No hay casos funcionales
+                  informados para esta
+                  capacidad
+                  ${isLocal ? `en ${pxEsc(countryLabel)}` : ""}.
+                </p>
+              `
+          }
+        </div>
       </section>
-    `;
-  }
 
+      ${
+        isLocal
+          ? pxCapabilityExecutionSection(productId, capability, country)
+          : ""
+      }
+    </section>
+  `;
+  }
   /*
    * =======================================================
    * ROUTING
@@ -1821,30 +2841,56 @@
     }
 
     if (currentRoute.routeName === "product") {
+      const countryId = pxValidCountryId(currentRoute.countryId);
+
+      const isLocal = countryId && countryId !== HOLDING_COUNTRY_ID;
+
       const existing = view.querySelector(
-        '[data-product-experience-view="product"]',
+        isLocal
+          ? '[data-product-experience-view="local-product"]'
+          : '[data-product-experience-view="product"]',
       );
 
-      if (
+      const needsRender =
         !existing ||
-        existing.dataset.productExperienceProduct !== currentRoute.productId
-      ) {
-        pxRenderProduct(currentRoute.productId);
+        existing.dataset.productExperienceProduct !== currentRoute.productId ||
+        (isLocal && existing.dataset.productExperienceCountry !== countryId);
+
+      if (needsRender) {
+        if (isLocal) {
+          pxRenderLocalProduct(currentRoute.productId, countryId);
+        } else {
+          pxRenderProduct(currentRoute.productId);
+        }
       }
 
       return true;
     }
 
+    const countryId = pxValidCountryId(currentRoute.countryId);
+
+    const expectedCountry =
+      countryId && countryId !== HOLDING_COUNTRY_ID
+        ? countryId
+        : HOLDING_COUNTRY_ID;
+
     const existing = view.querySelector(
       '[data-product-experience-view="capability"]',
     );
 
-    if (
+    const needsRender =
       !existing ||
       existing.dataset.productExperienceProduct !== currentRoute.productId ||
-      existing.dataset.productExperienceCapability !== currentRoute.capabilityId
-    ) {
-      pxRenderCapability(currentRoute.productId, currentRoute.capabilityId);
+      existing.dataset.productExperienceCapability !==
+        currentRoute.capabilityId ||
+      existing.dataset.productExperienceCountry !== expectedCountry;
+
+    if (needsRender) {
+      pxRenderCapability(
+        currentRoute.productId,
+        currentRoute.capabilityId,
+        countryId,
+      );
     }
 
     return true;
@@ -1857,35 +2903,532 @@
       return;
     }
 
-    const returnRoute = sessionStorage.getItem(PRODUCT_RETURN_ROUTE_KEY);
-
-    if (!returnRoute) {
+    if (typeof roadmapWorkspaceParseRoute !== "function") {
       return;
     }
 
-    const backButton = view?.querySelector(".navigation-back-button");
+    const context = roadmapWorkspaceParseRoute();
+
+    if (context.programId !== PROGRAM_ID) {
+      return;
+    }
+
+    const productId = pxNormalizeId(context.productId);
+
+    const capabilityId = pxCapabilityScopeId(context.capabilityId);
+
+    const countryId = pxValidCountryId(context.countryId || selectedCountry);
+
+    if (!productId || productId.toUpperCase() === "ALL") {
+      return;
+    }
+
+    const product = pxFindProduct(productId);
+
+    const country = pxCountryDefinition(countryId);
+
+    const countryLabel = country?.label || countryId || "";
+
+    const backButton =
+      view.querySelector(".roadmap-workspace > .ghost-button") ||
+      view.querySelector(".navigation-back-button");
 
     if (!backButton) {
       return;
     }
 
-    const targetText = "← Volver";
+    const isCapabilityScope = capabilityId && capabilityId !== "ALL";
+
+    let targetRoute;
+    let targetText;
+    let ariaLabel;
+
+    /*
+     * ROADMAP DE CAPACIDAD
+     *
+     * Knowledge Assistant · España
+     *        ↓
+     * Resumen / Cronograma / Backlog
+     *
+     * Volvemos a la ficha intermedia
+     * de la capacidad.
+     */
+    if (isCapabilityScope) {
+      const capability = pxFindCapability(productId, capabilityId);
+
+      const capabilityName = capability?.name || capabilityId;
+
+      targetRoute = pxCapabilityRoute(productId, capabilityId, countryId);
+
+      targetText =
+        `← Volver a ` +
+        `${capabilityName}` +
+        (countryLabel ? ` · ${countryLabel}` : "");
+
+      ariaLabel = `Volver a la capacidad ` + `${capabilityName}`;
+    } else {
+      /*
+       * ROADMAP GENERAL DEL PRODUCTO
+       *
+       * Si no existe una capacidad concreta,
+       * mantenemos el comportamiento anterior:
+       * volvemos a la ficha local del producto.
+       */
+      if (countryId && countryId !== HOLDING_COUNTRY_ID) {
+        targetRoute = pxLocalProductRoute(productId, countryId);
+
+        targetText =
+          `← Volver a ` +
+          `${product?.productName || productId}` +
+          (countryLabel ? ` · ${countryLabel}` : "");
+      } else {
+        targetRoute = `product/${PROGRAM_ID}/${productId}`;
+
+        targetText = `← Volver a ` + `${product?.productName || productId}`;
+      }
+
+      ariaLabel = "Volver al producto";
+    }
+
+    /*
+     * El view está observado mediante
+     * MutationObserver.
+     *
+     * Sólo modificamos atributos/texto
+     * cuando realmente han cambiado para
+     * evitar ciclos de render.
+     */
+
+    if (backButton.dataset.route !== targetRoute) {
+      backButton.dataset.route = targetRoute;
+    }
 
     if (backButton.textContent.trim() !== targetText) {
       backButton.textContent = targetText;
     }
 
-    if (backButton.getAttribute("aria-label") !== "Volver") {
-      backButton.setAttribute("aria-label", "Volver");
+    if (backButton.getAttribute("aria-label") !== ariaLabel) {
+      backButton.setAttribute("aria-label", ariaLabel);
     }
+  }
+  function pxInstallCapabilityRoadmapScope() {
+    if (pxInstallCapabilityRoadmapScope.installed) {
+      return true;
+    }
+
+    if (
+      typeof roadmapWorkspaceState !== "function" ||
+      typeof roadmapWorkspaceParseRoute !== "function" ||
+      typeof roadmapWorkspaceApplyRouteState !== "function" ||
+      typeof roadmapWorkspaceRoute !== "function" ||
+      typeof roadmapWorkspaceFilteredItems !== "function" ||
+      typeof roadmapContextWorkspaceCopy !== "function" ||
+      typeof roadmapContextRenderProductSelector !== "function"
+    ) {
+      return false;
+    }
+
+    pxInstallCapabilityRoadmapScope.installed = true;
+
+    const baseState = roadmapWorkspaceState;
+
+    roadmapWorkspaceState = function roadmapWorkspaceStateWithCapability(
+      programId,
+    ) {
+      const state = baseState(programId);
+
+      if (!state.capabilityId) {
+        state.capabilityId = "ALL";
+      }
+
+      if (!state.countryId) {
+        state.countryId =
+          pxValidCountryId(selectedCountry) || HOLDING_COUNTRY_ID;
+      }
+
+      return state;
+    };
+
+    const baseParseRoute = roadmapWorkspaceParseRoute;
+
+    roadmapWorkspaceParseRoute =
+      function roadmapWorkspaceParseRouteWithCapability() {
+        const context = baseParseRoute();
+
+        const parts = String(location.hash || "")
+          .replace(/^#\/?/, "")
+          .split("/");
+
+        if (context.routeName === "roadmap") {
+          context.capabilityId = pxCapabilityScopeId(
+            typeof roadmapWorkspaceDecode === "function"
+              ? roadmapWorkspaceDecode(parts[6], "ALL")
+              : parts[6] || "ALL",
+          );
+
+          context.countryId = pxValidCountryId(
+            typeof roadmapWorkspaceDecode === "function"
+              ? roadmapWorkspaceDecode(parts[7], "")
+              : parts[7] || "",
+          );
+
+          return context;
+        }
+
+        const state = context.programId
+          ? roadmapWorkspaceState(context.programId)
+          : null;
+
+        context.capabilityId = pxCapabilityScopeId(
+          state?.capabilityId || "ALL",
+        );
+
+        context.countryId = pxValidCountryId(
+          state?.countryId || selectedCountry,
+        );
+
+        return context;
+      };
+
+    const baseApplyRouteState = roadmapWorkspaceApplyRouteState;
+
+    roadmapWorkspaceApplyRouteState =
+      function roadmapWorkspaceApplyRouteStateWithCapability(
+        programId,
+        routeContext,
+      ) {
+        const requestedCountry = pxValidCountryId(routeContext?.countryId);
+
+        if (requestedCountry) {
+          selectedCountry = requestedCountry;
+        }
+
+        const state = baseApplyRouteState(programId, routeContext);
+
+        state.capabilityId = pxCapabilityScopeId(
+          routeContext?.capabilityId || "ALL",
+        );
+
+        state.countryId =
+          requestedCountry ||
+          pxValidCountryId(selectedCountry) ||
+          HOLDING_COUNTRY_ID;
+
+        return state;
+      };
+
+    const baseRoadmapRoute = roadmapWorkspaceRoute;
+
+    roadmapWorkspaceRoute = function roadmapWorkspaceRouteWithCapability(
+      programId,
+      view,
+      productId,
+      quarter,
+      ambitionId = null,
+      capabilityId = null,
+      countryId = null,
+    ) {
+      const state = roadmapWorkspaceState(programId);
+
+      const capability =
+        capabilityId === null || capabilityId === undefined
+          ? pxCapabilityScopeId(state.capabilityId)
+          : pxCapabilityScopeId(capabilityId);
+
+      const country =
+        pxValidCountryId(countryId) ||
+        pxValidCountryId(state.countryId) ||
+        pxValidCountryId(selectedCountry) ||
+        HOLDING_COUNTRY_ID;
+
+      const baseRoute = baseRoadmapRoute(
+        programId,
+        view,
+        productId,
+        quarter,
+        ambitionId,
+      );
+
+      const encode =
+        typeof roadmapWorkspaceEncode === "function"
+          ? roadmapWorkspaceEncode
+          : encodeURIComponent;
+
+      return [baseRoute, encode(capability), encode(country)].join("/");
+    };
+
+    const baseFilteredItems = roadmapWorkspaceFilteredItems;
+
+    roadmapWorkspaceFilteredItems =
+      function roadmapWorkspaceFilteredItemsWithCapability(
+        items,
+        state,
+        options = {},
+      ) {
+        const filtered = baseFilteredItems(items, state, options);
+
+        return pxFilterRoadmapItemsByCapability(filtered, state);
+      };
+
+    if (typeof roadmapAmbitionScopeItems === "function") {
+      const baseAmbitionScopeItems = roadmapAmbitionScopeItems;
+
+      roadmapAmbitionScopeItems =
+        function roadmapAmbitionScopeItemsWithCapability(
+          items,
+          state,
+          options = {},
+        ) {
+          const filtered = baseAmbitionScopeItems(items, state, options);
+
+          return pxFilterRoadmapItemsByCapability(filtered, state);
+        };
+    }
+
+    const baseWorkspaceCopy = roadmapContextWorkspaceCopy;
+
+    roadmapContextWorkspaceCopy =
+      function roadmapContextWorkspaceCopyWithCapability(
+        program,
+        programId,
+        state,
+      ) {
+        const copy = baseWorkspaceCopy(program, programId, state);
+
+        const capabilityId = pxCapabilityScopeId(state?.capabilityId);
+
+        if (capabilityId === "ALL") {
+          return copy;
+        }
+
+        const capability = pxFindCapability(state.productId, capabilityId);
+
+        const capabilityName = capability?.name || capabilityId;
+
+        const productName =
+          typeof roadmapContextProductName === "function"
+            ? roadmapContextProductName(state)
+            : roadmapWorkspaceProductLabel(state.productId);
+
+        const geographyLabel =
+          typeof roadmapContextGeographyLabel === "function"
+            ? roadmapContextGeographyLabel()
+            : roadmapWorkspaceCountryLabel();
+
+        const viewLabel =
+          typeof roadmapContextViewLabel === "function"
+            ? roadmapContextViewLabel(state.view)
+            : state.view;
+
+        const programName = program?.name || programId;
+
+        return {
+          ...copy,
+
+          scopeClass: `${copy.scopeClass || ""} ` + "is-capability-scope",
+
+          pageTitle: `${capabilityName} · Roadmap`,
+
+          pageSubtitle:
+            `${viewLabel} · ` + `${productName} · ` + `${geographyLabel}`,
+
+          breadcrumb: [
+            "Retail Client Solutions",
+            programName,
+            geographyLabel,
+            productName,
+            capabilityName,
+            "Roadmap",
+            viewLabel,
+          ].join(" > "),
+
+          heroEyebrow: `${pxTypeLabel(
+            capability?.type || "capability",
+          )} · ${productName}`,
+
+          heroTitle: `Roadmap de ${capabilityName}`,
+
+          heroDescription:
+            `Resumen, cronograma y backlog ` +
+            `de ${capabilityName} ` +
+            `en ${geographyLabel}.`,
+
+          backLabel: `← Volver a ` + `${productName} · ` + `${geographyLabel}`,
+
+          detailBackLabel: `Volver al roadmap de ` + capabilityName,
+        };
+      };
+
+    const baseProductSelector = roadmapContextRenderProductSelector;
+
+    roadmapContextRenderProductSelector =
+      function roadmapContextRenderProductSelectorWithCapability(
+        programId,
+        items,
+        state,
+      ) {
+        const capabilityId = pxCapabilityScopeId(state?.capabilityId);
+
+        if (capabilityId === "ALL") {
+          return baseProductSelector(programId, items, state);
+        }
+
+        const capability = pxFindCapability(state.productId, capabilityId);
+
+        const productName = roadmapWorkspaceProductLabel(state.productId);
+
+        const capabilityName = capability?.name || capabilityId;
+
+        return `
+        <section
+          class="
+            roadmap-context-product-filter
+          "
+          aria-label="
+            Ámbito de producto y capacidad
+          "
+        >
+          <div
+            class="
+              roadmap-context-product-filter-copy
+            "
+          >
+            <span>
+              Producto
+            </span>
+
+            <strong>
+              ${roadmapWorkspaceEscape(productName)}
+            </strong>
+          </div>
+
+          <div
+            class="
+              roadmap-context-product-filter-copy
+            "
+          >
+            <span>
+              Capacidad
+            </span>
+
+            <strong>
+              ${roadmapWorkspaceEscape(capabilityName)}
+            </strong>
+          </div>
+        </section>
+      `;
+      };
+
+    return true;
+  }
+
+  function pxInstallProductCountryToolbar() {
+    if (pxInstallProductCountryToolbar.installed) {
+      return true;
+    }
+
+    if (
+      typeof CONTEXT_TOOLBAR_PROGRAM_ROUTES === "undefined" ||
+      typeof renderGlobalContextFilters !== "function"
+    ) {
+      return false;
+    }
+
+    /*
+     * Las fichas globales y locales de producto
+     * forman parte del contexto de programa.
+     *
+     * El toolbar original no incluía la ruta
+     * "product", por lo que ocultaba automáticamente
+     * Holding y los países al entrar en:
+     *
+     * #product/aixbanker/blue-buddy
+     * #product/aixbanker/blue-buddy/ES
+     */
+    CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("product");
+
+    document.addEventListener(
+      "click",
+      (event) => {
+        const countryButton = event.target.closest(
+          ".global-context-scope [data-country]",
+        );
+
+        if (!countryButton) {
+          return;
+        }
+
+        const currentRoute = pxRoute();
+
+        if (
+          currentRoute.routeName !== "product" ||
+          currentRoute.programId !== PROGRAM_ID
+        ) {
+          return;
+        }
+
+        const productId = pxNormalizeId(currentRoute.productId);
+
+        const countryId = pxValidCountryId(countryButton.dataset.country);
+
+        if (!productId || !countryId) {
+          return;
+        }
+
+        /*
+         * Evitamos que el listener genérico de app.js
+         * cambie selectedCountry y vuelva a renderizar
+         * manteniendo la URL antigua.
+         *
+         * En producto, la geografía forma parte de
+         * la propia URL.
+         */
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        selectedCountry = countryId;
+
+        if (countryId === HOLDING_COUNTRY_ID) {
+          route(`product/${PROGRAM_ID}/${productId}`);
+
+          return;
+        }
+
+        route(pxLocalProductRoute(productId, countryId));
+      },
+      true,
+    );
+
+    pxInstallProductCountryToolbar.installed = true;
+
+    requestAnimationFrame(renderGlobalContextFilters);
+
+    return true;
   }
 
   function pxRefresh() {
+    pxInstallCapabilityRoadmapScope();
+
+    pxInstallProductCountryToolbar();
+
     if (pxRenderSpecialRoute()) {
+      /*
+       * pxRenderLocalProduct establece selectedCountry
+       * a partir de la URL.
+       *
+       * Volvemos a pintar el toolbar después para que
+       * el país activo sea siempre coherente, también
+       * al entrar directamente mediante una URL.
+       */
+      if (typeof renderGlobalContextFilters === "function") {
+        requestAnimationFrame(renderGlobalContextFilters);
+      }
+
       return;
     }
 
     pxEnhanceProgramLanding();
+
     pxRefreshRoadmapBackButton();
   }
 
