@@ -3207,6 +3207,134 @@ function renderCurrentRoute(
     renderLanding();
   }
 }
+function getRcsDataState() {
+  if (!window.RCS_DATA_STATE) {
+    window.RCS_DATA_STATE = {
+      portfolio: "live",
+      programs: {},
+    };
+  }
+
+  return window.RCS_DATA_STATE;
+}
+
+function getRcsDataMode(scope = "portfolio") {
+  const state = getRcsDataState();
+
+  return scope === "portfolio"
+    ? state.portfolio || "live"
+    : state.programs[scope] || "live";
+}
+
+function setRcsDataMode(scope, mode) {
+  const state = getRcsDataState();
+
+  const safeMode = mode === "demo" ? "demo" : "live";
+
+  if (scope === "portfolio") {
+    state.portfolio = safeMode;
+  } else {
+    state.programs[scope] = safeMode;
+  }
+}
+
+function resetRcsProgramDataModes() {
+  const state = getRcsDataState();
+
+  state.programs = {};
+
+  PROGRAM_DATA_CACHE.clear();
+  PROGRAM_LAST_LOADED_AT.clear();
+}
+
+function getDemoPortfolioData() {
+  const rawData =
+    typeof window.getSamplePortfolioData === "function"
+      ? window.getSamplePortfolioData()
+      : window.SAMPLE_DATA || {};
+
+  return normalizePortfolioData(rawData);
+}
+
+function getDemoProgramData(programId) {
+  if (typeof window.getSampleProgramData !== "function") {
+    return null;
+  }
+
+  const rawData = window.getSampleProgramData(programId);
+
+  return rawData ? normalizeProgramData(programId, rawData) : null;
+}
+
+function showDataFallbackBanner(message) {
+  const banner = document.getElementById("errorBanner");
+
+  if (!banner) {
+    return;
+  }
+
+  banner.hidden = false;
+  banner.textContent = message;
+}
+
+function clearDataFallbackBanner() {
+  const banner = document.getElementById("errorBanner");
+
+  if (!banner) {
+    return;
+  }
+
+  banner.hidden = true;
+  banner.textContent = "";
+}
+
+function renderRouteContext(context) {
+  renderCurrentRoute(
+    context.routeName,
+    context.programId,
+    context.productId,
+    context.quarter,
+    context.itemType,
+    context.itemId,
+    context.activityId,
+  );
+}
+
+function activateDemoPortfolio(message) {
+  PORTFOLIO_DATA = getDemoPortfolioData();
+
+  buildProgramSources(PORTFOLIO_DATA.programs);
+
+  setRcsDataMode("portfolio", "demo");
+
+  resetRcsProgramDataModes();
+
+  DATA = PORTFOLIO_DATA;
+
+  updateDataStatus();
+
+  showDataFallbackBanner(message);
+}
+
+function activateDemoProgram(programId, routeContext, message) {
+  const demoProgramData = getDemoProgramData(programId);
+
+  if (!demoProgramData) {
+    return false;
+  }
+
+  setRcsDataMode(programId, "demo");
+
+  DATA = buildProgramData(demoProgramData);
+
+  renderRouteContext(routeContext);
+
+  updateDataStatus(programId);
+
+  showDataFallbackBanner(message);
+
+  return true;
+}
 function formatLastLoadedDate(date) {
   if (!(date instanceof Date)) {
     return "Sin actualizar";
@@ -3231,9 +3359,24 @@ function formatLastLoadedDate(date) {
 
 function updateDataStatus(programId = null) {
   if (!programId) {
+    if (getRcsDataMode("portfolio") === "demo") {
+      statusEl.textContent =
+        "Modo demostración · " + "Portfolio General · " + "datos ficticios";
+
+      return;
+    }
+
     statusEl.textContent =
-      `Últimos datos cargados: Portfolio General ` +
+      `Últimos datos cargados: ` +
+      `Portfolio General ` +
       `(${formatLastLoadedDate(PORTFOLIO_LAST_LOADED_AT)})`;
+
+    return;
+  }
+
+  if (getRcsDataMode(programId) === "demo") {
+    statusEl.textContent =
+      `Modo demostración · ` + `${programId} · ` + `datos ficticios`;
 
     return;
   }
@@ -3248,15 +3391,9 @@ function updateDataStatus(programId = null) {
     `(${formatLastLoadedDate(lastLoadedAt)})`;
 }
 async function render() {
-  const {
-    routeName,
-    programId,
-    productId,
-    quarter,
-    itemType,
-    itemId,
-    activityId,
-  } = getCurrentRoute();
+  const context = getCurrentRoute();
+
+  const { routeName, programId } = context;
 
   if (!programId || routeName === "landing") {
     DATA = PORTFOLIO_DATA;
@@ -3264,48 +3401,87 @@ async function render() {
     renderLanding();
     updateDataStatus();
 
+    if (getRcsDataMode("portfolio") === "demo") {
+      showDataFallbackBanner(
+        "Modo demostración activo: " +
+          "el origen general no está disponible. " +
+          "Todos los datos mostrados son ficticios " +
+          "y sirven únicamente para demostrar " +
+          "la funcionalidad del cockpit.",
+      );
+    } else {
+      clearDataFallbackBanner();
+    }
+
     return;
+  }
+
+  if (
+    getRcsDataMode("portfolio") === "demo" ||
+    getRcsDataMode(programId) === "demo"
+  ) {
+    const activated = activateDemoProgram(
+      programId,
+      context,
+      "Modo demostración activo: " +
+        "no se están utilizando datos operativos reales. " +
+        "Pulsa “Actualizar datos” para volver a intentar " +
+        "la conexión con el origen corporativo.",
+    );
+
+    if (activated) {
+      return;
+    }
   }
 
   try {
     const source = getProgramSource(programId);
 
-    showLoadingOverlay(`Cargando datos de ${source?.label || programId}...`);
+    showLoadingOverlay(
+      `Cargando datos de ` + `${source?.label || programId}...`,
+    );
 
     const programData = await loadProgramData(programId);
 
+    setRcsDataMode(programId, "live");
+
     DATA = buildProgramData(programData);
 
-    renderCurrentRoute(
-      routeName,
-      programId,
-      productId,
-      quarter,
-      itemType,
-      itemId,
-      activityId,
-    );
+    renderRouteContext(context);
 
     updateDataStatus(programId);
+    clearDataFallbackBanner();
   } catch (error) {
     console.error(error);
 
-    statusEl.textContent = `⚠ No se pudieron cargar los datos de ${programId}`;
-
-    DATA = {
-      ...PORTFOLIO_DATA,
-      ...getEmptyProgramData(),
-    };
-
-    renderCurrentRoute(
-      routeName,
+    const activated = activateDemoProgram(
       programId,
-      productId,
-      quarter,
-      itemType,
-      itemId,
-      activityId,
+      context,
+      `No se han podido cargar ` +
+        `los datos de ${programId}. ` +
+        "Se ha activado automáticamente " +
+        "el modo demostración con datos " +
+        "100% ficticios.",
     );
+
+    if (!activated) {
+      statusEl.textContent =
+        `⚠ No se pudieron cargar ` + `los datos de ${programId}`;
+
+      DATA = {
+        ...PORTFOLIO_DATA,
+        ...getEmptyProgramData(),
+      };
+
+      renderRouteContext(context);
+
+      showDataFallbackBanner(
+        `No se han podido cargar ` +
+          `los datos de ${programId} ` +
+          "y no existe un dataset " +
+          "de demostración para este programa.",
+      );
+    }
   } finally {
     hideLoadingOverlay();
   }
@@ -3539,7 +3715,9 @@ function renderSystemRelationships(
   });
 }
 async function init() {
-  if (isLoadingData) return;
+  if (isLoadingData) {
+    return;
+  }
 
   isLoadingData = true;
 
@@ -3548,29 +3726,28 @@ async function init() {
   try {
     await loadPortfolioData(true);
 
+    setRcsDataMode("portfolio", "live");
+
+    resetRcsProgramDataModes();
+
     DATA = PORTFOLIO_DATA;
 
     updateDataStatus();
+    clearDataFallbackBanner();
   } catch (error) {
     console.error(error);
 
-    PORTFOLIO_DATA = normalizePortfolioData(window.SAMPLE_DATA);
-
-    DATA = PORTFOLIO_DATA;
-
-    statusEl.textContent = "⚠ Error accediendo a la spreadsheet general";
-
-    const banner = document.getElementById("errorBanner");
-
-    if (banner) {
-      banner.hidden = false;
-
-      banner.textContent =
-        "No se puede acceder a la spreadsheet general. " +
-        "Se muestran los datos locales disponibles.";
-    }
+    activateDemoPortfolio(
+      "No se puede acceder temporalmente " +
+        "al origen general. " +
+        "Se ha activado el modo demostración " +
+        "con datos 100% ficticios. " +
+        "Pulsa “Actualizar datos” para " +
+        "reintentar la conexión.",
+    );
   } finally {
     isLoadingData = false;
+
     hideLoadingOverlay();
   }
 
@@ -3580,7 +3757,9 @@ async function init() {
 }
 
 async function refreshCurrentDataSource() {
-  const { routeName, programId } = getCurrentRoute();
+  const context = getCurrentRoute();
+
+  const { routeName, programId } = context;
 
   const source = programId
     ? getProgramSource(programId)
@@ -3588,26 +3767,73 @@ async function refreshCurrentDataSource() {
 
   showLoadingOverlay(
     programId
-      ? `Cargando datos de ${source?.label || programId}...`
-      : "Cargando datos generales...",
+      ? `Reintentando datos de ` + `${source?.label || programId}...`
+      : "Reintentando datos generales...",
   );
 
   try {
     if (!programId || routeName === "landing") {
       await loadPortfolioData(true);
 
+      setRcsDataMode("portfolio", "live");
+
+      resetRcsProgramDataModes();
+
       DATA = PORTFOLIO_DATA;
 
       updateDataStatus();
-    } else {
-      const programData = await loadProgramData(programId, true);
+      clearDataFallbackBanner();
 
-      DATA = buildProgramData(programData);
+      await render();
 
-      updateDataStatus(programId);
+      return;
     }
 
+    if (getRcsDataMode("portfolio") === "demo") {
+      await loadPortfolioData(true);
+
+      setRcsDataMode("portfolio", "live");
+
+      resetRcsProgramDataModes();
+    }
+
+    const programData = await loadProgramData(programId, true);
+
+    setRcsDataMode(programId, "live");
+
+    DATA = buildProgramData(programData);
+
+    updateDataStatus(programId);
+    clearDataFallbackBanner();
+
     await render();
+  } catch (error) {
+    console.error(error);
+
+    if (!programId || routeName === "landing") {
+      activateDemoPortfolio(
+        "El origen general sigue sin responder. " +
+          "Se mantiene el modo demostración " +
+          "con datos ficticios.",
+      );
+
+      renderLanding();
+
+      return;
+    }
+
+    const activated = activateDemoProgram(
+      programId,
+      context,
+      `El origen de ${programId} ` +
+        "sigue sin responder. " +
+        "Se mantiene el modo demostración " +
+        "con datos ficticios.",
+    );
+
+    if (!activated) {
+      throw error;
+    }
   } finally {
     hideLoadingOverlay();
   }
