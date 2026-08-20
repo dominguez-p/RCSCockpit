@@ -181,124 +181,252 @@ function getRoadmapQuarterLabel(quarter) {
 
   return quarter;
 }
+const ROADMAP_JIRA_STATUS_ORDER = [
+  "Pre-Work",
+  "Analysis To Do",
+  "Analysis In Progress",
+  "Analysis In Review",
+  "Blocked",
+  "Closed",
+];
 
-// const ROADMAP_ITEM_ADAPTERS = {
-//   project: {
-//     sourceCollection: "projects",
-//     phaseCollection: "projectPhases",
-//     phaseForeignKey: "projectId",
-//     typeLabel: "Proyecto",
+const ROADMAP_JIRA_NON_COUNTING_STATUSES = new Set(["Blocked", "Closed"]);
 
-//     adapt(item, phases) {
-//       return {
-//         id: String(item.id || "").trim(),
-//         type: "project",
-//         typeLabel: "Proyecto",
+function normalizeRoadmapJiraStatus(value) {
+  const raw = String(value || "").trim();
 
-//         programId: String(item.programId || "").trim(),
-//         product: normalizeRoadmapProduct(item.product),
-//         country: String(item.country || "").trim(),
-//         quarter: String(item.quarter || "")
-//           .trim()
-//           .toUpperCase(),
+  if (!raw) {
+    return "";
+  }
 
-//         title: item.name || item.title || "Proyecto sin nombre",
-//         summary: item.summary || item.description || "",
-//         description: item.description || item.summary || "",
+  const normalized = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 
-//         status: rcsNormalizeStatus(item.status),
-//         progress: normalizeRoadmapProgress(item.progress),
-//         priority: normalizeRoadmapPriority(item.priority),
+  const aliases = {
+    "pre work": "Pre-Work",
 
-//         owner: item.owner || "",
-//         nextMilestoneTitle: item.nextMilestoneTitle || "",
-//         nextMilestoneDate: item.nextMilestoneDate || "",
+    "analysis to do": "Analysis To Do",
 
-//         startDate:
-//           item.startDate || getFirstRoadmapPhaseDate(phases, "startDate"),
+    "analysis in progress": "Analysis In Progress",
 
-//         endDate: item.endDate || getLastRoadmapPhaseDate(phases, "endDate"),
+    "analysis in review": "Analysis In Review",
 
-//         targetDate:
-//           item.targetDate ||
-//           item.nextMilestoneDate ||
-//           getLastRoadmapPhaseDate(phases, "targetDate") ||
-//           getLastRoadmapPhaseDate(phases, "endDate"),
+    blocked: "Blocked",
 
-//         lastUpdate: item.lastUpdate || "",
+    closed: "Closed",
+  };
 
-//         phases,
-//         source: item,
-//         roadmapOrder: normalizeRoadmapPriority(
-//           item.roadmapOrder ??
-//             item.roadmap_order ??
-//             item.laneOrder ??
-//             item.lane_order,
-//         ),
-//       };
-//     },
-//   },
+  return aliases[normalized] || raw;
+}
 
-//   msa: {
-//     sourceCollection: "msas",
-//     phaseCollection: "msaPhases",
-//     phaseForeignKey: "msaId",
-//     typeLabel: "MSA",
+function adaptRoadmapItemStatusHistory(row) {
+  return {
+    itemId: String(row.itemId || "").trim(),
 
-//     adapt(item, phases) {
-//       return {
-//         id: String(item.id || "").trim(),
-//         type: "msa",
-//         typeLabel: "MSA",
+    jiraKey: String(row.jiraKey || "").trim(),
 
-//         programId: String(item.programId || "").trim(),
-//         product: normalizeRoadmapProduct(item.product),
-//         country: String(item.country || "").trim(),
-//         quarter: String(item.quarter || "")
-//           .trim()
-//           .toUpperCase(),
+    sequence: Number(row.sequence) || 0,
 
-//         title: item.name || item.title || "MSA sin nombre",
-//         summary: item.summary || item.description || "",
-//         description: item.description || item.summary || "",
+    status: normalizeRoadmapJiraStatus(row.status || row.statusRaw),
 
-//         status: rcsNormalizeStatus(item.status),
-//         progress: normalizeRoadmapProgress(item.progress),
-//         priority: normalizeRoadmapPriority(item.priority),
+    statusRaw: String(row.statusRaw || row.status || "").trim(),
 
-//         owner: item.owner || "",
-//         nextMilestoneTitle: item.nextMilestoneTitle || "",
-//         nextMilestoneDate: item.nextMilestoneDate || "",
+    startAt: row.startAt || "",
 
-//         startDate:
-//           item.startDate || getFirstRoadmapPhaseDate(phases, "startDate"),
+    endAt: row.endAt || "",
 
-//         endDate: item.endDate || getLastRoadmapPhaseDate(phases, "endDate"),
+    sourceFile: String(row.sourceFile || "").trim(),
 
-//         targetDate:
-//           item.targetDate ||
-//           item.nextMilestoneDate ||
-//           getLastRoadmapPhaseDate(phases, "targetDate") ||
-//           getLastRoadmapPhaseDate(phases, "endDate"),
+    sourceUpdatedAt: row.sourceUpdatedAt || "",
 
-//         lastUpdate: item.lastUpdate || "",
+    source: row,
+  };
+}
 
-//         documentUrl: item.documentUrl || "",
-//         documentLabel: item.documentLabel || "",
+function roadmapJiraStatusCountsTowardsEffectiveTime(status) {
+  const normalizedStatus = normalizeRoadmapJiraStatus(status);
 
-//         phases,
-//         source: item,
-//         roadmapOrder: normalizeRoadmapPriority(
-//           item.roadmapOrder ??
-//             item.roadmap_order ??
-//             item.laneOrder ??
-//             item.lane_order,
-//         ),
-//       };
-//     },
-//   },
-// };
-function adaptUnifiedRoadmapItem(item, activities = []) {
+  if (!normalizedStatus) {
+    return false;
+  }
+
+  return !ROADMAP_JIRA_NON_COUNTING_STATUSES.has(normalizedStatus);
+}
+
+function roadmapJiraIntervalDurationMs(interval, now = new Date()) {
+  if (!interval) {
+    return 0;
+  }
+
+  const startDate = parseValidDate(interval.startAt);
+
+  if (!startDate) {
+    return 0;
+  }
+
+  const status = normalizeRoadmapJiraStatus(interval.status);
+
+  let endDate = parseValidDate(interval.endAt);
+
+  /*
+   * Un estado abierto continúa hasta ahora,
+   * salvo Closed.
+   *
+   * Closed es terminal:
+   * el tiempo termina al entrar en Closed.
+   *
+   * Blocked sí sigue acumulando tiempo
+   * bloqueado, pero posteriormente no
+   * contará como tiempo efectivo.
+   */
+  if (!endDate) {
+    if (status === "Closed") {
+      return 0;
+    }
+
+    endDate = now instanceof Date ? now : new Date(now);
+  }
+
+  if (Number.isNaN(endDate.getTime())) {
+    return 0;
+  }
+
+  return Math.max(0, endDate.getTime() - startDate.getTime());
+}
+
+function buildRoadmapJiraMetrics(history, now = new Date()) {
+  const intervals = (Array.isArray(history) ? history : [])
+    .filter((interval) => interval && interval.startAt && interval.status)
+    .sort(
+      (left, right) => Number(left.sequence || 0) - Number(right.sequence || 0),
+    );
+
+  const byStatus = {};
+
+  ROADMAP_JIRA_STATUS_ORDER.forEach((status) => {
+    byStatus[status] = 0;
+  });
+
+  let effectiveTimeMs = 0;
+
+  let blockedTimeMs = 0;
+
+  let cycleTimeMs = 0;
+
+  intervals.forEach((interval) => {
+    const status = normalizeRoadmapJiraStatus(interval.status);
+
+    const durationMs = roadmapJiraIntervalDurationMs(interval, now);
+
+    if (!Object.prototype.hasOwnProperty.call(byStatus, status)) {
+      byStatus[status] = 0;
+    }
+
+    byStatus[status] += durationMs;
+
+    /*
+     * Closed no forma parte de la
+     * duración del ciclo porque el
+     * ciclo termina justo al entrar
+     * en Closed.
+     */
+    if (status !== "Closed") {
+      cycleTimeMs += durationMs;
+    }
+
+    if (status === "Blocked") {
+      blockedTimeMs += durationMs;
+    }
+
+    if (roadmapJiraStatusCountsTowardsEffectiveTime(status)) {
+      effectiveTimeMs += durationMs;
+    }
+  });
+
+  const firstInterval = intervals[0] || null;
+
+  const lastInterval = intervals.at(-1) || null;
+
+  const currentStatus = lastInterval
+    ? normalizeRoadmapJiraStatus(lastInterval.status)
+    : "";
+
+  const isClosed = currentStatus === "Closed";
+
+  const isBlocked = currentStatus === "Blocked";
+
+  return {
+    hasData: intervals.length > 0,
+
+    intervalCount: intervals.length,
+
+    currentStatus: currentStatus,
+
+    currentStatusRaw: lastInterval?.statusRaw || currentStatus,
+
+    currentSince: lastInterval?.startAt || "",
+
+    startedAt: firstInterval?.startAt || "",
+
+    completedAt: isClosed ? lastInterval?.startAt || "" : "",
+
+    isClosed: isClosed,
+
+    isBlocked: isBlocked,
+
+    effectiveTimeMs: effectiveTimeMs,
+
+    blockedTimeMs: blockedTimeMs,
+
+    cycleTimeMs: cycleTimeMs,
+
+    byStatus: byStatus,
+
+    sourceFile: lastInterval?.sourceFile || "",
+
+    sourceUpdatedAt: lastInterval?.sourceUpdatedAt || "",
+  };
+}
+
+function roadmapJiraFormatDuration(milliseconds) {
+  const totalMilliseconds = Math.max(0, Number(milliseconds || 0));
+
+  const totalMinutes = Math.floor(totalMilliseconds / 60000);
+
+  const days = Math.floor(totalMinutes / 1440);
+
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return `${days} d ${hours} h`;
+  }
+
+  if (hours > 0) {
+    return `${hours} h ${minutes} min`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes} min`;
+  }
+
+  if (totalMilliseconds > 0) {
+    return "< 1 min";
+  }
+
+  return "0 min";
+}
+function adaptUnifiedRoadmapItem(
+  item,
+  activities = [],
+  jiraStatusHistory = [],
+) {
   const type = String(item.type || "")
     .trim()
     .toLowerCase();
@@ -311,24 +439,70 @@ function adaptUnifiedRoadmapItem(item, activities = []) {
     epic: "Epic",
   };
 
+  const normalizedJiraHistory = (
+    Array.isArray(jiraStatusHistory) ? jiraStatusHistory : []
+  )
+    .map(adaptRoadmapItemStatusHistory)
+    .sort((left, right) => left.sequence - right.sequence);
+
+  const jiraMetrics =
+    type === "msa"
+      ? buildRoadmapJiraMetrics(normalizedJiraHistory)
+      : buildRoadmapJiraMetrics([]);
+
+  const hasJiraLifecycle = type === "msa" && jiraMetrics.hasData;
+
+  const jiraStartDate = hasJiraLifecycle ? jiraMetrics.startedAt : "";
+
+  const jiraEndDate = hasJiraLifecycle
+    ? jiraMetrics.isClosed
+      ? jiraMetrics.completedAt
+      : new Date().toISOString()
+    : "";
+
+  let effectiveStatus = rcsNormalizeStatus(item.status);
+
+  if (hasJiraLifecycle) {
+    if (jiraMetrics.currentStatus === "Blocked") {
+      effectiveStatus = "blocked";
+    } else if (jiraMetrics.currentStatus === "Closed") {
+      effectiveStatus = "done";
+    } else if (
+      ["Analysis In Progress", "Analysis In Review"].includes(
+        jiraMetrics.currentStatus,
+      )
+    ) {
+      effectiveStatus = "on-track";
+    } else {
+      effectiveStatus = "planned";
+    }
+  }
+
   return {
     id: String(item.id || "").trim(),
 
     type,
+
     typeLabel: typeLabels[type] || type || "Elemento",
 
     programId: String(item.programId || "").trim(),
+
     product: normalizeRoadmapProduct(item.product),
+
     country: String(item.country || "").trim(),
+
+    capabilityIds: item.capabilityIds || "",
 
     initiative: String(item.initiative || "").trim(),
 
     title: item.name || item.title || item.initiative || "Elemento sin nombre",
 
     summary: item.summary || item.description || "",
+
     description: item.description || item.summary || "",
 
-    status: rcsNormalizeStatus(item.status),
+    status: effectiveStatus,
+
     progress: normalizeRoadmapProgress(item.progress),
 
     priority: normalizeRoadmapPriority(item.priority),
@@ -343,12 +517,18 @@ function adaptUnifiedRoadmapItem(item, activities = []) {
     owner: item.owner || "",
 
     nextMilestoneTitle: item.nextMilestoneTitle || "",
+
     nextMilestoneDate: item.nextMilestoneDate || "",
 
     startDate:
-      item.startDate || getFirstRoadmapPhaseDate(activities, "startDate"),
+      jiraStartDate ||
+      item.startDate ||
+      getFirstRoadmapPhaseDate(activities, "startDate"),
 
-    endDate: item.endDate || getLastRoadmapPhaseDate(activities, "endDate"),
+    endDate:
+      jiraEndDate ||
+      item.endDate ||
+      getLastRoadmapPhaseDate(activities, "endDate"),
 
     targetDate:
       item.targetDate ||
@@ -356,17 +536,30 @@ function adaptUnifiedRoadmapItem(item, activities = []) {
       getLastRoadmapPhaseDate(activities, "targetDate") ||
       getLastRoadmapPhaseDate(activities, "endDate"),
 
-    lastUpdate: item.lastUpdate || "",
+    lastUpdate: jiraMetrics.sourceUpdatedAt || item.lastUpdate || "",
 
     strategicGoal: item.strategicGoal || "",
+
     businessValue: item.businessValue || "",
+
     mainRisks: item.mainRisks || "",
+
     dependencies: item.dependencies || "",
 
     documentUrl: item.documentUrl || "",
+
     documentLabel: item.documentLabel || "",
 
+    jiraKey: item.jiraKey || "",
+
+    jiraUrl: item.jiraUrl || "",
+
+    jiraStatusHistory: normalizedJiraHistory,
+
+    jiraMetrics: jiraMetrics,
+
     phases: activities,
+
     activities,
 
     source: item,
@@ -590,25 +783,6 @@ function getLastRoadmapPhaseDate(phases, field) {
   return dates.at(-1) || "";
 }
 
-// function adaptRoadmapCollection(type) {
-//   const adapter = ROADMAP_ITEM_ADAPTERS[type];
-
-//   if (!adapter) {
-//     return [];
-//   }
-
-//   const rows = Array.isArray(DATA[adapter.sourceCollection])
-//     ? DATA[adapter.sourceCollection]
-//     : [];
-
-//   return rows
-//     .map((item) => {
-//       const phases = getRoadmapItemPhases(adapter, item.id);
-
-//       return adapter.adapt(item, phases);
-//     })
-//     .filter((item) => item.id);
-// }
 function adaptUnifiedRoadmapCollection() {
   const items = Array.isArray(DATA.roadmapItems) ? DATA.roadmapItems : [];
 
@@ -616,49 +790,35 @@ function adaptUnifiedRoadmapCollection() {
     ? DATA.roadmapItemActivities
     : [];
 
+  const jiraStatusHistory = Array.isArray(DATA.roadmapItemStatusHistory)
+    ? DATA.roadmapItemStatusHistory
+    : [];
+
   return items
     .map((item) => {
-      const itemActivities = activities
-        .filter(
-          (activity) =>
-            String(activity.itemId || "").trim() ===
-            String(item.id || "").trim(),
-        )
-        .map(adaptRoadmapItemActivity)
-        .sort((a, b) => a.order - b.order);
+      const itemId = String(item.id || "").trim();
 
-      return adaptUnifiedRoadmapItem(item, itemActivities);
+      const itemActivities = activities
+        .filter((activity) => String(activity.itemId || "").trim() === itemId)
+        .map(adaptRoadmapItemActivity)
+        .sort((left, right) => left.order - right.order);
+
+      const itemJiraStatusHistory = jiraStatusHistory
+        .filter((interval) => String(interval.itemId || "").trim() === itemId)
+        .sort(
+          (left, right) =>
+            Number(left.sequence || 0) - Number(right.sequence || 0),
+        );
+
+      return adaptUnifiedRoadmapItem(
+        item,
+        itemActivities,
+        itemJiraStatusHistory,
+      );
     })
     .filter((item) => item.id);
 }
-// function getAllAdaptedRoadmapItems() {
-//   const unifiedItems = adaptUnifiedRoadmapCollection();
 
-//   const legacyItems = Object.keys(ROADMAP_ITEM_ADAPTERS).flatMap((type) =>
-//     adaptRoadmapCollection(type),
-//   );
-
-//   const itemsByKey = new Map();
-
-//   /*
-//    * Primero introducimos el modelo legado.
-//    * Después el modelo nuevo sobrescribe cualquier
-//    * elemento que tenga el mismo type + id.
-//    */
-//   legacyItems.forEach((item) => {
-//     const key = `${item.type}::${item.id}`;
-
-//     itemsByKey.set(key, item);
-//   });
-
-//   unifiedItems.forEach((item) => {
-//     const key = `${item.type}::${item.id}`;
-
-//     itemsByKey.set(key, item);
-//   });
-
-//   return [...itemsByKey.values()];
-// }
 function getRoadmapItems(programId, productId, quarter = "ALL") {
   const normalizedProgramId = String(programId || "").trim();
 
@@ -1033,150 +1193,853 @@ function renderRoadmapMonths(period) {
     .join("");
 }
 
-function renderRoadmapInitiativeRow(group, period) {
-  const visibleItems = group.items
-    .map((item) => ({
-      item,
-      layout: getRoadmapItemLayout(item, period),
-    }))
-    .filter(({ layout }) => layout.isVisible);
+function roadmapJiraStatusShortLabel(status) {
+  return (
+    {
+      "Pre-Work": "Pre-Work",
 
-  if (!visibleItems.length) {
+      "Analysis To Do": "To Do",
+
+      "Analysis In Progress": "In Progress",
+
+      "Analysis In Review": "In Review",
+
+      Blocked: "Blocked",
+
+      Closed: "Closed",
+    }[status] || status
+  );
+}
+
+function roadmapJiraStatusCssClass(status) {
+  return String(status || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function renderRoadmapJiraAggregates(item) {
+  const metrics = item?.jiraMetrics;
+
+  if (!metrics?.hasData) {
     return "";
   }
 
-  const groupStatus = getRoadmapGroupStatus(group);
+  const statuses = ROADMAP_JIRA_STATUS_ORDER.filter(
+    (status) => status !== "Closed",
+  )
+    .map((status) => ({
+      status,
 
-  const averageProgress = Math.round(
-    visibleItems.reduce(
-      (total, { item }) => total + Number(item.progress || 0),
-      0,
-    ) / visibleItems.length,
-  );
+      duration: Number(metrics.byStatus?.[status] || 0),
+    }))
+    .filter(
+      ({ status, duration }) =>
+        duration > 0 || (status === "Blocked" && metrics.blockedTimeMs > 0),
+    );
 
   return `
-    <article
-      class="aixbanker-roadmap-row aixbanker-roadmap-initiative-row"
-      style="--roadmap-sublane-count:${visibleItems.length};"
-      data-roadmap-initiative="${rcsEsc(group.key)}"
+    <div
+      class="
+        roadmap-jira-summary
+      "
     >
-      <div class="aixbanker-roadmap-item-info">
-        <div class="aixbanker-roadmap-item-top">
-          <span
-            class="status-pill status-${groupStatus}"
-          >
-            ${rcsEsc(rcsStatusLabel(groupStatus))}
-          </span>
+      <div
+        class="
+          roadmap-jira-summary-head
+        "
+      >
+        <span>
+          Tiempo efectivo
+        </span>
 
-          <span class="aixbanker-roadmap-type">
-            ${visibleItems.length}
-            ${visibleItems.length === 1 ? "elemento" : "elementos"}
-          </span>
-        </div>
-
-        <strong class="aixbanker-roadmap-item-title">
-          ${rcsEsc(group.title)}
+        <strong>
+          ${rcsEsc(roadmapJiraFormatDuration(metrics.effectiveTimeMs))}
         </strong>
-
-        <div class="aixbanker-roadmap-item-meta">
-          <span>
-            Avance medio
-            ${averageProgress}%
-          </span>
-
-          <span>
-            ${visibleItems
-              .map(({ item }) => item.typeLabel)
-              .filter((value, index, array) => array.indexOf(value) === index)
-              .map(rcsEsc)
-              .join(" · ")}
-          </span>
-        </div>
       </div>
 
-      <div class="aixbanker-roadmap-track aixbanker-roadmap-group-track">
-        ${visibleItems
-          .map(({ item, layout }, index) => {
-            const status = rcsNormalizeStatus(item.status);
+      <div
+        class="
+          roadmap-jira-status-times
+        "
+      >
+        ${statuses
+          .map(
+            ({ status, duration }) => `
+              <span
+                class="
+                  roadmap-jira-status-time
+                  roadmap-jira-status-${roadmapJiraStatusCssClass(status)}
+                "
+              >
+                <small>
+                  ${rcsEsc(roadmapJiraStatusShortLabel(status))}
+                </small>
 
-            return `
-                <div
-                  class="aixbanker-roadmap-sublane"
-                  style="--roadmap-sublane-index:${index};"
-                >
-                  <span class="aixbanker-roadmap-sublane-label">
-                    ${rcsEsc(item.typeLabel)}
-                  </span>
-
-                  <button
-                    class="
-                      aixbanker-roadmap-bar
-                      aixbanker-roadmap-bar-action
-                      ${getRoadmapTypeClass(item.type)}                    
-                    "
-
-                    type="button"
-                    data-roadmap-detail-type="${rcsEsc(item.type)}"
-                    data-roadmap-detail-id="${rcsEsc(item.id)}"
-                    style="
-                      left:${layout.left}%;
-                      width:${layout.width}%;
-                    "
-                    title="${rcsEsc(
-                      `${item.typeLabel} · ${item.title}: ${formatDate(
-                        layout.startDate,
-                      )} → ${formatDate(layout.endDate)}. Abrir detalle.`,
-                    )}"
-                    aria-label="${rcsEsc(
-                      `Abrir detalle de ${item.typeLabel} ${item.title}`,
-                    )}"
-                  >
-                    <span class="aixbanker-roadmap-bar-label">
-                      ${rcsEsc(item.progress)}%
-                    </span>
-                  </button>
-
-                  ${
-                    layout.targetPosition !== null
-                      ? `
-                        <span
-                          class="aixbanker-roadmap-milestone aixbanker-roadmap-sublane-milestone"
-                          style="
-                            left:${layout.targetPosition}%;
-                          "
-                          title="Entrega: ${rcsEsc(
-                            formatDate(layout.targetDate),
-                          )}"
-                        >
-                          <span aria-hidden="true">
-                            ◆
-                          </span>
-
-                          <em>
-                            ${rcsEsc(formatDate(layout.targetDate))}
-                          </em>
-                        </span>
-                      `
-                      : ""
-                  }
-
-                  <span
-                    class="aixbanker-roadmap-sublane-status status-${status}"
-                  >
-                    ${rcsEsc(rcsStatusLabel(status))}
-                  </span>
-                </div>
-              `;
-          })
+                <strong>
+                  ${rcsEsc(roadmapJiraFormatDuration(duration))}
+                </strong>
+              </span>
+            `,
+          )
           .join("")}
       </div>
-    </article>
+
+      ${
+        metrics.blockedTimeMs > 0
+          ? `
+              <div
+                class="
+                  roadmap-jira-blocked-time
+                "
+              >
+                Bloqueado:
+                <strong>
+                  ${rcsEsc(roadmapJiraFormatDuration(metrics.blockedTimeMs))}
+                </strong>
+                · no computa
+              </div>
+            `
+          : ""
+      }
+    </div>
   `;
 }
+
+function renderRoadmapJiraBar(item, layout) {
+  const metrics = item?.jiraMetrics;
+
+  if (!metrics?.hasData) {
+    return "";
+  }
+
+  const currentStatus = metrics.currentStatus || "Sin estado";
+
+  return `
+    <button
+      class="
+        aixbanker-roadmap-bar
+        aixbanker-roadmap-bar-action
+        roadmap-type-msa
+        roadmap-jira-lifecycle-bar
+      "
+      type="button"
+      data-roadmap-detail-type="${rcsEsc(item.type)}"
+      data-roadmap-detail-id="${rcsEsc(item.id)}"
+      style="
+        left:${layout.left}%;
+        width:${layout.width}%;
+      "
+      title="${rcsEsc(
+        `${item.title} · ${currentStatus} · ` +
+          `Tiempo efectivo: ${roadmapJiraFormatDuration(
+            metrics.effectiveTimeMs,
+          )}. Abrir detalle.`,
+      )}"
+      aria-label="${rcsEsc(`Abrir detalle del MSA ${item.title}`)}"
+    >
+      <span
+        class="
+          aixbanker-roadmap-bar-label
+          roadmap-jira-bar-label
+        "
+      >
+        ${rcsEsc(roadmapJiraFormatDuration(metrics.effectiveTimeMs))}
+      </span>
+    </button>
+  `;
+}
+
+const ROADMAP_JIRA_DETAIL_STATUSES = [
+  {
+    id: "Pre-Work",
+    label: "Pre-Work",
+    cssClass: "pre-work",
+  },
+  {
+    id: "Analysis To Do",
+    label: "Analysis To Do",
+    cssClass: "analysis-to-do",
+  },
+  {
+    id: "Analysis In Progress",
+    label: "Analysis In Progress",
+    cssClass: "analysis-in-progress",
+  },
+  {
+    id: "Analysis In Review",
+    label: "Analysis In Review",
+    cssClass: "analysis-in-review",
+  },
+  {
+    id: "Closed",
+    label: "Closed",
+    cssClass: "closed",
+  },
+];
+
+function roadmapJiraDetailSafeUrl(value) {
+  const raw = String(value || "").trim();
+
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    const url = new URL(raw, window.location.href);
+
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return "";
+    }
+
+    return url.href;
+  } catch {
+    return "";
+  }
+}
+
+function renderRoadmapJiraDetailExternalAction(label, url) {
+  const safeUrl = roadmapJiraDetailSafeUrl(url);
+
+  if (!safeUrl) {
+    return "";
+  }
+
+  return `
+    <a
+      class="
+        roadmap-jira-detail-external-action
+      "
+      href="${rcsEsc(safeUrl)}"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      ${rcsEsc(label)}
+      ↗
+    </a>
+  `;
+}
+
+function roadmapJiraFormatDetailedDuration(milliseconds) {
+  const totalSeconds = Math.max(
+    0,
+    Math.floor(Number(milliseconds || 0) / 1000),
+  );
+
+  const days = Math.floor(totalSeconds / 86400);
+
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  const seconds = totalSeconds % 60;
+
+  if (days > 0) {
+    if (hours > 0) {
+      return `${days} d ${hours} h`;
+    }
+
+    return `${days} d`;
+  }
+
+  if (hours > 0) {
+    if (minutes > 0) {
+      return `${hours} h ${minutes} min`;
+    }
+
+    return `${hours} h`;
+  }
+
+  if (minutes > 0) {
+    if (seconds > 0) {
+      return `${minutes} min ${seconds} s`;
+    }
+
+    return `${minutes} min`;
+  }
+
+  if (seconds > 0) {
+    return `${seconds} s`;
+  }
+
+  return "< 1 s";
+}
+function roadmapJiraFormatBarDurationLabel(milliseconds) {
+  const totalHours = Math.max(
+    0,
+    Math.round(Number(milliseconds || 0) / 3600000),
+  );
+
+  if (totalHours <= 0) {
+    return "";
+  }
+
+  if (totalHours < 24) {
+    return `${totalHours} h`;
+  }
+
+  const totalDays = Math.round(totalHours / 24);
+
+  return `${totalDays} d`;
+}
+function getRoadmapJiraLifecyclePeriod(history) {
+  const intervals = (Array.isArray(history) ? history : [])
+    .filter((interval) => interval && interval.startAt && interval.status)
+    .sort(
+      (left, right) => Number(left.sequence || 0) - Number(right.sequence || 0),
+    );
+
+  if (!intervals.length) {
+    return null;
+  }
+
+  const firstStart = parseValidDate(intervals[0].startAt);
+
+  if (!firstStart) {
+    return null;
+  }
+
+  const now = new Date();
+
+  const finalCandidates = intervals
+    .map((interval) => {
+      const status = normalizeRoadmapJiraStatus(interval.status);
+
+      const startDate = parseValidDate(interval.startAt);
+
+      const endDate = parseValidDate(interval.endAt);
+
+      if (status === "Closed") {
+        return startDate;
+      }
+
+      return endDate || now;
+    })
+    .filter(Boolean)
+    .sort((left, right) => left - right);
+
+  const finalDate = finalCandidates.at(-1) || now;
+
+  const startDate = new Date(
+    firstStart.getFullYear(),
+    firstStart.getMonth(),
+    1,
+    0,
+    0,
+    0,
+    0,
+  );
+
+  const endDate = new Date(
+    finalDate.getFullYear(),
+    finalDate.getMonth() + 1,
+    0,
+    23,
+    59,
+    59,
+    999,
+  );
+
+  const months = [];
+
+  let cursor = new Date(startDate);
+
+  while (cursor <= endDate) {
+    months.push(new Date(cursor));
+
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+
+  return {
+    startDate,
+    endDate,
+    months,
+  };
+}
+
+function roadmapJiraLifecyclePosition(value, period) {
+  if (!period) {
+    return 0;
+  }
+
+  const date = value instanceof Date ? value : parseValidDate(value);
+
+  if (!date) {
+    return 0;
+  }
+
+  const periodStart = period.startDate.getTime();
+
+  const periodEnd = period.endDate.getTime();
+
+  const duration = periodEnd - periodStart;
+
+  if (duration <= 0) {
+    return 0;
+  }
+
+  const clampedTime = Math.max(
+    periodStart,
+    Math.min(periodEnd, date.getTime()),
+  );
+
+  return ((clampedTime - periodStart) / duration) * 100;
+}
+
+function renderRoadmapJiraLifecycleMonths(period, showLabels = false) {
+  if (!period) {
+    return "";
+  }
+
+  return period.months
+    .map((month) => {
+      const nextMonth = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+
+      const left = roadmapJiraLifecyclePosition(month, period);
+
+      const right = roadmapJiraLifecyclePosition(nextMonth, period);
+
+      const width = Math.max(0, right - left);
+
+      return `
+          <span
+            class="
+              roadmap-jira-detail-month
+              ${showLabels ? "has-label" : ""}
+            "
+            style="
+              left:${left}%;
+              width:${width}%;
+            "
+          >
+            ${
+              showLabels
+                ? `
+                    <strong>
+                      ${rcsEsc(
+                        month.toLocaleDateString("es-ES", {
+                          month: "long",
+                        }),
+                      )}
+                    </strong>
+
+                    <small>
+                      ${month.getFullYear()}
+                    </small>
+                  `
+                : ""
+            }
+          </span>
+        `;
+    })
+    .join("");
+}
+
+function renderRoadmapJiraLifecycleToday(period) {
+  if (!period) {
+    return "";
+  }
+
+  const today = new Date();
+
+  if (today < period.startDate || today > period.endDate) {
+    return "";
+  }
+
+  const left = roadmapJiraLifecyclePosition(today, period);
+
+  return `
+    <span
+      class="
+        roadmap-jira-detail-today
+      "
+      style="
+        left:${left}%;
+      "
+    >
+      <span>
+        Hoy
+      </span>
+    </span>
+  `;
+}
+
+function renderRoadmapJiraLifecycleSegment(interval, period) {
+  const status = normalizeRoadmapJiraStatus(interval.status);
+
+  const startDate = parseValidDate(interval.startAt);
+
+  if (!startDate) {
+    return "";
+  }
+
+  if (status === "Closed") {
+    const left = roadmapJiraLifecyclePosition(startDate, period);
+
+    return `
+      <span
+        class="
+          roadmap-jira-detail-closed-marker
+        "
+        style="
+          left:${left}%;
+        "
+        title="${rcsEsc(`Closed · ${formatDate(startDate)}`)}"
+      >
+        <i
+          aria-hidden="true"
+        >
+          ◆
+        </i>
+
+        <em>
+          ${rcsEsc(formatDate(startDate))}
+        </em>
+      </span>
+    `;
+  }
+
+  const endDate = parseValidDate(interval.endAt) || new Date();
+
+  if (endDate < period.startDate || startDate > period.endDate) {
+    return "";
+  }
+
+  const left = roadmapJiraLifecyclePosition(startDate, period);
+
+  const right = roadmapJiraLifecyclePosition(endDate, period);
+
+  const width = Math.max(0.0001, right - left);
+
+  const durationMs = Math.max(0, endDate.getTime() - startDate.getTime());
+
+  const durationLabel = roadmapJiraFormatDetailedDuration(durationMs);
+
+  const barDurationLabel = roadmapJiraFormatBarDurationLabel(durationMs);
+
+  const showDuration = width >= 3.2;
+
+  return `
+    <span
+      class="
+        roadmap-jira-detail-segment
+        roadmap-jira-detail-segment-${roadmapJiraStatusCssClass(status)}
+      "
+      style="
+        left:${left}%;
+        width:${width}%;
+      "
+      title="${rcsEsc(
+        `${status} · ` +
+          `${formatDate(startDate)} → ` +
+          `${formatDate(endDate)} · ` +
+          `${durationLabel}`,
+      )}"
+    >
+      ${
+        showDuration && barDurationLabel
+          ? `
+              <strong>
+                ${rcsEsc(barDurationLabel)}
+              </strong>
+            `
+          : ""
+      }
+    </span>
+  `;
+}
+
+function renderRoadmapJiraLifecycleRow(definition, roadmapItem, period) {
+  const history = Array.isArray(roadmapItem.jiraStatusHistory)
+    ? roadmapItem.jiraStatusHistory
+    : [];
+
+  const intervals = history.filter(
+    (interval) => normalizeRoadmapJiraStatus(interval.status) === definition.id,
+  );
+
+  const totalDuration = Number(
+    roadmapItem.jiraMetrics?.byStatus?.[definition.id] || 0,
+  );
+
+  const meta =
+    definition.id === "Closed"
+      ? intervals.length
+        ? "Hito de cierre"
+        : "Sin cierre"
+      : totalDuration > 0
+        ? roadmapJiraFormatDuration(totalDuration)
+        : "Sin paso por estado";
+
+  return `
+    <div
+      class="
+        roadmap-jira-detail-row
+        roadmap-jira-detail-row-${definition.cssClass}
+      "
+    >
+      <div
+        class="
+          roadmap-jira-detail-row-label
+        "
+      >
+        <strong>
+          ${rcsEsc(definition.label)}
+        </strong>
+
+        <span>
+          ${rcsEsc(meta)}
+        </span>
+      </div>
+
+      <div
+        class="
+          roadmap-jira-detail-row-track
+        "
+      >
+        ${renderRoadmapJiraLifecycleMonths(period, false)}
+
+        ${intervals
+          .map((interval) =>
+            renderRoadmapJiraLifecycleSegment(interval, period),
+          )
+          .join("")}
+
+        ${renderRoadmapJiraLifecycleToday(period)}
+      </div>
+    </div>
+  `;
+}
+
+function renderRoadmapJiraLifecycleDetail(roadmapItem, navigation) {
+  const history = Array.isArray(roadmapItem.jiraStatusHistory)
+    ? roadmapItem.jiraStatusHistory
+    : [];
+
+  const period = getRoadmapJiraLifecyclePeriod(history);
+
+  const backRoute = navigation?.route || "";
+
+  const backLabel = navigation?.label || "Volver al roadmap";
+
+  const currentStatus = roadmapItem.jiraMetrics?.currentStatus || "";
+
+  if (!period) {
+    view.innerHTML = `
+      <section
+        class="
+          panel
+          roadmap-jira-detail-panel
+        "
+      >
+        <button
+          class="
+            ghost-button
+          "
+          type="button"
+          data-route="${rcsEsc(backRoute)}"
+        >
+          ← ${rcsEsc(backLabel)}
+        </button>
+
+        <p
+          class="
+            empty-state
+          "
+        >
+          No hay histórico JIRA
+          disponible para este MSA.
+        </p>
+      </section>
+    `;
+
+    return;
+  }
+
+  view.innerHTML = `
+    <section
+      class="
+        panel
+        roadmap-jira-detail-panel
+      "
+    >
+      <header
+        class="
+          roadmap-jira-detail-header
+        "
+      >
+        <button
+          class="
+            ghost-button
+          "
+          type="button"
+          data-route="${rcsEsc(backRoute)}"
+        >
+          ← ${rcsEsc(backLabel)}
+        </button>
+
+        <div
+          class="
+            roadmap-jira-detail-heading
+          "
+        >
+          <div
+            class="
+              aixbanker-roadmap-item-top
+            "
+          >
+            <span
+              class="
+                aixbanker-roadmap-type
+              "
+            >
+              MSA
+            </span>
+
+            ${
+              roadmapItem.jiraKey
+                ? `
+                    <span
+                      class="
+                        aixbanker-roadmap-type
+                      "
+                    >
+                      ${rcsEsc(roadmapItem.jiraKey)}
+                    </span>
+                  `
+                : ""
+            }
+          </div>
+
+          <h3>
+            ${rcsEsc(roadmapItem.title)}
+          </h3>
+
+          <p>
+            Ciclo real reconstruido
+            desde el histórico de
+            estados de JIRA.
+          </p>
+        </div>
+
+        <div
+          class="
+            roadmap-jira-detail-actions
+          "
+        >
+          ${
+            currentStatus
+              ? `
+                  <span
+                    class="
+                      roadmap-jira-detail-current-state
+                    "
+                  >
+                    ${rcsEsc(currentStatus)}
+                  </span>
+                `
+              : ""
+          }
+
+          ${renderRoadmapJiraDetailExternalAction(
+            "Abrir MSA",
+            roadmapItem.documentUrl,
+          )}
+
+          ${renderRoadmapJiraDetailExternalAction(
+            "Abrir JIRA",
+            roadmapItem.jiraUrl,
+          )}
+        </div>
+      </header>
+
+      <section
+        class="
+          roadmap-jira-detail-lifecycle
+        "
+      >
+        <div
+          class="
+            roadmap-jira-detail-section-heading
+          "
+        >
+          <div>
+            <span>
+              CICLO E2E
+            </span>
+
+            <h3>
+              Evolución por estado
+            </h3>
+          </div>
+
+          <p>
+            Tiempo efectivo:
+            <strong>
+              ${rcsEsc(
+                roadmapJiraFormatDuration(
+                  roadmapItem.jiraMetrics?.effectiveTimeMs || 0,
+                ),
+              )}
+            </strong>
+          </p>
+        </div>
+
+        <div
+          class="
+            roadmap-jira-detail-board
+          "
+        >
+          <div
+            class="
+              roadmap-jira-detail-axis
+            "
+          >
+            <div
+              class="
+                roadmap-jira-detail-axis-title
+              "
+            >
+              Estado
+            </div>
+
+            <div
+              class="
+                roadmap-jira-detail-axis-track
+              "
+            >
+              ${renderRoadmapJiraLifecycleMonths(period, true)}
+
+              ${renderRoadmapJiraLifecycleToday(period)}
+            </div>
+          </div>
+
+          ${ROADMAP_JIRA_DETAIL_STATUSES.map((definition) =>
+            renderRoadmapJiraLifecycleRow(definition, roadmapItem, period),
+          ).join("")}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
 function renderRoadmapItemDetailView(roadmapItem, navigation) {
   if (!roadmapItem) {
     return;
   }
+
+  const isJiraMsa =
+    String(roadmapItem.type || "")
+      .trim()
+      .toLowerCase() === "msa" && roadmapItem.jiraMetrics?.hasData === true;
+
+  if (isJiraMsa) {
+    renderRoadmapJiraLifecycleDetail(roadmapItem, navigation);
+
+    return;
+  }
+
   const tasks = Array.isArray(roadmapItem.activities)
     ? roadmapItem.activities
     : Array.isArray(roadmapItem.phases)
@@ -1192,6 +2055,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         )}`
       : "",
   }));
+
   const status = rcsNormalizeStatus(roadmapItem.status);
 
   const backRoute = navigation?.route || "";
@@ -1199,10 +2063,21 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
   const backLabel = navigation?.label || "Volver al roadmap";
 
   view.innerHTML = `
-    <section class="panel project-detail-panel">
-      <div class="project-detail-header">
+    <section
+      class="
+        panel
+        project-detail-panel
+      "
+    >
+      <div
+        class="
+          project-detail-header
+        "
+      >
         <button
-          class="ghost-button"
+          class="
+            ghost-button
+          "
           type="button"
           data-route="${rcsEsc(backRoute)}"
         >
@@ -1210,18 +2085,30 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </button>
 
         <div>
-          <div class="aixbanker-roadmap-item-top">
-            <span class="aixbanker-roadmap-type">
+          <div
+            class="
+              aixbanker-roadmap-item-top
+            "
+          >
+            <span
+              class="
+                aixbanker-roadmap-type
+              "
+            >
               ${rcsEsc(roadmapItem.typeLabel)}
             </span>
 
             ${
               roadmapItem.initiative
                 ? `
-                  <span class="aixbanker-roadmap-type">
-                    ${rcsEsc(roadmapItem.initiative)}
-                  </span>
-                `
+                    <span
+                      class="
+                        aixbanker-roadmap-type
+                      "
+                    >
+                      ${rcsEsc(roadmapItem.initiative)}
+                    </span>
+                  `
                 : ""
             }
           </div>
@@ -1239,9 +2126,16 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
           </p>
         </div>
 
-        <div class="project-detail-actions">
+        <div
+          class="
+            project-detail-actions
+          "
+        >
           <span
-            class="status-pill status-${status}"
+            class="
+              status-pill
+              status-${status}
+            "
           >
             ${rcsEsc(rcsStatusLabel(status))}
           </span>
@@ -1250,33 +2144,62 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </div>
       </div>
 
-      <div class="project-detail-grid project-detail-grid-dates">
-        <article class="detail-card">
-          <span>Inicio</span>
+      <div
+        class="
+          project-detail-grid
+          project-detail-grid-dates
+        "
+      >
+        <article
+          class="
+            detail-card
+          "
+        >
+          <span>
+            Inicio
+          </span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.startDate))}
           </strong>
         </article>
 
-        <article class="detail-card">
-          <span>Fin</span>
+        <article
+          class="
+            detail-card
+          "
+        >
+          <span>
+            Fin
+          </span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.endDate))}
           </strong>
         </article>
 
-        <article class="detail-card">
-          <span>Entrega objetivo</span>
+        <article
+          class="
+            detail-card
+          "
+        >
+          <span>
+            Entrega objetivo
+          </span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.targetDate))}
           </strong>
         </article>
 
-        <article class="detail-card">
-          <span>Última actualización</span>
+        <article
+          class="
+            detail-card
+          "
+        >
+          <span>
+            Última actualización
+          </span>
 
           <strong>
             ${rcsEsc(formatDate(roadmapItem.lastUpdate))}
@@ -1284,46 +2207,100 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
         </article>
       </div>
 
-      <section class="phase-section">
+      <section
+        class="
+          phase-section
+        "
+      >
         <h3>
           Roadmap de actividades
         </h3>
 
-
         <section
-          class="phase-status-legend"
-          aria-label="Leyenda de estados"
+          class="
+            phase-status-legend
+          "
+          aria-label="
+            Leyenda de estados
+          "
         >
-          <span class="phase-status-legend-item">
-            <i class="phase-status-dot phase-status-done"></i>
+          <span
+            class="
+              phase-status-legend-item
+            "
+          >
+            <i
+              class="
+                phase-status-dot
+                phase-status-done
+              "
+            ></i>
             Hecho
           </span>
 
-          <span class="phase-status-legend-item">
-            <i class="phase-status-dot phase-status-on-track"></i>
+          <span
+            class="
+              phase-status-legend-item
+            "
+          >
+            <i
+              class="
+                phase-status-dot
+                phase-status-on-track
+              "
+            ></i>
             En progreso
           </span>
 
-          <span class="phase-status-legend-item">
-            <i class="phase-status-dot phase-status-pending"></i>
+          <span
+            class="
+              phase-status-legend-item
+            "
+          >
+            <i
+              class="
+                phase-status-dot
+                phase-status-pending
+              "
+            ></i>
             Pendiente
           </span>
 
-          <span class="phase-status-legend-item">
-            <i class="phase-status-dot phase-status-risk"></i>
+          <span
+            class="
+              phase-status-legend-item
+            "
+          >
+            <i
+              class="
+                phase-status-dot
+                phase-status-risk
+              "
+            ></i>
             Riesgo
           </span>
 
-          <span class="phase-status-legend-item">
-            <i class="phase-status-dot phase-status-blocked"></i>
+          <span
+            class="
+              phase-status-legend-item
+            "
+          >
+            <i
+              class="
+                phase-status-dot
+                phase-status-blocked
+              "
+            ></i>
             Bloqueado
           </span>
         </section>
 
-        <div id="roadmapItemTimeline"></div>
+        <div
+          id="
+            roadmapItemTimeline
+          "
+        ></div>
       </section>
-
-      
     </section>
   `;
 
@@ -1331,6 +2308,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
 
   renderPhaseTimeline(activities, timelineContainer, {
     firstColumnLabel: "Actividad",
+
     showMissingDates: false,
   });
 }
@@ -1883,6 +2861,247 @@ function groupRoadmapItemsByCapability(items) {
 
     return String(left.title).localeCompare(String(right.title), "es");
   });
+}
+function renderRoadmapInitiativeRow(group, period) {
+  const visibleItems = group.items
+    .map((item) => ({
+      item,
+
+      layout: getRoadmapItemLayout(item, period),
+    }))
+    .filter(({ layout }) => layout.isVisible);
+
+  if (!visibleItems.length) {
+    return "";
+  }
+
+  const groupStatus = getRoadmapGroupStatus(group);
+
+  const nonJiraItems = visibleItems.filter(
+    ({ item }) => !(item.type === "msa" && item.jiraMetrics?.hasData),
+  );
+
+  const averageProgress = nonJiraItems.length
+    ? Math.round(
+        nonJiraItems.reduce(
+          (total, { item }) => total + Number(item.progress || 0),
+          0,
+        ) / nonJiraItems.length,
+      )
+    : 0;
+
+  const jiraMsa =
+    visibleItems.find(
+      ({ item }) => item.type === "msa" && item.jiraMetrics?.hasData,
+    )?.item || null;
+
+  return `
+    <article
+      class="
+        aixbanker-roadmap-row
+        aixbanker-roadmap-initiative-row
+        ${jiraMsa ? "has-jira-msa" : ""}
+      "
+      style="
+        --roadmap-sublane-count:
+        ${visibleItems.length};
+      "
+      data-roadmap-initiative="${rcsEsc(group.key)}"
+    >
+      <div
+        class="
+          aixbanker-roadmap-item-info
+        "
+      >
+        <div
+          class="
+            aixbanker-roadmap-item-top
+          "
+        >
+          <span
+            class="
+              status-pill
+              status-${groupStatus}
+            "
+          >
+            ${rcsEsc(rcsStatusLabel(groupStatus))}
+          </span>
+
+          <span
+            class="
+              aixbanker-roadmap-type
+            "
+          >
+            ${visibleItems.length}
+            ${visibleItems.length === 1 ? "elemento" : "elementos"}
+          </span>
+        </div>
+
+        <strong
+          class="
+            aixbanker-roadmap-item-title
+          "
+        >
+          ${rcsEsc(group.title)}
+        </strong>
+
+        ${
+          jiraMsa
+            ? renderRoadmapJiraAggregates(jiraMsa)
+            : `
+                <div
+                  class="
+                    aixbanker-roadmap-item-meta
+                  "
+                >
+                  <span>
+                    Avance medio
+                    ${averageProgress}%
+                  </span>
+
+                  <span>
+                    ${visibleItems
+                      .map(({ item }) => item.typeLabel)
+                      .filter(
+                        (value, index, array) => array.indexOf(value) === index,
+                      )
+                      .map(rcsEsc)
+                      .join(" · ")}
+                  </span>
+                </div>
+              `
+        }
+      </div>
+
+      <div
+        class="
+          aixbanker-roadmap-track
+          aixbanker-roadmap-group-track
+        "
+      >
+        ${visibleItems
+          .map(({ item, layout }, index) => {
+            const status = rcsNormalizeStatus(item.status);
+
+            const hasJiraLifecycle =
+              item.type === "msa" && item.jiraMetrics?.hasData;
+
+            return `
+                <div
+                  class="
+                    aixbanker-roadmap-sublane
+                    ${hasJiraLifecycle ? "has-jira-lifecycle" : ""}
+                  "
+                  style="
+                    --roadmap-sublane-index:
+                    ${index};
+                  "
+                >
+                  <span
+                    class="
+                      aixbanker-roadmap-sublane-label
+                    "
+                  >
+                    ${
+                      hasJiraLifecycle
+                        ? `MSA · ${rcsEsc(item.jiraKey || item.id)}`
+                        : rcsEsc(item.typeLabel)
+                    }
+                  </span>
+
+                  ${
+                    hasJiraLifecycle
+                      ? renderRoadmapJiraBar(item, layout)
+                      : `
+                          <button
+                            class="
+                              aixbanker-roadmap-bar
+                              aixbanker-roadmap-bar-action
+                              ${getRoadmapTypeClass(item.type)}
+                            "
+                            type="button"
+                            data-roadmap-detail-type="${rcsEsc(item.type)}"
+                            data-roadmap-detail-id="${rcsEsc(item.id)}"
+                            style="
+                              left:${layout.left}%;
+                              width:${layout.width}%;
+                            "
+                            title="${rcsEsc(
+                              `${item.typeLabel} · ${item.title}: ` +
+                                `${formatDate(layout.startDate)} → ` +
+                                `${formatDate(layout.endDate)}. ` +
+                                `Abrir detalle.`,
+                            )}"
+                            aria-label="${rcsEsc(
+                              `Abrir detalle de ` +
+                                `${item.typeLabel} ` +
+                                `${item.title}`,
+                            )}"
+                          >
+                            <span
+                              class="
+                                aixbanker-roadmap-bar-label
+                              "
+                            >
+                              ${rcsEsc(item.progress)}%
+                            </span>
+                          </button>
+                        `
+                  }
+
+                  ${
+                    !hasJiraLifecycle && layout.targetPosition !== null
+                      ? `
+                          <span
+                            class="
+                              aixbanker-roadmap-milestone
+                              aixbanker-roadmap-sublane-milestone
+                            "
+                            style="
+                              left:
+                              ${layout.targetPosition}%;
+                            "
+                            title="Entrega: ${rcsEsc(
+                              formatDate(layout.targetDate),
+                            )}"
+                          >
+                            <span
+                              aria-hidden="true"
+                            >
+                              ◆
+                            </span>
+
+                            <em>
+                              ${rcsEsc(formatDate(layout.targetDate))}
+                            </em>
+                          </span>
+                        `
+                      : ""
+                  }
+
+                  <span
+                    class="
+                      aixbanker-roadmap-sublane-status
+                      ${
+                        hasJiraLifecycle
+                          ? "roadmap-jira-current-status"
+                          : `status-${status}`
+                      }
+                    "
+                  >
+                    ${
+                      hasJiraLifecycle
+                        ? rcsEsc(item.jiraMetrics.currentStatus)
+                        : rcsEsc(rcsStatusLabel(status))
+                    }
+                  </span>
+                </div>
+              `;
+          })
+          .join("")}
+      </div>
+    </article>
+  `;
 }
 function renderRoadmapTimeline(roadmapItems, selectedQuarter, options = {}) {
   const period = getRoadmapPeriod(selectedQuarter);
@@ -3193,24 +4412,32 @@ function getEmptyProgramData() {
     modules: [],
     roles: [],
     priorities: [],
+
     functional: [],
     functionalSystemLinks: [],
+
     systems: [],
     systemsToBe: [],
+
     architectureFeaturesGaps: [],
+
     systemRelationships: [],
     systemRelationshipsToBe: [],
+
     impediments: [],
+
     decisionsPending: [],
     decisionsDone: [],
 
     // Modelo unificado
     roadmapItems: [],
     roadmapItemActivities: [],
+    roadmapItemStatusHistory: [],
 
     // Modelo legado
     projects: [],
     projectPhases: [],
+
     msas: [],
     msaPhases: [],
 

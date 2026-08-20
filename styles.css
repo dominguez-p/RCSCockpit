@@ -3244,3 +3244,567 @@ th {
     flex-wrap: wrap;
   }
 }
+/* =========================================================
+   AIxBanker · MSA / JIRA lifecycle
+   ========================================================= */
+
+.aixbanker-roadmap-initiative-row.has-jira-msa {
+  min-height: 142px;
+}
+
+.roadmap-jira-summary {
+  display: grid;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.roadmap-jira-summary-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.roadmap-jira-summary-head strong {
+  color: var(--blue);
+  font-size: 13px;
+}
+
+.roadmap-jira-status-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.roadmap-jira-status-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+
+  padding: 4px 6px;
+
+  border: 1px solid var(--line);
+  border-radius: 7px;
+
+  background: #f7f9fd;
+
+  white-space: nowrap;
+}
+
+.roadmap-jira-status-time small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.roadmap-jira-status-time strong {
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.roadmap-jira-lifecycle-bar {
+  background: linear-gradient(90deg, #1464a5 0%, #1973b8 100%);
+}
+
+.roadmap-jira-bar-label {
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
+.aixbanker-roadmap-sublane.has-jira-lifecycle .aixbanker-roadmap-sublane-label {
+  color: var(--blue);
+  font-weight: 800;
+}
+
+.roadmap-jira-current-status {
+  padding: 3px 7px;
+
+  border-radius: 999px;
+
+  background: #eaf5ff;
+  color: var(--blue);
+
+  font-size: 9px;
+  font-weight: 800;
+
+  white-space: nowrap;
+}
+
+/* =========================================================
+   AIxBanker · MSA JIRA lifecycle detail
+   ========================================================= */
+
+.roadmap-jira-detail-panel {
+  display: grid;
+  gap: 28px;
+
+  padding: 22px 18px 26px;
+}
+
+.roadmap-jira-detail-header {
+  display: grid;
+
+  grid-template-columns: auto minmax(0, 1fr) auto;
+
+  align-items: start;
+
+  gap: 22px;
+
+  padding-bottom: 20px;
+
+  border-bottom: 1px solid var(--line);
+}
+
+.roadmap-jira-detail-heading {
+  min-width: 0;
+}
+
+.roadmap-jira-detail-heading h3 {
+  margin: 5px 0;
+
+  color: var(--blue);
+
+  font-size: 30px;
+  line-height: 1;
+}
+
+.roadmap-jira-detail-heading p {
+  max-width: 720px;
+
+  margin: 0;
+
+  color: var(--muted);
+
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.roadmap-jira-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+
+  justify-content: flex-end;
+  align-items: center;
+
+  gap: 8px;
+}
+
+.roadmap-jira-detail-current-state {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 31px;
+
+  padding: 0 11px;
+
+  border-radius: 999px;
+
+  background: #eaf5ff;
+  color: var(--blue);
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+.roadmap-jira-detail-external-action {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 31px;
+
+  padding: 0 11px;
+
+  border: 1px solid var(--line);
+  border-radius: 999px;
+
+  background: #fff;
+  color: var(--blue);
+
+  font-size: 10px;
+  font-weight: 900;
+
+  text-decoration: none;
+
+  white-space: nowrap;
+
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.roadmap-jira-detail-external-action:hover {
+  background: #edf4ff;
+  transform: translateY(-1px);
+}
+
+/* =========================================================
+   Lifecycle heading
+   ========================================================= */
+
+.roadmap-jira-detail-lifecycle {
+  display: grid;
+  gap: 14px;
+}
+
+.roadmap-jira-detail-section-heading {
+  display: flex;
+
+  align-items: end;
+  justify-content: space-between;
+
+  gap: 18px;
+}
+
+.roadmap-jira-detail-section-heading > div > span {
+  color: var(--muted);
+
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.roadmap-jira-detail-section-heading h3 {
+  margin: 3px 0 0;
+
+  color: var(--blue);
+
+  font-size: 23px;
+}
+
+.roadmap-jira-detail-section-heading p {
+  margin: 0;
+
+  color: var(--muted);
+
+  font-size: 11px;
+}
+
+.roadmap-jira-detail-section-heading p strong {
+  color: var(--blue);
+
+  font-size: 15px;
+}
+
+/* =========================================================
+   Lifecycle board
+   ========================================================= */
+
+.roadmap-jira-detail-board {
+  overflow: hidden;
+
+  border: 1px solid var(--line);
+  border-radius: 18px;
+
+  background: #fff;
+}
+
+.roadmap-jira-detail-axis,
+.roadmap-jira-detail-row {
+  display: grid;
+
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+
+/* =========================================================
+   Calendar axis
+   ========================================================= */
+
+.roadmap-jira-detail-axis {
+  min-height: 58px;
+
+  border-bottom: 1px solid var(--line);
+
+  background: #f6f8fd;
+}
+
+.roadmap-jira-detail-axis-title {
+  display: flex;
+  align-items: center;
+
+  padding: 0 18px;
+
+  border-right: 1px solid var(--line);
+
+  color: var(--blue);
+
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.roadmap-jira-detail-axis-track,
+.roadmap-jira-detail-row-track {
+  position: relative;
+
+  min-width: 0;
+}
+
+.roadmap-jira-detail-axis-track {
+  min-height: 58px;
+}
+
+/* =========================================================
+   Status rows
+   ========================================================= */
+
+.roadmap-jira-detail-row {
+  min-height: 72px;
+
+  border-bottom: 1px solid var(--line);
+}
+
+.roadmap-jira-detail-row:last-child {
+  border-bottom: 0;
+}
+
+.roadmap-jira-detail-row-label {
+  display: flex;
+  flex-direction: column;
+
+  justify-content: center;
+
+  gap: 4px;
+
+  padding: 10px 18px;
+
+  border-right: 1px solid var(--line);
+}
+
+.roadmap-jira-detail-row-label strong {
+  color: var(--blue);
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.roadmap-jira-detail-row-label span {
+  color: var(--muted);
+
+  font-size: 10px;
+}
+
+.roadmap-jira-detail-row-track {
+  min-height: 72px;
+}
+
+/* =========================================================
+   Month grid
+   ========================================================= */
+
+.roadmap-jira-detail-month {
+  position: absolute;
+
+  top: 0;
+  bottom: 0;
+
+  border-right: 1px solid #dce4f2;
+
+  pointer-events: none;
+}
+
+.roadmap-jira-detail-month.has-label {
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 2px;
+
+  color: var(--blue);
+}
+
+.roadmap-jira-detail-month.has-label strong {
+  font-size: 10px;
+  font-weight: 900;
+
+  text-transform: capitalize;
+}
+
+.roadmap-jira-detail-month.has-label small {
+  color: var(--muted);
+
+  font-size: 8px;
+}
+
+/* =========================================================
+   JIRA status segments
+   ========================================================= */
+
+.roadmap-jira-detail-segment {
+  position: absolute;
+
+  top: 50%;
+
+  z-index: 3;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  height: 28px;
+
+  min-width: 3px;
+
+  padding: 0 8px;
+
+  transform: translateY(-50%);
+
+  border-radius: 999px;
+
+  box-shadow: 0 5px 12px rgba(7, 33, 93, 0.16);
+
+  overflow: hidden;
+}
+
+.roadmap-jira-detail-segment strong {
+  position: relative;
+
+  z-index: 2;
+
+  color: #fff;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  line-height: 1;
+
+  letter-spacing: 0.01em;
+
+  white-space: nowrap;
+
+  text-align: center;
+
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
+}
+
+/* =========================================================
+   Segment colours
+   ========================================================= */
+
+.roadmap-jira-detail-segment-pre-work {
+  background: linear-gradient(90deg, #6685b8, #7d9bc8);
+}
+
+.roadmap-jira-detail-segment-analysis-to-do {
+  background: linear-gradient(90deg, #3c9fe2, #57b1ea);
+}
+
+.roadmap-jira-detail-segment-analysis-in-progress {
+  background: linear-gradient(90deg, #1464a5, #1973b8);
+}
+
+.roadmap-jira-detail-segment-analysis-in-review {
+  background: linear-gradient(90deg, #5d4fc4, #7565dc);
+}
+
+/* =========================================================
+   Closed milestone
+   ========================================================= */
+
+.roadmap-jira-detail-closed-marker {
+  position: absolute;
+
+  top: 50%;
+
+  z-index: 4;
+
+  display: flex;
+  align-items: center;
+
+  transform: translate(-7px, -50%);
+
+  color: #e85d62;
+}
+
+.roadmap-jira-detail-closed-marker i {
+  font-size: 15px;
+  font-style: normal;
+}
+
+.roadmap-jira-detail-closed-marker em {
+  position: absolute;
+
+  left: 18px;
+
+  min-width: 90px;
+
+  color: #e85d62;
+
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+/* =========================================================
+   Today
+   ========================================================= */
+
+.roadmap-jira-detail-today {
+  position: absolute;
+
+  top: 0;
+  bottom: 0;
+
+  z-index: 5;
+
+  width: 1px;
+
+  background: #f35e61;
+
+  pointer-events: none;
+}
+
+.roadmap-jira-detail-today > span {
+  position: absolute;
+
+  top: -9px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  padding: 2px 5px;
+
+  border-radius: 999px;
+
+  background: #f35e61;
+  color: #fff;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+.roadmap-jira-detail-row-track .roadmap-jira-detail-today > span {
+  display: none;
+}
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 980px) {
+  .roadmap-jira-detail-header {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap-jira-detail-actions {
+    justify-content: flex-start;
+  }
+
+  .roadmap-jira-detail-board {
+    overflow-x: auto;
+  }
+
+  .roadmap-jira-detail-axis,
+  .roadmap-jira-detail-row {
+    grid-template-columns: 165px minmax(650px, 1fr);
+  }
+}
