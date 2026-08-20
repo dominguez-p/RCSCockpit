@@ -1,6 +1,9 @@
 function roadmapWorkspaceRenderTimelineLane(track, items, state) {
-  const laneTitle = track === "technical" ? "Carril técnico" : "Carril funcional";
+  const laneTitle =
+    track === "technical" ? "Carril técnico" : "Carril funcional";
+
   const today = roadmapWorkspaceTodayContext(state.quarter);
+
   const timelineItems = roadmapWorkspaceSort(
     items.filter(
       (item) =>
@@ -11,26 +14,61 @@ function roadmapWorkspaceRenderTimelineLane(track, items, state) {
 
   return `
     <section
-      class="roadmap-workspace-timeline-lane ${today.visible ? "has-today" : ""}"
-      style="--roadmap-workspace-today:${today.position}%"
+      class="
+        roadmap-workspace-timeline-lane
+        ${today.visible ? "has-today" : ""}
+      "
+      style="
+        --roadmap-workspace-today:
+        ${today.position}%;
+      "
     >
-      <header class="roadmap-workspace-lane-header">
+      <header
+        class="
+          roadmap-workspace-lane-header
+        "
+      >
         <div>
-          <span>${laneTitle}</span>
-          <h3>${track === "technical" ? "MSAs, plataforma y habilitadores" : "Proyectos, pilotos e iniciativas"}</h3>
+          <span>
+            ${laneTitle}
+          </span>
+
+          <h3>
+            ${
+              track === "technical"
+                ? "MSAs, plataforma y habilitadores"
+                : "Proyectos, pilotos e iniciativas"
+            }
+          </h3>
         </div>
-        <strong>${timelineItems.length}</strong>
+
+        <strong>
+          ${timelineItems.length}
+        </strong>
       </header>
 
       ${
         timelineItems.length
-          ? renderRoadmapTimeline(timelineItems, state.quarter)
-          : `<section class="panel"><p class="empty-state">No hay elementos planificados en este carril y periodo.</p></section>`
+          ? renderRoadmapTimeline(timelineItems, state.quarter, {
+              groupByCapability: state?.groupByCapability === true,
+            })
+          : `
+              <section
+                class="panel"
+              >
+                <p
+                  class="empty-state"
+                >
+                  No hay elementos
+                  planificados en este
+                  carril y periodo.
+                </p>
+              </section>
+            `
       }
     </section>
   `;
 }
-
 function roadmapWorkspaceRenderTimeline(programId, items, state) {
   const filtered = roadmapWorkspaceFilteredItems(items, state).filter(
     roadmapWorkspaceHasPlanning,
@@ -56,7 +94,8 @@ function roadmapWorkspaceRenderBacklogLane(track, items, programId, state) {
   const laneItems = roadmapWorkspaceSort(
     items.filter((item) => roadmapWorkspaceTrack(item) === track),
   );
-  const laneTitle = track === "technical" ? "Backlog técnico" : "Backlog funcional";
+  const laneTitle =
+    track === "technical" ? "Backlog técnico" : "Backlog funcional";
 
   return `
     <section class="roadmap-workspace-backlog-lane">
@@ -102,15 +141,17 @@ function roadmapWorkspaceRenderBacklog(programId, items, state) {
         <article>
           <span>Funcionales</span>
           <strong>${
-            filtered.filter((item) => roadmapWorkspaceTrack(item) === "functional")
-              .length
+            filtered.filter(
+              (item) => roadmapWorkspaceTrack(item) === "functional",
+            ).length
           }</strong>
         </article>
         <article>
           <span>Técnicos</span>
           <strong>${
-            filtered.filter((item) => roadmapWorkspaceTrack(item) === "technical")
-              .length
+            filtered.filter(
+              (item) => roadmapWorkspaceTrack(item) === "technical",
+            ).length
           }</strong>
         </article>
         <article>
@@ -125,7 +166,10 @@ function roadmapWorkspaceRenderBacklog(programId, items, state) {
   `;
 }
 
-function renderRoadmapWorkspace(programId, routeContext = roadmapWorkspaceParseRoute()) {
+function renderRoadmapWorkspace(
+  programId,
+  routeContext = roadmapWorkspaceParseRoute(),
+) {
   const program = roadmapWorkspaceGetProgram(programId);
 
   if (!program) {
@@ -260,7 +304,8 @@ function renderRoadmapWorkspaceActivity(routeContext) {
     : [];
   const activity = groupedActivities.find(
     (candidate) =>
-      String(candidate.activityId || "").trim() === String(activityId || "").trim(),
+      String(candidate.activityId || "").trim() ===
+      String(activityId || "").trim(),
   );
   const detailRoute = roadmapWorkspaceDetailRoute(
     routeContext.programId,

@@ -386,34 +386,36 @@ function renderGlobalContextFilters() {
   }
 
   /*
-   * El selector geográfico sólo se muestra
-   * cuando la geografía sigue siendo una
-   * dimensión navegable.
+   * La geografía sólo se muestra cuando
+   * sigue siendo una dimensión navegable.
    *
-   * En un roadmap de capacidad concreta:
+   * En el roadmap de una capacidad concreta
+   * mantenemos fijado el país de la URL:
    *
-   * producto + capacidad + país
+   * Blue Buddy
+   * → Knowledge Assistant
+   * → España
    *
-   * forman un contexto cerrado.
+   * Por tanto no mostramos Holding /
+   * España / México / etc.
    */
   const showScope = contextToolbarShouldShowScope(context);
 
   /*
-   * El periodo sólo se ofrece en el roadmap
-   * general de producto.
+   * El periodo es independiente del ámbito
+   * geográfico.
    *
-   * Si showScope === false significa que
-   * estamos dentro de una capacidad concreta.
-   * En ese caso tampoco mostramos:
+   * Tanto en el roadmap completo del producto
+   * como en el roadmap de una capacidad concreta
+   * tiene sentido poder cambiar:
    *
    * Año / Q1 / Q2 / Q3 / Q4
    *
-   * La capacidad se consulta como un ámbito
-   * completo mediante:
-   *
-   * Resumen / Cronograma / Backlog.
+   * contextToolbarRenderPeriod() se encarga
+   * además de deshabilitarlo cuando estamos
+   * en Backlog.
    */
-  const showPeriod = context.routeName === "roadmap" && showScope;
+  const showPeriod = context.routeName === "roadmap";
 
   const scopeMarkup = showScope ? contextToolbarRenderScope() : "";
 
@@ -422,15 +424,9 @@ function renderGlobalContextFilters() {
     : "";
 
   /*
-   * Si el contexto actual no admite
-   * ni navegación geográfica ni temporal,
-   * ocultamos completamente el toolbar.
-   *
-   * Esto ocurre, por ejemplo, en:
-   *
-   * Sales Assistant · España
-   * Knowledge Assistant · España
-   * Marko · México
+   * Ocultamos completamente el toolbar
+   * únicamente cuando el contexto no ofrece
+   * ni navegación geográfica ni temporal.
    */
   if (!scopeMarkup && !periodMarkup) {
     container.hidden = true;
@@ -446,7 +442,6 @@ function renderGlobalContextFilters() {
 
   container.hidden = false;
 }
-
 /*
  * Se envuelve el router ya compuesto por el workspace,
  * las ambiciones y las tarjetas adaptativas.

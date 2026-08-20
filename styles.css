@@ -3090,3 +3090,157 @@ th {
   color: var(--blue);
   font-size: 13px;
 }
+/* =========================================================
+   AIxBanker · Roadmap agrupado por capacidad
+   ========================================================= */
+
+.aixbanker-roadmap-board.is-grouped-by-capability
+  .aixbanker-roadmap-capability-group {
+  border-bottom: 1px solid var(--line);
+}
+
+.aixbanker-roadmap-capability-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+
+  padding: 12px 18px;
+
+  border-left: 5px solid var(--blue);
+  border-bottom: 1px solid var(--line);
+
+  background: linear-gradient(90deg, #edf4ff 0%, #f8faff 72%, #ffffff 100%);
+}
+
+.aixbanker-roadmap-capability-group-header > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.aixbanker-roadmap-capability-group-header > div:first-child > span {
+  color: var(--muted);
+
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.aixbanker-roadmap-capability-group-header h4 {
+  margin: 0;
+
+  color: var(--blue);
+
+  font-size: 19px;
+  line-height: 1.1;
+}
+
+.aixbanker-roadmap-capability-group-metrics {
+  display: grid;
+
+  grid-template-columns: auto auto auto auto;
+
+  align-items: baseline;
+
+  gap: 4px 7px;
+
+  color: var(--muted);
+
+  font-size: 10px;
+}
+
+.aixbanker-roadmap-capability-group-metrics strong {
+  color: var(--blue);
+
+  font-size: 14px;
+}
+
+.aixbanker-roadmap-capability-group.is-unassigned
+  .aixbanker-roadmap-capability-group-header {
+  border-left-color: #94a0b8;
+
+  background: linear-gradient(90deg, #f1f3f7 0%, #f8f9fb 72%, #ffffff 100%);
+}
+
+.aixbanker-roadmap-capability-group.is-unassigned
+  .aixbanker-roadmap-capability-group-header
+  h4 {
+  color: var(--muted);
+}
+
+.aixbanker-roadmap-capability-group-rows .aixbanker-roadmap-row:last-child {
+  border-bottom: 0;
+}
+/* =======================================================
+   PERIODO DEL CRONOGRAMA DE PRODUCTO LOCAL
+   ======================================================= */
+
+.product-experience-timeline-period {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+
+  margin: -4px 0 12px;
+}
+
+.product-experience-timeline-period-label {
+  color: var(--muted);
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.product-experience-timeline-period-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  padding: 3px;
+
+  border: 1px solid var(--line);
+  border-radius: 999px;
+
+  background: #fff;
+}
+
+.product-experience-timeline-period-button {
+  min-width: 34px;
+
+  padding: 5px 9px;
+
+  border: 0;
+  border-radius: 999px;
+
+  background: transparent;
+  color: var(--muted);
+
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+.product-experience-timeline-period-button:hover {
+  background: #edf4ff;
+  color: var(--blue);
+}
+
+.product-experience-timeline-period-button.active {
+  background: var(--blue);
+  color: #fff;
+}
+
+@media (max-width: 760px) {
+  .product-experience-timeline-period {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}

@@ -1821,11 +1821,76 @@ function renderRoadmapUndatedItems(items) {
     </section>
   `;
 }
+function groupRoadmapItemsByCapability(items) {
+  const groups = new Map();
 
-function renderRoadmapTimeline(roadmapItems, selectedQuarter) {
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const entries = Array.isArray(item?.capabilityGroupEntries)
+      ? item.capabilityGroupEntries
+      : [];
+
+    const effectiveEntries = entries.length
+      ? entries
+      : [
+          {
+            id: "__unassigned__",
+
+            label: "Sin capacidad asignada",
+
+            order: 9999,
+
+            unassigned: true,
+          },
+        ];
+
+    effectiveEntries.forEach((entry) => {
+      const id = String(entry.id || "").trim() || "__unassigned__";
+
+      if (!groups.has(id)) {
+        groups.set(id, {
+          id,
+
+          title: entry.label || "Sin capacidad asignada",
+
+          order: Number.isFinite(Number(entry.order))
+            ? Number(entry.order)
+            : 9999,
+
+          unassigned: entry.unassigned === true || id === "__unassigned__",
+
+          items: [],
+        });
+      }
+
+      const group = groups.get(id);
+
+      const alreadyIncluded = group.items.some(
+        (candidate) =>
+          String(candidate.type || "") === String(item.type || "") &&
+          String(candidate.id || "") === String(item.id || ""),
+      );
+
+      if (!alreadyIncluded) {
+        group.items.push(item);
+      }
+    });
+  });
+
+  return [...groups.values()].sort((left, right) => {
+    if (left.order !== right.order) {
+      return left.order - right.order;
+    }
+
+    return String(left.title).localeCompare(String(right.title), "es");
+  });
+}
+function renderRoadmapTimeline(roadmapItems, selectedQuarter, options = {}) {
   const period = getRoadmapPeriod(selectedQuarter);
 
+  const groupByCapability = options?.groupByCapability === true;
+
   const datedItems = [];
+
   const undatedItems = [];
 
   roadmapItems.forEach((item) => {
@@ -1833,6 +1898,7 @@ function renderRoadmapTimeline(roadmapItems, selectedQuarter) {
 
     if (!layout.hasDates) {
       undatedItems.push(item);
+
       return;
     }
 
@@ -1841,17 +1907,118 @@ function renderRoadmapTimeline(roadmapItems, selectedQuarter) {
     }
   });
 
-  const initiativeGroups = groupRoadmapItemsByInitiative(datedItems);
+  const regularRows = groupRoadmapItemsByInitiative(datedItems)
+    .map((group) => renderRoadmapInitiativeRow(group, period))
+    .join("");
+
+  const capabilityRows = groupByCapability
+    ? groupRoadmapItemsByCapability(datedItems)
+        .map((capabilityGroup) => {
+          const initiativeGroups = groupRoadmapItemsByInitiative(
+            capabilityGroup.items,
+          );
+
+          const averageProgress = capabilityGroup.items.length
+            ? Math.round(
+                capabilityGroup.items.reduce(
+                  (total, item) => total + Number(item.progress || 0),
+                  0,
+                ) / capabilityGroup.items.length,
+              )
+            : 0;
+
+          return `
+                <section
+                  class="
+                    aixbanker-roadmap-capability-group
+                    ${capabilityGroup.unassigned ? "is-unassigned" : ""}
+                  "
+                >
+                  <header
+                    class="
+                      aixbanker-roadmap-capability-group-header
+                    "
+                  >
+                    <div>
+                      <span>
+                        ${
+                          capabilityGroup.unassigned
+                            ? "Fuera de capacidad"
+                            : "Capacidad"
+                        }
+                      </span>
+
+                      <h4>
+                        ${rcsEsc(capabilityGroup.title)}
+                      </h4>
+                    </div>
+
+                    <div
+                      class="
+                        aixbanker-roadmap-capability-group-metrics
+                      "
+                    >
+                      <strong>
+                        ${capabilityGroup.items.length}
+                      </strong>
+
+                      <span>
+                        ${
+                          capabilityGroup.items.length === 1
+                            ? "elemento"
+                            : "elementos"
+                        }
+                      </span>
+
+                      <strong>
+                        ${averageProgress}%
+                      </strong>
+
+                      <span>
+                        avance medio
+                      </span>
+                    </div>
+                  </header>
+
+                  <div
+                    class="
+                      aixbanker-roadmap-capability-group-rows
+                    "
+                  >
+                    ${initiativeGroups
+                      .map((group) => renderRoadmapInitiativeRow(group, period))
+                      .join("")}
+                  </div>
+                </section>
+              `;
+        })
+        .join("")
+    : regularRows;
 
   return `
-    <section class="aixbanker-roadmap-board">
-      <div class="aixbanker-roadmap-scale">
-        <div class="aixbanker-roadmap-scale-title">
+    <section
+      class="
+        aixbanker-roadmap-board
+        ${groupByCapability ? "is-grouped-by-capability" : ""}
+      "
+    >
+      <div
+        class="
+          aixbanker-roadmap-scale
+        "
+      >
+        <div
+          class="
+            aixbanker-roadmap-scale-title
+          "
+        >
           Iniciativa
         </div>
 
         <div
-          class="aixbanker-roadmap-month-grid"
+          class="
+            aixbanker-roadmap-month-grid
+          "
           style="
             --roadmap-month-count:
             ${period.months.length};
@@ -1861,18 +2028,26 @@ function renderRoadmapTimeline(roadmapItems, selectedQuarter) {
         </div>
       </div>
 
-      <div class="aixbanker-roadmap-rows">
+      <div
+        class="
+          aixbanker-roadmap-rows
+        "
+      >
         ${
-          initiativeGroups.length
-            ? initiativeGroups
-                .map((group) => renderRoadmapInitiativeRow(group, period))
-                .join("")
+          datedItems.length
+            ? capabilityRows
             : `
-              <div class="aixbanker-roadmap-empty">
-                No hay elementos con fechas
-                dentro del periodo seleccionado.
-              </div>
-            `
+                <div
+                  class="
+                    aixbanker-roadmap-empty
+                  "
+                >
+                  No hay elementos
+                  con fechas dentro
+                  del periodo
+                  seleccionado.
+                </div>
+              `
         }
       </div>
     </section>
