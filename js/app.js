@@ -2212,9 +2212,35 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
           phase-section
         "
       >
-        <h3>
-          Roadmap de actividades
-        </h3>
+        <div
+          class="
+            section-header
+          "
+        >
+          <div>
+            <h3>
+              Roadmap de actividades
+            </h3>
+
+            ${
+              activities.length
+                ? `
+                    <p
+                      class="
+                        empty-state
+                      "
+                    >
+                      ${activities.length}
+                      ${activities.length === 1 ? "actividad" : "actividades"}
+                      ·
+                      ${tasks.length}
+                      ${tasks.length === 1 ? "tarea" : "tareas"}
+                    </p>
+                  `
+                : ""
+            }
+          </div>
+        </div>
 
         <section
           class="
@@ -2235,6 +2261,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
                 phase-status-done
               "
             ></i>
+
             Hecho
           </span>
 
@@ -2249,6 +2276,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
                 phase-status-on-track
               "
             ></i>
+
             En progreso
           </span>
 
@@ -2263,6 +2291,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
                 phase-status-pending
               "
             ></i>
+
             Pendiente
           </span>
 
@@ -2277,6 +2306,7 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
                 phase-status-risk
               "
             ></i>
+
             Riesgo
           </span>
 
@@ -2291,20 +2321,45 @@ function renderRoadmapItemDetailView(roadmapItem, navigation) {
                 phase-status-blocked
               "
             ></i>
+
             Bloqueado
           </span>
         </section>
 
-        <div
-          id="
-            roadmapItemTimeline
-          "
-        ></div>
+        ${
+          activities.length
+            ? `
+                <div id="roadmapItemTimeline"></div>
+              `
+            : `
+                <p
+                  class="
+                    empty-state
+                  "
+                >
+                  No hay actividades
+                  informadas para este elemento.
+                </p>
+              `
+        }
       </section>
     </section>
   `;
 
-  const timelineContainer = document.querySelector("#roadmapItemTimeline");
+  /*
+   * IMPORTANTE:
+   *
+   * El id debe ser EXACTAMENTE
+   * roadmapItemTimeline.
+   *
+   * No debe contener saltos de línea
+   * ni espacios dentro del atributo.
+   */
+  const timelineContainer = document.getElementById("roadmapItemTimeline");
+
+  if (!timelineContainer || !activities.length) {
+    return;
+  }
 
   renderPhaseTimeline(activities, timelineContainer, {
     firstColumnLabel: "Actividad",

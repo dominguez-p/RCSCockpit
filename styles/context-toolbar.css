@@ -1,11 +1,11 @@
 .data-status {
-  display: grid;
-  gap: 10px;
-  justify-items: end;
-  min-width: min(100%, 700px);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 999px;
   background: #fff;
   color: var(--muted);
   white-space: normal;
@@ -28,282 +28,253 @@
   margin-left: 0;
 }
 
+.global-context-filters,
 .global-context-filters[hidden] {
   display: none !important;
 }
 
-.global-context-filters {
+/* =========================================================
+ * NAVEGACIÓN DE PAÍS EN SIDEBAR
+ * ========================================================= */
+
+.sidebar.has-country-navigation {
+  gap: 14px;
+  padding: 22px 10px 18px;
+}
+
+.sidebar.has-country-navigation .tower-mark {
+  display: none;
+}
+
+.sidebar.has-country-navigation .side-title {
+  margin-bottom: 2px;
+  font-size: 18px;
+}
+
+.sidebar-country-navigation[hidden] {
+  display: none !important;
+}
+
+.sidebar-country-navigation {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: 10px 18px;
   width: 100%;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-
-.global-context-control {
-  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
 }
 
-.global-context-label {
-  color: var(--muted);
+.sidebar-country-navigation::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar-country-navigation-label {
+  color: rgba(255, 255, 255, 0.62);
   font-size: 9px;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   line-height: 1;
   text-transform: uppercase;
 }
 
-/*
- * =======================================================
- * ÁMBITO
- * =======================================================
- */
-
-.global-context-scope {
+.sidebar-country-list {
   display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  min-width: 0;
-}
-
-.global-context-scope-group {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.global-context-scope-label {
-  padding-left: 2px;
-}
-
-.global-context-scope-group.is-global .global-context-scope-label {
-  color: var(--blue);
-}
-
-.global-context-scope-actions {
-  display: flex;
+  width: 100%;
+  flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
 }
 
-.global-context-scope-divider {
-  align-self: flex-end;
-  width: 1px;
-  height: 30px;
-  margin-bottom: 1px;
-  background: var(--line);
+.sidebar-country-separator {
+  width: 44px;
+  height: 1px;
+  margin: 2px 0 4px;
+  background: rgba(255, 255, 255, 0.2);
 }
 
-.global-context-scope-button {
+.sidebar-country-button {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 5px 10px;
+  display: grid;
+  width: 92px;
+  min-height: 80px;
+  place-items: center;
+  gap: 5px;
+  padding: 8px 6px 7px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 18px;
   background: transparent;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.72);
   font: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
   cursor: pointer;
+  opacity: 0.72;
   transition:
-    background 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease,
-    box-shadow 150ms ease,
-    opacity 150ms ease;
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
 }
 
-.global-context-scope-button img {
-  display: block;
-  width: 17px;
-  height: 17px;
-  flex: 0 0 auto;
+.sidebar-country-button:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.sidebar-country-button.active {
+  border-color: rgba(255, 255, 255, 0.36);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: inset 3px 0 0 #fff;
+  opacity: 1;
+}
+
+.sidebar-country-flag {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.32);
   border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 7px 16px rgba(0, 0, 0, 0.12);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.sidebar-country-button.active .sidebar-country-flag {
+  border-color: #fff;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.15),
+    0 8px 20px rgba(0, 0, 0, 0.18);
+  transform: scale(1.04);
+}
+
+.sidebar-country-flag img {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
 
-.global-context-scope-button:hover {
-  background: #f5f7fb;
-  color: var(--blue);
+.sidebar-country-flag > span {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
 }
 
-/*
- * =======================================================
- * HOLDING / VISTA GLOBAL
- * =======================================================
- */
-
-.global-context-scope-button.is-holding {
-  min-width: 96px;
-  padding-inline: 12px;
-  border-color: #d9e2ef;
-  background: #f8fafc;
-  color: #26394d;
+.sidebar-country-name {
+  display: block;
+  max-width: 78px;
+  overflow: hidden;
+  font-size: 10px;
   font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.global-context-scope-button.is-holding:hover {
-  border-color: #dce4ef;
-  background: #f7f9fc;
-  color: var(--blue);
+.sidebar-country-button.is-holding .sidebar-country-name {
+  font-weight: 900;
 }
 
-/*
- * Holding activo: mismo look que un país activo
- */
-.global-context-scope-button.is-holding.active {
-  border-color: #9eb9df;
-  background: #f0f5fc;
-  color: var(--blue);
-  box-shadow: none;
-  opacity: 1;
-  font-weight: 800;
+.sidebar.has-country-navigation .home-link {
+  margin-top: 0;
 }
 
-.global-context-scope-button.is-holding.active::after {
-  content: "";
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: -3px;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--blue);
-}
+/* =========================================================
+ * AÑO INTEGRADO EN EL CRONOGRAMA
+ * ========================================================= */
 
-.global-context-scope-button.is-holding.active img {
-  box-shadow: none;
-}
-
-/*
- * =======================================================
- * EJECUCIÓN POR PAÍS
- * =======================================================
- */
-
-.global-context-scope-button.is-country {
-  padding-inline: 8px;
-  border-color: transparent;
-  background: transparent;
-  opacity: 0.68;
-}
-
-.global-context-scope-button.is-country:hover {
-  border-color: #dce4ef;
-  background: #f7f9fc;
-  color: var(--blue);
-  opacity: 1;
-}
-
-.global-context-scope-button.is-country.active {
-  border-color: #9eb9df;
-  background: #f0f5fc;
-  color: var(--blue);
-  box-shadow: none;
-  opacity: 1;
-  font-weight: 800;
-}
-
-.global-context-scope-button.is-country.active::after {
-  content: "";
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: -3px;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--blue);
-}
-
-/*
- * =======================================================
- * PERIODO
- * =======================================================
- */
-
-.global-context-period {
+.roadmap-year-context {
+  display: flex;
   align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--line);
 }
 
-.global-context-period-selector {
+.roadmap-year-context-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.roadmap-year-context-copy > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.roadmap-year-context-copy > strong {
+  color: var(--blue);
+  font-family: Georgia, serif;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.roadmap-year-selector {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
+  gap: 4px;
+  padding: 4px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--light);
+  background: #f5f8ff;
 }
 
-.global-context-period-button {
-  min-width: 38px;
-  padding: 6px 9px;
+.roadmap-year-button {
+  min-width: 62px;
+  padding: 8px 13px;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 900;
   cursor: pointer;
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
-.global-context-period-button:hover {
+.roadmap-year-button:hover {
   background: #fff;
   color: var(--blue);
+  transform: translateY(-1px);
 }
 
-.global-context-period-button.active {
-  background: #eaf1ff;
-  color: var(--blue);
-  box-shadow: inset 0 0 0 1px rgba(0, 68, 129, 0.2);
+.roadmap-year-button.active {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(0, 19, 145, 0.18);
 }
 
-.global-context-period.is-disabled {
-  opacity: 0.45;
+.roadmap-year-single {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
 }
 
-.global-context-period-button:disabled {
-  cursor: not-allowed;
-}
-
-/*
- * Workspace filters
- */
-
-.roadmap-workspace-filters {
-  grid-template-columns: repeat(2, minmax(240px, 1fr));
-}
-
-.roadmap-workspace-filters .roadmap-workspace-filter-group:first-child {
-  grid-column: auto;
-}
-
-@media (max-width: 1180px) {
-  .data-status {
-    min-width: min(100%, 620px);
-  }
-
-  .global-context-scope {
-    gap: 9px;
-  }
-
-  .global-context-scope-button {
-    padding-inline: 8px;
-  }
+.roadmap-workspace-view:not(.roadmap-workspace-timeline-view)
+  .roadmap-year-context {
+  display: none;
 }
 
 @media (max-width: 1050px) {
@@ -313,53 +284,23 @@
 
   .data-status {
     width: 100%;
-    justify-items: stretch;
+    justify-content: flex-start;
+    border-radius: 18px;
   }
 
-  .data-status-main,
-  .global-context-filters {
+  .data-status-main {
     justify-content: flex-start;
   }
 }
 
 @media (max-width: 760px) {
-  .global-context-filters {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .global-context-scope {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 9px;
-    width: 100%;
-  }
-
-  .global-context-scope-group {
-    width: 100%;
-  }
-
-  .global-context-scope-actions {
-    flex-wrap: wrap;
-  }
-
-  .global-context-scope-divider {
-    width: 100%;
-    height: 1px;
-    margin: 1px 0;
-  }
-
-  .global-context-control {
-    width: 100%;
+  .roadmap-year-context {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .global-context-period {
-    align-items: flex-start;
-  }
-
-  .roadmap-workspace-filters {
-    grid-template-columns: 1fr;
+  .roadmap-year-selector {
+    max-width: 100%;
+    overflow-x: auto;
   }
 }

@@ -3349,81 +3349,32 @@
       return true;
     }
 
-    if (
-      typeof CONTEXT_TOOLBAR_PROGRAM_ROUTES === "undefined" ||
-      typeof renderGlobalContextFilters !== "function"
-    ) {
+    if (typeof CONTEXT_TOOLBAR_PROGRAM_ROUTES === "undefined") {
       return false;
     }
 
     /*
-     * Las fichas globales y locales de producto
-     * forman parte del contexto de programa.
+     * Estas rutas deben seguir mostrando
+     * la barra lateral de países.
      *
-     * El toolbar original no incluía la ruta
-     * "product", por lo que ocultaba automáticamente
-     * Holding y los países al entrar en:
-     *
-     * #product/aixbanker/blue-buddy
-     * #product/aixbanker/blue-buddy/ES
+     * La navegación la gestiona
+     * exclusivamente context-toolbar.js.
      */
     CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("product");
 
-    document.addEventListener(
-      "click",
-      (event) => {
-        const countryButton = event.target.closest(
-          ".global-context-scope [data-country]",
-        );
+    CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("capability");
 
-        if (!countryButton) {
-          return;
-        }
+    CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("roadmap");
 
-        const currentRoute = pxRoute();
+    CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("roadmap-detail");
 
-        if (
-          currentRoute.routeName !== "product" ||
-          currentRoute.programId !== PROGRAM_ID
-        ) {
-          return;
-        }
+    CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("roadmap-activity");
 
-        const productId = pxNormalizeId(currentRoute.productId);
+    CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("roadmap-workspace-detail");
 
-        const countryId = pxValidCountryId(countryButton.dataset.country);
-
-        if (!productId || !countryId) {
-          return;
-        }
-
-        /*
-         * Evitamos que el listener genérico de app.js
-         * cambie selectedCountry y vuelva a renderizar
-         * manteniendo la URL antigua.
-         *
-         * En producto, la geografía forma parte de
-         * la propia URL.
-         */
-        event.preventDefault();
-        event.stopImmediatePropagation();
-
-        selectedCountry = countryId;
-
-        if (countryId === HOLDING_COUNTRY_ID) {
-          route(`product/${PROGRAM_ID}/${productId}`);
-
-          return;
-        }
-
-        route(pxLocalProductRoute(productId, countryId));
-      },
-      true,
-    );
+    CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("roadmap-workspace-activity");
 
     pxInstallProductCountryToolbar.installed = true;
-
-    requestAnimationFrame(renderGlobalContextFilters);
 
     return true;
   }
@@ -3601,6 +3552,10 @@
       .trim()
       .toUpperCase();
 
+    if (/^\d{4}$/.test(normalizedValue)) {
+      return normalizedValue;
+    }
+
     return ["ALL", "Q1", "Q2", "Q3", "Q4"].includes(normalizedValue)
       ? normalizedValue
       : "ALL";
@@ -3611,15 +3566,16 @@
 
     const normalizedCountryId = pxValidCountryId(countryId);
 
+    const rawValue = String(quarter || "ALL")
+      .trim()
+      .toUpperCase();
+
     const normalizedQuarter =
       typeof roadmapWorkspaceValidQuarter === "function"
-        ? roadmapWorkspaceValidQuarter(quarter)
-        : ["ALL", "Q1", "Q2", "Q3", "Q4"].includes(
-              String(quarter || "")
-                .trim()
-                .toUpperCase(),
-            )
-          ? String(quarter).trim().toUpperCase()
+        ? roadmapWorkspaceValidQuarter(rawValue)
+        : /^\d{4}$/.test(rawValue) ||
+            ["ALL", "Q1", "Q2", "Q3", "Q4"].includes(rawValue)
+          ? rawValue
           : "ALL";
 
     const storageKey = [
@@ -3639,75 +3595,7 @@
     countryId,
     selectedQuarter,
   ) {
-    const quarters = [
-      {
-        id: "ALL",
-        label: "Año",
-      },
-      {
-        id: "Q1",
-        label: "Q1",
-      },
-      {
-        id: "Q2",
-        label: "Q2",
-      },
-      {
-        id: "Q3",
-        label: "Q3",
-      },
-      {
-        id: "Q4",
-        label: "Q4",
-      },
-    ];
-
-    return `
-    <div
-      class="
-        product-experience-timeline-period
-      "
-    >
-      <span
-        class="
-          product-experience-timeline-period-label
-        "
-      >
-        Periodo
-      </span>
-
-      <nav
-        class="
-          product-experience-timeline-period-selector
-        "
-        aria-label="
-          Periodo del cronograma
-        "
-      >
-        ${quarters
-          .map(
-            (quarter) => `
-              <button
-                type="button"
-                class="
-                  product-experience-timeline-period-button
-                  ${selectedQuarter === quarter.id ? "active" : ""}
-                "
-                data-product-timeline-quarter="${pxEsc(quarter.id)}"
-                data-product-id="${pxEsc(productId)}"
-                data-product-country="${pxEsc(countryId)}"
-                aria-pressed="${
-                  selectedQuarter === quarter.id ? "true" : "false"
-                }"
-              >
-                ${pxEsc(quarter.label)}
-              </button>
-            `,
-          )
-          .join("")}
-      </nav>
-    </div>
-  `;
+    return "";
   }
 
   function pxInstallProductTimelinePeriodSelector() {
@@ -3718,7 +3606,7 @@
     document.addEventListener(
       "click",
       (event) => {
-        const button = event.target.closest("[data-product-timeline-quarter]");
+        const button = event.target.closest("[data-product-timeline-year]");
 
         if (!button) {
           return;
@@ -3726,32 +3614,31 @@
 
         const currentRoute = pxRoute();
 
-        if (
-          currentRoute.routeName !== "product" ||
-          currentRoute.programId !== PROGRAM_ID ||
-          !currentRoute.countryId
-        ) {
-          return;
-        }
-
         const productId = pxNormalizeId(
           button.dataset.productId || currentRoute.productId,
         );
 
         const countryId = pxValidCountryId(
-          button.dataset.productCountry || currentRoute.countryId,
+          button.dataset.productCountry ||
+            currentRoute.countryId ||
+            selectedCountry,
         );
 
-        const quarter = button.dataset.productTimelineQuarter;
+        const year = String(button.dataset.productTimelineYear || "").trim();
 
-        if (!productId || !countryId || countryId === HOLDING_COUNTRY_ID) {
+        if (
+          !productId ||
+          !countryId ||
+          countryId === HOLDING_COUNTRY_ID ||
+          !/^\d{4}$/.test(year)
+        ) {
           return;
         }
 
         event.preventDefault();
         event.stopImmediatePropagation();
 
-        pxSetProductTimelineQuarter(productId, countryId, quarter);
+        pxSetProductTimelineQuarter(productId, countryId, year);
 
         pxRenderLocalProduct(productId, countryId);
       },

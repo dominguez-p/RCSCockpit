@@ -594,8 +594,16 @@ function getAppData() {
 
   /*
    * Datos operativos.
+   *
+   * roadmapItemActivities se trata
+   * aparte porque su fuente real es
+   * NORM_Roadmap_Activities.
    */
   Object.entries(SHEETS).forEach(([key, sheetName]) => {
+    if (key === "roadmapItemActivities") {
+      return;
+    }
+
     const sheet = spreadsheet.getSheetByName(sheetName);
 
     if (!sheet) {
@@ -610,9 +618,26 @@ function getAppData() {
   });
 
   /*
-   * Producto.
+   * =====================================================
+   * ACTIVIDADES DEL ROADMAP
+   * =====================================================
    *
-   * También local.
+   * La fuente funcional real es:
+   *
+   * NORM_Roadmap_Activities
+   *
+   * A2:M2 → cabeceras normalizadas
+   * A3:M  → tareas normalizadas
+   *
+   * No leemos la pestaña
+   * roadmapItemActivities porque es una
+   * vista QUERY intermedia.
+   */
+  result.roadmapItemActivities =
+    getRoadmapItemActivitiesForExport_(spreadsheet);
+
+  /*
+   * Producto.
    */
   const productExperience = getProductExperienceData_(spreadsheet);
 
@@ -622,7 +647,131 @@ function getAppData() {
 
   return result;
 }
+function getRoadmapItemActivitiesForExport_(spreadsheet) {
+  const normalizedSheet = spreadsheet.getSheetByName("NORM_Roadmap_Activities");
 
+  /*
+   * =====================================================
+   * MODELO NORMALIZADO
+   * =====================================================
+   */
+  if (normalizedSheet) {
+    const normalizedRows = sheetRangeToObjects_(
+      normalizedSheet,
+      2,
+      1,
+      13,
+    ).filter(isValidRoadmapActivityRow_);
+
+    if (normalizedRows.length) {
+      Logger.log(
+        `roadmapItemActivities normalizadas: ${normalizedRows.length}`,
+      );
+
+      return normalizedRows;
+    }
+  }
+
+  /*
+   * =====================================================
+   * FALLBACK
+   * =====================================================
+   *
+   * Se mantiene únicamente para datasets
+   * antiguos que todavía no tengan
+   * NORM_Roadmap_Activities.
+   */
+  const fallbackSheet = spreadsheet.getSheetByName(
+    SHEETS.roadmapItemActivities,
+  );
+
+  if (!fallbackSheet) {
+    Logger.log("No existe origen para roadmapItemActivities.");
+
+    return [];
+  }
+
+  return sheetToObjects_(fallbackSheet).filter(isValidRoadmapActivityRow_);
+}
+function sheetRangeToObjects_(sheet, headerRow, startColumn, columnCount) {
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow <= headerRow || columnCount < 1) {
+    return [];
+  }
+
+  const rowCount = lastRow - headerRow + 1;
+
+  const values = sheet
+    .getRange(headerRow, startColumn, rowCount, columnCount)
+    .getValues();
+
+  if (!values || values.length < 2) {
+    return [];
+  }
+
+  const headers = values[0].map(normalizeHeader_);
+
+  return values
+    .slice(1)
+    .filter((row) =>
+      row.some(
+        (cell) =>
+          cell !== null && cell !== undefined && String(cell).trim() !== "",
+      ),
+    )
+    .map((row) => {
+      const result = {};
+
+      headers.forEach((header, index) => {
+        if (!header) {
+          return;
+        }
+
+        result[header] = normalizeCellValue_(row[index]);
+      });
+
+      return result;
+    });
+}
+function isValidRoadmapActivityRow_(row) {
+  if (!row) {
+    return false;
+  }
+
+  const itemId = textValue_(row.itemId);
+
+  const activityId = textValue_(row.activityId);
+
+  const activityName = textValue_(row.activityName);
+
+  if (!itemId || !activityId || !activityName) {
+    return false;
+  }
+
+  const values = [itemId, activityId, activityName];
+
+  /*
+   * Eliminamos:
+   *
+   * - errores de fórmula;
+   * - cabeceras duplicadas;
+   * - filas incompletas.
+   */
+  if (values.some((value) => String(value).trim().startsWith("#"))) {
+    return false;
+  }
+
+  if (
+    itemId.toLowerCase() === "itemid" ||
+    activityId.toLowerCase() === "activityid" ||
+    activityName.toLowerCase() === "activityname"
+  ) {
+    return false;
+  }
+
+  return true;
+}
 /* =========================================================
  * PRODUCT EXPERIENCE
  *

@@ -232,11 +232,196 @@ function renderRoadmapWorkspace(
 }
 
 function roadmapWorkspaceFindItem(programId, itemType, itemId) {
-  return roadmapWorkspaceItemsForProgram(programId).find(
+  const normalizedProgramId = String(programId || "").trim();
+
+  const normalizedItemType = String(itemType || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedItemId = String(itemId || "").trim();
+
+  if (!normalizedProgramId || !normalizedItemType || !normalizedItemId) {
+    return null;
+  }
+
+  /*
+   * =====================================================
+   * ELEMENTO
+   * =====================================================
+   *
+   * No usamos roadmapWorkspaceItemsForProgram()
+   * porque esa función depende de selectedCountry.
+   *
+   * En un detalle, la identidad del elemento
+   * debe venir de la ruta y de sus propios datos,
+   * no del estado global de navegación.
+   */
+  const candidates = roadmapWorkspaceAllItems().filter(
     (item) =>
-      String(item.type || "").trim() === String(itemType || "").trim() &&
-      String(item.id || "").trim() === String(itemId || "").trim(),
+      String(item.programId || "").trim() === normalizedProgramId &&
+      String(item.type || "")
+        .trim()
+        .toLowerCase() === normalizedItemType &&
+      String(item.id || "").trim() === normalizedItemId,
   );
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  const state = roadmapWorkspaceState(normalizedProgramId);
+
+  const stateProduct = roadmapWorkspaceNormalizeProduct(
+    state?.productId || ROADMAP_WORKSPACE_ALL,
+  );
+
+  const currentCountry = String(selectedCountry || "")
+    .trim()
+    .toUpperCase();
+
+  /*
+   * Si hubiera IDs repetidos entre geografías
+   * o productos, priorizamos el contexto
+   * actual, pero nunca impedimos encontrar
+   * el elemento.
+   */
+  const item =
+    candidates.find((candidate) => {
+      const candidateProduct = roadmapWorkspaceNormalizeProduct(
+        candidate.product,
+      );
+
+      const candidateCountry = String(candidate.country || "")
+        .trim()
+        .toUpperCase();
+
+      const matchesProduct =
+        stateProduct === ROADMAP_WORKSPACE_ALL ||
+        candidateProduct === stateProduct;
+
+      const matchesCountry =
+        !currentCountry ||
+        currentCountry === "HL" ||
+        !candidateCountry ||
+        candidateCountry === currentCountry;
+
+      return matchesProduct && matchesCountry;
+    }) ||
+    candidates.find((candidate) => {
+      const candidateProduct = roadmapWorkspaceNormalizeProduct(
+        candidate.product,
+      );
+
+      return (
+        stateProduct === ROADMAP_WORKSPACE_ALL ||
+        candidateProduct === stateProduct
+      );
+    }) ||
+    candidates[0];
+
+  /*
+   * =====================================================
+   * ACTIVIDADES / TAREAS
+   * =====================================================
+   *
+   * DATA.roadmapItemActivities es la fuente
+   * de verdad para el detalle.
+   *
+   * Para discurso-personalizado sabemos ya
+   * que aquí existen 78 filas.
+   */
+  const activityRows = Array.isArray(DATA?.roadmapItemActivities)
+    ? DATA.roadmapItemActivities
+    : [];
+
+  const itemProduct = roadmapWorkspaceNormalizeProduct(item.product);
+
+  const itemCountry = String(item.country || "")
+    .trim()
+    .toUpperCase();
+
+  const activities = activityRows
+    .filter((activity) => {
+      const activityItemId = String(activity?.itemId || "").trim();
+
+      if (activityItemId !== normalizedItemId) {
+        return false;
+      }
+
+      const activityProgramId = String(activity?.programId || "").trim();
+
+      if (activityProgramId && activityProgramId !== normalizedProgramId) {
+        return false;
+      }
+
+      const activityProduct = roadmapWorkspaceNormalizeProduct(
+        activity?.product || "",
+      );
+
+      if (
+        itemProduct &&
+        itemProduct !== ROADMAP_WORKSPACE_ALL &&
+        activityProduct &&
+        activityProduct !== itemProduct
+      ) {
+        return false;
+      }
+
+      const activityCountry = String(activity?.country || "")
+        .trim()
+        .toUpperCase();
+
+      if (itemCountry && activityCountry && activityCountry !== itemCountry) {
+        return false;
+      }
+
+      return true;
+    })
+    .map((activity) => {
+      if (typeof adaptRoadmapItemActivity === "function") {
+        return adaptRoadmapItemActivity(activity);
+      }
+
+      return {
+        ...activity,
+
+        id: String(activity.activityId || "").trim(),
+
+        activityId: String(activity.activityId || "").trim(),
+
+        itemId: normalizedItemId,
+
+        activityName: activity.activityName || "Actividad",
+
+        phaseName: activity.activityName || "Actividad",
+
+        order: Number(activity.order) || 0,
+      };
+    })
+    .sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
+
+  /*
+   * Sólo utilizamos las actividades ya
+   * incluidas en el item como fallback.
+   */
+  const embeddedActivities =
+    Array.isArray(item.activities) && item.activities.length
+      ? item.activities
+      : Array.isArray(item.phases)
+        ? item.phases
+        : [];
+
+  const effectiveActivities = activities.length
+    ? activities
+    : embeddedActivities;
+
+  return {
+    ...item,
+
+    activities: effectiveActivities,
+
+    phases: effectiveActivities,
+  };
 }
 
 function renderRoadmapWorkspaceDetail(routeContext) {

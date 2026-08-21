@@ -11,55 +11,252 @@ renderCurrentRoute = function renderRouteWithRoadmapWorkspace(
 ) {
   const context = roadmapWorkspaceParseRoute();
 
+  /*
+   * =====================================================
+   * ROADMAP
+   * =====================================================
+   */
   if (routeName === "roadmap") {
-    if (ROADMAP_WORKSPACE_VIEWS.has(String(context.viewName || "").toLowerCase())) {
+    if (
+      ROADMAP_WORKSPACE_VIEWS.has(String(context.viewName || "").toLowerCase())
+    ) {
       renderRoadmapWorkspace(programId, context);
+
       return;
     }
 
     renderRoadmapWorkspace(programId, {
       ...context,
+
       viewName: "timeline",
+
       productId: context.viewName || productId || ROADMAP_WORKSPACE_ALL,
+
       quarter: context.productId || quarter || ROADMAP_WORKSPACE_ALL,
     });
+
     return;
   }
 
+  /*
+   * =====================================================
+   * WORKSPACE DETAIL
+   * =====================================================
+   */
   if (routeName === "roadmap-workspace-detail") {
     renderRoadmapWorkspaceDetail(context);
+
     return;
   }
 
+  /*
+   * =====================================================
+   * WORKSPACE ACTIVITY
+   * =====================================================
+   */
   if (routeName === "roadmap-workspace-activity") {
     renderRoadmapWorkspaceActivity(context);
+
     return;
   }
 
+  /*
+   * =====================================================
+   * COMPATIBILIDAD ROADMAP-DETAIL
+   * =====================================================
+   *
+   * Existen dos formatos históricos:
+   *
+   * antiguo:
+   * roadmap-detail/
+   * program/product/Q1/type/id
+   *
+   * producto local:
+   * roadmap-detail/
+   * program/product/ES/type/id
+   *
+   * Detectamos explícitamente el segundo.
+   */
   if (routeName === "roadmap-detail") {
+    const legacySegment = String(quarter || "")
+      .trim()
+      .toUpperCase();
+
+    const countryIds = Array.isArray(COUNTRIES)
+      ? COUNTRIES.map((country) =>
+          String(country.id || "")
+            .trim()
+            .toUpperCase(),
+        )
+      : [];
+
+    const routeCountryId = countryIds.includes(legacySegment)
+      ? legacySegment
+      : "";
+
+    const state = roadmapWorkspaceState(programId);
+
+    state.view = "timeline";
+
+    state.productId = roadmapWorkspaceNormalizeProduct(
+      productId || ROADMAP_WORKSPACE_ALL,
+    );
+
+    /*
+     * Si el segmento es un país,
+     * sincronizamos el país real.
+     *
+     * Así:
+     *
+     * .../blue-buddy/ES/project/...
+     *
+     * nunca puede volver a mostrarse
+     * como Holding.
+     */
+    if (routeCountryId) {
+      selectedCountry = routeCountryId;
+
+      const requestedYear = String(new Date().getFullYear());
+
+      state.quarter =
+        typeof contextToolbarResolveRoadmapYear === "function"
+          ? contextToolbarResolveRoadmapYear(
+              programId,
+              state.productId,
+              requestedYear,
+            )
+          : ROADMAP_WORKSPACE_ALL;
+
+      renderRoadmapWorkspaceDetail({
+        routeName,
+
+        programId,
+
+        viewName: "timeline",
+
+        productId: state.productId,
+
+        quarter: state.quarter,
+
+        countryId: routeCountryId,
+
+        itemType,
+
+        itemId,
+      });
+
+      return;
+    }
+
+    /*
+     * Formato legacy original con Q.
+     */
+    state.quarter = roadmapWorkspaceValidQuarter(quarter);
+
     renderRoadmapWorkspaceDetail({
       routeName,
+
       programId,
+
       viewName: "timeline",
-      productId,
-      quarter,
+
+      productId: state.productId,
+
+      quarter: state.quarter,
+
       itemType,
+
       itemId,
     });
+
     return;
   }
 
+  /*
+   * =====================================================
+   * COMPATIBILIDAD ROADMAP-ACTIVITY
+   * =====================================================
+   */
   if (routeName === "roadmap-activity") {
+    const legacySegment = String(quarter || "")
+      .trim()
+      .toUpperCase();
+
+    const countryIds = Array.isArray(COUNTRIES)
+      ? COUNTRIES.map((country) =>
+          String(country.id || "")
+            .trim()
+            .toUpperCase(),
+        )
+      : [];
+
+    const routeCountryId = countryIds.includes(legacySegment)
+      ? legacySegment
+      : "";
+
+    const state = roadmapWorkspaceState(programId);
+
+    state.view = "timeline";
+
+    state.productId = roadmapWorkspaceNormalizeProduct(
+      productId || ROADMAP_WORKSPACE_ALL,
+    );
+
+    if (routeCountryId) {
+      selectedCountry = routeCountryId;
+
+      state.quarter =
+        typeof contextToolbarResolveRoadmapYear === "function"
+          ? contextToolbarResolveRoadmapYear(
+              programId,
+              state.productId,
+              String(new Date().getFullYear()),
+            )
+          : ROADMAP_WORKSPACE_ALL;
+
+      renderRoadmapWorkspaceActivity({
+        routeName,
+
+        programId,
+
+        viewName: "timeline",
+
+        productId: state.productId,
+
+        quarter: state.quarter,
+
+        countryId: routeCountryId,
+
+        itemType,
+
+        itemId,
+
+        activityId,
+      });
+
+      return;
+    }
+
+    state.quarter = roadmapWorkspaceValidQuarter(quarter);
+
     renderRoadmapWorkspaceActivity({
       routeName,
+
       programId,
+
       viewName: "timeline",
-      productId,
-      quarter,
+
+      productId: state.productId,
+
+      quarter: state.quarter,
+
       itemType,
+
       itemId,
+
       activityId,
     });
+
     return;
   }
 
@@ -114,10 +311,12 @@ programHomeRenderProducts = function renderProductsForRoadmapWorkspace(
         ${context.products
           .map((product) => {
             const roadmapCount = context.roadmapItems.filter(
-              (item) => programHomeNormalizeProduct(item.product) === product.id,
+              (item) =>
+                programHomeNormalizeProduct(item.product) === product.id,
             ).length;
             const systemsCount = context.systems.filter(
-              (item) => programHomeNormalizeProduct(item.product) === product.id,
+              (item) =>
+                programHomeNormalizeProduct(item.product) === product.id,
             ).length;
 
             return `
@@ -149,7 +348,9 @@ programHomeRenderProducts = function renderProductsForRoadmapWorkspace(
 };
 
 document.addEventListener("change", (event) => {
-  const productSelect = event.target.closest("[data-roadmap-workspace-product]");
+  const productSelect = event.target.closest(
+    "[data-roadmap-workspace-product]",
+  );
 
   if (!productSelect) {
     return;
@@ -170,7 +371,9 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
-  const quarterButton = event.target.closest("[data-roadmap-workspace-quarter]");
+  const quarterButton = event.target.closest(
+    "[data-roadmap-workspace-quarter]",
+  );
 
   if (!quarterButton) {
     return;
@@ -183,7 +386,12 @@ document.addEventListener("click", (event) => {
   );
 
   route(
-    roadmapWorkspaceRoute(programId, state.view, state.productId, state.quarter),
+    roadmapWorkspaceRoute(
+      programId,
+      state.view,
+      state.productId,
+      state.quarter,
+    ),
   );
 });
 
