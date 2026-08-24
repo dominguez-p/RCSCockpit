@@ -1167,7 +1167,352 @@
       }[priority] || 999
     );
   }
+  function pxFunctionalCaseSlug(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
 
+  function pxFunctionalCaseKey(capabilityId, functionalCaseId) {
+    const capability = pxFunctionalCaseSlug(capabilityId);
+
+    const functionalCase = pxFunctionalCaseSlug(functionalCaseId);
+
+    if (!capability || !functionalCase) {
+      return "";
+    }
+
+    return [capability, functionalCase].join("::");
+  }
+
+  function pxJiraFunctionalCaseIds(item) {
+    const source = item?.source || {};
+
+    const value =
+      item?.functionalCaseIds ??
+      source?.functionalCaseIds ??
+      source?.functional_case_ids ??
+      "";
+
+    const values = Array.isArray(value)
+      ? value
+      : String(value || "").split(/[|,;\n]+/);
+
+    return [
+      ...new Set(
+        values
+          .map((rawValue) => {
+            const raw = String(rawValue || "").trim();
+
+            const parts = raw.split("::");
+
+            if (parts.length !== 2) {
+              return "";
+            }
+
+            return pxFunctionalCaseKey(parts[0], parts[1]);
+          })
+          .filter(Boolean),
+      ),
+    ];
+  }
+
+  function pxFunctionalCaseCatalog(productId, capabilityId, countryId) {
+    const capability = pxFindCapability(productId, capabilityId);
+
+    if (!capability) {
+      return [];
+    }
+
+    const normalizedCapabilityId = pxCapabilityScopeId(capabilityId);
+
+    const deliverables = pxCapabilityDeliverables(capability, countryId);
+
+    const result = new Map();
+
+    deliverables.forEach((deliverable, index) => {
+      const name =
+        pxClean(deliverable.deliverableName) || `Caso funcional ${index + 1}`;
+
+      const id = pxFunctionalCaseSlug(name);
+
+      const key = pxFunctionalCaseKey(normalizedCapabilityId, id);
+
+      if (!id || !key || result.has(key)) {
+        return;
+      }
+
+      result.set(key, {
+        id,
+        key,
+        name,
+        deliverable,
+      });
+    });
+
+    return [...result.values()];
+  }
+
+  function pxJiraFunctionalCaseIdsForCapability(item, capabilityId) {
+    const capability = pxCapabilityScopeId(capabilityId);
+
+    const prefix = `${capability}::`;
+
+    return pxJiraFunctionalCaseIds(item).filter((value) =>
+      value.startsWith(prefix),
+    );
+  }
+
+  function pxJiraFunctionalCaseOptions(productId, capabilityId, countryId) {
+    const items = pxJiraCapabilityScopeItems(
+      productId,
+      capabilityId,
+      countryId,
+    ).filter((item) => item.jiraDiscarded !== true);
+
+    const catalog = pxFunctionalCaseCatalog(productId, capabilityId, countryId);
+
+    const knownKeys = new Set(
+      catalog.map((functionalCase) => functionalCase.key),
+    );
+
+    const cases = catalog
+      .map((functionalCase) => {
+        const count = items.filter((item) =>
+          pxJiraFunctionalCaseIdsForCapability(item, capabilityId).includes(
+            functionalCase.key,
+          ),
+        ).length;
+
+        return {
+          ...functionalCase,
+          count,
+        };
+      })
+      .filter((functionalCase) => functionalCase.count > 0);
+
+    const unassignedCount = items.filter((item) => {
+      const validCases = pxJiraFunctionalCaseIdsForCapability(
+        item,
+        capabilityId,
+      ).filter((key) => knownKeys.has(key));
+
+      return validCases.length === 0;
+    }).length;
+
+    return {
+      total: items.length,
+      cases,
+      unassignedCount,
+      knownKeys,
+    };
+  }
+
+  function pxJiraSelectedFunctionalCase(
+    programId,
+    state,
+    productId,
+    capabilityId,
+    countryId,
+  ) {
+    const workspaceState =
+      typeof roadmapWorkspaceState === "function"
+        ? roadmapWorkspaceState(programId)
+        : null;
+
+    const options = pxJiraFunctionalCaseOptions(
+      productId,
+      capabilityId,
+      countryId,
+    );
+
+    const allowed = new Set([
+      "ALL",
+
+      ...options.cases.map((functionalCase) => functionalCase.key),
+
+      ...(options.unassignedCount ? ["UNASSIGNED"] : []),
+    ]);
+
+    const requested = String(
+      state?.jiraFunctionalCaseId ||
+        workspaceState?.jiraFunctionalCaseId ||
+        "ALL",
+    ).trim();
+
+    const selected = allowed.has(requested) ? requested : "ALL";
+
+    if (workspaceState) {
+      workspaceState.jiraFunctionalCaseId = selected;
+    }
+
+    return selected;
+  }
+
+  function pxJiraCapabilityCaseItems(
+    productId,
+    capabilityId,
+    countryId,
+    functionalCaseId,
+  ) {
+    const items = pxJiraCapabilityScopeItems(
+      productId,
+      capabilityId,
+      countryId,
+    );
+
+    const selected = String(functionalCaseId || "ALL").trim();
+
+    if (selected === "ALL") {
+      return items;
+    }
+
+    const catalog = pxFunctionalCaseCatalog(productId, capabilityId, countryId);
+
+    const knownKeys = new Set(
+      catalog.map((functionalCase) => functionalCase.key),
+    );
+
+    if (selected === "UNASSIGNED") {
+      return items.filter((item) => {
+        const validCases = pxJiraFunctionalCaseIdsForCapability(
+          item,
+          capabilityId,
+        ).filter((key) => knownKeys.has(key));
+
+        return validCases.length === 0;
+      });
+    }
+
+    return items.filter((item) =>
+      pxJiraFunctionalCaseIdsForCapability(item, capabilityId).includes(
+        selected,
+      ),
+    );
+  }
+
+  function pxRenderJiraFunctionalCaseSelector(
+    programId,
+    productId,
+    capabilityId,
+    countryId,
+    state,
+  ) {
+    const options = pxJiraFunctionalCaseOptions(
+      productId,
+      capabilityId,
+      countryId,
+    );
+
+    const selected = pxJiraSelectedFunctionalCase(
+      programId,
+      state,
+      productId,
+      capabilityId,
+      countryId,
+    );
+
+    if (!options.total) {
+      return "";
+    }
+
+    return `
+    <section
+      class="
+        aixbanker-roadmap-filters
+      "
+      aria-label="
+        Caso funcional JIRA
+      "
+    >
+      <div
+        class="
+          aixbanker-roadmap-filter-group
+        "
+      >
+        <span
+          class="
+            aixbanker-roadmap-filter-label
+          "
+        >
+          Caso funcional
+        </span>
+
+        <nav
+          class="
+            executive-filter-row
+          "
+          aria-label="
+            Seleccionar caso funcional
+          "
+        >
+          <button
+            class="
+              quarter-btn
+              ${selected === "ALL" ? "active" : ""}
+            "
+            type="button"
+            data-jira-functional-case="ALL"
+            data-program-id="${pxEsc(programId)}"
+            aria-pressed="${selected === "ALL" ? "true" : "false"}"
+          >
+            Todos ·
+            ${options.total}
+          </button>
+
+          ${options.cases
+            .map(
+              (functionalCase) => `
+                <button
+                  class="
+                    quarter-btn
+                    ${selected === functionalCase.key ? "active" : ""}
+                  "
+                  type="button"
+                  data-jira-functional-case="${pxEsc(functionalCase.key)}"
+                  data-program-id="${pxEsc(programId)}"
+                  aria-pressed="${
+                    selected === functionalCase.key ? "true" : "false"
+                  }"
+                >
+                  ${pxEsc(functionalCase.name)}
+                  ·
+                  ${functionalCase.count}
+                </button>
+              `,
+            )
+            .join("")}
+
+          ${
+            options.unassignedCount
+              ? `
+                  <button
+                    class="
+                      quarter-btn
+                      ${selected === "UNASSIGNED" ? "active" : ""}
+                    "
+                    type="button"
+                    data-jira-functional-case="UNASSIGNED"
+                    data-program-id="${pxEsc(programId)}"
+                    aria-pressed="${
+                      selected === "UNASSIGNED" ? "true" : "false"
+                    }"
+                  >
+                    Sin caso funcional ·
+                    ${options.unassignedCount}
+                  </button>
+                `
+              : ""
+          }
+        </nav>
+      </div>
+    </section>
+  `;
+  }
   function pxJiraRoadmapItems() {
     return pxRows("jiraWorkspaceFeatures")
       .filter(
@@ -1196,6 +1541,8 @@
               .filter((value) => value && value !== "ALL"),
           ),
         ];
+
+        const functionalCaseIds = pxJiraFunctionalCaseIds(row);
 
         const rawTrack = String(row.track || "")
           .trim()
@@ -1228,9 +1575,13 @@
 
           capabilityIds,
 
+          functionalCaseIds,
+
           track,
 
           mappingStatus,
+
+          functionalCaseMappingStatus: pxClean(row.functionalCaseMappingStatus),
 
           mappingConfidence: pxClean(row.mappingConfidence),
 
@@ -2091,7 +2442,184 @@
     </section>
   `;
   }
+  function pxRenderJiraTimelineByFunctionalCase(
+    programId,
+    productId,
+    capabilityId,
+    countryId,
+    selectedFunctionalCase,
+    state,
+  ) {
+    const options = pxJiraFunctionalCaseOptions(
+      productId,
+      capabilityId,
+      countryId,
+    );
 
+    const catalogByKey = new Map(
+      options.cases.map((functionalCase) => [
+        functionalCase.key,
+        functionalCase,
+      ]),
+    );
+
+    let groups = [];
+
+    /*
+     * =====================================================
+     * TODOS
+     * =====================================================
+     *
+     * Generamos un bloque independiente
+     * por caso funcional.
+     */
+    if (selectedFunctionalCase === "ALL") {
+      groups = options.cases.map((functionalCase) => ({
+        key: functionalCase.key,
+
+        name: functionalCase.name,
+      }));
+
+      if (options.unassignedCount) {
+        groups.push({
+          key: "UNASSIGNED",
+
+          name: "Sin caso funcional",
+        });
+      }
+    } else if (selectedFunctionalCase === "UNASSIGNED") {
+      groups = [
+        {
+          key: "UNASSIGNED",
+
+          name: "Sin caso funcional",
+        },
+      ];
+    } else {
+      const functionalCase = catalogByKey.get(selectedFunctionalCase);
+
+      groups = [
+        {
+          key: selectedFunctionalCase,
+
+          name: functionalCase?.name || selectedFunctionalCase,
+        },
+      ];
+    }
+
+    const markup = groups
+      .map((group) => {
+        const items = pxJiraCapabilityCaseItems(
+          productId,
+          capabilityId,
+          countryId,
+          group.key,
+        ).filter(
+          (item) =>
+            item.mappingStatus === "mapped" && item.jiraDiscarded !== true,
+        );
+
+        if (!items.length) {
+          return "";
+        }
+
+        const functional = items.filter(
+          (item) => roadmapWorkspaceTrack(item) === "functional",
+        );
+
+        const technical = items.filter(
+          (item) => roadmapWorkspaceTrack(item) === "technical",
+        );
+
+        const active = items.filter((item) => {
+          const status = pxJiraStatusToken(item.jiraStatusRaw);
+
+          return ![
+            "deployed",
+            "accepted",
+            "done",
+            "closed",
+            "discarded",
+          ].includes(status);
+        }).length;
+
+        const blocked = items.filter(
+          (item) => pxJiraStatusToken(item.jiraStatusRaw) === "blocked",
+        ).length;
+
+        return `
+          <section
+            class="
+              product-experience-section
+              jira-functional-case-group
+            "
+            data-jira-functional-case-group="${pxEsc(group.key)}"
+          >
+            <header
+              class="
+                product-experience-section-header
+              "
+            >
+              <div>
+                <span
+                  class="
+                    product-experience-eyebrow
+                  "
+                >
+                  Caso funcional
+                </span>
+
+                <h2>
+                  ${pxEsc(group.name)}
+                </h2>
+              </div>
+
+              <p>
+                ${items.length}
+                Features JIRA ·
+                ${functional.length}
+                funcionales ·
+                ${technical.length}
+                técnicas ·
+                ${active}
+                activas
+                ${blocked ? ` · ${blocked} bloqueadas` : ""}
+              </p>
+            </header>
+
+            ${
+              functional.length
+                ? pxRenderJiraTimelineLane("functional", functional, state)
+                : ""
+            }
+
+            ${
+              technical.length
+                ? pxRenderJiraTimelineLane("technical", technical, state)
+                : ""
+            }
+          </section>
+        `;
+      })
+      .filter(Boolean)
+      .join("");
+
+    if (markup) {
+      return markup;
+    }
+
+    return `
+    <div
+      class="
+        aixbanker-roadmap-empty
+      "
+    >
+      No hay Features JIRA
+      asociadas al caso funcional
+      seleccionado.
+    </div>
+  `;
+  }
   function pxRenderJiraCapabilitySummary(productId, capabilityId, countryId) {
     const items = pxJiraCapabilityScopeItems(
       productId,
@@ -2390,10 +2918,6 @@
      * =====================================================
      * DATASET DEL ROADMAP
      * =====================================================
-     *
-     * Sólo añadimos JIRA cuando estamos
-     * dentro del cronograma de una
-     * capacidad concreta.
      */
     const baseItemsForProgram = roadmapWorkspaceItemsForProgram;
 
@@ -2449,11 +2973,11 @@
 
     /*
      * =====================================================
-     * RESUMEN DE CAPACIDAD
+     * RESUMEN
      * =====================================================
      *
-     * El resumen interno actual se conserva
-     * y añadimos encima la foto JIRA.
+     * Continúa agregado
+     * a nivel capacidad.
      */
     const baseRenderSummary = roadmapWorkspaceRenderSummary;
 
@@ -2521,7 +3045,7 @@
           countryId !== HOLDING_COUNTRY_ID;
 
         /*
-         * Producto · País:
+         * Fuera de capacidad:
          *
          * sólo cronograma interno.
          */
@@ -2545,14 +3069,16 @@
           functionalPlanSource: source,
         };
 
-        const selector = pxRenderFunctionalPlanSourceSelector(
+        const sourceSelector = pxRenderFunctionalPlanSourceSelector(
           programId,
           allItems,
           effectiveState,
         );
 
         /*
+         * =================================================
          * PLAN INTERNO
+         * =================================================
          */
         if (source === "internal") {
           const internalItems = allItems.filter(
@@ -2560,37 +3086,57 @@
           );
 
           return `
-          ${selector}
+          ${sourceSelector}
 
           ${baseRenderTimeline(programId, internalItems, effectiveState)}
         `;
         }
 
         /*
+         * =================================================
          * JIRA OFICIAL
+         * =================================================
+         *
+         * Capacidad
+         *   ↓
+         * Caso funcional
+         *   ↓
+         * Carril
+         *   ↓
+         * Feature
          */
-        const filtered =
-          typeof roadmapWorkspaceFilteredItems === "function"
-            ? roadmapWorkspaceFilteredItems(allItems, effectiveState)
-            : allItems;
 
-        const jiraItems = filtered.filter(
-          (item) =>
-            pxRoadmapPlanningSource(item) === "jira" &&
-            item.mappingStatus === "mapped" &&
-            item.jiraDiscarded !== true,
+        const selectedFunctionalCase = pxJiraSelectedFunctionalCase(
+          programId,
+          effectiveState,
+          productId,
+          capabilityId,
+          countryId,
         );
 
-        const jiraFunctional = jiraItems.filter(
-          (item) => roadmapWorkspaceTrack(item) === "functional",
+        effectiveState.jiraFunctionalCaseId = selectedFunctionalCase;
+
+        const functionalCaseSelector = pxRenderJiraFunctionalCaseSelector(
+          programId,
+          productId,
+          capabilityId,
+          countryId,
+          effectiveState,
         );
 
-        const jiraTechnical = jiraItems.filter(
-          (item) => roadmapWorkspaceTrack(item) === "technical",
+        const groupedTimeline = pxRenderJiraTimelineByFunctionalCase(
+          programId,
+          productId,
+          capabilityId,
+          countryId,
+          selectedFunctionalCase,
+          effectiveState,
         );
 
         return `
-        ${selector}
+        ${sourceSelector}
+
+        ${functionalCaseSelector}
 
         <section
           class="
@@ -2621,23 +3167,15 @@
             </span>
           </section>
 
-          ${pxRenderJiraTimelineLane(
-            "functional",
-            jiraFunctional,
-            effectiveState,
-          )}
-
-          ${pxRenderJiraTimelineLane(
-            "technical",
-            jiraTechnical,
-            effectiveState,
-          )}
+          ${groupedTimeline}
         </section>
       `;
       };
 
     /*
-     * Selector Plan interno / JIRA.
+     * =====================================================
+     * SELECTOR PLAN INTERNO / JIRA
+     * =====================================================
      */
     document.addEventListener(
       "click",
@@ -2656,6 +3194,43 @@
         const state = roadmapWorkspaceState(programId);
 
         state.functionalPlanSource = source;
+
+        event.preventDefault();
+
+        event.stopImmediatePropagation();
+
+        const context = roadmapWorkspaceParseRoute();
+
+        if (context.routeName === "roadmap") {
+          renderRoadmapWorkspace(context.programId, context);
+        }
+      },
+      true,
+    );
+
+    /*
+     * =====================================================
+     * SELECTOR CASO FUNCIONAL
+     * =====================================================
+     */
+    document.addEventListener(
+      "click",
+      (event) => {
+        const button = event.target.closest("[data-jira-functional-case]");
+
+        if (!button) {
+          return;
+        }
+
+        const programId = pxClean(button.dataset.programId || PROGRAM_ID);
+
+        const selectedCase = pxClean(
+          button.dataset.jiraFunctionalCase || "ALL",
+        );
+
+        const state = roadmapWorkspaceState(programId);
+
+        state.jiraFunctionalCaseId = selectedCase || "ALL";
 
         event.preventDefault();
 

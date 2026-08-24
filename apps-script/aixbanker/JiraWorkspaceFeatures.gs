@@ -61,8 +61,205 @@ function jiraWorkspaceFeatureHeaders_() {
     "sourceUpdatedAt",
   ];
 }
+function ensureJiraCapabilityMappingColumns_(spreadsheet) {
+  const sheet = spreadsheet.getSheetByName("jiraCapabilityMapping");
+
+  if (!sheet) {
+    throw new Error('No existe la pestaña "jiraCapabilityMapping".');
+  }
+
+  /*
+   * Estructura objetivo:
+   *
+   * A workspaceKey
+   * B jiraKey
+   * C featureName
+   * D productId
+   * E capabilityIds
+   * F functionalCaseIds
+   * G track
+   * H confidence
+   * I notes
+   */
+
+  function currentHeaders_() {
+    const lastColumn = sheet.getLastColumn();
+
+    if (lastColumn < 1) {
+      return [];
+    }
+
+    return sheet
+      .getRange(1, 1, 1, lastColumn)
+      .getValues()[0]
+      .map((value) => String(value || "").trim());
+  }
+
+  let headers = currentHeaders_();
+
+  /*
+   * featureName debe estar después
+   * de jiraKey.
+   */
+  if (!headers.includes("featureName")) {
+    const jiraKeyIndex = headers.indexOf("jiraKey");
+
+    if (jiraKeyIndex < 0) {
+      throw new Error(
+        'La pestaña jiraCapabilityMapping no contiene la columna "jiraKey".',
+      );
+    }
+
+    /*
+     * jiraKeyIndex es zero-based.
+     * insertColumnAfter utiliza índice 1-based.
+     *
+     * jiraKey en B:
+     * insertColumnAfter(2)
+     * crea la nueva C.
+     */
+    sheet.insertColumnAfter(jiraKeyIndex + 1);
+
+    sheet.getRange(1, jiraKeyIndex + 2).setValue("featureName");
+
+    headers = currentHeaders_();
+  }
+
+  /*
+   * functionalCaseIds debe estar
+   * después de capabilityIds.
+   */
+  if (!headers.includes("functionalCaseIds")) {
+    const capabilityIdsIndex = headers.indexOf("capabilityIds");
+
+    if (capabilityIdsIndex < 0) {
+      throw new Error(
+        'La pestaña jiraCapabilityMapping no contiene la columna "capabilityIds".',
+      );
+    }
+
+    sheet.insertColumnAfter(capabilityIdsIndex + 1);
+
+    sheet.getRange(1, capabilityIdsIndex + 2).setValue("functionalCaseIds");
+
+    headers = currentHeaders_();
+  }
+
+  /*
+   * Validación final.
+   */
+  const requiredHeaders = [
+    "workspaceKey",
+    "jiraKey",
+    "featureName",
+    "productId",
+    "capabilityIds",
+    "functionalCaseIds",
+    "track",
+    "confidence",
+    "notes",
+  ];
+
+  const missing = requiredHeaders.filter((header) => !headers.includes(header));
+
+  if (missing.length) {
+    throw new Error(
+      "Faltan columnas en jiraCapabilityMapping: " + missing.join(", "),
+    );
+  }
+
+  return sheet;
+}
+function syncJiraCapabilityMappingFeatureNames_(spreadsheet, featureRows) {
+  const sheet = spreadsheet.getSheetByName("jiraCapabilityMapping");
+
+  if (!sheet) {
+    Logger.log("[JIRA CAPABILITY] No existe jiraCapabilityMapping.");
+
+    return 0;
+  }
+
+  const lastRow = sheet.getLastRow();
+
+  const lastColumn = sheet.getLastColumn();
+
+  if (lastRow < 2 || lastColumn < 1) {
+    return 0;
+  }
+
+  const headers = sheet
+    .getRange(1, 1, 1, lastColumn)
+    .getValues()[0]
+    .map((value) => String(value || "").trim());
+
+  const workspaceKeyIndex = headers.indexOf("workspaceKey");
+
+  const jiraKeyIndex = headers.indexOf("jiraKey");
+
+  const featureNameIndex = headers.indexOf("featureName");
+
+  if (workspaceKeyIndex < 0 || jiraKeyIndex < 0 || featureNameIndex < 0) {
+    Logger.log(
+      "[JIRA CAPABILITY] Para sincronizar nombres se necesitan las columnas workspaceKey, jiraKey y featureName.",
+    );
+
+    return 0;
+  }
+
+  const namesByKey = new Map();
+
+  (Array.isArray(featureRows) ? featureRows : []).forEach((feature) => {
+    const workspaceKey = String(feature.workspaceKey || "")
+      .trim()
+      .toUpperCase();
+
+    const jiraKey = String(feature.jiraKey || "")
+      .trim()
+      .toUpperCase();
+
+    const featureName = String(feature.name || feature.summary || "").trim();
+
+    if (!workspaceKey || !jiraKey || !featureName) {
+      return;
+    }
+
+    namesByKey.set(`${workspaceKey}::${jiraKey}`, featureName);
+  });
+
+  const values = sheet.getRange(2, 1, lastRow - 1, lastColumn).getValues();
+
+  let updated = 0;
+
+  const featureNameValues = values.map((row) => {
+    const workspaceKey = String(row[workspaceKeyIndex] || "")
+      .trim()
+      .toUpperCase();
+
+    const jiraKey = String(row[jiraKeyIndex] || "")
+      .trim()
+      .toUpperCase();
+
+    const currentName = String(row[featureNameIndex] || "").trim();
+
+    const expectedName =
+      namesByKey.get(`${workspaceKey}::${jiraKey}`) || currentName;
+
+    if (expectedName && expectedName !== currentName) {
+      updated += 1;
+    }
+
+    return [expectedName];
+  });
+
+  sheet
+    .getRange(2, featureNameIndex + 1, featureNameValues.length, 1)
+    .setValues(featureNameValues);
+
+  return updated;
+}
 function refreshJiraWorkspaceFeatures() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
   const lock = LockService.getDocumentLock();
 
   if (!lock.tryLock(1000)) {
@@ -71,6 +268,7 @@ function refreshJiraWorkspaceFeatures() {
       "AIxBanker",
       6,
     );
+
     return;
   }
 
@@ -81,19 +279,33 @@ function refreshJiraWorkspaceFeatures() {
       6,
     );
 
+    /*
+     * Garantizamos primero que existen
+     * las estructuras auxiliares.
+     */
     ensureJiraProductMappingSheet_(spreadsheet);
 
+    ensureJiraCapabilityMappingColumns_(spreadsheet);
+
+    /*
+     * Localizamos los dos snapshots.
+     */
     const dataFile = findLatestJiraWorkspaceFile_(["WORKSPACE", "DATA"]);
+
     const engineeringFile = findLatestJiraWorkspaceFile_([
       "WORKSPACE",
       "ENGINEERING",
     ]);
 
+    /*
+     * Construimos la foto JIRA.
+     */
     const dataRows = buildJiraWorkspaceFeatureRows_(
       spreadsheet,
       dataFile,
       "DATA",
     );
+
     const engineeringRows = buildJiraWorkspaceFeatureRows_(
       spreadsheet,
       engineeringFile,
@@ -101,13 +313,37 @@ function refreshJiraWorkspaceFeatures() {
     );
 
     const rows = [...dataRows, ...engineeringRows];
+
+    /*
+     * Publicamos jiraWorkspaceFeatures.
+     */
     const sheet = ensureJiraWorkspaceFeatureSheet_(spreadsheet);
 
     replaceJiraWorkspaceFeatureRows_(sheet, rows);
+
+    /*
+     * Actualizamos automáticamente
+     * el nombre de las Features dentro
+     * del mapping manual.
+     *
+     * functionalCaseIds no se toca:
+     * continúa siendo clasificación
+     * manual.
+     */
+    const mappingNamesUpdated = syncJiraCapabilityMappingFeatureNames_(
+      spreadsheet,
+      rows,
+    );
+
     SpreadsheetApp.flush();
 
     spreadsheet.toast(
-      `Features JIRA: ${rows.length} relaciones · Data: ${dataRows.length} · Engineering: ${engineeringRows.length}`,
+      [
+        `Features JIRA: ${rows.length} relaciones`,
+        `Data: ${dataRows.length}`,
+        `Engineering: ${engineeringRows.length}`,
+        `Nombres mapping: ${mappingNamesUpdated}`,
+      ].join(" · "),
       "Foto JIRA actualizada",
       10,
     );
@@ -116,9 +352,14 @@ function refreshJiraWorkspaceFeatures() {
       JSON.stringify(
         {
           sourceFiles: [dataFile.getName(), engineeringFile.getName()],
+
           dataRows: dataRows.length,
+
           engineeringRows: engineeringRows.length,
+
           totalRows: rows.length,
+
+          mappingNamesUpdated,
         },
         null,
         2,
@@ -126,14 +367,16 @@ function refreshJiraWorkspaceFeatures() {
     );
   } catch (error) {
     const message = error && error.message ? error.message : String(error);
+
     spreadsheet.toast(message, "Error actualizando Features JIRA", 10);
+
     console.error(error);
+
     throw error;
   } finally {
     lock.releaseLock();
   }
 }
-
 function findLatestJiraWorkspaceFile_(tokens) {
   const requiredTokens = (Array.isArray(tokens) ? tokens : [])
     .map((token) => textValue_(token).toUpperCase())
