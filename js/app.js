@@ -4484,12 +4484,28 @@ function getEmptyProgramData() {
     decisionsPending: [],
     decisionsDone: [],
 
-    // Modelo unificado
+    /*
+     * Modelo unificado.
+     */
     roadmapItems: [],
+
     roadmapItemActivities: [],
+
+    /*
+     * Histórico MSA:
+     * on-demand.
+     */
     roadmapItemStatusHistory: [],
 
-    // Modelo legado
+    /*
+     * Features JIRA:
+     * on-demand.
+     */
+    jiraWorkspaceFeatures: [],
+
+    /*
+     * Modelo legado.
+     */
     projects: [],
     projectPhases: [],
 
@@ -4498,7 +4514,9 @@ function getEmptyProgramData() {
 
     teams: [],
 
-    // Catálogo global de producto
+    /*
+     * Catálogo global de producto.
+     */
     productCatalog: [],
     productFeatures: [],
   };
@@ -4552,14 +4570,182 @@ async function loadConfiguredSource(source) {
   }
 
   if (typeof loadJsonp !== "function") {
+    throw new Error("No está disponible la función loadJsonp");
+  }
+
+  const url = new URL(source.driveJsonUrl, window.location.href);
+
+  url.searchParams.set("dataset", "core");
+
+  return loadJsonp(url.toString());
+}
+async function loadJiraFeaturesData(programId, forceRefresh = false) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  if (!normalizedProgramId) {
+    throw new Error("No se ha informado programId para cargar Features JIRA.");
+  }
+
+  if (!forceRefresh && JIRA_FEATURES_DATA_CACHE.has(normalizedProgramId)) {
+    return JIRA_FEATURES_DATA_CACHE.get(normalizedProgramId);
+  }
+
+  if (!forceRefresh && JIRA_FEATURES_DATA_REQUESTS.has(normalizedProgramId)) {
+    return JIRA_FEATURES_DATA_REQUESTS.get(normalizedProgramId);
+  }
+
+  const request = loadProgramDataset(normalizedProgramId, "jira-features")
+    .then((rawData) => {
+      const features = Array.isArray(rawData?.jiraWorkspaceFeatures)
+        ? rawData.jiraWorkspaceFeatures
+        : [];
+
+      const result = {
+        generatedAt: rawData?.generatedAt || "",
+
+        jiraWorkspaceFeatures: features,
+      };
+
+      JIRA_FEATURES_DATA_CACHE.set(normalizedProgramId, result);
+
+      return result;
+    })
+    .finally(() => {
+      JIRA_FEATURES_DATA_REQUESTS.delete(normalizedProgramId);
+    });
+
+  JIRA_FEATURES_DATA_REQUESTS.set(normalizedProgramId, request);
+
+  return request;
+}
+function installJiraFeaturesData(programId, jiraData) {
+  const features = Array.isArray(jiraData?.jiraWorkspaceFeatures)
+    ? jiraData.jiraWorkspaceFeatures
+    : [];
+
+  if (!DATA || typeof DATA !== "object") {
+    return;
+  }
+
+  DATA.jiraWorkspaceFeatures = features.map((row) => ({
+    ...row,
+
+    programId: row.programId || programId,
+  }));
+
+  if (PROGRAM_DATA_CACHE.has(programId)) {
+    const cached = PROGRAM_DATA_CACHE.get(programId);
+
+    PROGRAM_DATA_CACHE.set(programId, {
+      ...cached,
+
+      jiraWorkspaceFeatures: DATA.jiraWorkspaceFeatures,
+    });
+  }
+}
+function jiraMsaCacheKey(programId, itemId) {
+  return [String(programId || "").trim(), String(itemId || "").trim()].join(
+    "::",
+  );
+}
+
+async function loadJiraMsaData(programId, itemId, forceRefresh = false) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const normalizedItemId = String(itemId || "").trim();
+
+  if (!normalizedProgramId || !normalizedItemId) {
     throw new Error(
-      "No está disponible la función loadJsonp. Revisa drive-json-source.js.",
+      "Se necesitan programId e itemId para cargar el histórico JIRA del MSA.",
     );
   }
 
-  return loadJsonp(source.driveJsonUrl);
-}
+  const cacheKey = jiraMsaCacheKey(normalizedProgramId, normalizedItemId);
 
+  if (!forceRefresh && JIRA_MSA_DATA_CACHE.has(cacheKey)) {
+    return JIRA_MSA_DATA_CACHE.get(cacheKey);
+  }
+
+  if (!forceRefresh && JIRA_MSA_DATA_REQUESTS.has(cacheKey)) {
+    return JIRA_MSA_DATA_REQUESTS.get(cacheKey);
+  }
+
+  const request = loadProgramDataset(normalizedProgramId, "jira-msa", {
+    itemId: normalizedItemId,
+  })
+    .then((rawData) => {
+      const result = {
+        itemId: normalizedItemId,
+
+        generatedAt: rawData?.generatedAt || "",
+
+        roadmapItemStatusHistory: Array.isArray(
+          rawData?.roadmapItemStatusHistory,
+        )
+          ? rawData.roadmapItemStatusHistory
+          : [],
+      };
+
+      JIRA_MSA_DATA_CACHE.set(cacheKey, result);
+
+      return result;
+    })
+    .finally(() => {
+      JIRA_MSA_DATA_REQUESTS.delete(cacheKey);
+    });
+
+  JIRA_MSA_DATA_REQUESTS.set(cacheKey, request);
+
+  return request;
+}
+function installJiraMsaData(programId, itemId, jiraData) {
+  if (!DATA || typeof DATA !== "object") {
+    return;
+  }
+
+  const normalizedItemId = String(itemId || "").trim();
+
+  const current = Array.isArray(DATA.roadmapItemStatusHistory)
+    ? DATA.roadmapItemStatusHistory
+    : [];
+
+  const preserved = current.filter(
+    (row) => String(row.itemId || "").trim() !== normalizedItemId,
+  );
+
+  const incoming = Array.isArray(jiraData?.roadmapItemStatusHistory)
+    ? jiraData.roadmapItemStatusHistory
+    : [];
+
+  DATA.roadmapItemStatusHistory = [
+    ...preserved,
+
+    ...incoming.map((row) => ({
+      ...row,
+
+      programId: row.programId || programId,
+    })),
+  ];
+}
+function invalidateProgramDeferredData(programId) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  JIRA_FEATURES_DATA_CACHE.delete(normalizedProgramId);
+
+  JIRA_FEATURES_DATA_REQUESTS.delete(normalizedProgramId);
+
+  [...JIRA_MSA_DATA_CACHE.keys()].forEach((key) => {
+    if (key.startsWith(`${normalizedProgramId}::`)) {
+      JIRA_MSA_DATA_CACHE.delete(key);
+    }
+  });
+
+  [...JIRA_MSA_DATA_REQUESTS.keys()].forEach((key) => {
+    if (key.startsWith(`${normalizedProgramId}::`)) {
+      JIRA_MSA_DATA_REQUESTS.delete(key);
+    }
+  });
+}
 async function loadPortfolioData(forceRefresh = false) {
   if (
     !forceRefresh &&
@@ -4583,7 +4769,71 @@ async function loadPortfolioData(forceRefresh = false) {
 
   return PORTFOLIO_DATA;
 }
+const JIRA_FEATURES_DATA_CACHE = new Map();
+const JIRA_FEATURES_DATA_REQUESTS = new Map();
 
+const JIRA_MSA_DATA_CACHE = new Map();
+const JIRA_MSA_DATA_REQUESTS = new Map();
+
+function buildProgramDatasetUrl(programId, dataset, params = {}) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const source = getProgramSource(normalizedProgramId);
+
+  if (
+    !source?.driveJsonUrl ||
+    source.driveJsonUrl.includes("URL_APPS_SCRIPT") ||
+    source.driveJsonUrl.includes("PEGA_AQUI")
+  ) {
+    throw new Error(`Origen no configurado para ${normalizedProgramId}`);
+  }
+
+  const url = new URL(source.driveJsonUrl, window.location.href);
+
+  /*
+   * Eliminamos parámetros propios
+   * de peticiones JSONP anteriores.
+   */
+  url.searchParams.delete("callback");
+
+  url.searchParams.delete("_");
+
+  url.searchParams.delete("dataset");
+
+  url.searchParams.delete("itemId");
+
+  url.searchParams.set(
+    "dataset",
+    String(dataset || "core")
+      .trim()
+      .toLowerCase(),
+  );
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const normalizedValue = String(value ?? "").trim();
+
+    if (!normalizedValue) {
+      return;
+    }
+
+    url.searchParams.set(key, normalizedValue);
+  });
+
+  return url.toString();
+}
+
+async function loadProgramDataset(programId, dataset, params = {}) {
+  if (typeof loadJsonpOnDemand !== "function") {
+    throw new Error("No está disponible la carga JSONP on-demand.");
+  }
+
+  const url = buildProgramDatasetUrl(programId, dataset, params);
+
+  return loadJsonpOnDemand(url, {
+    timeoutMs: 45000,
+    retries: 1,
+  });
+}
 async function loadProgramData(programId, forceRefresh = false) {
   if (!forceRefresh && PROGRAM_DATA_CACHE.has(programId)) {
     return PROGRAM_DATA_CACHE.get(programId);
@@ -4700,8 +4950,26 @@ function resetRcsProgramDataModes() {
 
   state.programs = {};
 
+  /*
+   * Core.
+   */
   PROGRAM_DATA_CACHE.clear();
+
   PROGRAM_LAST_LOADED_AT.clear();
+
+  /*
+   * Features JIRA on-demand.
+   */
+  JIRA_FEATURES_DATA_CACHE.clear();
+
+  JIRA_FEATURES_DATA_REQUESTS.clear();
+
+  /*
+   * Históricos MSA on-demand.
+   */
+  JIRA_MSA_DATA_CACHE.clear();
+
+  JIRA_MSA_DATA_REQUESTS.clear();
 }
 
 function getDemoPortfolioData() {
@@ -4847,15 +5115,85 @@ function updateDataStatus(programId = null) {
     `${source?.label || programId} ` +
     `(${formatLastLoadedDate(lastLoadedAt)})`;
 }
+function routeRequiresJiraMsaData(context) {
+  if (!context) {
+    return false;
+  }
+
+  return (
+    context.routeName === "roadmap-detail" &&
+    String(context.programId || "").trim() === "aixbanker" &&
+    String(context.itemType || "")
+      .trim()
+      .toLowerCase() === "msa" &&
+    Boolean(String(context.itemId || "").trim())
+  );
+}
+
+function hasInstalledJiraMsaData(itemId) {
+  const normalizedItemId = String(itemId || "").trim();
+
+  if (!normalizedItemId) {
+    return false;
+  }
+
+  return (
+    Array.isArray(DATA?.roadmapItemStatusHistory) &&
+    DATA.roadmapItemStatusHistory.some(
+      (row) => String(row.itemId || "").trim() === normalizedItemId,
+    )
+  );
+}
+
+async function ensureJiraMsaDataForRoute(context) {
+  if (!routeRequiresJiraMsaData(context)) {
+    return;
+  }
+
+  const programId = String(context.programId || "").trim();
+
+  const itemId = String(context.itemId || "").trim();
+
+  if (hasInstalledJiraMsaData(itemId)) {
+    return;
+  }
+
+  showLoadingOverlay("Cargando histórico JIRA del MSA...");
+
+  try {
+    const jiraData = await loadJiraMsaData(programId, itemId);
+
+    installJiraMsaData(programId, itemId, jiraData);
+  } catch (error) {
+    console.error("[AIxBanker] Error cargando histórico JIRA del MSA", error);
+
+    /*
+     * El detalle continúa funcionando
+     * con los datos core aunque JIRA
+     * no esté disponible.
+     *
+     * renderRoadmapItemDetailView()
+     * mostrará el detalle convencional
+     * porque jiraMetrics.hasData
+     * será false.
+     */
+  }
+}
 async function render() {
   const context = getCurrentRoute();
 
   const { routeName, programId } = context;
 
+  /*
+   * =====================================================
+   * PORTFOLIO
+   * =====================================================
+   */
   if (!programId || routeName === "landing") {
     DATA = PORTFOLIO_DATA;
 
     renderLanding();
+
     updateDataStatus();
 
     if (getRcsDataMode("portfolio") === "demo") {
@@ -4873,6 +5211,11 @@ async function render() {
     return;
   }
 
+  /*
+   * =====================================================
+   * DEMO
+   * =====================================================
+   */
   if (
     getRcsDataMode("portfolio") === "demo" ||
     getRcsDataMode(programId) === "demo"
@@ -4894,9 +5237,15 @@ async function render() {
   try {
     const source = getProgramSource(programId);
 
-    showLoadingOverlay(
-      `Cargando datos de ` + `${source?.label || programId}...`,
-    );
+    /*
+     * ===================================================
+     * CORE
+     * ===================================================
+     *
+     * Ésta es la única carga obligatoria
+     * para entrar en el programa.
+     */
+    showLoadingOverlay(`Cargando datos de ${source?.label || programId}...`);
 
     const programData = await loadProgramData(programId);
 
@@ -4904,9 +5253,31 @@ async function render() {
 
     DATA = buildProgramData(programData);
 
+    /*
+     * ===================================================
+     * DATASETS ON-DEMAND
+     * ===================================================
+     *
+     * MSA:
+     * únicamente cuando la URL solicita
+     * el detalle de un MSA.
+     *
+     * Features:
+     * NO se cargan aquí.
+     * Las carga exclusivamente el click
+     * en "JIRA oficial".
+     */
+    await ensureJiraMsaDataForRoute(context);
+
+    /*
+     * ===================================================
+     * RENDER
+     * ===================================================
+     */
     renderRouteContext(context);
 
     updateDataStatus(programId);
+
     clearDataFallbackBanner();
   } catch (error) {
     console.error(error);
@@ -4927,6 +5298,7 @@ async function render() {
 
       DATA = {
         ...PORTFOLIO_DATA,
+
         ...getEmptyProgramData(),
       };
 
@@ -5253,7 +5625,7 @@ async function refreshCurrentDataSource() {
 
       resetRcsProgramDataModes();
     }
-
+    invalidateProgramDeferredData(programId);
     const programData = await loadProgramData(programId, true);
 
     setRcsDataMode(programId, "live");

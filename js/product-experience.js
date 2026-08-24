@@ -1989,16 +1989,21 @@
 
     const internalCount = filtered.filter(
       (item) =>
+        roadmapWorkspaceTrack(item) === "functional" &&
         pxRoadmapPlanningSource(item) === "internal" &&
         roadmapWorkspaceHasPlanning(item),
     ).length;
 
     const jiraCount = filtered.filter(
       (item) =>
+        roadmapWorkspaceTrack(item) === "functional" &&
         pxRoadmapPlanningSource(item) === "jira" &&
-        item.mappingStatus === "mapped" &&
         item.jiraDiscarded !== true,
     ).length;
+
+    const jiraLoaded =
+      Array.isArray(DATA?.jiraWorkspaceFeatures) &&
+      DATA.jiraWorkspaceFeatures.length > 0;
 
     return `
     <section
@@ -2006,7 +2011,7 @@
         aixbanker-roadmap-filters
       "
       aria-label="
-        Fuente del cronograma
+        Fuente del carril funcional
       "
     >
       <div
@@ -2019,7 +2024,7 @@
             aixbanker-roadmap-filter-label
           "
         >
-          Fuente del cronograma
+          Fuente funcional
         </span>
 
         <nav
@@ -2027,7 +2032,8 @@
             executive-filter-row
           "
           aria-label="
-            Seleccionar fuente del cronograma
+            Seleccionar fuente
+            del cronograma funcional
           "
         >
           <button
@@ -2053,10 +2059,8 @@
             data-functional-plan-source="jira"
             data-program-id="${pxEsc(programId)}"
             aria-pressed="${selected === "jira" ? "true" : "false"}"
-            ${jiraCount ? "" : "disabled"}
           >
-            JIRA oficial ·
-            ${jiraCount}
+            JIRA oficial${jiraLoaded ? ` · ${jiraCount}` : ""}
           </button>
         </nav>
       </div>
@@ -3262,7 +3266,7 @@
      */
     document.addEventListener(
       "click",
-      (event) => {
+      async (event) => {
         const button = event.target.closest("[data-functional-plan-source]");
 
         if (!button) {
@@ -3276,16 +3280,100 @@
 
         const state = roadmapWorkspaceState(programId);
 
-        state.functionalPlanSource = source;
-
         event.preventDefault();
 
         event.stopImmediatePropagation();
 
-        const context = roadmapWorkspaceParseRoute();
+        /*
+         * ===================================================
+         * PLAN INTERNO
+         * ===================================================
+         *
+         * No necesita ninguna llamada
+         * adicional.
+         */
+        if (source === "internal") {
+          state.functionalPlanSource = "internal";
 
-        if (context.routeName === "roadmap") {
-          renderRoadmapWorkspace(context.programId, context);
+          const currentRoute = pxRoute();
+
+          if (
+            currentRoute.routeName === "product" &&
+            currentRoute.programId === PROGRAM_ID
+          ) {
+            pxRenderLocalProduct(
+              currentRoute.productId,
+              currentRoute.countryId,
+            );
+
+            return;
+          }
+
+          if (currentRoute.routeName === "roadmap") {
+            const context = roadmapWorkspaceParseRoute();
+
+            renderRoadmapWorkspace(context.programId, context);
+          }
+
+          return;
+        }
+
+        /*
+         * ===================================================
+         * JIRA OFICIAL
+         * ===================================================
+         *
+         * Éste es el único punto que
+         * dispara jira-features.
+         */
+        const originalText = button.textContent;
+
+        button.disabled = true;
+
+        button.textContent = "Cargando JIRA…";
+
+        try {
+          if (typeof loadJiraFeaturesData !== "function") {
+            throw new Error("loadJiraFeaturesData no está disponible.");
+          }
+
+          if (typeof installJiraFeaturesData !== "function") {
+            throw new Error("installJiraFeaturesData no está disponible.");
+          }
+
+          const jiraData = await loadJiraFeaturesData(programId);
+
+          installJiraFeaturesData(programId, jiraData);
+
+          state.functionalPlanSource = "jira";
+
+          const currentRoute = pxRoute();
+
+          if (
+            currentRoute.routeName === "product" &&
+            currentRoute.programId === PROGRAM_ID
+          ) {
+            pxRenderLocalProduct(
+              currentRoute.productId,
+              currentRoute.countryId,
+            );
+
+            return;
+          }
+
+          if (currentRoute.routeName === "roadmap") {
+            const context = roadmapWorkspaceParseRoute();
+
+            renderRoadmapWorkspace(context.programId, context);
+          }
+        } catch (error) {
+          console.error("[AIxBanker] Error cargando Features JIRA", error);
+
+          state.functionalPlanSource = "internal";
+
+          button.disabled = false;
+
+          button.textContent = originalText;
         }
       },
       true,

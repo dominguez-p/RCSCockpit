@@ -543,7 +543,29 @@ function applyOcr_(file) {
  * ========================================================= */
 
 function exportPortfolioJson() {
-  const data = getAppData();
+  const core = getCoreAppData_();
+
+  const jiraFeatures = getJiraFeaturesData_();
+
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  const historySheet = spreadsheet.getSheetByName(
+    SHEETS.roadmapItemStatusHistory,
+  );
+
+  const roadmapItemStatusHistory = historySheet
+    ? sheetToObjects_(historySheet)
+    : [];
+
+  const data = {
+    ...core,
+
+    dataset: "full-export",
+
+    jiraWorkspaceFeatures: jiraFeatures.jiraWorkspaceFeatures,
+
+    roadmapItemStatusHistory,
+  };
 
   const json = JSON.stringify(data, null, 2);
 
@@ -826,21 +848,44 @@ function applyJiraCapabilityMappingsForExport_(featureRows, mappingRows) {
   });
 }
 function getAppData() {
+  return getCoreAppData_();
+}
+function getCoreAppData_() {
   const result = {
     generatedAt: new Date().toISOString(),
+
+    /*
+     * Identifica explícitamente el payload.
+     */
+    dataset: "core",
   };
 
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
   /*
-   * Datos operativos.
+   * =====================================================
+   * CORE
+   * =====================================================
    *
-   * roadmapItemActivities se trata
-   * aparte porque su fuente real es
-   * NORM_Roadmap_Activities.
+   * Exclusiones deliberadas:
+   *
+   * roadmapItemStatusHistory
+   *   -> se carga al abrir un MSA.
+   *
+   * jiraWorkspaceFeatures
+   * jiraCapabilityMapping
+   *   -> se cargan al solicitar JIRA oficial.
+   *
+   * roadmapItemActivities SÍ permanece en core:
+   * forma parte del roadmap interno.
    */
+  const deferredSheetKeys = new Set([
+    "roadmapItemStatusHistory",
+    "roadmapItemActivities",
+  ]);
+
   Object.entries(SHEETS).forEach(([key, sheetName]) => {
-    if (key === "roadmapItemActivities") {
+    if (deferredSheetKeys.has(key)) {
       return;
     }
 
@@ -858,41 +903,12 @@ function getAppData() {
   });
 
   /*
-   * =====================================================
-   * FEATURES JIRA
-   * =====================================================
+   * Actividades del roadmap interno.
    *
-   * jiraWorkspaceFeatures:
-   * foto oficial procedente de JIRA.
-   *
-   * jiraCapabilityMapping:
-   * clasificación manual
-   *
-   * Feature
-   *   -> Capability
-   *   -> Functional Case
-   *   -> Track
-   */
-  const jiraWorkspaceFeaturesSheet = spreadsheet.getSheetByName(
-    "jiraWorkspaceFeatures",
-  );
-
-  const jiraWorkspaceFeatures = jiraWorkspaceFeaturesSheet
-    ? sheetToObjects_(jiraWorkspaceFeaturesSheet)
-    : [];
-
-  const jiraCapabilityMappings =
-    loadJiraCapabilityMappingsForExport_(spreadsheet);
-
-  result.jiraWorkspaceFeatures = applyJiraCapabilityMappingsForExport_(
-    jiraWorkspaceFeatures,
-    jiraCapabilityMappings,
-  );
-
-  /*
-   * =====================================================
-   * ACTIVIDADES DEL ROADMAP
-   * =====================================================
+   * Se mantienen en el core porque son
+   * necesarias para el cronograma interno
+   * y su fuente optimizada es
+   * NORM_Roadmap_Activities.
    */
   result.roadmapItemActivities =
     getRoadmapItemActivitiesForExport_(spreadsheet);
@@ -906,7 +922,83 @@ function getAppData() {
 
   result.productFeatures = productExperience.productFeatures;
 
+  /*
+   * Los datasets diferidos se declaran
+   * vacíos para mantener compatibilidad
+   * con código frontend que espere arrays.
+   *
+   * Vacío NO significa "cargado":
+   * el frontend gestionará ese estado
+   * independientemente.
+   */
+  result.roadmapItemStatusHistory = [];
+
+  result.jiraWorkspaceFeatures = [];
+
   return result;
+}
+function getJiraFeaturesData_() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  const featureSheet = spreadsheet.getSheetByName("jiraWorkspaceFeatures");
+
+  const featureRows = featureSheet ? sheetToObjects_(featureSheet) : [];
+
+  const mappings = loadJiraCapabilityMappingsForExport_(spreadsheet);
+
+  const features = applyJiraCapabilityMappingsForExport_(featureRows, mappings);
+
+  return {
+    generatedAt: new Date().toISOString(),
+
+    dataset: "jira-features",
+
+    jiraWorkspaceFeatures: features,
+  };
+}
+function getRoadmapItemStatusHistoryByItemId_(spreadsheet, itemId) {
+  const normalizedItemId = textValue_(itemId);
+
+  if (!normalizedItemId) {
+    throw new Error(
+      "No se ha informado itemId para cargar el histórico JIRA del MSA.",
+    );
+  }
+
+  const sheet = spreadsheet.getSheetByName(SHEETS.roadmapItemStatusHistory);
+
+  if (!sheet) {
+    return [];
+  }
+
+  return sheetToObjects_(sheet).filter(
+    (row) => textValue_(row.itemId) === normalizedItemId,
+  );
+}
+
+function getJiraMsaData_(itemId) {
+  const normalizedItemId = textValue_(itemId);
+
+  if (!normalizedItemId) {
+    throw new Error('El dataset "jira-msa" requiere el parámetro itemId.');
+  }
+
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  const history = getRoadmapItemStatusHistoryByItemId_(
+    spreadsheet,
+    normalizedItemId,
+  );
+
+  return {
+    generatedAt: new Date().toISOString(),
+
+    dataset: "jira-msa",
+
+    itemId: normalizedItemId,
+
+    roadmapItemStatusHistory: history,
+  };
 }
 function getRoadmapItemActivitiesForExport_(spreadsheet) {
   const normalizedSheet = spreadsheet.getSheetByName("NORM_Roadmap_Activities");
@@ -1313,27 +1405,39 @@ function deleteExistingTriggers_(functionName) {
  * ========================================================= */
 
 function doGet(e) {
-  const requestedCallback =
-    e && e.parameter && e.parameter.callback
-      ? String(e.parameter.callback)
-      : "callback";
+  const parameters = e && e.parameter ? e.parameter : {};
+
+  const requestedCallback = parameters.callback
+    ? String(parameters.callback)
+    : "callback";
 
   const callback = /^[A-Za-z_$][A-Za-z0-9_$.\[\]]*$/.test(requestedCallback)
     ? requestedCallback
     : "callback";
 
-  /*
-   * CRÍTICO:
-   *
-   * Aquí solo se llama a getAppData().
-   *
-   * No hay ninguna llamada a:
-   *
-   * refreshProductData()
-   * extractTextFromDriveUrl_()
-   * applyOcr_()
-   */
-  const data = getAppData();
+  const dataset = String(parameters.dataset || "core")
+    .trim()
+    .toLowerCase();
+
+  let data;
+
+  switch (dataset) {
+    case "jira-features":
+      data = getJiraFeaturesData_();
+
+      break;
+
+    case "jira-msa":
+      data = getJiraMsaData_(parameters.itemId);
+
+      break;
+
+    case "core":
+    default:
+      data = getCoreAppData_();
+
+      break;
+  }
 
   const output = `${callback}(` + `${JSON.stringify(data)});`;
 
@@ -2718,4 +2822,47 @@ function testRoadmapActivitiesPayload() {
 
     activityGroups,
   };
+}
+function testOnDemandDatasets() {
+  function measure_(name, callback) {
+    const startedAt = Date.now();
+
+    const data = callback();
+
+    const elapsedMs = Date.now() - startedAt;
+
+    const json = JSON.stringify(data);
+
+    const result = {
+      dataset: name,
+
+      elapsedMs,
+
+      bytes: json.length,
+
+      kilobytes: Math.round(json.length / 1024),
+    };
+
+    Logger.log(JSON.stringify(result, null, 2));
+
+    return result;
+  }
+
+  const results = [];
+
+  results.push(measure_("core", () => getCoreAppData_()));
+
+  results.push(measure_("jira-features", () => getJiraFeaturesData_()));
+
+  Logger.log("========================================");
+
+  Logger.log("ON-DEMAND DATASETS");
+
+  Logger.log("========================================");
+
+  Logger.log(JSON.stringify(results, null, 2));
+
+  Logger.log("========================================");
+
+  return results;
 }
