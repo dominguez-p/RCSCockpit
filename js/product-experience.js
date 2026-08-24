@@ -3866,12 +3866,64 @@
       deliverableCount,
     };
   }
+  function pxProductCountryIds(productId) {
+    const result = new Set();
 
+    pxFeatures(productId).forEach((feature) => {
+      pxFeatureCountryIds(feature).forEach((countryId) => {
+        result.add(
+          String(countryId || "")
+            .trim()
+            .toUpperCase(),
+        );
+      });
+    });
+
+    const countryOrder = pxCountries().map((country) =>
+      String(country.id || "")
+        .trim()
+        .toUpperCase(),
+    );
+
+    return [...result].sort((left, right) => {
+      const leftIndex = countryOrder.indexOf(left);
+
+      const rightIndex = countryOrder.indexOf(right);
+
+      if (leftIndex === -1 && rightIndex === -1) {
+        return left.localeCompare(right);
+      }
+
+      if (leftIndex === -1) {
+        return 1;
+      }
+
+      if (rightIndex === -1) {
+        return -1;
+      }
+
+      return leftIndex - rightIndex;
+    });
+  }
   function pxHoldingProductCard(product) {
     const productId = pxNormalizeId(product.productId);
 
     const { capabilityCount, deliverableCount } =
       pxProductDefinitionStats(productId);
+
+    const countryIds = pxProductCountryIds(productId);
+
+    const countriesMarkup = countryIds.length
+      ? countryIds.map(pxCountryBadge).join("")
+      : `
+          <span
+            class="
+              product-experience-country-unassigned
+            "
+          >
+            Sin geografía
+          </span>
+        `;
 
     return `
     <article
@@ -3916,6 +3968,28 @@
           <p>
             ${pxEsc(product.tagline || product.overview || "")}
           </p>
+
+          <div
+            class="
+              product-experience-capability-availability
+            "
+          >
+            <span>
+              Disponible en
+            </span>
+
+            <div
+              class="
+                product-experience-deliverable-countries
+              "
+              aria-label="
+                Países donde está disponible
+                ${pxEsc(product.productName || productId)}
+              "
+            >
+              ${countriesMarkup}
+            </div>
+          </div>
         </div>
       </div>
 
