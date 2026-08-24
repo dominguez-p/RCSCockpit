@@ -69,6 +69,7 @@ function onOpen() {
     .createMenu("AIxBanker")
     .addItem("Actualizar datos de producto", "refreshProductData")
     .addSeparator()
+    .addItem("Actualizar foto JIRA / Features", "refreshJiraWorkspaceFeatures")
     .addItem("Actualizar datos JIRA / MSA", "refreshJiraMsaData")
     .addToUi();
 }
@@ -589,7 +590,6 @@ function getAppData() {
   const result = {
     generatedAt: new Date().toISOString(),
   };
-
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
   /*
@@ -613,9 +613,21 @@ function getAppData() {
 
       return;
     }
-
     result[key] = sheetToObjects_(sheet);
   });
+
+  /*
+   * Foto oficial JIRA de Features.
+   *
+   * Se mantiene fuera de roadmapItems para no
+   * alterar el cronograma interno existente.
+   */
+  const jiraWorkspaceFeaturesSheet = spreadsheet.getSheetByName(
+    "jiraWorkspaceFeatures",
+  );
+  result.jiraWorkspaceFeatures = jiraWorkspaceFeaturesSheet
+    ? sheetToObjects_(jiraWorkspaceFeaturesSheet)
+    : [];
 
   /*
    * =====================================================
@@ -2408,4 +2420,53 @@ function testProductRefresh() {
   SpreadsheetApp.flush();
 
   Logger.log(JSON.stringify(summary, null, 2));
+}
+function testRoadmapActivitiesPayload() {
+  const data = getAppData();
+
+  const activities = Array.isArray(data.roadmapItemActivities)
+    ? data.roadmapItemActivities
+    : [];
+
+  const discourseActivities = activities.filter(
+    (row) => textValue_(row.itemId) === "discurso-personalizado",
+  );
+
+  const activityGroups = [
+    ...new Set(
+      discourseActivities
+        .map((row) => textValue_(row.activityId))
+        .filter(Boolean),
+    ),
+  ];
+
+  Logger.log("========================================");
+
+  Logger.log("ROADMAP ACTIVITIES PAYLOAD TEST");
+
+  Logger.log("========================================");
+
+  Logger.log(`Total roadmapItemActivities: ${activities.length}`);
+
+  Logger.log(`discurso-personalizado: ${discourseActivities.length}`);
+
+  Logger.log(`Actividades agrupadas: ${activityGroups.length}`);
+
+  Logger.log(JSON.stringify(activityGroups, null, 2));
+
+  Logger.log("Primeras filas:");
+
+  Logger.log(JSON.stringify(discourseActivities.slice(0, 5), null, 2));
+
+  Logger.log("========================================");
+
+  return {
+    total: activities.length,
+
+    discourse: discourseActivities.length,
+
+    groups: activityGroups.length,
+
+    activityGroups,
+  };
 }
