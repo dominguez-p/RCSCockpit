@@ -1175,58 +1175,110 @@
       )
       .map((row) => {
         const jiraKey = pxClean(row.jiraKey || row.id);
+
         const statusRaw = pxClean(row.statusRaw || row.status);
+
         const workspaceKey = pxClean(row.workspaceKey);
+
         const workspaceType = pxClean(row.workspaceType).toUpperCase();
+
         const product = pxNormalizeId(row.product);
-        const country = String(row.country || HOLDING_COUNTRY_ID)
+
+        const country = String(row.country || "UNASSIGNED")
           .trim()
           .toUpperCase();
 
         return {
           ...row,
+
           id:
             pxClean(row.id) ||
             ["jira", workspaceKey, jiraKey, product, country].join("::"),
+
           programId: pxClean(row.programId) || PROGRAM_ID,
+
           country,
+
+          countrySource: pxClean(row.countrySource),
+
+          deliveryScope: pxClean(row.deliveryScope),
+
+          deliveryScopeSource: pxClean(row.deliveryScopeSource),
+
           product,
+
           type: "feature",
+
           typeLabel: "Feature",
+
           track: "functional",
+
           planningSource: "jira",
+
           title: pxClean(row.name || row.summary || jiraKey),
+
           initiative: jiraKey || pxClean(row.name || row.summary),
+
           summary: pxClean(row.summary || row.name),
+
           description: pxClean(row.description),
+
           status: pxJiraRoadmapStatus(statusRaw),
+
           progress: null,
+
           priority: pxJiraPriority(row.priority),
+
           roadmapOrder: 999,
+
           owner: pxClean(row.assignee),
+
           startDate: pxClean(row.startDate),
+
           endDate: pxClean(row.endDate),
+
           targetDate: pxClean(row.targetDate),
+
           lastUpdate: pxClean(row.updatedAt || row.lastUpdate),
+
           documentUrl: pxSafeUrl(row.jiraUrl),
+
           documentLabel: "Abrir en JIRA",
+
           jiraKey,
+
           jiraUrl: pxSafeUrl(row.jiraUrl),
+
           jiraStatusRaw: statusRaw,
+
           jiraDiscarded: pxJiraBoolean(row.jiraDiscarded),
+
           workspaceKey,
+
           workspaceType,
+
           programIncrement: pxClean(row.programIncrement),
+
           piEstimate: pxClean(row.piEstimate),
+
           sprintEstimate: pxClean(row.sprintEstimate),
+
           commitment: pxClean(row.commitment),
+
           deliveryType: pxClean(row.deliveryType),
+
           sdaE2E: pxClean(row.sdaE2E),
+
           sdaName: pxClean(row.sdaName),
+
           deliverable: pxClean(row.deliverable),
+
           analysisId: pxClean(row.analysisId),
+
           analysisStatus: pxClean(row.analysisStatus),
+
           updatedAt: pxClean(row.updatedAt || row.lastUpdate),
+
           source: row,
         };
       })
@@ -1235,26 +1287,44 @@
 
   function pxJiraScopeItems(productId, countryId) {
     const normalizedProductId = pxNormalizeId(productId);
+
     const normalizedCountryId = pxValidCountryId(countryId);
+
     const candidates = pxJiraRoadmapItems()
-      .filter(
-        (item) =>
-          pxNormalizeId(item.product) === normalizedProductId &&
-          [normalizedCountryId, HOLDING_COUNTRY_ID].includes(
-            String(item.country || "")
-              .trim()
-              .toUpperCase(),
-          ),
-      )
-      .sort((left, right) => {
-        const leftExact = left.country === normalizedCountryId ? 0 : 1;
-        const rightExact = right.country === normalizedCountryId ? 0 : 1;
-        return leftExact - rightExact;
-      });
+      .filter((item) => {
+        const itemCountry = String(item.country || "UNASSIGNED")
+          .trim()
+          .toUpperCase();
+
+        if (pxNormalizeId(item.product) !== normalizedProductId) {
+          return false;
+        }
+
+        if (itemCountry === "UNASSIGNED") {
+          return false;
+        }
+
+        /*
+         * Para la ficha producto-país
+         * utilizamos el país de ejecución.
+         *
+         * No utilizamos deliveryScope
+         * para decidir si una Feature
+         * pertenece al país.
+         */
+        return itemCountry === normalizedCountryId;
+      })
+      .sort((left, right) =>
+        String(right.updatedAt || "").localeCompare(
+          String(left.updatedAt || ""),
+        ),
+      );
 
     const unique = new Map();
+
     candidates.forEach((item) => {
-      const key = `${item.workspaceKey}::${item.jiraKey}`;
+      const key = [item.workspaceKey, item.jiraKey].join("::");
+
       if (!unique.has(key)) {
         unique.set(key, item);
       }
@@ -1262,7 +1332,6 @@
 
     return [...unique.values()];
   }
-
   function pxJiraFeatureAgeDays(item) {
     const value = pxClean(item?.updatedAt || item?.lastUpdate);
     const updatedAt = value ? new Date(value) : null;
@@ -1347,14 +1416,23 @@
   }
 
   function pxJiraScopeLabel(item, countryId) {
-    const country = String(item?.country || "")
+    const country = String(item?.country || "UNASSIGNED")
       .trim()
       .toUpperCase();
-    return country === HOLDING_COUNTRY_ID
-      ? "Global"
-      : country === pxValidCountryId(countryId)
-        ? "País"
-        : country || "Sin ámbito";
+
+    if (country === HOLDING_COUNTRY_ID) {
+      return "Global";
+    }
+
+    if (country === pxValidCountryId(countryId)) {
+      return "País";
+    }
+
+    if (country === "UNASSIGNED") {
+      return "Sin ámbito JIRA";
+    }
+
+    return country || "Sin ámbito JIRA";
   }
 
   function pxRenderJiraExecutionSection(productId, countryId, countryLabel) {
@@ -1792,9 +1870,11 @@
     }
 
     const baseItemsForProgram = roadmapWorkspaceItemsForProgram;
+
     roadmapWorkspaceItemsForProgram =
       function roadmapWorkspaceItemsForProgramWithJira(programId) {
         const baseItems = baseItemsForProgram(programId);
+
         const context =
           typeof roadmapWorkspaceParseRoute === "function"
             ? roadmapWorkspaceParseRoute()
@@ -1808,24 +1888,49 @@
         }
 
         const normalizedProgramId = String(programId || "").trim();
-        const countryId = String(selectedCountry || "")
-          .trim()
-          .toUpperCase();
+
+        const countryId =
+          pxValidCountryId(context?.countryId || selectedCountry) ||
+          HOLDING_COUNTRY_ID;
+
         const jiraItems = pxJiraRoadmapItems().filter((item) => {
           if (String(item.programId || "").trim() !== normalizedProgramId) {
             return false;
           }
 
-          const itemCountry = String(item.country || "")
+          const itemCountry = String(item.country || "UNASSIGNED")
             .trim()
             .toUpperCase();
+
+          /*
+           * Las Features sin ámbito explícito
+           * nunca entran en una vista geográfica.
+           */
+          if (itemCountry === "UNASSIGNED") {
+            return false;
+          }
+
+          /*
+           * Holding:
+           *
+           * permite ver todo el universo
+           * geográficamente asignado.
+           */
+          if (countryId === HOLDING_COUNTRY_ID) {
+            return true;
+          }
+
+          /*
+           * País:
+           *
+           * - Feature explícita del país;
+           * - Feature explícitamente global.
+           */
           return (
-            !itemCountry ||
-            itemCountry === countryId ||
-            (itemCountry === HOLDING_COUNTRY_ID &&
-              countryId !== HOLDING_COUNTRY_ID)
+            itemCountry === countryId || itemCountry === HOLDING_COUNTRY_ID
           );
         });
+
         const itemsByKey = new Map();
 
         [...baseItems, ...jiraItems].forEach((item) => {
@@ -1836,6 +1941,7 @@
       };
 
     const baseRenderTimeline = roadmapWorkspaceRenderTimeline;
+
     roadmapWorkspaceRenderTimeline =
       function roadmapWorkspaceRenderTimelineWithJiraSource(
         programId,
@@ -1843,21 +1949,32 @@
         state = {},
       ) {
         const source = pxFunctionalPlanSource(programId, state);
+
         const effectiveState = {
           ...state,
           functionalPlanSource: source,
         };
+
         const allItems = Array.isArray(items) ? items : [];
+
         const selector = pxRenderFunctionalPlanSourceSelector(
           programId,
           allItems,
           effectiveState,
         );
 
+        /*
+         * ===================================================
+         * PLAN INTERNO
+         * ===================================================
+         *
+         * Se mantiene exactamente el renderer existente.
+         */
         if (source === "internal") {
           const internalItems = allItems.filter(
             (item) => pxRoadmapPlanningSource(item) !== "jira",
           );
+
           return `${selector}${baseRenderTimeline(
             programId,
             internalItems,
@@ -1865,16 +1982,31 @@
           )}`;
         }
 
+        /*
+         * ===================================================
+         * JIRA OFICIAL
+         * ===================================================
+         */
+
         const filtered =
           typeof roadmapWorkspaceFilteredItems === "function"
             ? roadmapWorkspaceFilteredItems(allItems, effectiveState)
             : allItems;
+
         const jiraFunctional = filtered.filter(
           (item) =>
             roadmapWorkspaceTrack(item) === "functional" &&
             pxRoadmapPlanningSource(item) === "jira" &&
-            item.jiraDiscarded !== true,
+            item.jiraDiscarded !== true &&
+            String(item.country || "UNASSIGNED")
+              .trim()
+              .toUpperCase() !== "UNASSIGNED",
         );
+
+        /*
+         * El carril técnico siempre sigue
+         * siendo el cronograma interno.
+         */
         const technicalInternal = filtered.filter(
           (item) =>
             roadmapWorkspaceTrack(item) === "technical" &&
@@ -1883,16 +2015,52 @@
 
         return `
         ${selector}
-        <section class="roadmap-workspace-view roadmap-workspace-timeline-view">
-          <section class="aixbanker-roadmap-legend" aria-label="Tipos de elemento">
-            <span class="aixbanker-roadmap-legend-item">
-              <i class="roadmap-type-project"></i>Feature JIRA
+
+        <section
+          class="
+            roadmap-workspace-view
+            roadmap-workspace-timeline-view
+          "
+        >
+          <section
+            class="
+              aixbanker-roadmap-legend
+            "
+            aria-label="
+              Tipos de elemento
+            "
+          >
+            <span
+              class="
+                aixbanker-roadmap-legend-item
+              "
+            >
+              <i
+                class="
+                  roadmap-type-project
+                "
+              ></i>
+
+              Feature JIRA
             </span>
-            <span class="aixbanker-roadmap-legend-item">
-              <i class="roadmap-type-msa"></i>MSA / técnico interno
+
+            <span
+              class="
+                aixbanker-roadmap-legend-item
+              "
+            >
+              <i
+                class="
+                  roadmap-type-msa
+                "
+              ></i>
+
+              MSA / técnico interno
             </span>
           </section>
+
           ${pxRenderJiraFunctionalTimelineLane(jiraFunctional, effectiveState)}
+
           ${roadmapWorkspaceRenderTimelineLane(
             "technical",
             technicalInternal,
@@ -1913,24 +2081,30 @@
 
         const source =
           button.dataset.functionalPlanSource === "jira" ? "jira" : "internal";
+
         const programId = pxClean(button.dataset.programId || PROGRAM_ID);
+
         const state = roadmapWorkspaceState(programId);
+
         state.functionalPlanSource = source;
 
         event.preventDefault();
         event.stopImmediatePropagation();
 
         const currentRoute = pxRoute();
+
         if (
           currentRoute.routeName === "product" &&
           currentRoute.programId === PROGRAM_ID
         ) {
           pxRenderLocalProduct(currentRoute.productId, currentRoute.countryId);
+
           return;
         }
 
         if (currentRoute.routeName === "roadmap") {
           const context = roadmapWorkspaceParseRoute();
+
           renderRoadmapWorkspace(context.programId, context);
         }
       },
@@ -1938,6 +2112,7 @@
     );
 
     pxInstallJiraExecutionExperience.installed = true;
+
     return true;
   }
 
