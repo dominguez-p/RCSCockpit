@@ -1188,6 +1188,25 @@
           .trim()
           .toUpperCase();
 
+        const capabilityIds = [
+          ...new Set(
+            String(row.capabilityIds || "")
+              .split(/[|,;\n]+/)
+              .map((value) => pxCapabilityScopeId(value))
+              .filter((value) => value && value !== "ALL"),
+          ),
+        ];
+
+        const rawTrack = String(row.track || "")
+          .trim()
+          .toLowerCase();
+
+        const track = ["functional", "technical"].includes(rawTrack)
+          ? rawTrack
+          : "";
+
+        const mappingStatus = pxClean(row.mappingStatus).toLowerCase();
+
         return {
           ...row,
 
@@ -1207,11 +1226,19 @@
 
           product,
 
+          capabilityIds,
+
+          track,
+
+          mappingStatus,
+
+          mappingConfidence: pxClean(row.mappingConfidence),
+
+          mappingNotes: pxClean(row.mappingNotes),
+
           type: "feature",
 
           typeLabel: "Feature",
-
-          track: "functional",
 
           planningSource: "jira",
 
@@ -1332,6 +1359,27 @@
 
     return [...unique.values()];
   }
+
+  function pxJiraCapabilityScopeItems(productId, capabilityId, countryId) {
+    const normalizedCapabilityId = pxCapabilityScopeId(capabilityId);
+
+    if (!normalizedCapabilityId || normalizedCapabilityId === "ALL") {
+      return [];
+    }
+
+    return pxJiraScopeItems(productId, countryId).filter((item) => {
+      if (item.mappingStatus !== "mapped") {
+        return false;
+      }
+
+      if (!["functional", "technical"].includes(roadmapWorkspaceTrack(item))) {
+        return false;
+      }
+
+      return pxRoadmapCapabilityIds(item).includes(normalizedCapabilityId);
+    });
+  }
+
   function pxJiraFeatureAgeDays(item) {
     const value = pxClean(item?.updatedAt || item?.lastUpdate);
     const updatedAt = value ? new Date(value) : null;
@@ -1435,161 +1483,15 @@
     return country || "Sin ámbito JIRA";
   }
 
-  function pxRenderJiraExecutionSection(productId, countryId, countryLabel) {
-    const items = pxJiraScopeItems(productId, countryId);
-    const stats = pxJiraExecutionStats(items);
-
-    const workspaceCards = stats.workspaceStats
-      .map(
-        (workspace) => `
-          <article class="product-experience-roadmap-card">
-            <span class="product-experience-eyebrow">
-              Workspace
-            </span>
-            <h3>
-              ${workspace.workspaceType === "DATA" ? "Data" : "Engineering"}
-            </h3>
-            <p>
-              ${workspace.total} Features ·
-              ${workspace.active} activas ·
-              ${workspace.blocked} bloqueadas.
-            </p>
-          </article>
-        `,
-      )
-      .join("");
-
-    const featureCards = [...items]
-      .sort((left, right) => {
-        const leftBlocked = pxJiraStatusToken(left.jiraStatusRaw) === "blocked";
-        const rightBlocked =
-          pxJiraStatusToken(right.jiraStatusRaw) === "blocked";
-        if (leftBlocked !== rightBlocked) {
-          return leftBlocked ? -1 : 1;
-        }
-
-        const leftDone = ["deployed", "accepted", "done", "closed"].includes(
-          pxJiraStatusToken(left.jiraStatusRaw),
-        );
-        const rightDone = ["deployed", "accepted", "done", "closed"].includes(
-          pxJiraStatusToken(right.jiraStatusRaw),
-        );
-        if (leftDone !== rightDone) {
-          return leftDone ? 1 : -1;
-        }
-
-        return String(right.updatedAt || "").localeCompare(
-          String(left.updatedAt || ""),
-        );
-      })
-      .map((item) => {
-        const ageDays = pxJiraFeatureAgeDays(item);
-        const meta = [
-          pxJiraWorkspaceLabel(item),
-          pxJiraScopeLabel(item, countryId),
-          item.programIncrement ? `PI ${item.programIncrement}` : "Sin PI",
-          item.sprintEstimate || "Sin sprint",
-          item.commitment || "Sin commitment",
-        ].filter(Boolean);
-
-        const traceability = [
-          item.analysisId
-            ? `${item.analysisId}${item.analysisStatus ? ` · ${item.analysisStatus}` : ""}`
-            : "",
-          item.sdaE2E ? `SDA ${item.sdaE2E}` : "",
-        ].filter(Boolean);
-
-        return `
-          <article class="product-experience-roadmap-card">
-            <span class="product-experience-eyebrow">
-              ${pxEsc(item.jiraKey)} · ${pxEsc(pxJiraWorkspaceLabel(item))}
-            </span>
-            <h3>${pxEsc(item.title)}</h3>
-            <p>${pxEsc(meta.join(" · "))}</p>
-            <p>
-              Estado: <strong>${pxEsc(item.jiraStatusRaw || "-")}</strong>
-              ${Number.isFinite(ageDays) ? ` · ${ageDays}d desde actualización` : ""}
-            </p>
-            ${traceability.length ? `<p>${pxEsc(traceability.join(" · "))}</p>` : ""}
-            ${item.deliverable ? `<p>${pxEsc(pxExcerpt(item.deliverable, 130))}</p>` : ""}
-            ${pxExternalLink(item.jiraUrl, "Abrir JIRA")}
-          </article>
-        `;
-      })
-      .join("");
-
-    return `
-      <section class="product-experience-section">
-        <header class="product-experience-section-header">
-          <div>
-            <span class="product-experience-eyebrow">
-              Seguimiento de ejecución
-            </span>
-            <h2>Foto oficial JIRA · ${pxEsc(countryLabel)}</h2>
-          </div>
-          <p>
-            Agregado de los workspaces Data y Engineering.
-            Incluye Features con ámbito ${pxEsc(countryLabel)} y Features globales
-            asociadas al producto.
-          </p>
-        </header>
-        <div class="product-experience-quick-grid">
-          <article class="product-experience-quick-card">
-            <div>
-              <span class="product-experience-quick-number">${stats.total}</span>
-              <span class="product-experience-eyebrow">Features JIRA</span>
-            </div>
-            <p>${stats.scope} en scope · ${stats.discarded} descartadas.</p>
-          </article>
-          <article class="product-experience-quick-card">
-            <div>
-              <span class="product-experience-quick-number">${stats.active}</span>
-              <span class="product-experience-eyebrow">En ejecución</span>
-            </div>
-            <p>Features todavía no cerradas ni desplegadas.</p>
-          </article>
-          <article class="product-experience-quick-card">
-            <div>
-              <span class="product-experience-quick-number">${stats.blocked}</span>
-              <span class="product-experience-eyebrow">Bloqueadas</span>
-            </div>
-            <p>Atención inmediata en la foto oficial.</p>
-          </article>
-          <article class="product-experience-quick-card">
-            <div>
-              <span class="product-experience-quick-number">${stats.deployed}</span>
-              <span class="product-experience-eyebrow">Deployed</span>
-            </div>
-            <p>Features que JIRA informa como desplegadas.</p>
-          </article>
-        </div>
-        <div class="product-experience-roadmap-grid">
-          ${workspaceCards}
-          <article class="product-experience-roadmap-card">
-            <span class="product-experience-eyebrow">Planificación</span>
-            <h3>Salud del scope</h3>
-            <p>
-              ${stats.committed} Committed ·
-              ${stats.stretch} Stretch ·
-              ${stats.withoutPi} sin PI ·
-              ${stats.stale} activas con más de 14d sin actualización.
-            </p>
-          </article>
-        </div>
-        <details class="product-experience-functional-detail">
-          <summary>
-            <span>Features oficiales</span>
-            <strong>${stats.total}</strong>
-          </summary>
-          <div class="product-experience-roadmap-grid">
-            ${
-              featureCards ||
-              `<p class="product-experience-empty-copy">No hay Features JIRA asociadas a este producto.</p>`
-            }
-          </div>
-        </details>
-      </section>
-    `;
+  function pxRenderJiraExecutionSection() {
+    /*
+     * La ejecución JIRA deja de mostrarse
+     * a nivel Producto · País.
+     *
+     * La fuente de verdad de ejecución
+     * se desplaza al roadmap de capacidad.
+     */
+    return "";
   }
 
   function pxFunctionalPlanSource(programId, state = null) {
@@ -1597,6 +1499,33 @@
       typeof roadmapWorkspaceState === "function"
         ? roadmapWorkspaceState(programId)
         : null;
+
+    const context =
+      typeof roadmapWorkspaceParseRoute === "function"
+        ? roadmapWorkspaceParseRoute()
+        : null;
+
+    const capabilityId = pxCapabilityScopeId(
+      state?.capabilityId || context?.capabilityId || "ALL",
+    );
+
+    const isCapabilityTimeline =
+      context?.routeName === "roadmap" &&
+      context?.viewName === "timeline" &&
+      capabilityId !== "ALL";
+
+    /*
+     * La alternativa JIRA sólo existe
+     * dentro del cronograma de una
+     * capacidad concreta.
+     *
+     * Producto · País mantiene
+     * exclusivamente el plan interno.
+     */
+    if (!isCapabilityTimeline) {
+      return "internal";
+    }
+
     const requested = String(
       state?.functionalPlanSource ||
         workspaceState?.functionalPlanSource ||
@@ -1604,6 +1533,7 @@
     )
       .trim()
       .toLowerCase();
+
     const source = requested === "jira" ? "jira" : "internal";
 
     if (workspaceState) {
@@ -1615,103 +1545,228 @@
 
   function pxRenderFunctionalPlanSourceSelector(programId, items, state) {
     const selected = pxFunctionalPlanSource(programId, state);
+
     const filtered =
       typeof roadmapWorkspaceFilteredItems === "function"
         ? roadmapWorkspaceFilteredItems(items, state)
         : Array.isArray(items)
           ? items
           : [];
+
     const internalCount = filtered.filter(
       (item) =>
-        roadmapWorkspaceTrack(item) === "functional" &&
         pxRoadmapPlanningSource(item) === "internal" &&
         roadmapWorkspaceHasPlanning(item),
     ).length;
+
     const jiraCount = filtered.filter(
       (item) =>
-        roadmapWorkspaceTrack(item) === "functional" &&
         pxRoadmapPlanningSource(item) === "jira" &&
+        item.mappingStatus === "mapped" &&
         item.jiraDiscarded !== true,
     ).length;
 
     return `
-      <section class="aixbanker-roadmap-filters" aria-label="Fuente del carril funcional">
-        <div class="aixbanker-roadmap-filter-group">
-          <span class="aixbanker-roadmap-filter-label">Fuente funcional</span>
-          <nav class="executive-filter-row" aria-label="Seleccionar fuente del cronograma funcional">
-            <button
-              class="quarter-btn ${selected === "internal" ? "active" : ""}"
-              type="button"
-              data-functional-plan-source="internal"
-              data-program-id="${pxEsc(programId)}"
-              aria-pressed="${selected === "internal" ? "true" : "false"}"
-            >
-              Plan interno · ${internalCount}
-            </button>
-            <button
-              class="quarter-btn ${selected === "jira" ? "active" : ""}"
-              type="button"
-              data-functional-plan-source="jira"
-              data-program-id="${pxEsc(programId)}"
-              aria-pressed="${selected === "jira" ? "true" : "false"}"
-              ${jiraCount ? "" : "disabled"}
-            >
-              JIRA oficial · ${jiraCount}
-            </button>
-          </nav>
-        </div>
-      </section>
-    `;
+    <section
+      class="
+        aixbanker-roadmap-filters
+      "
+      aria-label="
+        Fuente del cronograma
+      "
+    >
+      <div
+        class="
+          aixbanker-roadmap-filter-group
+        "
+      >
+        <span
+          class="
+            aixbanker-roadmap-filter-label
+          "
+        >
+          Fuente del cronograma
+        </span>
+
+        <nav
+          class="
+            executive-filter-row
+          "
+          aria-label="
+            Seleccionar fuente del cronograma
+          "
+        >
+          <button
+            class="
+              quarter-btn
+              ${selected === "internal" ? "active" : ""}
+            "
+            type="button"
+            data-functional-plan-source="internal"
+            data-program-id="${pxEsc(programId)}"
+            aria-pressed="${selected === "internal" ? "true" : "false"}"
+          >
+            Plan interno ·
+            ${internalCount}
+          </button>
+
+          <button
+            class="
+              quarter-btn
+              ${selected === "jira" ? "active" : ""}
+            "
+            type="button"
+            data-functional-plan-source="jira"
+            data-program-id="${pxEsc(programId)}"
+            aria-pressed="${selected === "jira" ? "true" : "false"}"
+            ${jiraCount ? "" : "disabled"}
+          >
+            JIRA oficial ·
+            ${jiraCount}
+          </button>
+        </nav>
+      </div>
+    </section>
+  `;
   }
 
-  function pxRenderJiraFeatureUndatedItems(items) {
+  function pxRenderJiraFeatureUndatedItems(items, track) {
     if (!items.length) {
       return "";
     }
 
+    const trackLabel = track === "technical" ? "técnico" : "funcional";
+
     return `
-      <section class="aixbanker-roadmap-undated">
-        <div class="section-header">
-          <div>
-            <h3>Features JIRA sin PI planificado</h3>
-            <p class="empty-state">
-              Se mantienen en la foto de ejecución, pero no se dibujan en el cronograma.
-            </p>
-          </div>
-          <span class="status-pill status-pending">${items.length}</span>
+    <section
+      class="
+        aixbanker-roadmap-undated
+      "
+    >
+      <div
+        class="
+          section-header
+        "
+      >
+        <div>
+          <h3>
+            Features JIRA
+            sin PI planificado
+          </h3>
+
+          <p
+            class="
+              empty-state
+            "
+          >
+            Carril
+            ${trackLabel}.
+            Se mantienen en
+            la foto de ejecución
+            pero no se dibujan
+            en el cronograma.
+          </p>
         </div>
-        <div class="aixbanker-roadmap-undated-grid">
-          ${items
-            .map(
-              (item) => `
-                <article class="project-card">
-                  <div class="project-card-main">
-                    <div>
-                      <div class="project-name">${pxEsc(item.jiraKey)}</div>
-                      <div class="project-summary">${pxEsc(item.title)}</div>
+
+        <span
+          class="
+            status-pill
+            status-pending
+          "
+        >
+          ${items.length}
+        </span>
+      </div>
+
+      <div
+        class="
+          aixbanker-roadmap-undated-grid
+        "
+      >
+        ${items
+          .map(
+            (item) => `
+              <article
+                class="
+                  project-card
+                "
+              >
+                <div
+                  class="
+                    project-card-main
+                  "
+                >
+                  <div>
+                    <div
+                      class="
+                        project-name
+                      "
+                    >
+                      ${pxEsc(item.jiraKey)}
                     </div>
-                    <span class="status-pill status-${pxEsc(item.status)}">
-                      ${pxEsc(item.jiraStatusRaw || "-")}
-                    </span>
+
+                    <div
+                      class="
+                        project-summary
+                      "
+                    >
+                      ${pxEsc(item.title)}
+                    </div>
                   </div>
-                  <div class="project-meta">
-                    <span>${pxEsc(pxJiraWorkspaceLabel(item))}</span>
-                    <span>${pxEsc(item.commitment || "Sin commitment")}</span>
-                    <span>${pxEsc(item.sprintEstimate || "Sin sprint")}</span>
-                  </div>
-                </article>
-              `,
-            )
-            .join("")}
-        </div>
-      </section>
-    `;
+
+                  <span
+                    class="
+                      status-pill
+                      status-${pxEsc(item.status)}
+                    "
+                  >
+                    ${pxEsc(item.jiraStatusRaw || "-")}
+                  </span>
+                </div>
+
+                <div
+                  class="
+                    project-meta
+                  "
+                >
+                  <span>
+                    ${pxEsc(pxJiraWorkspaceLabel(item))}
+                  </span>
+
+                  <span>
+                    ${pxEsc(item.commitment || "Sin commitment")}
+                  </span>
+
+                  <span>
+                    ${pxEsc(item.sprintEstimate || "Sin sprint")}
+                  </span>
+                </div>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
   }
 
-  function pxRenderJiraFunctionalTimelineLane(items, state) {
+  function pxRenderJiraTimelineLane(track, items, state) {
+    const normalizedTrack = track === "technical" ? "technical" : "functional";
+
+    const trackLabel =
+      normalizedTrack === "technical" ? "Carril técnico" : "Carril funcional";
+
+    const laneTitle =
+      normalizedTrack === "technical"
+        ? "Features técnicas JIRA"
+        : "Features funcionales JIRA";
+
     const period = getRoadmapPeriod(state.quarter);
+
     const today = roadmapWorkspaceTodayContext(state.quarter);
+
     const planned = [];
+
     const undated = [];
 
     roadmapWorkspaceSort(items).forEach((item) => {
@@ -1719,141 +1774,602 @@
 
       if (!layout.hasDates) {
         undated.push(item);
+
         return;
       }
 
       if (layout.isVisible) {
-        planned.push({ item, layout });
+        planned.push({
+          item,
+          layout,
+        });
       }
     });
 
     return `
-      <section
-        class="roadmap-workspace-timeline-lane ${today.visible ? "has-today" : ""}"
-        style="--roadmap-workspace-today:${today.position}%;"
+    <section
+      class="
+        roadmap-workspace-timeline-lane
+        ${today.visible ? "has-today" : ""}
+      "
+      style="
+        --roadmap-workspace-today:
+        ${today.position}%;
+      "
+    >
+      <header
+        class="
+          roadmap-workspace-lane-header
+        "
       >
-        <header class="roadmap-workspace-lane-header">
-          <div>
-            <span>Carril funcional</span>
-            <h3>Features oficiales JIRA</h3>
-          </div>
-          <strong>${planned.length + undated.length}</strong>
-        </header>
-        <p class="empty-state">
-          La barra representa la ventana oficial de Program Increment.
-          No se calcula un porcentaje de avance artificial.
-        </p>
-        <section class="aixbanker-roadmap-board">
-          <div class="aixbanker-roadmap-scale">
-            <div class="aixbanker-roadmap-scale-title">Feature JIRA</div>
-            <div
-              class="aixbanker-roadmap-month-grid"
-              style="--roadmap-month-count:${period.months.length};"
-            >
-              ${renderRoadmapMonths(period)}
-            </div>
-          </div>
-          <div class="aixbanker-roadmap-rows">
-            ${
-              planned.length
-                ? planned
-                    .map(({ item, layout }) => {
-                      const status = pxJiraRoadmapStatus(item.jiraStatusRaw);
-                      const url = pxSafeUrl(item.jiraUrl || item.documentUrl);
-                      const bar = url
-                        ? `
-                            <a
-                              class="aixbanker-roadmap-bar roadmap-type-project"
-                              href="${pxEsc(url)}"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style="left:${layout.left}%;width:${layout.width}%;"
-                              title="${pxEsc(
-                                `${item.jiraKey} · ${item.title}: ${formatDate(
-                                  layout.startDate,
-                                )} → ${formatDate(layout.endDate)}`,
-                              )}"
-                            >
-                              <span class="aixbanker-roadmap-bar-label">
-                                ${pxEsc(item.jiraStatusRaw || "JIRA")}
-                              </span>
-                            </a>
-                          `
-                        : `
-                            <span
-                              class="aixbanker-roadmap-bar roadmap-type-project"
-                              style="left:${layout.left}%;width:${layout.width}%;"
-                            >
-                              <span class="aixbanker-roadmap-bar-label">
-                                ${pxEsc(item.jiraStatusRaw || "JIRA")}
-                              </span>
-                            </span>
-                          `;
+        <div>
+          <span>
+            ${trackLabel}
+          </span>
 
-                      return `
+          <h3>
+            ${laneTitle}
+          </h3>
+        </div>
+
+        <strong>
+          ${planned.length + undated.length}
+        </strong>
+      </header>
+
+      <p
+        class="
+          empty-state
+        "
+      >
+        La barra representa
+        la ventana oficial de
+        Program Increment.
+        No se calcula un
+        porcentaje de avance
+        artificial.
+      </p>
+
+      <section
+        class="
+          aixbanker-roadmap-board
+        "
+      >
+        <div
+          class="
+            aixbanker-roadmap-scale
+          "
+        >
+          <div
+            class="
+              aixbanker-roadmap-scale-title
+            "
+          >
+            Feature JIRA
+          </div>
+
+          <div
+            class="
+              aixbanker-roadmap-month-grid
+            "
+            style="
+              --roadmap-month-count:
+              ${period.months.length};
+            "
+          >
+            ${renderRoadmapMonths(period)}
+          </div>
+        </div>
+
+        <div
+          class="
+            aixbanker-roadmap-rows
+          "
+        >
+          ${
+            planned.length
+              ? planned
+                  .map(({ item, layout }) => {
+                    const status = pxJiraRoadmapStatus(item.jiraStatusRaw);
+
+                    const url = pxSafeUrl(item.jiraUrl || item.documentUrl);
+
+                    const bar = url
+                      ? `
+                              <a
+                                class="
+                                  aixbanker-roadmap-bar
+                                  roadmap-type-project
+                                "
+                                href="${pxEsc(url)}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style="
+                                  left:
+                                  ${layout.left}%;
+                                  width:
+                                  ${layout.width}%;
+                                "
+                                title="${pxEsc(
+                                  `${item.jiraKey} · ${item.title}: ${formatDate(
+                                    layout.startDate,
+                                  )} → ${formatDate(layout.endDate)}`,
+                                )}"
+                              >
+                                <span
+                                  class="
+                                    aixbanker-roadmap-bar-label
+                                  "
+                                >
+                                  ${pxEsc(item.jiraStatusRaw || "JIRA")}
+                                </span>
+                              </a>
+                            `
+                      : `
+                              <span
+                                class="
+                                  aixbanker-roadmap-bar
+                                  roadmap-type-project
+                                "
+                                style="
+                                  left:
+                                  ${layout.left}%;
+                                  width:
+                                  ${layout.width}%;
+                                "
+                              >
+                                <span
+                                  class="
+                                    aixbanker-roadmap-bar-label
+                                  "
+                                >
+                                  ${pxEsc(item.jiraStatusRaw || "JIRA")}
+                                </span>
+                              </span>
+                            `;
+
+                    return `
                         <article
-                          class="aixbanker-roadmap-row aixbanker-roadmap-initiative-row"
-                          style="--roadmap-sublane-count:1;"
+                          class="
+                            aixbanker-roadmap-row
+                            aixbanker-roadmap-initiative-row
+                          "
+                          style="
+                            --roadmap-sublane-count:
+                            1;
+                          "
                         >
-                          <div class="aixbanker-roadmap-item-info">
-                            <div class="aixbanker-roadmap-item-top">
-                              <span class="status-pill status-${pxEsc(status)}">
+                          <div
+                            class="
+                              aixbanker-roadmap-item-info
+                            "
+                          >
+                            <div
+                              class="
+                                aixbanker-roadmap-item-top
+                              "
+                            >
+                              <span
+                                class="
+                                  status-pill
+                                  status-${pxEsc(status)}
+                                "
+                              >
                                 ${pxEsc(item.jiraStatusRaw || "-")}
                               </span>
-                              <span class="aixbanker-roadmap-type">
-                                JIRA · ${pxEsc(pxJiraWorkspaceLabel(item))}
+
+                              <span
+                                class="
+                                  aixbanker-roadmap-type
+                                "
+                              >
+                                JIRA ·
+                                ${pxEsc(pxJiraWorkspaceLabel(item))}
                               </span>
                             </div>
-                            <strong class="aixbanker-roadmap-item-title">
-                              ${pxEsc(item.jiraKey)} · ${pxEsc(item.title)}
+
+                            <strong
+                              class="
+                                aixbanker-roadmap-item-title
+                              "
+                            >
+                              ${pxEsc(item.jiraKey)}
+                              ·
+                              ${pxEsc(item.title)}
                             </strong>
-                            <div class="aixbanker-roadmap-item-meta">
-                              <span>${pxEsc(item.programIncrement || "Sin PI")}</span>
-                              <span>${pxEsc(item.sprintEstimate || "Sin sprint")}</span>
-                              <span>${pxEsc(item.commitment || "Sin commitment")}</span>
+
+                            <div
+                              class="
+                                aixbanker-roadmap-item-meta
+                              "
+                            >
+                              <span>
+                                ${pxEsc(item.programIncrement || "Sin PI")}
+                              </span>
+
+                              <span>
+                                ${pxEsc(item.sprintEstimate || "Sin sprint")}
+                              </span>
+
+                              <span>
+                                ${pxEsc(item.commitment || "Sin commitment")}
+                              </span>
                             </div>
                           </div>
-                          <div class="aixbanker-roadmap-track aixbanker-roadmap-group-track">
+
+                          <div
+                            class="
+                              aixbanker-roadmap-track
+                              aixbanker-roadmap-group-track
+                            "
+                          >
                             <div
-                              class="aixbanker-roadmap-sublane"
-                              style="--roadmap-sublane-index:0;"
+                              class="
+                                aixbanker-roadmap-sublane
+                              "
+                              style="
+                                --roadmap-sublane-index:
+                                0;
+                              "
                             >
-                              <span class="aixbanker-roadmap-sublane-label">Feature</span>
+                              <span
+                                class="
+                                  aixbanker-roadmap-sublane-label
+                                "
+                              >
+                                Feature
+                              </span>
+
                               ${bar}
+
                               ${
                                 layout.targetPosition !== null
                                   ? `
                                       <span
-                                        class="aixbanker-roadmap-milestone aixbanker-roadmap-sublane-milestone"
-                                        style="left:${layout.targetPosition}%;"
-                                        title="Objetivo PI: ${pxEsc(formatDate(layout.targetDate))}"
+                                        class="
+                                          aixbanker-roadmap-milestone
+                                          aixbanker-roadmap-sublane-milestone
+                                        "
+                                        style="
+                                          left:
+                                          ${layout.targetPosition}%;
+                                        "
+                                        title="
+                                          Objetivo PI:
+                                          ${pxEsc(
+                                            formatDate(layout.targetDate),
+                                          )}
+                                        "
                                       >
-                                        <span aria-hidden="true">◆</span>
-                                        <em>${pxEsc(formatDate(layout.targetDate))}</em>
+                                        <span
+                                          aria-hidden="true"
+                                        >
+                                          ◆
+                                        </span>
+
+                                        <em>
+                                          ${pxEsc(
+                                            formatDate(layout.targetDate),
+                                          )}
+                                        </em>
                                       </span>
                                     `
                                   : ""
                               }
-                              <span class="aixbanker-roadmap-sublane-status status-${pxEsc(status)}">
+
+                              <span
+                                class="
+                                  aixbanker-roadmap-sublane-status
+                                  status-${pxEsc(status)}
+                                "
+                              >
                                 ${pxEsc(item.jiraStatusRaw || "-")}
                               </span>
                             </div>
                           </div>
                         </article>
                       `;
-                    })
-                    .join("")
-                : `
-                    <div class="aixbanker-roadmap-empty">
-                      No hay Features JIRA con PI dentro del periodo seleccionado.
-                    </div>
-                  `
-            }
-          </div>
-        </section>
-        ${pxRenderJiraFeatureUndatedItems(undated)}
+                  })
+                  .join("")
+              : `
+                  <div
+                    class="
+                      aixbanker-roadmap-empty
+                    "
+                  >
+                    No hay Features
+                    JIRA con PI dentro
+                    del periodo
+                    seleccionado.
+                  </div>
+                `
+          }
+        </div>
       </section>
-    `;
+
+      ${pxRenderJiraFeatureUndatedItems(undated, normalizedTrack)}
+    </section>
+  `;
+  }
+
+  function pxRenderJiraCapabilitySummary(productId, capabilityId, countryId) {
+    const items = pxJiraCapabilityScopeItems(
+      productId,
+      capabilityId,
+      countryId,
+    );
+
+    const stats = pxJiraExecutionStats(items);
+
+    const functional = stats.effective.filter(
+      (item) => roadmapWorkspaceTrack(item) === "functional",
+    );
+
+    const technical = stats.effective.filter(
+      (item) => roadmapWorkspaceTrack(item) === "technical",
+    );
+
+    const dataItems = stats.effective.filter(
+      (item) => item.workspaceType === "DATA",
+    );
+
+    const engineeringItems = stats.effective.filter(
+      (item) => item.workspaceType === "ENGINEERING",
+    );
+
+    const capability = pxFindCapability(productId, capabilityId);
+
+    const country = pxCountryDefinition(countryId);
+
+    const capabilityLabel = capability?.name || capabilityId;
+
+    const countryLabel = country?.label || countryId;
+
+    return `
+    <section
+      class="
+        product-experience-section
+      "
+    >
+      <header
+        class="
+          product-experience-section-header
+        "
+      >
+        <div>
+          <span
+            class="
+              product-experience-eyebrow
+            "
+          >
+            Ejecución oficial
+          </span>
+
+          <h2>
+            JIRA ·
+            ${pxEsc(capabilityLabel)}
+          </h2>
+        </div>
+
+        <p>
+          Features asociadas mediante
+          jiraCapabilityMapping a esta
+          capacidad en
+          ${pxEsc(countryLabel)}.
+        </p>
+      </header>
+
+      <div
+        class="
+          product-experience-quick-grid
+        "
+      >
+        <article
+          class="
+            product-experience-quick-card
+          "
+        >
+          <div>
+            <span
+              class="
+                product-experience-quick-number
+              "
+            >
+              ${stats.total}
+            </span>
+
+            <span
+              class="
+                product-experience-eyebrow
+              "
+            >
+              Features JIRA
+            </span>
+          </div>
+
+          <p>
+            ${stats.scope}
+            en scope ·
+            ${stats.discarded}
+            descartadas.
+          </p>
+        </article>
+
+        <article
+          class="
+            product-experience-quick-card
+          "
+        >
+          <div>
+            <span
+              class="
+                product-experience-quick-number
+              "
+            >
+              ${stats.active}
+            </span>
+
+            <span
+              class="
+                product-experience-eyebrow
+              "
+            >
+              En ejecución
+            </span>
+          </div>
+
+          <p>
+            Features todavía
+            no desplegadas.
+          </p>
+        </article>
+
+        <article
+          class="
+            product-experience-quick-card
+          "
+        >
+          <div>
+            <span
+              class="
+                product-experience-quick-number
+              "
+            >
+              ${stats.blocked}
+            </span>
+
+            <span
+              class="
+                product-experience-eyebrow
+              "
+            >
+              Bloqueadas
+            </span>
+          </div>
+
+          <p>
+            Atención inmediata
+            en JIRA.
+          </p>
+        </article>
+
+        <article
+          class="
+            product-experience-quick-card
+          "
+        >
+          <div>
+            <span
+              class="
+                product-experience-quick-number
+              "
+            >
+              ${stats.deployed}
+            </span>
+
+            <span
+              class="
+                product-experience-eyebrow
+              "
+            >
+              Deployed
+            </span>
+          </div>
+
+          <p>
+            Features desplegadas
+            según JIRA.
+          </p>
+        </article>
+      </div>
+
+      <div
+        class="
+          product-experience-roadmap-grid
+        "
+      >
+        <article
+          class="
+            product-experience-roadmap-card
+          "
+        >
+          <span
+            class="
+              product-experience-eyebrow
+            "
+          >
+            Carriles
+          </span>
+
+          <h3>
+            Clasificación
+          </h3>
+
+          <p>
+            ${functional.length}
+            funcionales ·
+            ${technical.length}
+            técnicas.
+          </p>
+        </article>
+
+        <article
+          class="
+            product-experience-roadmap-card
+          "
+        >
+          <span
+            class="
+              product-experience-eyebrow
+            "
+          >
+            Workspaces
+          </span>
+
+          <h3>
+            Data + Engineering
+          </h3>
+
+          <p>
+            ${dataItems.length}
+            Data ·
+            ${engineeringItems.length}
+            Engineering.
+          </p>
+        </article>
+
+        <article
+          class="
+            product-experience-roadmap-card
+          "
+        >
+          <span
+            class="
+              product-experience-eyebrow
+            "
+          >
+            Planificación
+          </span>
+
+          <h3>
+            Salud del scope
+          </h3>
+
+          <p>
+            ${stats.committed}
+            Committed ·
+            ${stats.stretch}
+            Stretch ·
+            ${stats.withoutPi}
+            sin PI ·
+            ${stats.stale}
+            activas con más de
+            14d sin actualizar.
+          </p>
+        </article>
+      </div>
+    </section>
+  `;
   }
 
   function pxInstallJiraExecutionExperience() {
@@ -1864,11 +2380,21 @@
     if (
       typeof roadmapWorkspaceItemsForProgram !== "function" ||
       typeof roadmapWorkspaceRenderTimeline !== "function" ||
-      typeof roadmapWorkspaceRenderTimelineLane !== "function"
+      typeof roadmapWorkspaceRenderTimelineLane !== "function" ||
+      typeof roadmapWorkspaceRenderSummary !== "function"
     ) {
       return false;
     }
 
+    /*
+     * =====================================================
+     * DATASET DEL ROADMAP
+     * =====================================================
+     *
+     * Sólo añadimos JIRA cuando estamos
+     * dentro del cronograma de una
+     * capacidad concreta.
+     */
     const baseItemsForProgram = roadmapWorkspaceItemsForProgram;
 
     roadmapWorkspaceItemsForProgram =
@@ -1880,66 +2406,97 @@
             ? roadmapWorkspaceParseRoute()
             : null;
 
+        const capabilityId = pxCapabilityScopeId(
+          context?.capabilityId || "ALL",
+        );
+
         if (
           context?.routeName !== "roadmap" ||
-          context?.viewName !== "timeline"
+          context?.viewName !== "timeline" ||
+          capabilityId === "ALL"
         ) {
           return baseItems;
         }
 
-        const normalizedProgramId = String(programId || "").trim();
+        const countryId = pxValidCountryId(
+          context?.countryId || selectedCountry,
+        );
 
-        const countryId =
-          pxValidCountryId(context?.countryId || selectedCountry) ||
-          HOLDING_COUNTRY_ID;
+        const productId = pxNormalizeId(context?.productId);
 
-        const jiraItems = pxJiraRoadmapItems().filter((item) => {
-          if (String(item.programId || "").trim() !== normalizedProgramId) {
-            return false;
-          }
+        if (!countryId || countryId === HOLDING_COUNTRY_ID || !productId) {
+          return baseItems;
+        }
 
-          const itemCountry = String(item.country || "UNASSIGNED")
-            .trim()
-            .toUpperCase();
-
-          /*
-           * Las Features sin ámbito explícito
-           * nunca entran en una vista geográfica.
-           */
-          if (itemCountry === "UNASSIGNED") {
-            return false;
-          }
-
-          /*
-           * Holding:
-           *
-           * permite ver todo el universo
-           * geográficamente asignado.
-           */
-          if (countryId === HOLDING_COUNTRY_ID) {
-            return true;
-          }
-
-          /*
-           * País:
-           *
-           * - Feature explícita del país;
-           * - Feature explícitamente global.
-           */
-          return (
-            itemCountry === countryId || itemCountry === HOLDING_COUNTRY_ID
-          );
-        });
+        const jiraItems = pxJiraCapabilityScopeItems(
+          productId,
+          capabilityId,
+          countryId,
+        ).filter(
+          (item) =>
+            String(item.programId || "").trim() ===
+            String(programId || "").trim(),
+        );
 
         const itemsByKey = new Map();
 
         [...baseItems, ...jiraItems].forEach((item) => {
-          itemsByKey.set(`${item.programId}::${item.type}::${item.id}`, item);
+          itemsByKey.set([item.programId, item.type, item.id].join("::"), item);
         });
 
         return [...itemsByKey.values()];
       };
 
+    /*
+     * =====================================================
+     * RESUMEN DE CAPACIDAD
+     * =====================================================
+     *
+     * El resumen interno actual se conserva
+     * y añadimos encima la foto JIRA.
+     */
+    const baseRenderSummary = roadmapWorkspaceRenderSummary;
+
+    roadmapWorkspaceRenderSummary =
+      function roadmapWorkspaceRenderSummaryWithJira(
+        programId,
+        items,
+        state = {},
+      ) {
+        const internalItems = (Array.isArray(items) ? items : []).filter(
+          (item) => pxRoadmapPlanningSource(item) !== "jira",
+        );
+
+        const baseMarkup = baseRenderSummary(programId, internalItems, state);
+
+        const capabilityId = pxCapabilityScopeId(state?.capabilityId || "ALL");
+
+        const productId = pxNormalizeId(state?.productId);
+
+        const countryId = pxValidCountryId(state?.countryId || selectedCountry);
+
+        if (
+          capabilityId === "ALL" ||
+          !productId ||
+          productId === "all" ||
+          !countryId ||
+          countryId === HOLDING_COUNTRY_ID
+        ) {
+          return baseMarkup;
+        }
+
+        return `
+        ${pxRenderJiraCapabilitySummary(productId, capabilityId, countryId)}
+
+        ${baseMarkup}
+      `;
+      };
+
+    /*
+     * =====================================================
+     * CRONOGRAMA
+     * =====================================================
+     */
     const baseRenderTimeline = roadmapWorkspaceRenderTimeline;
 
     roadmapWorkspaceRenderTimeline =
@@ -1948,14 +2505,45 @@
         items,
         state = {},
       ) {
+        const allItems = Array.isArray(items) ? items : [];
+
+        const capabilityId = pxCapabilityScopeId(state?.capabilityId || "ALL");
+
+        const productId = pxNormalizeId(state?.productId);
+
+        const countryId = pxValidCountryId(state?.countryId || selectedCountry);
+
+        const isCapabilityScope =
+          capabilityId !== "ALL" &&
+          productId &&
+          productId !== "all" &&
+          countryId &&
+          countryId !== HOLDING_COUNTRY_ID;
+
+        /*
+         * Producto · País:
+         *
+         * sólo cronograma interno.
+         */
+        if (!isCapabilityScope) {
+          const internalItems = allItems.filter(
+            (item) => pxRoadmapPlanningSource(item) !== "jira",
+          );
+
+          return baseRenderTimeline(programId, internalItems, {
+            ...state,
+
+            functionalPlanSource: "internal",
+          });
+        }
+
         const source = pxFunctionalPlanSource(programId, state);
 
         const effectiveState = {
           ...state,
+
           functionalPlanSource: source,
         };
-
-        const allItems = Array.isArray(items) ? items : [];
 
         const selector = pxRenderFunctionalPlanSourceSelector(
           programId,
@@ -1964,53 +2552,41 @@
         );
 
         /*
-         * ===================================================
          * PLAN INTERNO
-         * ===================================================
-         *
-         * Se mantiene exactamente el renderer existente.
          */
         if (source === "internal") {
           const internalItems = allItems.filter(
             (item) => pxRoadmapPlanningSource(item) !== "jira",
           );
 
-          return `${selector}${baseRenderTimeline(
-            programId,
-            internalItems,
-            effectiveState,
-          )}`;
+          return `
+          ${selector}
+
+          ${baseRenderTimeline(programId, internalItems, effectiveState)}
+        `;
         }
 
         /*
-         * ===================================================
          * JIRA OFICIAL
-         * ===================================================
          */
-
         const filtered =
           typeof roadmapWorkspaceFilteredItems === "function"
             ? roadmapWorkspaceFilteredItems(allItems, effectiveState)
             : allItems;
 
-        const jiraFunctional = filtered.filter(
+        const jiraItems = filtered.filter(
           (item) =>
-            roadmapWorkspaceTrack(item) === "functional" &&
             pxRoadmapPlanningSource(item) === "jira" &&
-            item.jiraDiscarded !== true &&
-            String(item.country || "UNASSIGNED")
-              .trim()
-              .toUpperCase() !== "UNASSIGNED",
+            item.mappingStatus === "mapped" &&
+            item.jiraDiscarded !== true,
         );
 
-        /*
-         * El carril técnico siempre sigue
-         * siendo el cronograma interno.
-         */
-        const technicalInternal = filtered.filter(
-          (item) =>
-            roadmapWorkspaceTrack(item) === "technical" &&
-            pxRoadmapPlanningSource(item) !== "jira",
+        const jiraFunctional = jiraItems.filter(
+          (item) => roadmapWorkspaceTrack(item) === "functional",
+        );
+
+        const jiraTechnical = jiraItems.filter(
+          (item) => roadmapWorkspaceTrack(item) === "technical",
         );
 
         return `
@@ -2027,7 +2603,7 @@
               aixbanker-roadmap-legend
             "
             aria-label="
-              Tipos de elemento
+              Fuente del cronograma
             "
           >
             <span
@@ -2043,33 +2619,26 @@
 
               Feature JIRA
             </span>
-
-            <span
-              class="
-                aixbanker-roadmap-legend-item
-              "
-            >
-              <i
-                class="
-                  roadmap-type-msa
-                "
-              ></i>
-
-              MSA / técnico interno
-            </span>
           </section>
 
-          ${pxRenderJiraFunctionalTimelineLane(jiraFunctional, effectiveState)}
+          ${pxRenderJiraTimelineLane(
+            "functional",
+            jiraFunctional,
+            effectiveState,
+          )}
 
-          ${roadmapWorkspaceRenderTimelineLane(
+          ${pxRenderJiraTimelineLane(
             "technical",
-            technicalInternal,
+            jiraTechnical,
             effectiveState,
           )}
         </section>
       `;
       };
 
+    /*
+     * Selector Plan interno / JIRA.
+     */
     document.addEventListener(
       "click",
       (event) => {
@@ -2089,22 +2658,12 @@
         state.functionalPlanSource = source;
 
         event.preventDefault();
+
         event.stopImmediatePropagation();
 
-        const currentRoute = pxRoute();
+        const context = roadmapWorkspaceParseRoute();
 
-        if (
-          currentRoute.routeName === "product" &&
-          currentRoute.programId === PROGRAM_ID
-        ) {
-          pxRenderLocalProduct(currentRoute.productId, currentRoute.countryId);
-
-          return;
-        }
-
-        if (currentRoute.routeName === "roadmap") {
-          const context = roadmapWorkspaceParseRoute();
-
+        if (context.routeName === "roadmap") {
           renderRoadmapWorkspace(context.programId, context);
         }
       },

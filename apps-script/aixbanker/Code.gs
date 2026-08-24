@@ -586,10 +586,178 @@ function exportPortfolioJson() {
  * - ejecuta refreshProductData().
  * ========================================================= */
 
+function jiraCapabilityMappingSheetName_() {
+  return "jiraCapabilityMapping";
+}
+
+function normalizeJiraCapabilityProductId_(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("_", "-")
+    .replace(/\s+/g, "-");
+}
+
+function normalizeJiraCapabilityIdsForExport_(value) {
+  return [
+    ...new Set(
+      String(value || "")
+        .split(/[|,;\n]+/)
+        .map((item) =>
+          String(item || "")
+            .trim()
+            .toLowerCase()
+            .replaceAll("_", "-")
+            .replace(/\s+/g, "-"),
+        )
+        .filter(Boolean),
+    ),
+  ].join("|");
+}
+
+function normalizeJiraCapabilityTrackForExport_(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (["technical", "tecnico", "tech", "technology"].includes(normalized)) {
+    return "technical";
+  }
+
+  if (["functional", "funcional", "business", "negocio"].includes(normalized)) {
+    return "functional";
+  }
+
+  return "";
+}
+
+function jiraCapabilityMappingKey_(workspaceKey, jiraKey, productId) {
+  return [
+    String(workspaceKey || "")
+      .trim()
+      .toUpperCase(),
+
+    String(jiraKey || "")
+      .trim()
+      .toUpperCase(),
+
+    normalizeJiraCapabilityProductId_(productId),
+  ].join("::");
+}
+
+function loadJiraCapabilityMappingsForExport_(spreadsheet) {
+  const sheet = spreadsheet.getSheetByName(jiraCapabilityMappingSheetName_());
+
+  if (!sheet) {
+    Logger.log(
+      `No existe la pestaña local: ${jiraCapabilityMappingSheetName_()}`,
+    );
+
+    return [];
+  }
+
+  return sheetToObjects_(sheet)
+    .map((row) => {
+      const workspaceKey = String(row.workspaceKey || "")
+        .trim()
+        .toUpperCase();
+
+      const jiraKey = String(row.jiraKey || "")
+        .trim()
+        .toUpperCase();
+
+      const productId = normalizeJiraCapabilityProductId_(row.productId);
+
+      const capabilityIds = normalizeJiraCapabilityIdsForExport_(
+        row.capabilityIds,
+      );
+
+      const track = normalizeJiraCapabilityTrackForExport_(row.track);
+
+      const mappingStatus =
+        workspaceKey && jiraKey && productId && capabilityIds && track
+          ? "mapped"
+          : "incomplete";
+
+      return {
+        workspaceKey,
+        jiraKey,
+        productId,
+        capabilityIds,
+        track,
+
+        confidence: String(row.confidence || "")
+          .trim()
+          .toLowerCase(),
+
+        notes: textValue_(row.notes),
+
+        mappingStatus,
+      };
+    })
+    .filter((row) => row.workspaceKey && row.jiraKey && row.productId);
+}
+
+function applyJiraCapabilityMappingsForExport_(featureRows, mappingRows) {
+  const mappingsByKey = new Map();
+
+  (Array.isArray(mappingRows) ? mappingRows : []).forEach((mapping) => {
+    const key = jiraCapabilityMappingKey_(
+      mapping.workspaceKey,
+      mapping.jiraKey,
+      mapping.productId,
+    );
+
+    mappingsByKey.set(key, mapping);
+  });
+
+  return (Array.isArray(featureRows) ? featureRows : []).map((row) => {
+    const key = jiraCapabilityMappingKey_(
+      row.workspaceKey,
+      row.jiraKey,
+      row.product,
+    );
+
+    const mapping = mappingsByKey.get(key);
+
+    if (!mapping) {
+      return {
+        ...row,
+
+        capabilityIds: "",
+
+        track: "",
+
+        mappingConfidence: "",
+
+        mappingNotes: "",
+
+        mappingStatus: "unmapped",
+      };
+    }
+
+    return {
+      ...row,
+
+      capabilityIds: mapping.capabilityIds,
+
+      track: mapping.track,
+
+      mappingConfidence: mapping.confidence,
+
+      mappingNotes: mapping.notes,
+
+      mappingStatus: mapping.mappingStatus,
+    };
+  });
+}
 function getAppData() {
   const result = {
     generatedAt: new Date().toISOString(),
   };
+
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
   /*
@@ -613,21 +781,46 @@ function getAppData() {
 
       return;
     }
+
     result[key] = sheetToObjects_(sheet);
   });
 
   /*
-   * Foto oficial JIRA de Features.
+   * =====================================================
+   * FEATURES JIRA
+   * =====================================================
    *
-   * Se mantiene fuera de roadmapItems para no
-   * alterar el cronograma interno existente.
+   * jiraWorkspaceFeatures sigue siendo
+   * la foto oficial procedente de JIRA.
+   *
+   * jiraCapabilityMapping es una capa
+   * manual de clasificación:
+   *
+   * Feature
+   *   -> Capability
+   *   -> Track
+   *
+   * No modificamos la pestaña
+   * jiraWorkspaceFeatures.
+   *
+   * El join se realiza únicamente
+   * para construir el payload web.
    */
   const jiraWorkspaceFeaturesSheet = spreadsheet.getSheetByName(
     "jiraWorkspaceFeatures",
   );
-  result.jiraWorkspaceFeatures = jiraWorkspaceFeaturesSheet
+
+  const jiraWorkspaceFeatures = jiraWorkspaceFeaturesSheet
     ? sheetToObjects_(jiraWorkspaceFeaturesSheet)
     : [];
+
+  const jiraCapabilityMappings =
+    loadJiraCapabilityMappingsForExport_(spreadsheet);
+
+  result.jiraWorkspaceFeatures = applyJiraCapabilityMappingsForExport_(
+    jiraWorkspaceFeatures,
+    jiraCapabilityMappings,
+  );
 
   /*
    * =====================================================
@@ -637,13 +830,6 @@ function getAppData() {
    * La fuente funcional real es:
    *
    * NORM_Roadmap_Activities
-   *
-   * A2:M2 → cabeceras normalizadas
-   * A3:M  → tareas normalizadas
-   *
-   * No leemos la pestaña
-   * roadmapItemActivities porque es una
-   * vista QUERY intermedia.
    */
   result.roadmapItemActivities =
     getRoadmapItemActivitiesForExport_(spreadsheet);
