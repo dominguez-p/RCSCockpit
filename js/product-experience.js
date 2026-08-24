@@ -1096,11 +1096,855 @@
   `;
   }
 
+  function pxRoadmapPlanningSource(item) {
+    const source = item?.source || {};
+    const value = String(
+      item?.planningSource ||
+        source?.planningSource ||
+        source?.planning_source ||
+        "",
+    )
+      .trim()
+      .toLowerCase();
+
+    return value === "jira" ? "jira" : "internal";
+  }
+
+  function pxJiraBoolean(value) {
+    if (typeof value === "boolean") {
+      return value;
+    }
+
+    return ["true", "1", "yes", "si", "sí"].includes(
+      String(value || "")
+        .trim()
+        .toLowerCase(),
+    );
+  }
+
+  function pxJiraStatusToken(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ");
+  }
+
+  function pxJiraRoadmapStatus(value) {
+    const status = pxJiraStatusToken(value);
+
+    if (["deployed", "accepted", "done", "closed"].includes(status)) {
+      return "done";
+    }
+
+    if (status === "blocked") {
+      return "blocked";
+    }
+
+    if (["in progress", "analysing", "ready to verify"].includes(status)) {
+      return "on-track";
+    }
+
+    if (["new", "backlog", "to do"].includes(status)) {
+      return "planned";
+    }
+
+    return "pending";
+  }
+
+  function pxJiraPriority(value) {
+    const priority = pxJiraStatusToken(value);
+    return (
+      {
+        blocker: 10,
+        highest: 20,
+        high: 30,
+        medium: 40,
+        low: 50,
+        lowest: 60,
+      }[priority] || 999
+    );
+  }
+
+  function pxJiraRoadmapItems() {
+    return pxRows("jiraWorkspaceFeatures")
+      .filter(
+        (row) => String(row.programId || PROGRAM_ID).trim() === PROGRAM_ID,
+      )
+      .map((row) => {
+        const jiraKey = pxClean(row.jiraKey || row.id);
+        const statusRaw = pxClean(row.statusRaw || row.status);
+        const workspaceKey = pxClean(row.workspaceKey);
+        const workspaceType = pxClean(row.workspaceType).toUpperCase();
+        const product = pxNormalizeId(row.product);
+        const country = String(row.country || HOLDING_COUNTRY_ID)
+          .trim()
+          .toUpperCase();
+
+        return {
+          ...row,
+          id:
+            pxClean(row.id) ||
+            ["jira", workspaceKey, jiraKey, product, country].join("::"),
+          programId: pxClean(row.programId) || PROGRAM_ID,
+          country,
+          product,
+          type: "feature",
+          typeLabel: "Feature",
+          track: "functional",
+          planningSource: "jira",
+          title: pxClean(row.name || row.summary || jiraKey),
+          initiative: jiraKey || pxClean(row.name || row.summary),
+          summary: pxClean(row.summary || row.name),
+          description: pxClean(row.description),
+          status: pxJiraRoadmapStatus(statusRaw),
+          progress: null,
+          priority: pxJiraPriority(row.priority),
+          roadmapOrder: 999,
+          owner: pxClean(row.assignee),
+          startDate: pxClean(row.startDate),
+          endDate: pxClean(row.endDate),
+          targetDate: pxClean(row.targetDate),
+          lastUpdate: pxClean(row.updatedAt || row.lastUpdate),
+          documentUrl: pxSafeUrl(row.jiraUrl),
+          documentLabel: "Abrir en JIRA",
+          jiraKey,
+          jiraUrl: pxSafeUrl(row.jiraUrl),
+          jiraStatusRaw: statusRaw,
+          jiraDiscarded: pxJiraBoolean(row.jiraDiscarded),
+          workspaceKey,
+          workspaceType,
+          programIncrement: pxClean(row.programIncrement),
+          piEstimate: pxClean(row.piEstimate),
+          sprintEstimate: pxClean(row.sprintEstimate),
+          commitment: pxClean(row.commitment),
+          deliveryType: pxClean(row.deliveryType),
+          sdaE2E: pxClean(row.sdaE2E),
+          sdaName: pxClean(row.sdaName),
+          deliverable: pxClean(row.deliverable),
+          analysisId: pxClean(row.analysisId),
+          analysisStatus: pxClean(row.analysisStatus),
+          updatedAt: pxClean(row.updatedAt || row.lastUpdate),
+          source: row,
+        };
+      })
+      .filter((item) => item.id && item.jiraKey && item.product);
+  }
+
+  function pxJiraScopeItems(productId, countryId) {
+    const normalizedProductId = pxNormalizeId(productId);
+    const normalizedCountryId = pxValidCountryId(countryId);
+    const candidates = pxJiraRoadmapItems()
+      .filter(
+        (item) =>
+          pxNormalizeId(item.product) === normalizedProductId &&
+          [normalizedCountryId, HOLDING_COUNTRY_ID].includes(
+            String(item.country || "")
+              .trim()
+              .toUpperCase(),
+          ),
+      )
+      .sort((left, right) => {
+        const leftExact = left.country === normalizedCountryId ? 0 : 1;
+        const rightExact = right.country === normalizedCountryId ? 0 : 1;
+        return leftExact - rightExact;
+      });
+
+    const unique = new Map();
+    candidates.forEach((item) => {
+      const key = `${item.workspaceKey}::${item.jiraKey}`;
+      if (!unique.has(key)) {
+        unique.set(key, item);
+      }
+    });
+
+    return [...unique.values()];
+  }
+
+  function pxJiraFeatureAgeDays(item) {
+    const value = pxClean(item?.updatedAt || item?.lastUpdate);
+    const updatedAt = value ? new Date(value) : null;
+
+    if (!updatedAt || Number.isNaN(updatedAt.getTime())) {
+      return null;
+    }
+
+    return Math.max(
+      0,
+      Math.floor((Date.now() - updatedAt.getTime()) / (24 * 60 * 60 * 1000)),
+    );
+  }
+
+  function pxJiraExecutionStats(items) {
+    const all = Array.isArray(items) ? items : [];
+    const discarded = all.filter(
+      (item) =>
+        item.jiraDiscarded === true ||
+        pxJiraStatusToken(item.jiraStatusRaw) === "discarded",
+    );
+    const effective = all.filter((item) => !discarded.includes(item));
+    const done = effective.filter((item) =>
+      ["deployed", "accepted", "done", "closed"].includes(
+        pxJiraStatusToken(item.jiraStatusRaw),
+      ),
+    );
+    const active = effective.filter((item) => !done.includes(item));
+    const blocked = effective.filter(
+      (item) => pxJiraStatusToken(item.jiraStatusRaw) === "blocked",
+    );
+    const deployed = effective.filter(
+      (item) => pxJiraStatusToken(item.jiraStatusRaw) === "deployed",
+    );
+    const committed = effective.filter(
+      (item) => pxJiraStatusToken(item.commitment) === "committed",
+    );
+    const stretch = effective.filter(
+      (item) => pxJiraStatusToken(item.commitment) === "stretch",
+    );
+    const stale = active.filter((item) => {
+      const days = pxJiraFeatureAgeDays(item);
+      return Number.isFinite(days) && days > 14;
+    });
+    const withoutPi = effective.filter(
+      (item) => !pxClean(item.programIncrement || item.piEstimate),
+    );
+
+    const workspaceStats = ["DATA", "ENGINEERING"].map((workspaceType) => {
+      const workspaceItems = effective.filter(
+        (item) => item.workspaceType === workspaceType,
+      );
+      return {
+        workspaceType,
+        total: workspaceItems.length,
+        active: workspaceItems.filter((item) => !done.includes(item)).length,
+        blocked: workspaceItems.filter(
+          (item) => pxJiraStatusToken(item.jiraStatusRaw) === "blocked",
+        ).length,
+      };
+    });
+
+    return {
+      all,
+      effective,
+      total: all.length,
+      scope: effective.length,
+      discarded: discarded.length,
+      active: active.length,
+      blocked: blocked.length,
+      deployed: deployed.length,
+      committed: committed.length,
+      stretch: stretch.length,
+      stale: stale.length,
+      withoutPi: withoutPi.length,
+      workspaceStats,
+    };
+  }
+
+  function pxJiraWorkspaceLabel(item) {
+    return item.workspaceType === "DATA" ? "Data" : "Engineering";
+  }
+
+  function pxJiraScopeLabel(item, countryId) {
+    const country = String(item?.country || "")
+      .trim()
+      .toUpperCase();
+    return country === HOLDING_COUNTRY_ID
+      ? "Global"
+      : country === pxValidCountryId(countryId)
+        ? "País"
+        : country || "Sin ámbito";
+  }
+
+  function pxRenderJiraExecutionSection(productId, countryId, countryLabel) {
+    const items = pxJiraScopeItems(productId, countryId);
+    const stats = pxJiraExecutionStats(items);
+
+    const workspaceCards = stats.workspaceStats
+      .map(
+        (workspace) => `
+          <article class="product-experience-roadmap-card">
+            <span class="product-experience-eyebrow">
+              Workspace
+            </span>
+            <h3>
+              ${workspace.workspaceType === "DATA" ? "Data" : "Engineering"}
+            </h3>
+            <p>
+              ${workspace.total} Features ·
+              ${workspace.active} activas ·
+              ${workspace.blocked} bloqueadas.
+            </p>
+          </article>
+        `,
+      )
+      .join("");
+
+    const featureCards = [...items]
+      .sort((left, right) => {
+        const leftBlocked = pxJiraStatusToken(left.jiraStatusRaw) === "blocked";
+        const rightBlocked =
+          pxJiraStatusToken(right.jiraStatusRaw) === "blocked";
+        if (leftBlocked !== rightBlocked) {
+          return leftBlocked ? -1 : 1;
+        }
+
+        const leftDone = ["deployed", "accepted", "done", "closed"].includes(
+          pxJiraStatusToken(left.jiraStatusRaw),
+        );
+        const rightDone = ["deployed", "accepted", "done", "closed"].includes(
+          pxJiraStatusToken(right.jiraStatusRaw),
+        );
+        if (leftDone !== rightDone) {
+          return leftDone ? 1 : -1;
+        }
+
+        return String(right.updatedAt || "").localeCompare(
+          String(left.updatedAt || ""),
+        );
+      })
+      .map((item) => {
+        const ageDays = pxJiraFeatureAgeDays(item);
+        const meta = [
+          pxJiraWorkspaceLabel(item),
+          pxJiraScopeLabel(item, countryId),
+          item.programIncrement ? `PI ${item.programIncrement}` : "Sin PI",
+          item.sprintEstimate || "Sin sprint",
+          item.commitment || "Sin commitment",
+        ].filter(Boolean);
+
+        const traceability = [
+          item.analysisId
+            ? `${item.analysisId}${item.analysisStatus ? ` · ${item.analysisStatus}` : ""}`
+            : "",
+          item.sdaE2E ? `SDA ${item.sdaE2E}` : "",
+        ].filter(Boolean);
+
+        return `
+          <article class="product-experience-roadmap-card">
+            <span class="product-experience-eyebrow">
+              ${pxEsc(item.jiraKey)} · ${pxEsc(pxJiraWorkspaceLabel(item))}
+            </span>
+            <h3>${pxEsc(item.title)}</h3>
+            <p>${pxEsc(meta.join(" · "))}</p>
+            <p>
+              Estado: <strong>${pxEsc(item.jiraStatusRaw || "-")}</strong>
+              ${Number.isFinite(ageDays) ? ` · ${ageDays}d desde actualización` : ""}
+            </p>
+            ${traceability.length ? `<p>${pxEsc(traceability.join(" · "))}</p>` : ""}
+            ${item.deliverable ? `<p>${pxEsc(pxExcerpt(item.deliverable, 130))}</p>` : ""}
+            ${pxExternalLink(item.jiraUrl, "Abrir JIRA")}
+          </article>
+        `;
+      })
+      .join("");
+
+    return `
+      <section class="product-experience-section">
+        <header class="product-experience-section-header">
+          <div>
+            <span class="product-experience-eyebrow">
+              Seguimiento de ejecución
+            </span>
+            <h2>Foto oficial JIRA · ${pxEsc(countryLabel)}</h2>
+          </div>
+          <p>
+            Agregado de los workspaces Data y Engineering.
+            Incluye Features con ámbito ${pxEsc(countryLabel)} y Features globales
+            asociadas al producto.
+          </p>
+        </header>
+        <div class="product-experience-quick-grid">
+          <article class="product-experience-quick-card">
+            <div>
+              <span class="product-experience-quick-number">${stats.total}</span>
+              <span class="product-experience-eyebrow">Features JIRA</span>
+            </div>
+            <p>${stats.scope} en scope · ${stats.discarded} descartadas.</p>
+          </article>
+          <article class="product-experience-quick-card">
+            <div>
+              <span class="product-experience-quick-number">${stats.active}</span>
+              <span class="product-experience-eyebrow">En ejecución</span>
+            </div>
+            <p>Features todavía no cerradas ni desplegadas.</p>
+          </article>
+          <article class="product-experience-quick-card">
+            <div>
+              <span class="product-experience-quick-number">${stats.blocked}</span>
+              <span class="product-experience-eyebrow">Bloqueadas</span>
+            </div>
+            <p>Atención inmediata en la foto oficial.</p>
+          </article>
+          <article class="product-experience-quick-card">
+            <div>
+              <span class="product-experience-quick-number">${stats.deployed}</span>
+              <span class="product-experience-eyebrow">Deployed</span>
+            </div>
+            <p>Features que JIRA informa como desplegadas.</p>
+          </article>
+        </div>
+        <div class="product-experience-roadmap-grid">
+          ${workspaceCards}
+          <article class="product-experience-roadmap-card">
+            <span class="product-experience-eyebrow">Planificación</span>
+            <h3>Salud del scope</h3>
+            <p>
+              ${stats.committed} Committed ·
+              ${stats.stretch} Stretch ·
+              ${stats.withoutPi} sin PI ·
+              ${stats.stale} activas con más de 14d sin actualización.
+            </p>
+          </article>
+        </div>
+        <details class="product-experience-functional-detail">
+          <summary>
+            <span>Features oficiales</span>
+            <strong>${stats.total}</strong>
+          </summary>
+          <div class="product-experience-roadmap-grid">
+            ${
+              featureCards ||
+              `<p class="product-experience-empty-copy">No hay Features JIRA asociadas a este producto.</p>`
+            }
+          </div>
+        </details>
+      </section>
+    `;
+  }
+
+  function pxFunctionalPlanSource(programId, state = null) {
+    const workspaceState =
+      typeof roadmapWorkspaceState === "function"
+        ? roadmapWorkspaceState(programId)
+        : null;
+    const requested = String(
+      state?.functionalPlanSource ||
+        workspaceState?.functionalPlanSource ||
+        "internal",
+    )
+      .trim()
+      .toLowerCase();
+    const source = requested === "jira" ? "jira" : "internal";
+
+    if (workspaceState) {
+      workspaceState.functionalPlanSource = source;
+    }
+
+    return source;
+  }
+
+  function pxRenderFunctionalPlanSourceSelector(programId, items, state) {
+    const selected = pxFunctionalPlanSource(programId, state);
+    const filtered =
+      typeof roadmapWorkspaceFilteredItems === "function"
+        ? roadmapWorkspaceFilteredItems(items, state)
+        : Array.isArray(items)
+          ? items
+          : [];
+    const internalCount = filtered.filter(
+      (item) =>
+        roadmapWorkspaceTrack(item) === "functional" &&
+        pxRoadmapPlanningSource(item) === "internal" &&
+        roadmapWorkspaceHasPlanning(item),
+    ).length;
+    const jiraCount = filtered.filter(
+      (item) =>
+        roadmapWorkspaceTrack(item) === "functional" &&
+        pxRoadmapPlanningSource(item) === "jira" &&
+        item.jiraDiscarded !== true,
+    ).length;
+
+    return `
+      <section class="aixbanker-roadmap-filters" aria-label="Fuente del carril funcional">
+        <div class="aixbanker-roadmap-filter-group">
+          <span class="aixbanker-roadmap-filter-label">Fuente funcional</span>
+          <nav class="executive-filter-row" aria-label="Seleccionar fuente del cronograma funcional">
+            <button
+              class="quarter-btn ${selected === "internal" ? "active" : ""}"
+              type="button"
+              data-functional-plan-source="internal"
+              data-program-id="${pxEsc(programId)}"
+              aria-pressed="${selected === "internal" ? "true" : "false"}"
+            >
+              Plan interno · ${internalCount}
+            </button>
+            <button
+              class="quarter-btn ${selected === "jira" ? "active" : ""}"
+              type="button"
+              data-functional-plan-source="jira"
+              data-program-id="${pxEsc(programId)}"
+              aria-pressed="${selected === "jira" ? "true" : "false"}"
+              ${jiraCount ? "" : "disabled"}
+            >
+              JIRA oficial · ${jiraCount}
+            </button>
+          </nav>
+        </div>
+      </section>
+    `;
+  }
+
+  function pxRenderJiraFeatureUndatedItems(items) {
+    if (!items.length) {
+      return "";
+    }
+
+    return `
+      <section class="aixbanker-roadmap-undated">
+        <div class="section-header">
+          <div>
+            <h3>Features JIRA sin PI planificado</h3>
+            <p class="empty-state">
+              Se mantienen en la foto de ejecución, pero no se dibujan en el cronograma.
+            </p>
+          </div>
+          <span class="status-pill status-pending">${items.length}</span>
+        </div>
+        <div class="aixbanker-roadmap-undated-grid">
+          ${items
+            .map(
+              (item) => `
+                <article class="project-card">
+                  <div class="project-card-main">
+                    <div>
+                      <div class="project-name">${pxEsc(item.jiraKey)}</div>
+                      <div class="project-summary">${pxEsc(item.title)}</div>
+                    </div>
+                    <span class="status-pill status-${pxEsc(item.status)}">
+                      ${pxEsc(item.jiraStatusRaw || "-")}
+                    </span>
+                  </div>
+                  <div class="project-meta">
+                    <span>${pxEsc(pxJiraWorkspaceLabel(item))}</span>
+                    <span>${pxEsc(item.commitment || "Sin commitment")}</span>
+                    <span>${pxEsc(item.sprintEstimate || "Sin sprint")}</span>
+                  </div>
+                </article>
+              `,
+            )
+            .join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function pxRenderJiraFunctionalTimelineLane(items, state) {
+    const period = getRoadmapPeriod(state.quarter);
+    const today = roadmapWorkspaceTodayContext(state.quarter);
+    const planned = [];
+    const undated = [];
+
+    roadmapWorkspaceSort(items).forEach((item) => {
+      const layout = getRoadmapItemLayout(item, period);
+
+      if (!layout.hasDates) {
+        undated.push(item);
+        return;
+      }
+
+      if (layout.isVisible) {
+        planned.push({ item, layout });
+      }
+    });
+
+    return `
+      <section
+        class="roadmap-workspace-timeline-lane ${today.visible ? "has-today" : ""}"
+        style="--roadmap-workspace-today:${today.position}%;"
+      >
+        <header class="roadmap-workspace-lane-header">
+          <div>
+            <span>Carril funcional</span>
+            <h3>Features oficiales JIRA</h3>
+          </div>
+          <strong>${planned.length + undated.length}</strong>
+        </header>
+        <p class="empty-state">
+          La barra representa la ventana oficial de Program Increment.
+          No se calcula un porcentaje de avance artificial.
+        </p>
+        <section class="aixbanker-roadmap-board">
+          <div class="aixbanker-roadmap-scale">
+            <div class="aixbanker-roadmap-scale-title">Feature JIRA</div>
+            <div
+              class="aixbanker-roadmap-month-grid"
+              style="--roadmap-month-count:${period.months.length};"
+            >
+              ${renderRoadmapMonths(period)}
+            </div>
+          </div>
+          <div class="aixbanker-roadmap-rows">
+            ${
+              planned.length
+                ? planned
+                    .map(({ item, layout }) => {
+                      const status = pxJiraRoadmapStatus(item.jiraStatusRaw);
+                      const url = pxSafeUrl(item.jiraUrl || item.documentUrl);
+                      const bar = url
+                        ? `
+                            <a
+                              class="aixbanker-roadmap-bar roadmap-type-project"
+                              href="${pxEsc(url)}"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style="left:${layout.left}%;width:${layout.width}%;"
+                              title="${pxEsc(
+                                `${item.jiraKey} · ${item.title}: ${formatDate(
+                                  layout.startDate,
+                                )} → ${formatDate(layout.endDate)}`,
+                              )}"
+                            >
+                              <span class="aixbanker-roadmap-bar-label">
+                                ${pxEsc(item.jiraStatusRaw || "JIRA")}
+                              </span>
+                            </a>
+                          `
+                        : `
+                            <span
+                              class="aixbanker-roadmap-bar roadmap-type-project"
+                              style="left:${layout.left}%;width:${layout.width}%;"
+                            >
+                              <span class="aixbanker-roadmap-bar-label">
+                                ${pxEsc(item.jiraStatusRaw || "JIRA")}
+                              </span>
+                            </span>
+                          `;
+
+                      return `
+                        <article
+                          class="aixbanker-roadmap-row aixbanker-roadmap-initiative-row"
+                          style="--roadmap-sublane-count:1;"
+                        >
+                          <div class="aixbanker-roadmap-item-info">
+                            <div class="aixbanker-roadmap-item-top">
+                              <span class="status-pill status-${pxEsc(status)}">
+                                ${pxEsc(item.jiraStatusRaw || "-")}
+                              </span>
+                              <span class="aixbanker-roadmap-type">
+                                JIRA · ${pxEsc(pxJiraWorkspaceLabel(item))}
+                              </span>
+                            </div>
+                            <strong class="aixbanker-roadmap-item-title">
+                              ${pxEsc(item.jiraKey)} · ${pxEsc(item.title)}
+                            </strong>
+                            <div class="aixbanker-roadmap-item-meta">
+                              <span>${pxEsc(item.programIncrement || "Sin PI")}</span>
+                              <span>${pxEsc(item.sprintEstimate || "Sin sprint")}</span>
+                              <span>${pxEsc(item.commitment || "Sin commitment")}</span>
+                            </div>
+                          </div>
+                          <div class="aixbanker-roadmap-track aixbanker-roadmap-group-track">
+                            <div
+                              class="aixbanker-roadmap-sublane"
+                              style="--roadmap-sublane-index:0;"
+                            >
+                              <span class="aixbanker-roadmap-sublane-label">Feature</span>
+                              ${bar}
+                              ${
+                                layout.targetPosition !== null
+                                  ? `
+                                      <span
+                                        class="aixbanker-roadmap-milestone aixbanker-roadmap-sublane-milestone"
+                                        style="left:${layout.targetPosition}%;"
+                                        title="Objetivo PI: ${pxEsc(formatDate(layout.targetDate))}"
+                                      >
+                                        <span aria-hidden="true">◆</span>
+                                        <em>${pxEsc(formatDate(layout.targetDate))}</em>
+                                      </span>
+                                    `
+                                  : ""
+                              }
+                              <span class="aixbanker-roadmap-sublane-status status-${pxEsc(status)}">
+                                ${pxEsc(item.jiraStatusRaw || "-")}
+                              </span>
+                            </div>
+                          </div>
+                        </article>
+                      `;
+                    })
+                    .join("")
+                : `
+                    <div class="aixbanker-roadmap-empty">
+                      No hay Features JIRA con PI dentro del periodo seleccionado.
+                    </div>
+                  `
+            }
+          </div>
+        </section>
+        ${pxRenderJiraFeatureUndatedItems(undated)}
+      </section>
+    `;
+  }
+
+  function pxInstallJiraExecutionExperience() {
+    if (pxInstallJiraExecutionExperience.installed) {
+      return true;
+    }
+
+    if (
+      typeof roadmapWorkspaceItemsForProgram !== "function" ||
+      typeof roadmapWorkspaceRenderTimeline !== "function" ||
+      typeof roadmapWorkspaceRenderTimelineLane !== "function"
+    ) {
+      return false;
+    }
+
+    const baseItemsForProgram = roadmapWorkspaceItemsForProgram;
+    roadmapWorkspaceItemsForProgram =
+      function roadmapWorkspaceItemsForProgramWithJira(programId) {
+        const baseItems = baseItemsForProgram(programId);
+        const context =
+          typeof roadmapWorkspaceParseRoute === "function"
+            ? roadmapWorkspaceParseRoute()
+            : null;
+
+        if (
+          context?.routeName !== "roadmap" ||
+          context?.viewName !== "timeline"
+        ) {
+          return baseItems;
+        }
+
+        const normalizedProgramId = String(programId || "").trim();
+        const countryId = String(selectedCountry || "")
+          .trim()
+          .toUpperCase();
+        const jiraItems = pxJiraRoadmapItems().filter((item) => {
+          if (String(item.programId || "").trim() !== normalizedProgramId) {
+            return false;
+          }
+
+          const itemCountry = String(item.country || "")
+            .trim()
+            .toUpperCase();
+          return (
+            !itemCountry ||
+            itemCountry === countryId ||
+            (itemCountry === HOLDING_COUNTRY_ID &&
+              countryId !== HOLDING_COUNTRY_ID)
+          );
+        });
+        const itemsByKey = new Map();
+
+        [...baseItems, ...jiraItems].forEach((item) => {
+          itemsByKey.set(`${item.programId}::${item.type}::${item.id}`, item);
+        });
+
+        return [...itemsByKey.values()];
+      };
+
+    const baseRenderTimeline = roadmapWorkspaceRenderTimeline;
+    roadmapWorkspaceRenderTimeline =
+      function roadmapWorkspaceRenderTimelineWithJiraSource(
+        programId,
+        items,
+        state = {},
+      ) {
+        const source = pxFunctionalPlanSource(programId, state);
+        const effectiveState = {
+          ...state,
+          functionalPlanSource: source,
+        };
+        const allItems = Array.isArray(items) ? items : [];
+        const selector = pxRenderFunctionalPlanSourceSelector(
+          programId,
+          allItems,
+          effectiveState,
+        );
+
+        if (source === "internal") {
+          const internalItems = allItems.filter(
+            (item) => pxRoadmapPlanningSource(item) !== "jira",
+          );
+          return `${selector}${baseRenderTimeline(
+            programId,
+            internalItems,
+            effectiveState,
+          )}`;
+        }
+
+        const filtered =
+          typeof roadmapWorkspaceFilteredItems === "function"
+            ? roadmapWorkspaceFilteredItems(allItems, effectiveState)
+            : allItems;
+        const jiraFunctional = filtered.filter(
+          (item) =>
+            roadmapWorkspaceTrack(item) === "functional" &&
+            pxRoadmapPlanningSource(item) === "jira" &&
+            item.jiraDiscarded !== true,
+        );
+        const technicalInternal = filtered.filter(
+          (item) =>
+            roadmapWorkspaceTrack(item) === "technical" &&
+            pxRoadmapPlanningSource(item) !== "jira",
+        );
+
+        return `
+        ${selector}
+        <section class="roadmap-workspace-view roadmap-workspace-timeline-view">
+          <section class="aixbanker-roadmap-legend" aria-label="Tipos de elemento">
+            <span class="aixbanker-roadmap-legend-item">
+              <i class="roadmap-type-project"></i>Feature JIRA
+            </span>
+            <span class="aixbanker-roadmap-legend-item">
+              <i class="roadmap-type-msa"></i>MSA / técnico interno
+            </span>
+          </section>
+          ${pxRenderJiraFunctionalTimelineLane(jiraFunctional, effectiveState)}
+          ${roadmapWorkspaceRenderTimelineLane(
+            "technical",
+            technicalInternal,
+            effectiveState,
+          )}
+        </section>
+      `;
+      };
+
+    document.addEventListener(
+      "click",
+      (event) => {
+        const button = event.target.closest("[data-functional-plan-source]");
+
+        if (!button) {
+          return;
+        }
+
+        const source =
+          button.dataset.functionalPlanSource === "jira" ? "jira" : "internal";
+        const programId = pxClean(button.dataset.programId || PROGRAM_ID);
+        const state = roadmapWorkspaceState(programId);
+        state.functionalPlanSource = source;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        const currentRoute = pxRoute();
+        if (
+          currentRoute.routeName === "product" &&
+          currentRoute.programId === PROGRAM_ID
+        ) {
+          pxRenderLocalProduct(currentRoute.productId, currentRoute.countryId);
+          return;
+        }
+
+        if (currentRoute.routeName === "roadmap") {
+          const context = roadmapWorkspaceParseRoute();
+          renderRoadmapWorkspace(context.programId, context);
+        }
+      },
+      true,
+    );
+
+    pxInstallJiraExecutionExperience.installed = true;
+    return true;
+  }
+
   function pxRenderLocalProduct(productId, countryId) {
     const normalizedCountryId = pxValidCountryId(countryId);
 
     const product = pxFindProduct(productId);
-
     if (
       !product ||
       !normalizedCountryId ||
@@ -1116,7 +1960,6 @@
     }
 
     selectedCountry = normalizedCountryId;
-
     const country = pxCountries().find(
       (candidate) =>
         String(candidate.id || "")
@@ -1128,27 +1971,35 @@
 
     const capabilities = pxCapabilities(productId);
 
-    const roadmapItems = pxLocalProductRoadmapItems(
+    const internalRoadmapItems = pxLocalProductRoadmapItems(
       productId,
       normalizedCountryId,
-    );
+    ).filter((item) => pxRoadmapPlanningSource(item) !== "jira");
+    const jiraRoadmapItems = pxJiraScopeItems(productId, normalizedCountryId);
+    const roadmapItemsByKey = new Map();
 
-    const linkedItems = roadmapItems.filter(
+    [...internalRoadmapItems, ...jiraRoadmapItems].forEach((item) => {
+      roadmapItemsByKey.set(`${item.type}::${item.id}`, item);
+    });
+
+    const roadmapItems = [...roadmapItemsByKey.values()];
+    const linkedItems = internalRoadmapItems.filter(
       (item) => pxRoadmapCapabilityIds(item).length > 0,
     );
+    const unassignedItems = internalRoadmapItems.length - linkedItems.length;
 
-    const unassignedItems = roadmapItems.length - linkedItems.length;
+    const riskCount = internalRoadmapItems.filter(pxRoadmapIsRisk).length;
 
-    const riskCount = roadmapItems.filter(pxRoadmapIsRisk).length;
-
-    const averageProgress = roadmapItems.length
+    const averageProgress = internalRoadmapItems.length
       ? Math.round(
-          roadmapItems.reduce(
+          internalRoadmapItems.reduce(
             (total, item) => total + pxRoadmapProgress(item),
             0,
-          ) / roadmapItems.length,
+          ) / internalRoadmapItems.length,
         )
       : 0;
+    const jiraStats = pxJiraExecutionStats(jiraRoadmapItems);
+    const functionalPlanSource = pxFunctionalPlanSource(PROGRAM_ID);
 
     /*
      * El periodo del cronograma de producto
@@ -1171,7 +2022,6 @@
       quarter: selectedTimelineQuarter,
 
       summaryMetric: "functional:all",
-
       ambitionId:
         typeof ROADMAP_AMBITION_ALL !== "undefined"
           ? ROADMAP_AMBITION_ALL
@@ -1180,8 +2030,8 @@
       capabilityId: "ALL",
 
       countryId: normalizedCountryId,
+      functionalPlanSource,
     };
-
     const timeline =
       roadmapItems.length &&
       typeof roadmapWorkspaceRenderTimeline === "function"
@@ -1202,13 +2052,17 @@
           en ${pxEsc(countryLabel)}.
         </p>
       `;
-
     const fullRoadmapRoute = pxCapabilityRoadmapRoute(
       productId,
       "ALL",
       normalizedCountryId,
       "timeline",
     );
+
+    const timelineSummary =
+      functionalPlanSource === "jira"
+        ? `${jiraStats.scope} Features oficiales · ${jiraStats.active} activas · ${jiraStats.blocked} bloqueadas · ${jiraStats.deployed} deployed.`
+        : `${internalRoadmapItems.length} elementos · ${linkedItems.length} vinculados a capacidades · ${unassignedItems} sin capacidad asignada · ${averageProgress}% avance medio · ${riskCount} en riesgo.`;
 
     setHead(
       `${product.productName} · ${countryLabel}`,
@@ -1222,7 +2076,6 @@
         product.productName,
       ].join(" > "),
     );
-
     view.innerHTML = `
     <section
       class="
@@ -1245,7 +2098,6 @@
       >
         ← Volver
       </button>
-
       <section
         class="
           product-experience-overview-panel
@@ -1267,7 +2119,6 @@
           <h2>
             Visión del producto
           </h2>
-
           <p>
             ${pxEsc(
               product.overview || "Descripción de producto no informada.",
@@ -1289,7 +2140,6 @@
               ${pxEsc(countryLabel)}
             </strong>
           </article>
-
           <article>
             <span>
               Capacidades
@@ -1306,12 +2156,11 @@
             </span>
 
             <strong>
-              ${roadmapItems.length}
+              ${internalRoadmapItems.length}
             </strong>
           </article>
         </aside>
       </section>
-
       <section
         class="
           product-experience-value-panel
@@ -1337,7 +2186,6 @@
           )}
         </p>
       </section>
-
       <section
         class="
           product-experience-section
@@ -1356,7 +2204,6 @@
             >
               Capacidades
             </span>
-
             <h2>
               Qué contiene
               ${pxEsc(product.productName)}
@@ -1373,7 +2220,6 @@
             ${pxEsc(countryLabel)}.
           </p>
         </header>
-
         <div
           class="
             product-experience-capability-grid
@@ -1404,7 +2250,11 @@
           }
         </div>
       </section>
-
+      ${pxRenderJiraExecutionSection(
+        productId,
+        normalizedCountryId,
+        countryLabel,
+      )}
       <section
         class="
           product-experience-section
@@ -1424,7 +2274,6 @@
             >
               Roadmap del producto
             </span>
-
             <h2>
               Cronograma de
               ${pxEsc(product.productName)}
@@ -1432,19 +2281,9 @@
           </div>
 
           <p>
-            ${roadmapItems.length}
-            elementos ·
-            ${linkedItems.length}
-            vinculados a capacidades ·
-            ${unassignedItems}
-            sin capacidad asignada ·
-            ${averageProgress}%
-            avance medio ·
-            ${riskCount}
-            en riesgo.
+            ${pxEsc(timelineSummary)}
           </p>
         </header>
-
         ${pxProductTimelinePeriodSelector(
           productId,
           normalizedCountryId,
@@ -1452,7 +2291,6 @@
         )}
 
         ${timeline}
-
         <button
           class="
             ghost-button
@@ -1466,6 +2304,7 @@
     </section>
   `;
   }
+
   function pxProductRoadmapItems(productId) {
     const normalizedProductId = pxNormalizeId(productId);
 
@@ -3655,6 +4494,8 @@
 
     pxInstallProductCountryToolbar();
 
+    pxInstallJiraExecutionExperience();
+
     pxInstallProductRoadmapCapabilityGrouping();
 
     pxInstallProductTimelinePeriodSelector();
@@ -3688,7 +4529,6 @@
       const normalized = baseNormalize(programId, rawData);
 
       const source = rawData || {};
-
       normalized.productCatalog = Array.isArray(source.productCatalog)
         ? source.productCatalog.map((row) => ({
             ...row,
@@ -3701,6 +4541,15 @@
         ? source.productFeatures.map((row) => ({
             ...row,
 
+            programId: row.programId || programId,
+          }))
+        : [];
+
+      normalized.jiraWorkspaceFeatures = Array.isArray(
+        source.jiraWorkspaceFeatures,
+      )
+        ? source.jiraWorkspaceFeatures.map((row) => ({
+            ...row,
             programId: row.programId || programId,
           }))
         : [];
