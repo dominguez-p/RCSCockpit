@@ -597,6 +597,52 @@ function normalizeJiraCapabilityProductId_(value) {
     .replaceAll("_", "-")
     .replace(/\s+/g, "-");
 }
+function normalizeJiraFunctionalCaseSlugForExport_(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeJiraFunctionalCaseIdsForExport_(value) {
+  return [
+    ...new Set(
+      String(value || "")
+        .split(/[|,;\n]+/)
+        .map((item) => {
+          const raw = String(item || "").trim();
+
+          if (!raw) {
+            return "";
+          }
+
+          const parts = raw.split("::");
+
+          if (parts.length !== 2) {
+            return "";
+          }
+
+          const capabilityId = normalizeJiraFunctionalCaseSlugForExport_(
+            parts[0],
+          );
+
+          const functionalCaseId = normalizeJiraFunctionalCaseSlugForExport_(
+            parts[1],
+          );
+
+          if (!capabilityId || !functionalCaseId) {
+            return "";
+          }
+
+          return [capabilityId, functionalCaseId].join("::");
+        })
+        .filter(Boolean),
+    ),
+  ].join("|");
+}
 
 function normalizeJiraCapabilityIdsForExport_(value) {
   return [
@@ -674,6 +720,10 @@ function loadJiraCapabilityMappingsForExport_(spreadsheet) {
         row.capabilityIds,
       );
 
+      const functionalCaseIds = normalizeJiraFunctionalCaseIdsForExport_(
+        row.functionalCaseIds,
+      );
+
       const track = normalizeJiraCapabilityTrackForExport_(row.track);
 
       const mappingStatus =
@@ -683,9 +733,17 @@ function loadJiraCapabilityMappingsForExport_(spreadsheet) {
 
       return {
         workspaceKey,
+
         jiraKey,
+
+        featureName: textValue_(row.featureName),
+
         productId,
+
         capabilityIds,
+
+        functionalCaseIds,
+
         track,
 
         confidence: String(row.confidence || "")
@@ -695,6 +753,8 @@ function loadJiraCapabilityMappingsForExport_(spreadsheet) {
         notes: textValue_(row.notes),
 
         mappingStatus,
+
+        functionalCaseMappingStatus: functionalCaseIds ? "mapped" : "unmapped",
       };
     })
     .filter((row) => row.workspaceKey && row.jiraKey && row.productId);
@@ -728,13 +788,19 @@ function applyJiraCapabilityMappingsForExport_(featureRows, mappingRows) {
 
         capabilityIds: "",
 
+        functionalCaseIds: "",
+
         track: "",
+
+        mappingFeatureName: "",
 
         mappingConfidence: "",
 
         mappingNotes: "",
 
         mappingStatus: "unmapped",
+
+        functionalCaseMappingStatus: "unmapped",
       };
     }
 
@@ -743,13 +809,19 @@ function applyJiraCapabilityMappingsForExport_(featureRows, mappingRows) {
 
       capabilityIds: mapping.capabilityIds,
 
+      functionalCaseIds: mapping.functionalCaseIds,
+
       track: mapping.track,
+
+      mappingFeatureName: mapping.featureName,
 
       mappingConfidence: mapping.confidence,
 
       mappingNotes: mapping.notes,
 
       mappingStatus: mapping.mappingStatus,
+
+      functionalCaseMappingStatus: mapping.functionalCaseMappingStatus,
     };
   });
 }
@@ -790,21 +862,16 @@ function getAppData() {
    * FEATURES JIRA
    * =====================================================
    *
-   * jiraWorkspaceFeatures sigue siendo
-   * la foto oficial procedente de JIRA.
+   * jiraWorkspaceFeatures:
+   * foto oficial procedente de JIRA.
    *
-   * jiraCapabilityMapping es una capa
-   * manual de clasificación:
+   * jiraCapabilityMapping:
+   * clasificación manual
    *
    * Feature
    *   -> Capability
+   *   -> Functional Case
    *   -> Track
-   *
-   * No modificamos la pestaña
-   * jiraWorkspaceFeatures.
-   *
-   * El join se realiza únicamente
-   * para construir el payload web.
    */
   const jiraWorkspaceFeaturesSheet = spreadsheet.getSheetByName(
     "jiraWorkspaceFeatures",
@@ -826,10 +893,6 @@ function getAppData() {
    * =====================================================
    * ACTIVIDADES DEL ROADMAP
    * =====================================================
-   *
-   * La fuente funcional real es:
-   *
-   * NORM_Roadmap_Activities
    */
   result.roadmapItemActivities =
     getRoadmapItemActivitiesForExport_(spreadsheet);
