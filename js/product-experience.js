@@ -1513,6 +1513,54 @@
     </section>
   `;
   }
+  function pxJiraEffectiveTimelineEndDate(row, statusRaw) {
+    const plannedEndDate = pxClean(row?.endDate);
+
+    const resolvedAt = pxClean(row?.resolvedAt);
+
+    const status = pxJiraStatusToken(
+      statusRaw || row?.statusRaw || row?.status,
+    );
+
+    /*
+     * Mientras la Feature no esté desplegada,
+     * mantenemos como final de barra la ventana
+     * oficial del Program Increment.
+     */
+    if (status !== "deployed") {
+      return plannedEndDate;
+    }
+
+    /*
+     * Si JIRA no proporciona resolvedAt,
+     * mantenemos el comportamiento anterior.
+     */
+    if (!resolvedAt) {
+      return plannedEndDate;
+    }
+
+    /*
+     * Protección frente a datos incoherentes:
+     * una fecha de resolución anterior al inicio
+     * de la ventana PI no debe generar una barra
+     * con duración negativa.
+     */
+    const startDate = pxClean(row?.startDate);
+
+    const startTime = Date.parse(startDate);
+
+    const resolvedTime = Date.parse(resolvedAt);
+
+    if (
+      Number.isFinite(startTime) &&
+      Number.isFinite(resolvedTime) &&
+      resolvedTime < startTime
+    ) {
+      return plannedEndDate;
+    }
+
+    return resolvedAt;
+  }
   function pxJiraRoadmapItems() {
     return pxRows("jiraWorkspaceFeatures")
       .filter(
@@ -1553,6 +1601,12 @@
           : "";
 
         const mappingStatus = pxClean(row.mappingStatus).toLowerCase();
+
+        const plannedEndDate = pxClean(row.endDate);
+
+        const resolvedAt = pxClean(row.resolvedAt);
+
+        const effectiveEndDate = pxJiraEffectiveTimelineEndDate(row, statusRaw);
 
         return {
           ...row,
@@ -1611,10 +1665,39 @@
 
           owner: pxClean(row.assignee),
 
+          /*
+           * Inicio:
+           * mantiene el inicio de la ventana PI.
+           */
           startDate: pxClean(row.startDate),
 
-          endDate: pxClean(row.endDate),
+          /*
+           * Final efectivo:
+           *
+           * - Feature activa:
+           *   fin del PI.
+           *
+           * - Feature Deployed:
+           *   fecha real resolvedAt.
+           */
+          endDate: effectiveEndDate,
 
+          /*
+           * Conservamos el final planificado
+           * original para trazabilidad.
+           */
+          plannedEndDate,
+
+          /*
+           * Conservamos también la fecha real
+           * informada por JIRA.
+           */
+          resolvedAt,
+
+          /*
+           * El objetivo sigue siendo el PI Estimate.
+           * No lo sustituimos por resolvedAt.
+           */
           targetDate: pxClean(row.targetDate),
 
           lastUpdate: pxClean(row.updatedAt || row.lastUpdate),
