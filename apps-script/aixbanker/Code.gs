@@ -850,13 +850,100 @@ function applyJiraCapabilityMappingsForExport_(featureRows, mappingRows) {
 function getAppData() {
   return getCoreAppData_();
 }
+function getJiraMsaIndexForExport_(spreadsheet) {
+  const roadmapSheet = spreadsheet.getSheetByName(SHEETS.roadmapItems);
+
+  if (!roadmapSheet) {
+    return [];
+  }
+
+  const historySheet = spreadsheet.getSheetByName(
+    SHEETS.roadmapItemStatusHistory,
+  );
+
+  const roadmapItems = sheetToObjects_(roadmapSheet).filter((row) => {
+    const type = textValue_(row.type).trim().toLowerCase();
+
+    const jiraKey = textValue_(row.jiraKey);
+
+    return type === "msa" && Boolean(jiraKey);
+  });
+
+  const historyRows = historySheet ? sheetToObjects_(historySheet) : [];
+
+  const historyByItemId = new Map();
+
+  historyRows.forEach((row) => {
+    const itemId = textValue_(row.itemId);
+
+    if (!itemId) {
+      return;
+    }
+
+    if (!historyByItemId.has(itemId)) {
+      historyByItemId.set(itemId, []);
+    }
+
+    historyByItemId.get(itemId).push(row);
+  });
+
+  return roadmapItems.map((item) => {
+    const itemId = textValue_(item.id);
+
+    const history = [...(historyByItemId.get(itemId) || [])].sort(
+      (left, right) => Number(left.sequence || 0) - Number(right.sequence || 0),
+    );
+
+    const firstInterval = history[0] || null;
+
+    const lastInterval = history.length ? history[history.length - 1] : null;
+
+    const currentStatus = textValue_(lastInterval?.status || item.status);
+
+    const jiraStartDate = textValue_(firstInterval?.startAt);
+
+    /*
+     * Para Closed, el ciclo termina
+     * exactamente cuando entra en Closed.
+     *
+     * Para un MSA todavía abierto,
+     * dejamos endDate vacío.
+     * El frontend lo llevará hasta "hoy".
+     */
+    const jiraEndDate =
+      normalizeJiraStatus_(currentStatus) === "Closed"
+        ? textValue_(lastInterval?.startAt)
+        : "";
+
+    return {
+      itemId,
+
+      jiraKey: textValue_(item.jiraKey),
+
+      currentStatus,
+
+      currentStatusRaw: textValue_(lastInterval?.statusRaw || currentStatus),
+
+      startDate: jiraStartDate,
+
+      endDate: jiraEndDate,
+
+      currentSince: textValue_(lastInterval?.startAt),
+
+      historyAvailable: history.length > 0,
+
+      historyEntries: history.length,
+
+      sourceFile: textValue_(lastInterval?.sourceFile),
+
+      sourceUpdatedAt: textValue_(lastInterval?.sourceUpdatedAt),
+    };
+  });
+}
 function getCoreAppData_() {
   const result = {
     generatedAt: new Date().toISOString(),
 
-    /*
-     * Identifica explícitamente el payload.
-     */
     dataset: "core",
   };
 
@@ -867,17 +954,10 @@ function getCoreAppData_() {
    * CORE
    * =====================================================
    *
-   * Exclusiones deliberadas:
+   * roadmapItemStatusHistory queda fuera.
+   * jiraWorkspaceFeatures queda fuera.
    *
-   * roadmapItemStatusHistory
-   *   -> se carga al abrir un MSA.
-   *
-   * jiraWorkspaceFeatures
-   * jiraCapabilityMapping
-   *   -> se cargan al solicitar JIRA oficial.
-   *
-   * roadmapItemActivities SÍ permanece en core:
-   * forma parte del roadmap interno.
+   * jiraMsaIndex será únicamente una foto ligera.
    */
   const deferredSheetKeys = new Set([
     "roadmapItemStatusHistory",
@@ -904,14 +984,17 @@ function getCoreAppData_() {
 
   /*
    * Actividades del roadmap interno.
-   *
-   * Se mantienen en el core porque son
-   * necesarias para el cronograma interno
-   * y su fuente optimizada es
-   * NORM_Roadmap_Activities.
    */
   result.roadmapItemActivities =
     getRoadmapItemActivitiesForExport_(spreadsheet);
+
+  /*
+   * Índice ligero de MSAs JIRA.
+   *
+   * Permite descubrir y pintar los MSAs
+   * sin transportar su histórico.
+   */
+  result.jiraMsaIndex = getJiraMsaIndexForExport_(spreadsheet);
 
   /*
    * Producto.
@@ -923,13 +1006,7 @@ function getCoreAppData_() {
   result.productFeatures = productExperience.productFeatures;
 
   /*
-   * Los datasets diferidos se declaran
-   * vacíos para mantener compatibilidad
-   * con código frontend que espere arrays.
-   *
-   * Vacío NO significa "cargado":
-   * el frontend gestionará ese estado
-   * independientemente.
+   * Datasets diferidos.
    */
   result.roadmapItemStatusHistory = [];
 
@@ -976,28 +1053,64 @@ function getRoadmapItemStatusHistoryByItemId_(spreadsheet, itemId) {
   );
 }
 
-function getJiraMsaData_(itemId) {
-  const normalizedItemId = textValue_(itemId);
-
-  if (!normalizedItemId) {
-    throw new Error('El dataset "jira-msa" requiere el parámetro itemId.');
-  }
-
+function getJiraMsaData_() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
-  const history = getRoadmapItemStatusHistoryByItemId_(
-    spreadsheet,
-    normalizedItemId,
-  );
+  const sheet = spreadsheet.getSheetByName("roadmapItemStatusHistory");
+
+  if (!sheet) {
+    return {
+      dataset: "jira-msa",
+      generatedAt: new Date().toISOString(),
+
+      roadmapItemStatusHistory: [],
+    };
+  }
+
+  const values = sheet.getDataRange().getValues();
+
+  if (!Array.isArray(values) || values.length < 2) {
+    return {
+      dataset: "jira-msa",
+      generatedAt: new Date().toISOString(),
+
+      roadmapItemStatusHistory: [],
+    };
+  }
+
+  const headers = values[0].map((value) => String(value || "").trim());
+
+  const rows = values
+    .slice(1)
+    .filter((row) => row.some((value) => value !== "" && value !== null))
+    .map((row) => {
+      const result = {};
+
+      headers.forEach((header, index) => {
+        if (!header) {
+          return;
+        }
+
+        const value = row[index];
+
+        if (value instanceof Date) {
+          result[header] = value.toISOString();
+
+          return;
+        }
+
+        result[header] = value;
+      });
+
+      return result;
+    });
 
   return {
-    generatedAt: new Date().toISOString(),
-
     dataset: "jira-msa",
 
-    itemId: normalizedItemId,
+    generatedAt: new Date().toISOString(),
 
-    roadmapItemStatusHistory: history,
+    roadmapItemStatusHistory: rows,
   };
 }
 function getRoadmapItemActivitiesForExport_(spreadsheet) {
@@ -1124,6 +1237,50 @@ function isValidRoadmapActivityRow_(row) {
   }
 
   return true;
+}
+function testJiraMsaIndex() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  const startedAt = Date.now();
+
+  const rows = getJiraMsaIndexForExport_(spreadsheet);
+
+  const elapsedMs = Date.now() - startedAt;
+
+  const json = JSON.stringify(rows);
+
+  Logger.log("========================================");
+
+  Logger.log("JIRA MSA INDEX");
+
+  Logger.log("========================================");
+
+  Logger.log(`MSAs: ${rows.length}`);
+
+  Logger.log(
+    `Con histórico: ${rows.filter((row) => row.historyAvailable).length}`,
+  );
+
+  Logger.log(
+    `Con fecha inicial: ${rows.filter((row) => Boolean(row.startDate)).length}`,
+  );
+
+  Logger.log(
+    `Cerrados: ${
+      rows.filter((row) => normalizeJiraStatus_(row.currentStatus) === "Closed")
+        .length
+    }`,
+  );
+
+  Logger.log(`Tiempo: ${elapsedMs} ms`);
+
+  Logger.log(`Tamaño: ${Math.round(json.length / 1024)} KB`);
+
+  Logger.log(JSON.stringify(rows, null, 2));
+
+  Logger.log("========================================");
+
+  return rows;
 }
 /* =========================================================
  * PRODUCT EXPERIENCE
@@ -1405,45 +1562,82 @@ function deleteExistingTriggers_(functionName) {
  * ========================================================= */
 
 function doGet(e) {
-  const parameters = e && e.parameter ? e.parameter : {};
+  try {
+    const parameters = e && e.parameter ? e.parameter : {};
 
-  const requestedCallback = parameters.callback
-    ? String(parameters.callback)
-    : "callback";
+    const requestedCallback = String(parameters.callback || "callback").trim();
 
-  const callback = /^[A-Za-z_$][A-Za-z0-9_$.\[\]]*$/.test(requestedCallback)
-    ? requestedCallback
-    : "callback";
+    const callback = /^[A-Za-z_$][A-Za-z0-9_$.\[\]]*$/.test(requestedCallback)
+      ? requestedCallback
+      : "callback";
 
-  const dataset = String(parameters.dataset || "core")
-    .trim()
-    .toLowerCase();
+    const dataset = String(parameters.dataset || "core")
+      .trim()
+      .toLowerCase();
 
-  let data;
+    let data;
 
-  switch (dataset) {
-    case "jira-features":
-      data = getJiraFeaturesData_();
+    switch (dataset) {
+      case "jira-features":
+        data = getJiraFeaturesData_();
 
-      break;
+        break;
 
-    case "jira-msa":
-      data = getJiraMsaData_(parameters.itemId);
+      case "jira-msa":
+        data = getJiraMsaData_();
 
-      break;
+        break;
 
-    case "core":
-    default:
-      data = getCoreAppData_();
+      case "core":
+      default:
+        data = getCoreAppData_();
 
-      break;
+        break;
+    }
+
+    const payload = {
+      ok: true,
+
+      ...data,
+    };
+
+    return ContentService.createTextOutput(
+      `${callback}(` + `${JSON.stringify(payload)}` + `);`,
+    ).setMimeType(ContentService.MimeType.JAVASCRIPT);
+  } catch (error) {
+    /*
+     * Incluso los errores se devuelven
+     * como JSONP válido.
+     *
+     * Esto es importante porque si
+     * Apps Script devuelve una página
+     * HTML de error, el frontend sólo
+     * puede informar:
+     *
+     * "No se pudo cargar el JSON".
+     */
+    const parameters = e && e.parameter ? e.parameter : {};
+
+    const requestedCallback = String(parameters.callback || "callback").trim();
+
+    const callback = /^[A-Za-z_$][A-Za-z0-9_$.\[\]]*$/.test(requestedCallback)
+      ? requestedCallback
+      : "callback";
+
+    const payload = {
+      ok: false,
+
+      dataset: String(parameters.dataset || ""),
+
+      error: String(error && error.message ? error.message : error),
+
+      generatedAt: new Date().toISOString(),
+    };
+
+    return ContentService.createTextOutput(
+      `${callback}(` + `${JSON.stringify(payload)}` + `);`,
+    ).setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
-
-  const output = `${callback}(` + `${JSON.stringify(data)});`;
-
-  return ContentService.createTextOutput(output).setMimeType(
-    ContentService.MimeType.JAVASCRIPT,
-  );
 }
 /* =========================================================
  * JIRA E2E
@@ -2865,4 +3059,32 @@ function testOnDemandDatasets() {
   Logger.log("========================================");
 
   return results;
+}
+function testGetJiraMsaData() {
+  const result = getJiraMsaData_();
+
+  Logger.log("========================================");
+
+  Logger.log("JIRA MSA DATASET TEST");
+
+  Logger.log("========================================");
+
+  Logger.log("Dataset: %s", result.dataset);
+
+  Logger.log(
+    "Filas: %s",
+    Array.isArray(result.roadmapItemStatusHistory)
+      ? result.roadmapItemStatusHistory.length
+      : 0,
+  );
+
+  Logger.log(
+    JSON.stringify(
+      (result.roadmapItemStatusHistory || []).slice(0, 3),
+      null,
+      2,
+    ),
+  );
+
+  Logger.log("========================================");
 }
