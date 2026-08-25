@@ -5314,7 +5314,31 @@
   function pxRefreshRoadmapBackButton() {
     const currentRoute = pxRoute();
 
-    if (!String(currentRoute.routeName || "").startsWith("roadmap")) {
+    const routeName = String(currentRoute.routeName || "").trim();
+
+    /*
+     * =====================================================
+     * DETALLES LEGACY
+     * =====================================================
+     *
+     * Estos detalles gestionan su propio
+     * botón de vuelta desde app.js.
+     */
+    if (["roadmap-detail", "roadmap-activity"].includes(routeName)) {
+      return;
+    }
+
+    /*
+     * Sólo trabajamos sobre las rutas
+     * gestionadas por roadmap workspace.
+     */
+    if (
+      ![
+        "roadmap",
+        "roadmap-workspace-detail",
+        "roadmap-workspace-activity",
+      ].includes(routeName)
+    ) {
       return;
     }
 
@@ -5324,10 +5348,96 @@
 
     const context = roadmapWorkspaceParseRoute();
 
-    if (context.programId !== PROGRAM_ID) {
+    if (String(context?.programId || "").trim() !== PROGRAM_ID) {
       return;
     }
 
+    const backButton =
+      view.querySelector(".roadmap-workspace > .ghost-button") ||
+      view.querySelector(".navigation-back-button");
+
+    if (!backButton) {
+      return;
+    }
+
+    /*
+     * =====================================================
+     * HELPER IDPOTENTE
+     * =====================================================
+     *
+     * MUY IMPORTANTE:
+     *
+     * product-experience.js tiene un
+     * MutationObserver sobre #view.
+     *
+     * Si escribimos siempre textContent,
+     * dataset.route o aria-label,
+     * aunque no hayan cambiado,
+     * generamos nuevas mutaciones.
+     *
+     * Eso provoca:
+     *
+     * MutationObserver
+     *   -> pxRefresh()
+     *   -> pxRefreshRoadmapBackButton()
+     *   -> mutación DOM
+     *   -> MutationObserver
+     *   -> ...
+     *
+     * Por eso sólo modificamos el DOM
+     * cuando el valor realmente cambia.
+     */
+    function applyBackButtonState(targetRoute, targetText, ariaLabel) {
+      const normalizedRoute = String(targetRoute || "").trim();
+
+      const normalizedText = String(targetText || "");
+
+      const normalizedAria = String(ariaLabel || "");
+
+      if (String(backButton.dataset.route || "") !== normalizedRoute) {
+        backButton.dataset.route = normalizedRoute;
+      }
+
+      if (backButton.textContent !== normalizedText) {
+        backButton.textContent = normalizedText;
+      }
+
+      if (backButton.getAttribute("aria-label") !== normalizedAria) {
+        backButton.setAttribute("aria-label", normalizedAria);
+      }
+    }
+
+    /*
+     * =====================================================
+     * DETALLE WORKSPACE
+     * =====================================================
+     */
+    if (
+      ["roadmap-workspace-detail", "roadmap-workspace-activity"].includes(
+        routeName,
+      )
+    ) {
+      const storedRoute =
+        typeof getRoadmapDetailReturnRoute === "function"
+          ? getRoadmapDetailReturnRoute()
+          : "";
+
+      if (storedRoute) {
+        applyBackButtonState(
+          storedRoute,
+          "← Volver al roadmap",
+          "Volver al roadmap",
+        );
+
+        return;
+      }
+    }
+
+    /*
+     * =====================================================
+     * ROADMAP
+     * =====================================================
+     */
     const productId = pxNormalizeId(context.productId);
 
     const capabilityId = pxCapabilityScopeId(context.capabilityId);
@@ -5344,29 +5454,16 @@
 
     const countryLabel = country?.label || countryId || "";
 
-    const backButton =
-      view.querySelector(".roadmap-workspace > .ghost-button") ||
-      view.querySelector(".navigation-back-button");
+    const isCapabilityScope = Boolean(capabilityId && capabilityId !== "ALL");
 
-    if (!backButton) {
-      return;
-    }
-
-    const isCapabilityScope = capabilityId && capabilityId !== "ALL";
-
-    let targetRoute;
-    let targetText;
-    let ariaLabel;
+    let targetRoute = "";
+    let targetText = "";
+    let ariaLabel = "";
 
     /*
+     * =====================================================
      * ROADMAP DE CAPACIDAD
-     *
-     * Knowledge Assistant · España
-     *        ↓
-     * Resumen / Cronograma / Backlog
-     *
-     * Volvemos a la ficha intermedia
-     * de la capacidad.
+     * =====================================================
      */
     if (isCapabilityScope) {
       const capability = pxFindCapability(productId, capabilityId);
@@ -5376,55 +5473,47 @@
       targetRoute = pxCapabilityRoute(productId, capabilityId, countryId);
 
       targetText =
-        `← Volver a ` +
-        `${capabilityName}` +
+        `← Volver a ${capabilityName}` +
         (countryLabel ? ` · ${countryLabel}` : "");
 
-      ariaLabel = `Volver a la capacidad ` + `${capabilityName}`;
-    } else {
-      /*
-       * ROADMAP GENERAL DEL PRODUCTO
-       *
-       * Si no existe una capacidad concreta,
-       * mantenemos el comportamiento anterior:
-       * volvemos a la ficha local del producto.
-       */
-      if (countryId && countryId !== HOLDING_COUNTRY_ID) {
-        targetRoute = pxLocalProductRoute(productId, countryId);
+      ariaLabel = `Volver a la capacidad ${capabilityName}`;
 
-        targetText =
-          `← Volver a ` +
-          `${product?.productName || productId}` +
-          (countryLabel ? ` · ${countryLabel}` : "");
-      } else {
-        targetRoute = `product/${PROGRAM_ID}/${productId}`;
+      applyBackButtonState(targetRoute, targetText, ariaLabel);
 
-        targetText = `← Volver a ` + `${product?.productName || productId}`;
-      }
-
-      ariaLabel = "Volver al producto";
+      return;
     }
 
     /*
-     * El view está observado mediante
-     * MutationObserver.
-     *
-     * Sólo modificamos atributos/texto
-     * cuando realmente han cambiado para
-     * evitar ciclos de render.
+     * =====================================================
+     * ROADMAP DE PRODUCTO LOCAL
+     * =====================================================
      */
+    if (countryId && countryId !== HOLDING_COUNTRY_ID) {
+      targetRoute = pxLocalProductRoute(productId, countryId);
 
-    if (backButton.dataset.route !== targetRoute) {
-      backButton.dataset.route = targetRoute;
+      targetText =
+        `← Volver a ${product?.productName || productId}` +
+        (countryLabel ? ` · ${countryLabel}` : "");
+
+      ariaLabel = "Volver al producto";
+
+      applyBackButtonState(targetRoute, targetText, ariaLabel);
+
+      return;
     }
 
-    if (backButton.textContent.trim() !== targetText) {
-      backButton.textContent = targetText;
-    }
+    /*
+     * =====================================================
+     * ROADMAP GLOBAL
+     * =====================================================
+     */
+    targetRoute = `product/${PROGRAM_ID}/${productId}`;
 
-    if (backButton.getAttribute("aria-label") !== ariaLabel) {
-      backButton.setAttribute("aria-label", ariaLabel);
-    }
+    targetText = `← Volver a ${product?.productName || productId}`;
+
+    ariaLabel = "Volver al producto";
+
+    applyBackButtonState(targetRoute, targetText, ariaLabel);
   }
   function pxInstallCapabilityRoadmapScope() {
     if (pxInstallCapabilityRoadmapScope.installed) {

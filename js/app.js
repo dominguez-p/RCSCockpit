@@ -445,6 +445,12 @@ function adaptUnifiedRoadmapItem(
     .map(adaptRoadmapItemStatusHistory)
     .sort((left, right) => left.sequence - right.sequence);
 
+  /*
+   * Histórico completo.
+   *
+   * Normalmente estará vacío hasta
+   * que el usuario abra el MSA.
+   */
   const jiraMetrics =
     type === "msa"
       ? buildRoadmapJiraMetrics(normalizedJiraHistory)
@@ -452,24 +458,69 @@ function adaptUnifiedRoadmapItem(
 
   const hasJiraLifecycle = type === "msa" && jiraMetrics.hasData;
 
-  const jiraStartDate = hasJiraLifecycle ? jiraMetrics.startedAt : "";
+  /*
+   * Índice ligero disponible desde core.
+   *
+   * Permite pintar el MSA antes de
+   * descargar todas las transiciones.
+   */
+  const hasJiraIndex = type === "msa" && item.jiraHistoryAvailable === true;
 
+  const jiraIndexStatus = normalizeRoadmapJiraStatus(
+    item.jiraCurrentStatus || "",
+  );
+
+  /*
+   * Inicio real.
+   *
+   * 1. Histórico completo si está cargado.
+   * 2. Índice ligero JIRA.
+   * 3. Planificación manual.
+   */
+  const jiraStartDate = hasJiraLifecycle
+    ? jiraMetrics.startedAt
+    : hasJiraIndex
+      ? item.startDate || ""
+      : "";
+
+  /*
+   * Fin real.
+   *
+   * - Closed:
+   *   termina al entrar en Closed.
+   *
+   * - Abierto:
+   *   la barra llega hasta hoy.
+   */
   const jiraEndDate = hasJiraLifecycle
     ? jiraMetrics.isClosed
       ? jiraMetrics.completedAt
       : new Date().toISOString()
-    : "";
+    : hasJiraIndex
+      ? jiraIndexStatus === "Closed"
+        ? item.endDate || ""
+        : new Date().toISOString()
+      : "";
 
+  /*
+   * Estado efectivo.
+   */
   let effectiveStatus = rcsNormalizeStatus(item.status);
 
-  if (hasJiraLifecycle) {
-    if (jiraMetrics.currentStatus === "Blocked") {
+  const effectiveJiraStatus = hasJiraLifecycle
+    ? jiraMetrics.currentStatus
+    : hasJiraIndex
+      ? jiraIndexStatus
+      : "";
+
+  if (effectiveJiraStatus) {
+    if (effectiveJiraStatus === "Blocked") {
       effectiveStatus = "blocked";
-    } else if (jiraMetrics.currentStatus === "Closed") {
+    } else if (effectiveJiraStatus === "Closed") {
       effectiveStatus = "done";
     } else if (
       ["Analysis In Progress", "Analysis In Review"].includes(
-        jiraMetrics.currentStatus,
+        effectiveJiraStatus,
       )
     ) {
       effectiveStatus = "on-track";
@@ -477,6 +528,48 @@ function adaptUnifiedRoadmapItem(
       effectiveStatus = "planned";
     }
   }
+
+  /*
+   * Mientras no se haya cargado
+   * el histórico completo construimos
+   * unas métricas ligeras suficientes
+   * para reconocer visualmente el MSA
+   * como elemento JIRA.
+   */
+  const effectiveJiraMetrics = hasJiraLifecycle
+    ? jiraMetrics
+    : hasJiraIndex
+      ? {
+          ...jiraMetrics,
+
+          hasData: false,
+
+          hasIndexData: true,
+
+          intervalCount: Number(item.jiraHistoryEntries || 0),
+
+          currentStatus: jiraIndexStatus,
+
+          currentStatusRaw:
+            item.jiraCurrentStatusRaw ||
+            item.jiraCurrentStatus ||
+            jiraIndexStatus,
+
+          currentSince: item.jiraCurrentSince || "",
+
+          startedAt: item.startDate || "",
+
+          completedAt: jiraIndexStatus === "Closed" ? item.endDate || "" : "",
+
+          isClosed: jiraIndexStatus === "Closed",
+
+          isBlocked: jiraIndexStatus === "Blocked",
+
+          sourceFile: item.jiraSourceFile || "",
+
+          sourceUpdatedAt: item.jiraSourceUpdatedAt || item.lastUpdate || "",
+        }
+      : jiraMetrics;
 
   return {
     id: String(item.id || "").trim(),
@@ -536,7 +629,9 @@ function adaptUnifiedRoadmapItem(
       getLastRoadmapPhaseDate(activities, "targetDate") ||
       getLastRoadmapPhaseDate(activities, "endDate"),
 
-    lastUpdate: jiraMetrics.sourceUpdatedAt || item.lastUpdate || "",
+    lastUpdate: hasJiraLifecycle
+      ? jiraMetrics.sourceUpdatedAt || item.lastUpdate || ""
+      : item.jiraSourceUpdatedAt || item.lastUpdate || "",
 
     strategicGoal: item.strategicGoal || "",
 
@@ -556,7 +651,21 @@ function adaptUnifiedRoadmapItem(
 
     jiraStatusHistory: normalizedJiraHistory,
 
-    jiraMetrics: jiraMetrics,
+    jiraMetrics: effectiveJiraMetrics,
+
+    jiraHistoryAvailable: hasJiraLifecycle || hasJiraIndex,
+
+    jiraHistoryLoaded: hasJiraLifecycle,
+
+    jiraHistoryEntries: hasJiraLifecycle
+      ? normalizedJiraHistory.length
+      : Number(item.jiraHistoryEntries || 0),
+
+    jiraCurrentStatus: effectiveJiraStatus,
+
+    jiraCurrentSince: hasJiraLifecycle
+      ? jiraMetrics.currentSince
+      : item.jiraCurrentSince || "",
 
     phases: activities,
 
@@ -784,18 +893,28 @@ function getLastRoadmapPhaseDate(phases, field) {
 }
 
 function adaptUnifiedRoadmapCollection() {
-  const items = Array.isArray(DATA.roadmapItems) ? DATA.roadmapItems : [];
+  const items = Array.isArray(DATA?.roadmapItems) ? DATA.roadmapItems : [];
 
-  const activities = Array.isArray(DATA.roadmapItemActivities)
+  const activities = Array.isArray(DATA?.roadmapItemActivities)
     ? DATA.roadmapItemActivities
     : [];
 
-  const jiraStatusHistory = Array.isArray(DATA.roadmapItemStatusHistory)
+  const jiraStatusHistory = Array.isArray(DATA?.roadmapItemStatusHistory)
     ? DATA.roadmapItemStatusHistory
     : [];
 
+  const jiraMsaIndex = getJiraMsaIndexByItemId();
+
   return items
-    .map((item) => {
+    .map((rawItem) => {
+      /*
+       * El índice NO crea elementos.
+       *
+       * Sólo enriquece los roadmapItems
+       * que ya existen.
+       */
+      const item = enrichRoadmapItemWithJiraMsaIndex(rawItem, jiraMsaIndex);
+
       const itemId = String(item.id || "").trim();
 
       const itemActivities = activities
@@ -803,6 +922,11 @@ function adaptUnifiedRoadmapCollection() {
         .map(adaptRoadmapItemActivity)
         .sort((left, right) => left.order - right.order);
 
+      /*
+       * Sólo tendrá contenido cuando
+       * el histórico del MSA haya sido
+       * solicitado on-demand.
+       */
       const itemJiraStatusHistory = jiraStatusHistory
         .filter((interval) => String(interval.itemId || "").trim() === itemId)
         .sort(
@@ -816,65 +940,176 @@ function adaptUnifiedRoadmapCollection() {
         itemJiraStatusHistory,
       );
     })
-    .filter((item) => item.id);
+    .filter((item) => Boolean(item.id));
+}
+function getJiraMsaIndexByItemId() {
+  const rows = Array.isArray(DATA?.jiraMsaIndex) ? DATA.jiraMsaIndex : [];
+
+  const result = new Map();
+
+  rows.forEach((row) => {
+    const itemId = String(row.itemId || "").trim();
+
+    if (!itemId) {
+      return;
+    }
+
+    result.set(itemId, row);
+  });
+
+  return result;
 }
 
-function getRoadmapItems(programId, productId, quarter = "ALL") {
+function enrichRoadmapItemWithJiraMsaIndex(item, jiraMsaIndex) {
+  if (!item) {
+    return item;
+  }
+
+  const type = String(item.type || "")
+    .trim()
+    .toLowerCase();
+
+  if (type !== "msa") {
+    return item;
+  }
+
+  const itemId = String(item.id || "").trim();
+
+  if (!itemId) {
+    return item;
+  }
+
+  const jira = jiraMsaIndex.get(itemId);
+
+  if (!jira) {
+    return item;
+  }
+
+  const currentStatus = String(jira.currentStatus || "").trim();
+
+  const normalizedStatus = normalizeRoadmapJiraStatus(currentStatus);
+
+  let effectiveStatus = item.status;
+
+  if (normalizedStatus === "Blocked") {
+    effectiveStatus = "blocked";
+  } else if (normalizedStatus === "Closed") {
+    effectiveStatus = "done";
+  } else if (
+    ["Analysis In Progress", "Analysis In Review"].includes(normalizedStatus)
+  ) {
+    effectiveStatus = "on-track";
+  } else if (normalizedStatus) {
+    effectiveStatus = "planned";
+  }
+
+  return {
+    ...item,
+
+    status: effectiveStatus,
+
+    /*
+     * La ventana JIRA ligera tiene
+     * prioridad sobre la planificación
+     * manual del MSA.
+     */
+    startDate: jira.startDate || item.startDate || "",
+
+    endDate: jira.endDate || item.endDate || "",
+
+    lastUpdate: jira.sourceUpdatedAt || item.lastUpdate || "",
+
+    jiraCurrentStatus: currentStatus,
+
+    jiraCurrentStatusRaw: String(jira.currentStatusRaw || currentStatus).trim(),
+
+    jiraCurrentSince: jira.currentSince || "",
+
+    jiraHistoryAvailable: jira.historyAvailable === true,
+
+    jiraHistoryEntries: Number(jira.historyEntries || 0),
+
+    jiraSourceFile: String(jira.sourceFile || "").trim(),
+
+    jiraSourceUpdatedAt: String(jira.sourceUpdatedAt || "").trim(),
+  };
+}
+function getRoadmapItems(programId = null, productId = null, quarter = "ALL") {
   const normalizedProgramId = String(programId || "").trim();
 
   const normalizedProductId = normalizeRoadmapProduct(productId);
 
-  const normalizedQuarter = String(quarter || "ALL")
+  const normalizedCountry = String(selectedCountry || "")
     .trim()
     .toUpperCase();
 
-  const roadmapItems = adaptUnifiedRoadmapCollection();
+  const normalizedQuarter = isValidRoadmapQuarter(quarter) ? quarter : "ALL";
 
-  return roadmapItems
+  return adaptUnifiedRoadmapCollection()
     .filter((item) => {
-      const matchesProgram = item.programId === normalizedProgramId;
+      /*
+       * Programa.
+       */
+      if (
+        normalizedProgramId &&
+        String(item.programId || "").trim() !== normalizedProgramId
+      ) {
+        return false;
+      }
 
-      const matchesProduct = item.product === normalizedProductId;
+      /*
+       * Producto.
+       */
+      if (
+        normalizedProductId &&
+        normalizeRoadmapProduct(item.product) !== normalizedProductId
+      ) {
+        return false;
+      }
 
-      const matchesCountry = !item.country || item.country === selectedCountry;
+      /*
+       * País.
+       *
+       * Si el elemento no informa país,
+       * no lo descartamos.
+       */
+      const itemCountry = String(item.country || "")
+        .trim()
+        .toUpperCase();
 
-      const matchesPeriod = roadmapItemMatchesPeriod(item, normalizedQuarter);
+      if (
+        normalizedCountry &&
+        itemCountry &&
+        itemCountry !== normalizedCountry
+      ) {
+        return false;
+      }
 
-      return (
-        matchesProgram && matchesProduct && matchesCountry && matchesPeriod
-      );
+      /*
+       * Periodo.
+       *
+       * ALL mantiene también elementos
+       * sin planificación temporal.
+       */
+      if (!roadmapItemMatchesPeriod(item, normalizedQuarter)) {
+        return false;
+      }
+
+      return true;
     })
-    .sort((a, b) => {
-      const priorityDifference = a.priority - b.priority;
+    .sort((left, right) => {
+      const leftOrder = getRoadmapItemStackOrder(left);
 
-      if (priorityDifference !== 0) {
-        return priorityDifference;
+      const rightOrder = getRoadmapItemStackOrder(right);
+
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
       }
 
-      const datesA = getRoadmapItemDates(a);
-      const datesB = getRoadmapItemDates(b);
-
-      const dateA = datesA.startDate || datesA.targetDate || datesA.endDate;
-
-      const dateB = datesB.startDate || datesB.targetDate || datesB.endDate;
-
-      if (dateA && dateB) {
-        const dateDifference = dateA - dateB;
-
-        if (dateDifference !== 0) {
-          return dateDifference;
-        }
-      }
-
-      if (dateA) {
-        return -1;
-      }
-
-      if (dateB) {
-        return 1;
-      }
-
-      return a.title.localeCompare(b.title, "es");
+      return String(left.title || "").localeCompare(
+        String(right.title || ""),
+        "es",
+      );
     });
 }
 function getRoadmapPeriod(quarter, year = new Date().getFullYear()) {
@@ -2378,25 +2613,27 @@ function renderAIxBankerRoadmapDetail(
 
   const product = getAIxBankerProduct(productId);
 
+  const selectedQuarter = isValidRoadmapQuarter(quarter) ? quarter : "ALL";
+
+  const backRoute = getRoadmapDetailBackRoute(
+    programId,
+    productId,
+    selectedQuarter,
+  );
+
   if (!program || !product || !itemType || !itemId) {
-    route(
-      `roadmap/${programId}/${productId}/${quarter || getCurrentQuarter()}`,
-    );
+    route(backRoute);
 
     return;
   }
 
-  const selectedQuarter = isValidRoadmapQuarter(quarter)
-    ? quarter
-    : getCurrentQuarter();
-
   selectedExecutiveProduct = product.id;
+
   executiveQuarter = selectedQuarter;
 
   /*
-   * Buscamos en ALL para que el detalle no desaparezca
-   * cuando una actividad atraviesa varios trimestres
-   * o la URL conserva un trimestre distinto.
+   * Buscamos en ALL porque el detalle
+   * no depende del periodo visible.
    */
   const roadmapItems = getRoadmapItems(programId, productId, "ALL");
 
@@ -2406,12 +2643,12 @@ function renderAIxBankerRoadmapDetail(
       String(item.id || "").trim() === String(itemId || "").trim(),
   );
 
-  const backRoute = `roadmap/${programId}/${productId}/${selectedQuarter}`;
-
   if (!roadmapItem) {
     setHead(
       "Elemento no encontrado",
+
       `${product.label} · ${selectedCountry}`,
+
       `Retail Client Solutions > ${
         program.name || "AIxBanker"
       } > ${product.label} > Roadmap`,
@@ -2424,7 +2661,7 @@ function renderAIxBankerRoadmapDetail(
           type="button"
           data-route="${rcsEsc(backRoute)}"
         >
-          ← Volver al roadmap
+          ← Volver
         </button>
 
         <h3>
@@ -2432,8 +2669,9 @@ function renderAIxBankerRoadmapDetail(
         </h3>
 
         <p class="empty-state">
-          El elemento solicitado no existe
-          para el producto y país seleccionados.
+          El elemento solicitado
+          no existe para el producto
+          y país seleccionados.
         </p>
       </section>
     `;
@@ -2447,26 +2685,27 @@ function renderAIxBankerRoadmapDetail(
 
   setHead(
     roadmapItem.title,
-    `${roadmapItem.typeLabel} · ${product.label} · ${countryLabel}`,
+
+    `${roadmapItem.typeLabel} · ` + `${product.label} · ` + `${countryLabel}`,
+
     `Retail Client Solutions > ${
       program.name || "AIxBanker"
-    } > ${product.label} > Roadmap > ${getRoadmapQuarterLabel(
-      selectedQuarter,
-    )} > ${roadmapItem.title}`,
+    } > ${product.label} > ` + `Roadmap > ${roadmapItem.title}`,
   );
 
   renderRoadmapItemDetailView(roadmapItem, {
     route: backRoute,
 
-    label: `Volver al roadmap de ${product.label}`,
+    label: `Volver`,
 
-    activityRouteBase:
-      `roadmap-activity/` +
-      `${programId}/` +
-      `${productId}/` +
-      `${selectedQuarter}/` +
-      `${itemType}/` +
-      `${itemId}`,
+    activityRouteBase: [
+      "roadmap-activity",
+      programId,
+      productId,
+      selectedQuarter,
+      itemType,
+      itemId,
+    ].join("/"),
   });
 }
 function hasRoadmapTaskPlanning(task) {
@@ -4397,15 +4636,103 @@ function renderSystems(programId, mode = "systems") {
 function getCurrentRoute() {
   const hash = location.hash.replace("#", "") || "landing";
 
-  const [
-    routeName,
-    programId,
-    productId,
-    quarter,
-    itemType,
-    itemId,
-    encodedActivityId,
-  ] = hash.split("/");
+  const parts = hash.split("/");
+
+  const routeName = parts[0] || "landing";
+
+  /*
+   * =====================================================
+   * ROADMAP WORKSPACE DETAIL
+   * =====================================================
+   *
+   * Formato actual:
+   *
+   * roadmap-workspace-detail/
+   *   programId/
+   *   viewName/
+   *   productId/
+   *   quarter/
+   *   ambitionId/
+   *   itemType/
+   *   itemId
+   *
+   * Ejemplo:
+   *
+   * roadmap-workspace-detail/
+   * aixbanker/
+   * timeline/
+   * blue-buddy/
+   * 2026/
+   * ALL/
+   * msa/
+   * E2E-343616
+   */
+  if (routeName === "roadmap-workspace-detail") {
+    return {
+      routeName,
+
+      programId: parts[1] || null,
+
+      viewName: parts[2] || "timeline",
+
+      productId: parts[3] || null,
+
+      quarter: parts[4] || "ALL",
+
+      ambitionId: parts[5] || "ALL",
+
+      itemType: parts[6] || null,
+
+      itemId: parts[7] || null,
+
+      activityId: null,
+    };
+  }
+
+  /*
+   * =====================================================
+   * ROADMAP WORKSPACE ACTIVITY
+   * =====================================================
+   */
+  if (routeName === "roadmap-workspace-activity") {
+    let activityId = parts[8] || null;
+
+    if (activityId) {
+      try {
+        activityId = decodeURIComponent(activityId);
+      } catch {
+        // Mantener valor original.
+      }
+    }
+
+    return {
+      routeName,
+
+      programId: parts[1] || null,
+
+      viewName: parts[2] || "timeline",
+
+      productId: parts[3] || null,
+
+      quarter: parts[4] || "ALL",
+
+      ambitionId: parts[5] || "ALL",
+
+      itemType: parts[6] || null,
+
+      itemId: parts[7] || null,
+
+      activityId,
+    };
+  }
+
+  /*
+   * =====================================================
+   * ROUTING LEGACY / GENERAL
+   * =====================================================
+   */
+  const [, programId, productId, quarter, itemType, itemId, encodedActivityId] =
+    parts;
 
   let activityId = null;
 
@@ -4419,11 +4746,17 @@ function getCurrentRoute() {
 
   return {
     routeName,
+
     programId: programId || null,
+
     productId: productId || null,
+
     quarter: quarter || null,
+
     itemType: itemType || null,
+
     itemId: itemId || null,
+
     activityId,
   };
 }
@@ -4484,28 +4817,31 @@ function getEmptyProgramData() {
     decisionsPending: [],
     decisionsDone: [],
 
-    /*
-     * Modelo unificado.
-     */
     roadmapItems: [],
 
     roadmapItemActivities: [],
 
     /*
-     * Histórico MSA:
-     * on-demand.
+     * Índice ligero.
+     *
+     * Sí pertenece al core.
+     */
+    jiraMsaIndex: [],
+
+    /*
+     * Histórico pesado.
+     *
+     * Sólo on-demand.
      */
     roadmapItemStatusHistory: [],
 
     /*
-     * Features JIRA:
-     * on-demand.
+     * Features JIRA.
+     *
+     * Sólo on-demand.
      */
     jiraWorkspaceFeatures: [],
 
-    /*
-     * Modelo legado.
-     */
     projects: [],
     projectPhases: [],
 
@@ -4514,9 +4850,6 @@ function getEmptyProgramData() {
 
     teams: [],
 
-    /*
-     * Catálogo global de producto.
-     */
     productCatalog: [],
     productFeatures: [],
   };
@@ -4649,34 +4982,45 @@ function jiraMsaCacheKey(programId, itemId) {
   );
 }
 
-async function loadJiraMsaData(programId, itemId, forceRefresh = false) {
+async function loadJiraMsaData(programId, forceRefresh = false) {
   const normalizedProgramId = String(programId || "").trim();
 
-  const normalizedItemId = String(itemId || "").trim();
-
-  if (!normalizedProgramId || !normalizedItemId) {
+  if (!normalizedProgramId) {
     throw new Error(
-      "Se necesitan programId e itemId para cargar el histórico JIRA del MSA.",
+      "Se necesita programId para cargar los históricos JIRA de los MSAs.",
     );
   }
 
-  const cacheKey = jiraMsaCacheKey(normalizedProgramId, normalizedItemId);
-
-  if (!forceRefresh && JIRA_MSA_DATA_CACHE.has(cacheKey)) {
-    return JIRA_MSA_DATA_CACHE.get(cacheKey);
+  /*
+   * =====================================================
+   * CACHE
+   * =====================================================
+   */
+  if (!forceRefresh && JIRA_MSA_HISTORY_CACHE.has(normalizedProgramId)) {
+    return JIRA_MSA_HISTORY_CACHE.get(normalizedProgramId);
   }
 
-  if (!forceRefresh && JIRA_MSA_DATA_REQUESTS.has(cacheKey)) {
-    return JIRA_MSA_DATA_REQUESTS.get(cacheKey);
+  /*
+   * Si ya existe una petición en curso,
+   * reutilizamos la misma Promise.
+   */
+  if (!forceRefresh && JIRA_MSA_HISTORY_REQUESTS.has(normalizedProgramId)) {
+    return JIRA_MSA_HISTORY_REQUESTS.get(normalizedProgramId);
   }
 
-  const request = loadProgramDataset(normalizedProgramId, "jira-msa", {
-    itemId: normalizedItemId,
-  })
+  /*
+   * =====================================================
+   * PRIMERA CARGA
+   * =====================================================
+   *
+   * No enviamos itemId.
+   *
+   * La primera apertura de un MSA
+   * descarga todos los históricos.
+   */
+  const request = loadProgramDataset(normalizedProgramId, "jira-msa")
     .then((rawData) => {
       const result = {
-        itemId: normalizedItemId,
-
         generatedAt: rawData?.generatedAt || "",
 
         roadmapItemStatusHistory: Array.isArray(
@@ -4686,65 +5030,133 @@ async function loadJiraMsaData(programId, itemId, forceRefresh = false) {
           : [],
       };
 
-      JIRA_MSA_DATA_CACHE.set(cacheKey, result);
+      JIRA_MSA_HISTORY_CACHE.set(normalizedProgramId, result);
 
       return result;
     })
     .finally(() => {
-      JIRA_MSA_DATA_REQUESTS.delete(cacheKey);
+      JIRA_MSA_HISTORY_REQUESTS.delete(normalizedProgramId);
     });
 
-  JIRA_MSA_DATA_REQUESTS.set(cacheKey, request);
+  JIRA_MSA_HISTORY_REQUESTS.set(normalizedProgramId, request);
 
   return request;
 }
-function installJiraMsaData(programId, itemId, jiraData) {
+function hasLoadedJiraMsaHistory(programId) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  if (!normalizedProgramId) {
+    return false;
+  }
+
+  if (JIRA_MSA_HISTORY_CACHE.has(normalizedProgramId)) {
+    return true;
+  }
+
+  return (
+    Array.isArray(DATA?.roadmapItemStatusHistory) &&
+    DATA.roadmapItemStatusHistory.length > 0
+  );
+}
+function installJiraMsaData(programId, jiraData) {
   if (!DATA || typeof DATA !== "object") {
     return;
   }
 
-  const normalizedItemId = String(itemId || "").trim();
-
-  const current = Array.isArray(DATA.roadmapItemStatusHistory)
-    ? DATA.roadmapItemStatusHistory
-    : [];
-
-  const preserved = current.filter(
-    (row) => String(row.itemId || "").trim() !== normalizedItemId,
-  );
+  const normalizedProgramId = String(programId || "").trim();
 
   const incoming = Array.isArray(jiraData?.roadmapItemStatusHistory)
     ? jiraData.roadmapItemStatusHistory
     : [];
 
-  DATA.roadmapItemStatusHistory = [
-    ...preserved,
+  const normalizedIncoming = incoming.map((row) => ({
+    ...row,
 
-    ...incoming.map((row) => ({
-      ...row,
+    programId: row.programId || normalizedProgramId,
+  }));
 
-      programId: row.programId || programId,
-    })),
-  ];
+  /*
+   * =====================================================
+   * DATA ACTUAL
+   * =====================================================
+   */
+  DATA.roadmapItemStatusHistory = normalizedIncoming;
+
+  /*
+   * =====================================================
+   * CACHE DEL PROGRAMA
+   * =====================================================
+   *
+   * Imprescindible:
+   *
+   * render() puede reconstruir DATA
+   * desde PROGRAM_DATA_CACHE.
+   *
+   * Por eso persistimos aquí también
+   * el histórico ya descargado.
+   */
+  if (normalizedProgramId && PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+    const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
+    PROGRAM_DATA_CACHE.set(normalizedProgramId, {
+      ...cached,
+
+      roadmapItemStatusHistory: normalizedIncoming,
+    });
+  }
 }
 function invalidateProgramDeferredData(programId) {
   const normalizedProgramId = String(programId || "").trim();
 
+  /*
+   * Features.
+   */
   JIRA_FEATURES_DATA_CACHE.delete(normalizedProgramId);
 
   JIRA_FEATURES_DATA_REQUESTS.delete(normalizedProgramId);
 
-  [...JIRA_MSA_DATA_CACHE.keys()].forEach((key) => {
-    if (key.startsWith(`${normalizedProgramId}::`)) {
-      JIRA_MSA_DATA_CACHE.delete(key);
-    }
-  });
+  /*
+   * MSAs.
+   *
+   * Invalidamos, pero NO precargamos.
+   *
+   * El siguiente click sobre un MSA
+   * volverá a traer la foto completa.
+   */
+  JIRA_MSA_HISTORY_CACHE.delete(normalizedProgramId);
 
-  [...JIRA_MSA_DATA_REQUESTS.keys()].forEach((key) => {
-    if (key.startsWith(`${normalizedProgramId}::`)) {
-      JIRA_MSA_DATA_REQUESTS.delete(key);
-    }
-  });
+  JIRA_MSA_HISTORY_REQUESTS.delete(normalizedProgramId);
+}
+function navigateBackFromRoadmapDetail(fallbackRoute = "") {
+  /*
+   * Si existe historial del navegador,
+   * volvemos exactamente al documento/hash
+   * anterior.
+   *
+   * Es la única forma de preservar sin
+   * reconstrucción:
+   *
+   * - producto
+   * - capacidad
+   * - país
+   * - vista
+   * - año
+   * - filtros
+   */
+  if (window.history.length > 1) {
+    window.history.back();
+
+    return;
+  }
+
+  /*
+   * Sólo para acceso directo mediante URL.
+   */
+  const safeFallback = String(fallbackRoute || "").trim();
+
+  if (safeFallback) {
+    route(safeFallback);
+  }
 }
 async function loadPortfolioData(forceRefresh = false) {
   if (
@@ -4772,8 +5184,9 @@ async function loadPortfolioData(forceRefresh = false) {
 const JIRA_FEATURES_DATA_CACHE = new Map();
 const JIRA_FEATURES_DATA_REQUESTS = new Map();
 
-const JIRA_MSA_DATA_CACHE = new Map();
-const JIRA_MSA_DATA_REQUESTS = new Map();
+const JIRA_MSA_HISTORY_CACHE = new Map();
+
+const JIRA_MSA_HISTORY_REQUESTS = new Map();
 
 function buildProgramDatasetUrl(programId, dataset, params = {}) {
   const normalizedProgramId = String(programId || "").trim();
@@ -4951,25 +5364,46 @@ function resetRcsProgramDataModes() {
   state.programs = {};
 
   /*
-   * Core.
+   * =====================================================
+   * CORE
+   * =====================================================
    */
   PROGRAM_DATA_CACHE.clear();
 
   PROGRAM_LAST_LOADED_AT.clear();
 
   /*
-   * Features JIRA on-demand.
+   * =====================================================
+   * FEATURES JIRA ON-DEMAND
+   * =====================================================
    */
   JIRA_FEATURES_DATA_CACHE.clear();
 
   JIRA_FEATURES_DATA_REQUESTS.clear();
 
   /*
-   * Históricos MSA on-demand.
+   * =====================================================
+   * HISTÓRICOS MSA ON-DEMAND
+   * =====================================================
+   *
+   * IMPORTANTE:
+   *
+   * Los caches antiguos:
+   *
+   * JIRA_MSA_DATA_CACHE
+   * JIRA_MSA_DATA_REQUESTS
+   *
+   * ya no existen.
+   *
+   * Desde que la carga se hace de forma agregada
+   * para todos los MSAs del programa utilizamos:
+   *
+   * JIRA_MSA_HISTORY_CACHE
+   * JIRA_MSA_HISTORY_REQUESTS
    */
-  JIRA_MSA_DATA_CACHE.clear();
+  JIRA_MSA_HISTORY_CACHE.clear();
 
-  JIRA_MSA_DATA_REQUESTS.clear();
+  JIRA_MSA_HISTORY_REQUESTS.clear();
 }
 
 function getDemoPortfolioData() {
@@ -5120,14 +5554,36 @@ function routeRequiresJiraMsaData(context) {
     return false;
   }
 
-  return (
-    context.routeName === "roadmap-detail" &&
-    String(context.programId || "").trim() === "aixbanker" &&
-    String(context.itemType || "")
-      .trim()
-      .toLowerCase() === "msa" &&
-    Boolean(String(context.itemId || "").trim())
-  );
+  const routeName = String(context.routeName || "")
+    .trim()
+    .toLowerCase();
+
+  const isRoadmapDetailRoute = [
+    "roadmap-detail",
+    "roadmap-workspace-detail",
+  ].includes(routeName);
+
+  if (!isRoadmapDetailRoute) {
+    return false;
+  }
+
+  const programId = String(context.programId || "").trim();
+
+  if (programId !== "aixbanker") {
+    return false;
+  }
+
+  const itemType = String(context.itemType || "")
+    .trim()
+    .toLowerCase();
+
+  if (itemType !== "msa") {
+    return false;
+  }
+
+  const itemId = String(context.itemId || "").trim();
+
+  return Boolean(itemId);
 }
 
 function hasInstalledJiraMsaData(itemId) {
@@ -5144,7 +5600,145 @@ function hasInstalledJiraMsaData(itemId) {
     )
   );
 }
+const ROADMAP_DETAIL_RETURN_ROUTE_KEY = "aixbankerRoadmapDetailReturnRoute";
 
+function saveRoadmapDetailReturnRoute() {
+  const hash = String(location.hash || "")
+    .replace(/^#/, "")
+    .trim();
+
+  if (!hash) {
+    return "";
+  }
+
+  const routeName = String(hash.split("/")[0] || "")
+    .trim()
+    .toLowerCase();
+
+  /*
+   * Sólo guardamos pantallas que pueden
+   * ser realmente origen de un detalle.
+   *
+   * Nunca guardamos:
+   *
+   * roadmap-detail
+   * roadmap-workspace-detail
+   * roadmap-activity
+   * roadmap-workspace-activity
+   *
+   * para evitar sustituir el origen real
+   * por otro detalle.
+   */
+  const allowedRoutes = new Set(["product", "capability", "roadmap"]);
+
+  if (!allowedRoutes.has(routeName)) {
+    return "";
+  }
+
+  sessionStorage.setItem(ROADMAP_DETAIL_RETURN_ROUTE_KEY, hash);
+
+  return hash;
+}
+function getRoadmapDetailOriginContext() {
+  const hash = String(location.hash || "")
+    .replace(/^#/, "")
+    .trim();
+
+  const routeName = String(hash.split("/")[0] || "")
+    .trim()
+    .toLowerCase();
+
+  /*
+   * =====================================================
+   * NUEVO ROADMAP WORKSPACE
+   * =====================================================
+   *
+   * Ejemplo:
+   *
+   * roadmap/
+   * aixbanker/
+   * timeline/
+   * blue-buddy/
+   * 2026/
+   * ALL/
+   * knowledge-assistant/
+   * ES
+   *
+   * getCurrentRoute() NO puede utilizarse aquí porque
+   * pertenece al routing legacy y leería:
+   *
+   * productId = timeline
+   * quarter   = blue-buddy
+   *
+   * El parser correcto es roadmapWorkspaceParseRoute().
+   */
+  if (
+    routeName === "roadmap" &&
+    typeof roadmapWorkspaceParseRoute === "function"
+  ) {
+    const workspaceContext = roadmapWorkspaceParseRoute();
+
+    if (workspaceContext) {
+      return {
+        routeName,
+
+        programId: String(workspaceContext.programId || "").trim(),
+
+        productId: String(workspaceContext.productId || "").trim(),
+
+        quarter: isValidRoadmapQuarter(workspaceContext.quarter)
+          ? workspaceContext.quarter
+          : "ALL",
+
+        capabilityId: String(workspaceContext.capabilityId || "ALL").trim(),
+
+        countryId: String(workspaceContext.countryId || selectedCountry || "")
+          .trim()
+          .toUpperCase(),
+
+        sourceRoute: hash,
+      };
+    }
+  }
+
+  /*
+   * =====================================================
+   * PRODUCTO / CAPACIDAD / ROUTING LEGACY
+   * =====================================================
+   */
+  const context = getCurrentRoute();
+
+  return {
+    routeName,
+
+    programId: String(context.programId || "").trim(),
+
+    productId: String(context.productId || "").trim(),
+
+    quarter: isValidRoadmapQuarter(context.quarter) ? context.quarter : "ALL",
+
+    capabilityId: "ALL",
+
+    countryId: String(selectedCountry || "")
+      .trim()
+      .toUpperCase(),
+
+    sourceRoute: hash,
+  };
+}
+function getRoadmapDetailReturnRoute(fallbackRoute = "") {
+  const storedRoute = sessionStorage.getItem(ROADMAP_DETAIL_RETURN_ROUTE_KEY);
+
+  if (storedRoute) {
+    return storedRoute;
+  }
+
+  return String(fallbackRoute || "").trim();
+}
+
+function clearRoadmapDetailReturnRoute() {
+  sessionStorage.removeItem(ROADMAP_DETAIL_RETURN_ROUTE_KEY);
+}
 async function ensureJiraMsaDataForRoute(context) {
   if (!routeRequiresJiraMsaData(context)) {
     return;
@@ -5152,31 +5746,49 @@ async function ensureJiraMsaDataForRoute(context) {
 
   const programId = String(context.programId || "").trim();
 
-  const itemId = String(context.itemId || "").trim();
-
-  if (hasInstalledJiraMsaData(itemId)) {
+  if (!programId) {
     return;
   }
 
-  showLoadingOverlay("Cargando histórico JIRA del MSA...");
+  /*
+   * =====================================================
+   * YA CARGADO
+   * =====================================================
+   *
+   * Después de la primera apertura
+   * de cualquier MSA no existe ninguna
+   * nueva llamada a Apps Script.
+   */
+  if (hasLoadedJiraMsaHistory(programId)) {
+    /*
+     * Puede existir en cache pero DATA
+     * haberse reconstruido.
+     *
+     * En ese caso reinstalamos sin red.
+     */
+    if (
+      JIRA_MSA_HISTORY_CACHE.has(programId) &&
+      !Array.isArray(DATA?.roadmapItemStatusHistory)
+    ) {
+      installJiraMsaData(programId, JIRA_MSA_HISTORY_CACHE.get(programId));
+    }
+
+    return;
+  }
+
+  /*
+   * =====================================================
+   * PRIMER MSA DE LA SESIÓN
+   * =====================================================
+   */
+  showLoadingOverlay("Cargando históricos JIRA de MSAs...");
 
   try {
-    const jiraData = await loadJiraMsaData(programId, itemId);
+    const jiraData = await loadJiraMsaData(programId);
 
-    installJiraMsaData(programId, itemId, jiraData);
+    installJiraMsaData(programId, jiraData);
   } catch (error) {
-    console.error("[AIxBanker] Error cargando histórico JIRA del MSA", error);
-
-    /*
-     * El detalle continúa funcionando
-     * con los datos core aunque JIRA
-     * no esté disponible.
-     *
-     * renderRoadmapItemDetailView()
-     * mostrará el detalle convencional
-     * porque jiraMetrics.hasData
-     * será false.
-     */
+    console.error("[AIxBanker] Error cargando históricos JIRA de MSAs", error);
   }
 }
 async function render() {
@@ -7912,7 +8524,27 @@ function renderTeamsQuarterSelector() {
     </div>
   `;
 }
+function getRoadmapDetailBackRoute(programId, productId, quarter) {
+  const storedRoute = sessionStorage.getItem(ROADMAP_DETAIL_RETURN_ROUTE_KEY);
 
+  if (storedRoute) {
+    const routeName = String(storedRoute).split("/")[0];
+
+    if (routeName === "product" || routeName === "roadmap") {
+      return storedRoute;
+    }
+  }
+
+  /*
+   * Fallback seguro.
+   *
+   * Nunca utilizamos ES/MX/etc.
+   * como trimestre.
+   */
+  const safeQuarter = isValidRoadmapQuarter(quarter) ? quarter : "ALL";
+
+  return ["roadmap", programId, productId, safeQuarter].join("/");
+}
 function getProductColor(product) {
   const key = String(product || "")
     .toLowerCase()
@@ -8138,14 +8770,66 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const { programId, productId, quarter } = getCurrentRoute();
+  event.preventDefault();
+  event.stopPropagation();
 
-  const itemType = detailButton.dataset.roadmapDetailType;
+  const originContext = getRoadmapDetailOriginContext();
 
-  const itemId = detailButton.dataset.roadmapDetailId;
+  const programId = String(
+    originContext.programId ||
+      (typeof PROGRAM_ID !== "undefined" ? PROGRAM_ID : "") ||
+      "",
+  ).trim();
+
+  const productId = String(
+    originContext.productId || selectedExecutiveProduct || "",
+  ).trim();
+
+  const itemType = String(detailButton.dataset.roadmapDetailType || "")
+    .trim()
+    .toLowerCase();
+
+  const itemId = String(detailButton.dataset.roadmapDetailId || "").trim();
+
+  if (!programId || !productId || !itemType || !itemId) {
+    return;
+  }
+
+  /*
+   * Guardamos EXACTAMENTE la URL desde
+   * la que se está entrando al detalle.
+   *
+   * Ejemplo:
+   *
+   * roadmap/aixbanker/timeline/
+   * blue-buddy/2026/ALL/
+   * knowledge-assistant/ES
+   *
+   * Esta URL será la utilizada por el
+   * botón Volver.
+   */
+  saveRoadmapDetailReturnRoute();
+
+  /*
+   * Conservamos también el país actual.
+   *
+   * El detalle legacy no lleva toda la
+   * información del nuevo workspace en
+   * su propia URL, por lo que mantenemos
+   * explícitamente el contexto geográfico.
+   */
+  if (originContext.countryId) {
+    selectedCountry = originContext.countryId;
+  }
+
+  const quarter = isValidRoadmapQuarter(originContext.quarter)
+    ? originContext.quarter
+    : "ALL";
 
   route(
-    `roadmap-detail/${programId}/${productId}/${quarter}/${itemType}/${itemId}`,
+    ["roadmap-detail", programId, productId, quarter, itemType, itemId].join(
+      "/",
+    ),
   );
 });
 
@@ -8176,6 +8860,42 @@ document.addEventListener("click", (event) => {
   }
 
   event.stopPropagation();
+});
+document.addEventListener(
+  "click",
+  (event) => {
+    const target = event.target.closest("[data-route]");
+
+    if (!target) {
+      return;
+    }
+
+    const targetRoute = String(target.dataset.route || "").trim();
+
+    if (!targetRoute.startsWith("roadmap-workspace-detail/")) {
+      return;
+    }
+
+    /*
+     * Antes de navegar guardamos el
+     * roadmap exacto de origen.
+     */
+    saveRoadmapDetailReturnRoute();
+  },
+  true,
+);
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-roadmap-detail-back]");
+
+  if (!button) {
+    return;
+  }
+
+  event.preventDefault();
+
+  event.stopPropagation();
+
+  navigateBackFromRoadmapDetail(button.dataset.roadmapDetailBackFallback || "");
 });
 window.addEventListener("hashchange", () => {
   render().catch(console.error);
