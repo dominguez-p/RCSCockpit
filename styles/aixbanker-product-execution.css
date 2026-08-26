@@ -1,0 +1,378 @@
+.aix-exec-roadmap {
+  position: relative;
+}
+
+.aix-exec-source-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 8px 0 14px;
+  font-size: 12px;
+  color: var(--rcs-text-muted, #5b6f8f);
+}
+
+.aix-exec-source-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aix-exec-source-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+/*
+ * =====================================================
+ * COLORES POR ORIGEN
+ * =====================================================
+ *
+ * El color del cronograma representa la fuente,
+ * NO el estado del elemento.
+ *
+ * Plan interno -> verde
+ * MSA JIRA     -> morado
+ * Feature JIRA -> azul
+ */
+
+.aix-exec-source-legend .is-internal {
+  background: #20ad7a;
+}
+
+.aix-exec-source-legend .is-msa {
+  background: #6857d9;
+}
+
+.aix-exec-source-legend .is-feature {
+  background: #1973d1;
+}
+
+.aix-exec-capability {
+  margin-top: 14px;
+  border: 1px solid #dbe4f2;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.aix-exec-capability-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  background: #f7f9fd;
+  border-bottom: 1px solid #dbe4f2;
+}
+
+.aix-exec-capability-header span,
+.aix-exec-lane-header span {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #435a7c;
+}
+
+.aix-exec-capability-header h3,
+.aix-exec-lane-header h4 {
+  margin: 0;
+}
+
+.aix-exec-capability-header > strong {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #edf3ff;
+  color: #071f9c;
+}
+
+.aix-exec-lane {
+  padding: 12px;
+  border-bottom: 1px solid #e5ebf5;
+}
+
+.aix-exec-lane:last-child {
+  border-bottom: 0;
+}
+
+.aix-exec-lane-functional {
+  border-left: 3px solid #20ad7a;
+}
+
+.aix-exec-lane-technical {
+  border-left: 3px solid #6857d9;
+}
+
+.aix-exec-lane-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.aix-exec-lane-header > div:last-child {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  text-align: right;
+}
+
+.aix-exec-lane-header small {
+  color: #536887;
+}
+
+.aix-exec-timeline {
+  position: relative;
+  border: 1px solid #dce5f2;
+  border-radius: 12px;
+  overflow: visible;
+  background: #fff;
+}
+
+.aix-exec-scale,
+.aix-exec-timeline-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 23%) 1fr;
+}
+
+.aix-exec-scale {
+  min-height: 42px;
+  border-bottom: 1px solid #dce5f2;
+  background: #f5f8fd;
+}
+
+.aix-exec-scale > span {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0b277f;
+  border-right: 1px solid #dce5f2;
+}
+
+.aix-exec-months {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--roadmap-month-count), minmax(0, 1fr));
+}
+
+.aix-exec-timeline-rows {
+  position: relative;
+}
+
+.aix-exec-timeline-row {
+  min-height: 62px;
+  border-bottom: 1px solid #e7edf6;
+}
+
+.aix-exec-timeline-row:last-child {
+  border-bottom: 0;
+}
+
+.aix-exec-timeline-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 12px;
+  border-right: 1px solid #dce5f2;
+}
+
+.aix-exec-timeline-label small {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #566b89;
+}
+
+.aix-exec-timeline-label strong {
+  color: #052b9f;
+}
+
+.aix-exec-timeline-track {
+  position: relative;
+  min-width: 0;
+}
+
+/*
+ * =====================================================
+ * BARRAS DEL CRONOGRAMA
+ * =====================================================
+ */
+
+.aix-exec-plan-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 4px;
+  height: 14px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 5px;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  z-index: 2;
+}
+
+/*
+ * Plan interno.
+ *
+ * Siempre verde independientemente de:
+ * pendiente, en progreso, hecho, riesgo...
+ */
+.aix-exec-plan-bar:not(.aix-exec-plan-msa):not(.aix-exec-plan-feature) {
+  background: #20ad7a;
+}
+
+/*
+ * MSA JIRA.
+ *
+ * Siempre morado independientemente
+ * del estado E2E.
+ */
+.aix-exec-plan-bar.aix-exec-plan-msa {
+  background: #6857d9;
+}
+
+/*
+ * Feature JIRA.
+ *
+ * Se mantiene preparado para cuando
+ * incorporemos Features al timeline.
+ */
+.aix-exec-plan-bar.aix-exec-plan-feature {
+  background: #1973d1;
+}
+
+/*
+ * Los estados NO modifican el color.
+ *
+ * Estas reglas tienen mayor especificidad
+ * para neutralizar estilos legacy que
+ * pudieran seguir aplicándose mediante
+ * status-*.
+ */
+.aix-exec-plan-bar.aix-exec-plan-msa.status-done,
+.aix-exec-plan-bar.aix-exec-plan-msa.status-hecho,
+.aix-exec-plan-bar.aix-exec-plan-msa.status-progress,
+.aix-exec-plan-bar.aix-exec-plan-msa.status-pending,
+.aix-exec-plan-bar.aix-exec-plan-msa.status-risk,
+.aix-exec-plan-bar.aix-exec-plan-msa.status-blocked {
+  background: #6857d9;
+}
+
+.aix-exec-plan-bar.aix-exec-plan-feature.status-done,
+.aix-exec-plan-bar.aix-exec-plan-feature.status-hecho,
+.aix-exec-plan-bar.aix-exec-plan-feature.status-progress,
+.aix-exec-plan-bar.aix-exec-plan-feature.status-pending,
+.aix-exec-plan-bar.aix-exec-plan-feature.status-risk,
+.aix-exec-plan-bar.aix-exec-plan-feature.status-blocked {
+  background: #1973d1;
+}
+
+.aix-exec-plan-bar:not(.aix-exec-plan-msa):not(
+    .aix-exec-plan-feature
+  ).status-done,
+.aix-exec-plan-bar:not(.aix-exec-plan-msa):not(
+    .aix-exec-plan-feature
+  ).status-hecho,
+.aix-exec-plan-bar:not(.aix-exec-plan-msa):not(
+    .aix-exec-plan-feature
+  ).status-progress,
+.aix-exec-plan-bar:not(.aix-exec-plan-msa):not(
+    .aix-exec-plan-feature
+  ).status-pending,
+.aix-exec-plan-bar:not(.aix-exec-plan-msa):not(
+    .aix-exec-plan-feature
+  ).status-risk,
+.aix-exec-plan-bar:not(.aix-exec-plan-msa):not(
+    .aix-exec-plan-feature
+  ).status-blocked {
+  background: #20ad7a;
+}
+
+.aix-exec-undated {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid #e5ebf5;
+}
+
+.aix-exec-undated > span {
+  font-weight: 700;
+  color: #536887;
+}
+
+.aix-exec-undated small {
+  padding: 3px 7px;
+  border: 1px solid #dce5f2;
+  border-radius: 999px;
+  background: #f7f9fd;
+}
+
+.aix-exec-empty {
+  margin: 0;
+  padding: 12px;
+  color: #61738f;
+}
+
+/*
+ * =====================================================
+ * HOY
+ * =====================================================
+ */
+
+.aix-exec-today-header {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid #f04444;
+  pointer-events: none;
+  z-index: 8;
+}
+
+.aix-exec-today-header span {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #f04444;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.aix-exec-today-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid #f04444;
+  pointer-events: none;
+  z-index: 5;
+}
