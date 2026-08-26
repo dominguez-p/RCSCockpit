@@ -2,15 +2,23 @@ function roadmapWorkspaceRenderTimelineLane(track, items, state) {
   const laneTitle =
     track === "technical" ? "Carril técnico" : "Carril funcional";
 
-  const today = roadmapWorkspaceTodayContext(state.quarter);
+  const isJiraFunctionalLane =
+    track === "functional" &&
+    String(state?.functionalPlanSource || "internal")
+      .trim()
+      .toLowerCase() === "jira";
 
-  const timelineItems = roadmapWorkspaceSort(
-    items.filter(
-      (item) =>
-        roadmapWorkspaceTrack(item) === track &&
-        roadmapWorkspaceHasPlanning(item),
-    ),
+  const laneItems = roadmapWorkspaceSort(
+    items.filter((item) => roadmapWorkspaceTrack(item) === track),
   );
+
+  const plannedItems = laneItems.filter(roadmapWorkspaceHasPlanning);
+
+  const undatedItems = laneItems.filter(
+    (item) => !roadmapWorkspaceHasPlanning(item),
+  );
+
+  const today = roadmapWorkspaceTodayContext(state.quarter);
 
   return `
     <section
@@ -24,9 +32,7 @@ function roadmapWorkspaceRenderTimelineLane(track, items, state) {
       "
     >
       <header
-        class="
-          roadmap-workspace-lane-header
-        "
+        class="roadmap-workspace-lane-header"
       >
         <div>
           <span>
@@ -37,55 +43,192 @@ function roadmapWorkspaceRenderTimelineLane(track, items, state) {
             ${
               track === "technical"
                 ? "MSAs, plataforma y habilitadores"
-                : "Proyectos, pilotos e iniciativas"
+                : isJiraFunctionalLane
+                  ? "Features oficiales JIRA"
+                  : "Proyectos, pilotos e iniciativas"
             }
           </h3>
         </div>
 
         <strong>
-          ${timelineItems.length}
+          ${laneItems.length}
         </strong>
       </header>
 
       ${
-        timelineItems.length
-          ? renderRoadmapTimeline(timelineItems, state.quarter, {
+        plannedItems.length
+          ? renderRoadmapTimeline(plannedItems, state.quarter, {
               groupByCapability: state?.groupByCapability === true,
             })
           : `
-              <section
-                class="panel"
-              >
-                <p
-                  class="empty-state"
-                >
-                  No hay elementos
-                  planificados en este
-                  carril y periodo.
-                </p>
-              </section>
-            `
+            <section class="panel">
+              <p class="empty-state">
+                ${
+                  isJiraFunctionalLane
+                    ? "No hay Features JIRA con Program Increment para este periodo."
+                    : "No hay elementos planificados en este carril y periodo."
+                }
+              </p>
+            </section>
+          `
       }
+
+      ${undatedItems.length ? renderRoadmapUndatedItems(undatedItems) : ""}
     </section>
   `;
 }
 function roadmapWorkspaceRenderTimeline(programId, items, state) {
-  const filtered = roadmapWorkspaceFilteredItems(items, state).filter(
+  const source =
+    String(state?.functionalPlanSource || "internal")
+      .trim()
+      .toLowerCase() === "jira"
+      ? "jira"
+      : "internal";
+
+  const productId = roadmapWorkspaceNormalizeProduct(
+    state?.productId || state?.product || "",
+  );
+
+  const countryId = String(state?.countryId || state?.country || "")
+    .trim()
+    .toUpperCase();
+
+  const capabilityId = String(state?.capabilityId || state?.capability || "")
+    .trim()
+    .toLowerCase();
+
+  const internalItems = roadmapWorkspaceFilteredItems(items, state).filter(
     roadmapWorkspaceHasPlanning,
   );
 
+  const allJiraItems = roadmapWorkspaceJiraFeatureItems(programId);
+
+  const jiraItems = allJiraItems.filter((item) => {
+    if (productId && item.product !== productId) {
+      return false;
+    }
+
+    if (countryId && item.country && item.country !== countryId) {
+      return false;
+    }
+
+    if (capabilityId && !item.capabilityIds.includes(capabilityId)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const internalFunctional = internalItems.filter(
+    (item) => roadmapWorkspaceTrack(item) === "functional",
+  );
+
+  const technicalInternal = internalItems.filter(
+    (item) => roadmapWorkspaceTrack(item) === "technical",
+  );
+
+  const jiraFunctional = jiraItems.filter(
+    (item) => roadmapWorkspaceTrack(item) === "functional",
+  );
+
+  const visibleFunctional =
+    source === "jira" ? jiraFunctional : internalFunctional;
+
   return `
-    <section class="roadmap-workspace-view roadmap-workspace-timeline-view">
-      <section class="aixbanker-roadmap-legend" aria-label="Tipos de elemento">
-        <span class="aixbanker-roadmap-legend-item"><i class="roadmap-type-project"></i>Proyecto</span>
-        <span class="aixbanker-roadmap-legend-item"><i class="roadmap-type-msa"></i>MSA</span>
-        <span class="aixbanker-roadmap-legend-item"><i class="roadmap-type-poc"></i>PoC</span>
-        <span class="aixbanker-roadmap-legend-item"><i class="roadmap-type-initiative"></i>Iniciativa</span>
-        <span class="aixbanker-roadmap-legend-item"><i class="roadmap-type-epic"></i>Epic</span>
+    <section
+      class="aixbanker-roadmap-filters"
+      aria-label="Fuente del cronograma"
+    >
+      <div class="aixbanker-roadmap-filter-group">
+        <span class="aixbanker-roadmap-filter-label">
+          Fuente del cronograma
+        </span>
+
+        <nav
+          class="executive-filter-row"
+          aria-label="Seleccionar fuente funcional"
+        >
+          <button
+            class="quarter-btn ${source === "internal" ? "active" : ""}"
+            type="button"
+            data-roadmap-functional-source="internal"
+            data-program-id="${roadmapWorkspaceEscape(programId)}"
+            aria-pressed="${source === "internal" ? "true" : "false"}"
+          >
+            Plan interno · ${internalFunctional.length}
+          </button>
+
+          <button
+            class="quarter-btn ${source === "jira" ? "active" : ""}"
+            type="button"
+            data-roadmap-functional-source="jira"
+            data-program-id="${roadmapWorkspaceEscape(programId)}"
+            aria-pressed="${source === "jira" ? "true" : "false"}"
+          >
+            JIRA oficial · ${jiraFunctional.length}
+          </button>
+        </nav>
+      </div>
+    </section>
+
+    <section
+      class="
+        roadmap-workspace-view
+        roadmap-workspace-timeline-view
+      "
+    >
+      <section
+        class="aixbanker-roadmap-legend"
+        aria-label="Tipos de elemento"
+      >
+        ${
+          source === "jira"
+            ? `
+              <span class="aixbanker-roadmap-legend-item">
+                <i class="roadmap-type-project"></i>
+                Feature JIRA
+              </span>
+            `
+            : `
+              <span class="aixbanker-roadmap-legend-item">
+                <i class="roadmap-type-project"></i>
+                Proyecto
+              </span>
+
+              <span class="aixbanker-roadmap-legend-item">
+                <i class="roadmap-type-poc"></i>
+                PoC
+              </span>
+
+              <span class="aixbanker-roadmap-legend-item">
+                <i class="roadmap-type-initiative"></i>
+                Iniciativa
+              </span>
+
+              <span class="aixbanker-roadmap-legend-item">
+                <i class="roadmap-type-epic"></i>
+                Epic
+              </span>
+            `
+        }
+
+        <span class="aixbanker-roadmap-legend-item">
+          <i class="roadmap-type-msa"></i>
+          MSA
+        </span>
       </section>
 
-      ${roadmapWorkspaceRenderTimelineLane("functional", filtered, state)}
-      ${roadmapWorkspaceRenderTimelineLane("technical", filtered, state)}
+      ${roadmapWorkspaceRenderTimelineLane(
+        "functional",
+        visibleFunctional,
+        state,
+      )}
+
+      ${roadmapWorkspaceRenderTimelineLane(
+        "technical",
+        technicalInternal,
+        state,
+      )}
     </section>
   `;
 }
