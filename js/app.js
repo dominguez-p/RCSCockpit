@@ -8897,6 +8897,98 @@ document.addEventListener("click", (event) => {
 
   navigateBackFromRoadmapDetail(button.dataset.roadmapDetailBackFallback || "");
 });
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-roadmap-functional-source]");
+
+  if (!button) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const programId = String(button.dataset.programId || "").trim();
+
+  const source =
+    String(button.dataset.roadmapFunctionalSource || "")
+      .trim()
+      .toLowerCase() === "jira"
+      ? "jira"
+      : "internal";
+
+  if (!programId) {
+    return;
+  }
+
+  const state = roadmapWorkspaceState(programId);
+
+  /*
+   * =====================================================
+   * PLAN INTERNO
+   * =====================================================
+   */
+  if (source === "internal") {
+    state.functionalPlanSource = "internal";
+
+    const context = roadmapWorkspaceParseRoute();
+
+    if (context.routeName === "roadmap" && context.programId === programId) {
+      renderRoadmapWorkspace(programId, context);
+    }
+
+    return;
+  }
+
+  /*
+   * =====================================================
+   * JIRA OFICIAL
+   * =====================================================
+   *
+   * loadJiraFeaturesData() ya controla:
+   *
+   * - cache de datos
+   * - petición en curso
+   * - evitar llamadas duplicadas
+   *
+   * Por tanto NO debemos consultar aquí
+   * ningún segundo cache.
+   */
+  button.disabled = true;
+
+  showLoadingOverlay("Cargando Features oficiales de JIRA...");
+
+  try {
+    const jiraData = await loadJiraFeaturesData(programId);
+
+    installJiraFeaturesData(programId, jiraData);
+
+    state.functionalPlanSource = "jira";
+  } catch (error) {
+    console.error("[AIxBanker] Error cargando Features JIRA", error);
+
+    state.functionalPlanSource = "internal";
+  } finally {
+    hideLoadingOverlay();
+
+    button.disabled = false;
+  }
+
+  /*
+   * =====================================================
+   * RENDER SIN RECARGAR CORE
+   * =====================================================
+   *
+   * No llamamos a render().
+   *
+   * Si lo hiciéramos, DATA se reconstruiría desde
+   * el core y complicaría innecesariamente el flujo.
+   */
+  const context = roadmapWorkspaceParseRoute();
+
+  if (context.routeName === "roadmap" && context.programId === programId) {
+    renderRoadmapWorkspace(programId, context);
+  }
+});
 window.addEventListener("hashchange", () => {
   render().catch(console.error);
 });

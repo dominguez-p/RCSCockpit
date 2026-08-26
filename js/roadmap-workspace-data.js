@@ -128,7 +128,9 @@ function roadmapWorkspaceValidQuarter(value) {
 
 function roadmapWorkspaceApplyRouteState(programId, routeContext) {
   const state = roadmapWorkspaceState(programId);
-  const requestedView = String(routeContext.viewName || "summary").toLowerCase();
+  const requestedView = String(
+    routeContext.viewName || "summary",
+  ).toLowerCase();
 
   state.view = ROADMAP_WORKSPACE_VIEWS.has(requestedView)
     ? requestedView
@@ -153,10 +155,7 @@ function roadmapWorkspaceLegacyActivity(row, itemId, index) {
       row.activityName ||
       `Actividad ${index + 1}`,
     activityName:
-      row.activityName ||
-      row.phaseName ||
-      row.name ||
-      `Actividad ${index + 1}`,
+      row.activityName || row.phaseName || row.name || `Actividad ${index + 1}`,
   };
 
   if (typeof adaptRoadmapItemActivity === "function") {
@@ -202,10 +201,11 @@ function roadmapWorkspaceLegacyItems() {
 
         const activities = phases
           .filter(
-            (phase) =>
-              String(phase[definition.foreignKey] || "").trim() === id,
+            (phase) => String(phase[definition.foreignKey] || "").trim() === id,
           )
-          .map((phase, index) => roadmapWorkspaceLegacyActivity(phase, id, index));
+          .map((phase, index) =>
+            roadmapWorkspaceLegacyActivity(phase, id, index),
+          );
 
         return {
           id,
@@ -377,7 +377,10 @@ function roadmapWorkspaceFilteredItems(items, state, options = {}) {
     );
   }
 
-  if (options.applyPeriod !== false && state.quarter !== ROADMAP_WORKSPACE_ALL) {
+  if (
+    options.applyPeriod !== false &&
+    state.quarter !== ROADMAP_WORKSPACE_ALL
+  ) {
     result = result.filter((item) =>
       typeof roadmapItemMatchesPeriod === "function"
         ? roadmapItemMatchesPeriod(item, state.quarter)
@@ -390,7 +393,8 @@ function roadmapWorkspaceFilteredItems(items, state, options = {}) {
 
 function roadmapWorkspaceSort(items) {
   return [...items].sort((left, right) => {
-    const priorityDifference = Number(left.priority || 999) - Number(right.priority || 999);
+    const priorityDifference =
+      Number(left.priority || 999) - Number(right.priority || 999);
 
     if (priorityDifference !== 0) {
       return priorityDifference;
@@ -400,7 +404,10 @@ function roadmapWorkspaceSort(items) {
       return roadmapWorkspaceIsRisk(left) ? -1 : 1;
     }
 
-    return String(left.title || "").localeCompare(String(right.title || ""), "es");
+    return String(left.title || "").localeCompare(
+      String(right.title || ""),
+      "es",
+    );
   });
 }
 
@@ -436,4 +443,288 @@ function roadmapWorkspaceActivityRouteBase(programId, state, item) {
     roadmapWorkspaceEncode(item.type),
     roadmapWorkspaceEncode(item.id),
   ].join("/");
+}
+function roadmapWorkspacePlanningSource(item) {
+  const source = item?.source || {};
+
+  return String(
+    item?.planningSource ||
+      source.planningSource ||
+      source.planning_source ||
+      "internal",
+  )
+    .trim()
+    .toLowerCase() === "jira"
+    ? "jira"
+    : "internal";
+}
+
+function roadmapWorkspaceJiraFeatureStatus(value) {
+  const status = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (["deployed", "accepted", "done", "closed"].includes(status)) {
+    return "done";
+  }
+
+  if (status === "blocked") {
+    return "blocked";
+  }
+
+  if (
+    [
+      "in progress",
+      "analysing",
+      "analysis in progress",
+      "analysis in review",
+      "ready to verify",
+    ].includes(status)
+  ) {
+    return "on-track";
+  }
+
+  if (["new", "backlog", "to do"].includes(status)) {
+    return "planned";
+  }
+
+  return "pending";
+}
+
+function roadmapWorkspaceJiraFeatureItems(programId) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const rows = Array.isArray(DATA?.jiraWorkspaceFeatures)
+    ? DATA.jiraWorkspaceFeatures
+    : [];
+
+  return rows
+    .map((row, index) => {
+      const jiraKey = String(
+        row.jiraKey || row.key || row.issueKey || row.id || "",
+      ).trim();
+
+      const product = roadmapWorkspaceNormalizeProduct(
+        row.product || row.productId || "",
+      );
+
+      const country = String(row.country || row.countryId || "")
+        .trim()
+        .toUpperCase();
+
+      const capabilityIds = [
+        ...new Set(
+          (Array.isArray(row.capabilityIds)
+            ? row.capabilityIds
+            : String(row.capabilityIds || row.capabilityId || "").split(
+                /[|,;\n]+/,
+              )
+          )
+            .map((value) =>
+              String(value || "")
+                .trim()
+                .toLowerCase(),
+            )
+            .filter(Boolean),
+        ),
+      ];
+
+      const statusRaw = String(
+        row.statusRaw || row.status || row.currentStatus || "",
+      ).trim();
+
+      const trackRaw = String(row.track || row.roadmapTrack || "functional")
+        .trim()
+        .toLowerCase();
+
+      const track = ["technical", "tecnico", "técnico", "tech"].includes(
+        trackRaw,
+      )
+        ? "technical"
+        : "functional";
+
+      const title = String(
+        row.featureName ||
+          row.name ||
+          row.summary ||
+          row.title ||
+          jiraKey ||
+          `Feature JIRA ${index + 1}`,
+      ).trim();
+
+      const discarded =
+        row.jiraDiscarded === true ||
+        row.discarded === true ||
+        ["true", "1", "yes", "si", "sí"].includes(
+          String(row.jiraDiscarded ?? row.discarded ?? "")
+            .trim()
+            .toLowerCase(),
+        );
+
+      /*
+       * ===================================================
+       * PROGRAM INCREMENT -> VENTANA TEMPORAL
+       * ===================================================
+       *
+       * El XLSX no informa fechas exactas de calendario,
+       * pero sí el Program Increment.
+       *
+       * Para el cronograma utilizamos el PI como ventana
+       * oficial de planificación:
+       *
+       * Q1 -> enero   - marzo
+       * Q2 -> abril   - junio
+       * Q3 -> julio   - septiembre
+       * Q4 -> octubre - diciembre
+       *
+       * No estamos inventando una fecha de entrega:
+       * representamos gráficamente la ventana del PI.
+       */
+
+      const programIncrement = String(
+        row.programIncrement || row.pi || row.PI || "",
+      ).trim();
+
+      const piToken = programIncrement.toUpperCase().replace(/\s+/g, "");
+
+      let startDate = String(row.startDate || row.start_date || "").trim();
+
+      let endDate = String(row.endDate || row.end_date || "").trim();
+
+      if (!startDate && !endDate && programIncrement) {
+        const match =
+          piToken.match(/(?:20)?(\d{2})[-_/]?(?:Q|PI)?([1-4])/) ||
+          piToken.match(/(?:Q|PI)([1-4])[-_/]?(?:20)?(\d{2})/);
+
+        let year = null;
+        let quarter = null;
+
+        if (match) {
+          if (/^Q|^PI/.test(piToken)) {
+            quarter = Number(match[1]);
+
+            year = 2000 + Number(match[2]);
+          } else {
+            year = 2000 + Number(match[1]);
+
+            quarter = Number(match[2]);
+          }
+        }
+
+        if (Number.isFinite(year) && Number.isFinite(quarter)) {
+          const windows = {
+            1: {
+              start: `${year}-01-01`,
+              end: `${year}-03-31`,
+            },
+
+            2: {
+              start: `${year}-04-01`,
+              end: `${year}-06-30`,
+            },
+
+            3: {
+              start: `${year}-07-01`,
+              end: `${year}-09-30`,
+            },
+
+            4: {
+              start: `${year}-10-01`,
+              end: `${year}-12-31`,
+            },
+          };
+
+          startDate = windows[quarter]?.start || "";
+
+          endDate = windows[quarter]?.end || "";
+        }
+      }
+
+      return {
+        ...row,
+
+        id:
+          jiraKey ||
+          ["jira-feature", normalizedProgramId, product, country, index].join(
+            "::",
+          ),
+
+        programId: String(row.programId || "").trim() || normalizedProgramId,
+
+        product,
+
+        country,
+
+        capabilityIds,
+
+        type: "feature",
+
+        typeLabel: "Feature JIRA",
+
+        track,
+
+        planningSource: "jira",
+
+        title,
+
+        initiative: title,
+
+        summary: String(
+          row.summary || row.featureName || row.name || "",
+        ).trim(),
+
+        description: String(
+          row.description || row.summary || row.featureName || "",
+        ).trim(),
+
+        status: roadmapWorkspaceJiraFeatureStatus(statusRaw),
+
+        statusRaw,
+
+        progress: Number.isFinite(Number(row.progress))
+          ? Math.max(0, Math.min(100, Number(row.progress)))
+          : 0,
+
+        priority: row.priority || "",
+
+        blockedIssues: Number(row.blockedIssues) || 0,
+
+        totalStories: Number(row.totalStories) || 0,
+
+        startDate,
+
+        endDate,
+
+        targetDate: endDate,
+
+        programIncrement,
+
+        jiraKey,
+
+        jiraUrl: String(row.jiraUrl || row.url || "").trim(),
+
+        jiraDiscarded: discarded,
+
+        source: row,
+      };
+    })
+    .filter((item) => {
+      if (!item.id || item.jiraDiscarded) {
+        return false;
+      }
+
+      if (
+        normalizedProgramId &&
+        item.programId &&
+        item.programId !== normalizedProgramId
+      ) {
+        return false;
+      }
+
+      return true;
+    });
 }
