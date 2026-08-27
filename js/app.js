@@ -274,18 +274,16 @@ function roadmapJiraIntervalDurationMs(interval, now = new Date()) {
   let endDate = parseValidDate(interval.endAt);
 
   /*
-   * Un estado abierto continúa hasta ahora,
-   * salvo Closed.
+   * Closed y Discarded son estados terminales.
    *
-   * Closed es terminal:
-   * el tiempo termina al entrar en Closed.
+   * Si el histórico representa el estado terminal como
+   * último intervalo abierto, su duración es 0 porque el
+   * ciclo termina exactamente al entrar en ese estado.
    *
-   * Blocked sí sigue acumulando tiempo
-   * bloqueado, pero posteriormente no
-   * contará como tiempo efectivo.
+   * El resto de estados abiertos continúa hasta ahora.
    */
   if (!endDate) {
-    if (status === "Closed") {
+    if (status === "Closed" || status === "Discarded") {
       return 0;
     }
 
@@ -330,12 +328,13 @@ function buildRoadmapJiraMetrics(history, now = new Date()) {
     byStatus[status] += durationMs;
 
     /*
-     * Closed no forma parte de la
-     * duración del ciclo porque el
-     * ciclo termina justo al entrar
-     * en Closed.
+     * Closed y Discarded son terminales.
+     *
+     * El ciclo termina exactamente al entrar en cualquiera
+     * de esos estados, por lo que el propio intervalo
+     * terminal no forma parte de la duración del ciclo.
      */
-    if (status !== "Closed") {
+    if (status !== "Closed" && status !== "Discarded") {
       cycleTimeMs += durationMs;
     }
 
@@ -358,14 +357,20 @@ function buildRoadmapJiraMetrics(history, now = new Date()) {
 
   const isClosed = currentStatus === "Closed";
 
+  const isDiscarded = currentStatus === "Discarded";
+
+  const isTerminal = isClosed || isDiscarded;
+
   const isBlocked = currentStatus === "Blocked";
+
+  const completedAt = isTerminal ? lastInterval?.startAt || "" : "";
 
   return {
     hasData: intervals.length > 0,
 
     intervalCount: intervals.length,
 
-    currentStatus: currentStatus,
+    currentStatus,
 
     currentStatusRaw: lastInterval?.statusRaw || currentStatus,
 
@@ -373,19 +378,23 @@ function buildRoadmapJiraMetrics(history, now = new Date()) {
 
     startedAt: firstInterval?.startAt || "",
 
-    completedAt: isClosed ? lastInterval?.startAt || "" : "",
+    completedAt,
 
-    isClosed: isClosed,
+    isClosed,
 
-    isBlocked: isBlocked,
+    isDiscarded,
 
-    effectiveTimeMs: effectiveTimeMs,
+    isTerminal,
 
-    blockedTimeMs: blockedTimeMs,
+    isBlocked,
 
-    cycleTimeMs: cycleTimeMs,
+    effectiveTimeMs,
 
-    byStatus: byStatus,
+    blockedTimeMs,
+
+    cycleTimeMs,
+
+    byStatus,
 
     sourceFile: lastInterval?.sourceFile || "",
 
@@ -445,12 +454,6 @@ function adaptUnifiedRoadmapItem(
     .map(adaptRoadmapItemStatusHistory)
     .sort((left, right) => left.sequence - right.sequence);
 
-  /*
-   * Histórico completo.
-   *
-   * Normalmente estará vacío hasta
-   * que el usuario abra el MSA.
-   */
   const jiraMetrics =
     type === "msa"
       ? buildRoadmapJiraMetrics(normalizedJiraHistory)
@@ -458,25 +461,15 @@ function adaptUnifiedRoadmapItem(
 
   const hasJiraLifecycle = type === "msa" && jiraMetrics.hasData;
 
-  /*
-   * Índice ligero disponible desde core.
-   *
-   * Permite pintar el MSA antes de
-   * descargar todas las transiciones.
-   */
   const hasJiraIndex = type === "msa" && item.jiraHistoryAvailable === true;
 
   const jiraIndexStatus = normalizeRoadmapJiraStatus(
     item.jiraCurrentStatus || "",
   );
 
-  /*
-   * Inicio real.
-   *
-   * 1. Histórico completo si está cargado.
-   * 2. Índice ligero JIRA.
-   * 3. Planificación manual.
-   */
+  const jiraIndexIsTerminal =
+    jiraIndexStatus === "Closed" || jiraIndexStatus === "Discarded";
+
   const jiraStartDate = hasJiraLifecycle
     ? jiraMetrics.startedAt
     : hasJiraIndex
@@ -484,27 +477,28 @@ function adaptUnifiedRoadmapItem(
       : "";
 
   /*
-   * Fin real.
+   * Closed y Discarded son terminales.
    *
-   * - Closed:
-   *   termina al entrar en Closed.
+   * Histórico completo:
+   * completedAt es el instante de entrada
+   * en el estado terminal.
    *
-   * - Abierto:
-   *   la barra llega hasta hoy.
+   * Índice ligero:
+   * Apps Script ya proporciona endDate.
+   *
+   * Sólo los estados realmente abiertos
+   * llegan hasta hoy.
    */
   const jiraEndDate = hasJiraLifecycle
-    ? jiraMetrics.isClosed
+    ? jiraMetrics.isTerminal
       ? jiraMetrics.completedAt
       : new Date().toISOString()
     : hasJiraIndex
-      ? jiraIndexStatus === "Closed"
-        ? item.endDate || ""
+      ? jiraIndexIsTerminal
+        ? item.endDate || item.jiraCurrentSince || ""
         : new Date().toISOString()
       : "";
 
-  /*
-   * Estado efectivo.
-   */
   let effectiveStatus = rcsNormalizeStatus(item.status);
 
   const effectiveJiraStatus = hasJiraLifecycle
@@ -518,6 +512,12 @@ function adaptUnifiedRoadmapItem(
       effectiveStatus = "blocked";
     } else if (effectiveJiraStatus === "Closed") {
       effectiveStatus = "done";
+    } else if (effectiveJiraStatus === "Discarded") {
+      /*
+       * Discarded es terminal temporalmente,
+       * pero no equivale funcionalmente a Hecho.
+       */
+      effectiveStatus = "planned";
     } else if (
       ["Analysis In Progress", "Analysis In Review"].includes(
         effectiveJiraStatus,
@@ -529,13 +529,6 @@ function adaptUnifiedRoadmapItem(
     }
   }
 
-  /*
-   * Mientras no se haya cargado
-   * el histórico completo construimos
-   * unas métricas ligeras suficientes
-   * para reconocer visualmente el MSA
-   * como elemento JIRA.
-   */
   const effectiveJiraMetrics = hasJiraLifecycle
     ? jiraMetrics
     : hasJiraIndex
@@ -559,9 +552,15 @@ function adaptUnifiedRoadmapItem(
 
           startedAt: item.startDate || "",
 
-          completedAt: jiraIndexStatus === "Closed" ? item.endDate || "" : "",
+          completedAt: jiraIndexIsTerminal
+            ? item.endDate || item.jiraCurrentSince || ""
+            : "",
 
           isClosed: jiraIndexStatus === "Closed",
+
+          isDiscarded: jiraIndexStatus === "Discarded",
+
+          isTerminal: jiraIndexIsTerminal,
 
           isBlocked: jiraIndexStatus === "Blocked",
 
@@ -995,6 +994,12 @@ function enrichRoadmapItemWithJiraMsaIndex(item, jiraMsaIndex) {
     effectiveStatus = "blocked";
   } else if (normalizedStatus === "Closed") {
     effectiveStatus = "done";
+  } else if (normalizedStatus === "Discarded") {
+    /*
+     * Discarded termina temporalmente el MSA,
+     * pero no representa una entrega completada.
+     */
+    effectiveStatus = "planned";
   } else if (
     ["Analysis In Progress", "Analysis In Review"].includes(normalizedStatus)
   ) {
@@ -1008,14 +1013,19 @@ function enrichRoadmapItemWithJiraMsaIndex(item, jiraMsaIndex) {
 
     status: effectiveStatus,
 
-    /*
-     * La ventana JIRA ligera tiene
-     * prioridad sobre la planificación
-     * manual del MSA.
-     */
     startDate: jira.startDate || item.startDate || "",
 
-    endDate: jira.endDate || item.endDate || "",
+    /*
+     * Para Closed y Discarded, jira.endDate debe contener
+     * el instante de entrada en el estado terminal.
+     *
+     * currentSince queda como fallback defensivo para
+     * índices anteriores que no informasen endDate.
+     */
+    endDate:
+      normalizedStatus === "Closed" || normalizedStatus === "Discarded"
+        ? jira.endDate || jira.currentSince || item.endDate || ""
+        : jira.endDate || item.endDate || "",
 
     lastUpdate: jira.sourceUpdatedAt || item.lastUpdate || "",
 
@@ -1745,7 +1755,11 @@ function getRoadmapJiraLifecyclePeriod(history) {
 
       const endDate = parseValidDate(interval.endAt);
 
-      if (status === "Closed") {
+      /*
+       * Los estados terminales terminan exactamente
+       * en el momento de entrada en el estado.
+       */
+      if (status === "Closed" || status === "Discarded") {
         return startDate;
       }
 
