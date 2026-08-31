@@ -1,8 +1,7 @@
 window.APP_CONFIG = {
   runtime: "drive-json",
 
-  // Spreadsheet general.
-  // Contiene los KPIs y programas de la pantalla inicial.
+  // Spreadsheet general del Portfolio.
   portfolio: {
     id: "portfolio",
     label: "Portfolio general",
@@ -13,16 +12,24 @@ window.APP_CONFIG = {
     spreadsheetId: "19LTFh3GBHjSGnXfmjJNnK6vln_haAMFj91DtZwdn2W4",
   },
 
-  // Una fuente independiente para cada programa.
+  // Fuentes complementarias de programa.
+  //
+  // El origen GENERAL de cada programa sigue llegando
+  // dinámicamente desde la Spreadsheet de Portfolio.
+  //
+  // Aquí declaramos únicamente fuentes adicionales
+  // que no forman parte de ese catálogo general.
   programs: {
     aixbanker: {
-      id: "aixbanker",
-      label: "AIxBanker",
+      restricted: {
+        id: "aixbanker-restricted",
+        label: "AIxBanker Restricted",
 
-      driveJsonUrl:
-        "https://script.google.com/a/macros/bbva.com/s/AKfycbxS5sOUrD2uteuE-F93dT9z0AAVfoUvl7zGa7nXypp1VyHEkBZu5VJw7LvTcjTMoLqvPA/exec",
+        driveJsonUrl:
+          "https://script.google.com/a/macros/bbva.com/s/AKfycbyYMD6nfs_zE8nUHm5BImowSbAkIstUGFIsvh5SeGYs_ABUmbKxAO_qizKyRIkc2oh-4g/exec",
 
-      spreadsheetId: "1biJoA0LWDToy3Q2FAP48GNB1LLohS13nbRMzpuWu5qs",
+        spreadsheetId: "1krTPKR3GdCrr3MWLOTGcuXPhQ3OVOP99izSFg63ick4",
+      },
     },
   },
 };

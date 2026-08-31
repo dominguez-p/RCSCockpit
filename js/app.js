@@ -9,6 +9,8 @@ const PROGRAM_DATA_CACHE = new Map();
 const PROGRAM_LAST_LOADED_AT = new Map();
 const PROGRAM_SOURCES = new Map();
 
+const PROGRAM_RESTRICTED_DATA_CACHE = new Map();
+
 let DATA = window.SAMPLE_DATA;
 let selectedCountry = "HL";
 let selectedSystemProduct = "blue-buddy";
@@ -4799,6 +4801,140 @@ function buildProgramSources(programs) {
 function getProgramSource(programId) {
   return PROGRAM_SOURCES.get(String(programId || "").trim()) || null;
 }
+function getProgramRestrictedSource(programId) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  if (!normalizedProgramId) {
+    return null;
+  }
+
+  return window.APP_CONFIG?.programs?.[normalizedProgramId]?.restricted || null;
+}
+
+function getEmptyRestrictedProgramData() {
+  return {
+    available: false,
+
+    sdaFinancials: [],
+    sdaResources: [],
+  };
+}
+
+function normalizeRestrictedProgramData(rawData) {
+  /*
+   * El Apps Script restricted devuelve:
+   *
+   * {
+   *   ok: true,
+   *   restricted: true,
+   *   data: {
+   *     sdaFinancials: [],
+   *     sdaResources: []
+   *   }
+   * }
+   *
+   * Mantenemos también compatibilidad con un payload
+   * directo por si en el futuro simplificamos el endpoint.
+   */
+  const payload =
+    rawData &&
+    typeof rawData === "object" &&
+    rawData.data &&
+    typeof rawData.data === "object"
+      ? rawData.data
+      : rawData || {};
+
+  return {
+    available: true,
+
+    sdaFinancials: Array.isArray(payload.sdaFinancials)
+      ? payload.sdaFinancials
+      : [],
+
+    sdaResources: Array.isArray(payload.sdaResources)
+      ? payload.sdaResources
+      : [],
+  };
+}
+
+async function loadProgramRestrictedData(programId, forceRefresh = false) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  if (!normalizedProgramId) {
+    return getEmptyRestrictedProgramData();
+  }
+
+  if (!forceRefresh && PROGRAM_RESTRICTED_DATA_CACHE.has(normalizedProgramId)) {
+    return PROGRAM_RESTRICTED_DATA_CACHE.get(normalizedProgramId);
+  }
+
+  const source = getProgramRestrictedSource(normalizedProgramId);
+
+  /*
+   * Un programa puede no tener origen restringido.
+   *
+   * Esto no es un error.
+   */
+  if (!source?.driveJsonUrl) {
+    return getEmptyRestrictedProgramData();
+  }
+
+  try {
+    const rawData = await loadConfiguredSource(source);
+
+    /*
+     * El endpoint puede responder correctamente
+     * pero indicar que el dataset restringido
+     * no está disponible para este usuario.
+     */
+    if (rawData?.ok === false) {
+      console.info(
+        `[RCS Cockpit] El usuario no dispone de datos restringidos para ${normalizedProgramId}.`,
+      );
+
+      return getEmptyRestrictedProgramData();
+    }
+
+    const restrictedData = normalizeRestrictedProgramData(rawData);
+
+    /*
+     * Los datos restringidos sólo se mantienen
+     * en memoria durante la sesión actual.
+     *
+     * No se persisten en localStorage,
+     * sessionStorage ni IndexedDB.
+     */
+    PROGRAM_RESTRICTED_DATA_CACHE.set(normalizedProgramId, restrictedData);
+
+    return restrictedData;
+  } catch (error) {
+    /*
+     * =====================================================
+     * RESTRICTED ES OPCIONAL
+     * =====================================================
+     *
+     * Un error de permisos, autorización, timeout,
+     * indisponibilidad o cualquier otro problema
+     * de este origen nunca debe impedir cargar
+     * el programa general.
+     *
+     * El frontend recibe simplemente:
+     *
+     * {
+     *   available: false,
+     *   sdaFinancials: [],
+     *   sdaResources: []
+     * }
+     * =====================================================
+     */
+    console.info(
+      `[RCS Cockpit] No se ha podido cargar el origen restringido de ${normalizedProgramId}.`,
+      error,
+    );
+
+    return getEmptyRestrictedProgramData();
+  }
+}
 function getActiveDataSource() {
   const { programId } = getCurrentRoute();
 
@@ -4811,6 +4947,12 @@ function getActiveDataSource() {
 
 function getEmptyProgramData() {
   return {
+    /*
+     * =====================================================
+     * MODELO GENERAL
+     * =====================================================
+     */
+
     modules: [],
     roles: [],
     priorities: [],
@@ -4831,41 +4973,99 @@ function getEmptyProgramData() {
     decisionsPending: [],
     decisionsDone: [],
 
+    /*
+     * =====================================================
+     * ROADMAP
+     * =====================================================
+     */
+
     roadmapItems: [],
 
     roadmapItemActivities: [],
 
     /*
-     * Índice ligero.
+     * Índice ligero JIRA.
      *
      * Sí pertenece al core.
      */
     jiraMsaIndex: [],
 
     /*
-     * Histórico pesado.
+     * Histórico pesado JIRA.
      *
-     * Sólo on-demand.
+     * Sólo se carga on-demand.
      */
     roadmapItemStatusHistory: [],
 
     /*
      * Features JIRA.
      *
-     * Sólo on-demand.
+     * Sólo se cargan on-demand.
      */
     jiraWorkspaceFeatures: [],
 
+    /*
+     * Modelo legado.
+     */
     projects: [],
     projectPhases: [],
 
     msas: [],
     msaPhases: [],
 
+    /*
+     * =====================================================
+     * TEAM
+     * =====================================================
+     */
+
     teams: [],
+
+    /*
+     * =====================================================
+     * PRODUCTO
+     * =====================================================
+     */
 
     productCatalog: [],
     productFeatures: [],
+
+    /*
+     * =====================================================
+     * SDA GENERAL
+     * =====================================================
+     *
+     * Fuente:
+     * Spreadsheet general AIxBanker.
+     *
+     * Nunca contiene información sensible.
+     */
+
+    sdaFlights: [],
+
+    sdaDeliverables: [],
+
+    /*
+     * =====================================================
+     * SDA RESTRICTED
+     * =====================================================
+     *
+     * Se carga desde un origen independiente.
+     *
+     * Si el usuario no puede acceder:
+     *
+     * available = false
+     *
+     * y el resto del Cockpit continúa funcionando.
+     */
+
+    restricted: {
+      available: false,
+
+      sdaFinancials: [],
+
+      sdaResources: [],
+    },
   };
 }
 
@@ -5262,33 +5462,74 @@ async function loadProgramDataset(programId, dataset, params = {}) {
   });
 }
 async function loadProgramData(programId, forceRefresh = false) {
-  if (!forceRefresh && PROGRAM_DATA_CACHE.has(programId)) {
-    return PROGRAM_DATA_CACHE.get(programId);
+  const normalizedProgramId = String(programId || "").trim();
+
+  if (!forceRefresh && PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+    return PROGRAM_DATA_CACHE.get(normalizedProgramId);
   }
 
-  const source = getProgramSource(programId);
+  const source = getProgramSource(normalizedProgramId);
 
   if (!source) {
     throw new Error(
-      `No existe un origen configurado para el programa ${programId}`,
+      `No existe un origen configurado para el programa ${normalizedProgramId}`,
     );
   }
 
   if (!source.driveJsonUrl) {
     throw new Error(
-      `El programa ${programId} no tiene driveJsonUrl configurado`,
+      `El programa ${normalizedProgramId} no tiene driveJsonUrl configurado`,
     );
   }
 
+  /*
+   * =====================================================
+   * GENERAL
+   * =====================================================
+   *
+   * Es obligatorio.
+   *
+   * Si falla, la carga del programa falla igual que hasta
+   * ahora.
+   */
   const rawData = await loadConfiguredSource(source);
 
-  const programData = normalizeProgramData(programId, rawData);
+  const programData = normalizeProgramData(normalizedProgramId, rawData);
 
-  PROGRAM_DATA_CACHE.set(programId, programData);
+  /*
+   * =====================================================
+   * RESTRICTED
+   * =====================================================
+   *
+   * Es opcional.
+   *
+   * loadProgramRestrictedData() encapsula cualquier error
+   * de autorización o indisponibilidad y devuelve:
+   *
+   * {
+   *   available: false,
+   *   sdaFinancials: [],
+   *   sdaResources: []
+   * }
+   *
+   * cuando el usuario no puede consultar ese origen.
+   */
+  const restricted = await loadProgramRestrictedData(
+    normalizedProgramId,
+    forceRefresh,
+  );
 
-  PROGRAM_LAST_LOADED_AT.set(programId, new Date());
+  const completeProgramData = {
+    ...programData,
 
-  return programData;
+    restricted,
+  };
+
+  PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
+
+  PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, new Date());
+
+  return completeProgramData;
 }
 
 function renderCurrentRoute(
@@ -5388,6 +5629,18 @@ function resetRcsProgramDataModes() {
 
   /*
    * =====================================================
+   * RESTRICTED
+   * =====================================================
+   *
+   * Los datos restringidos sólo permanecen en memoria.
+   *
+   * Nunca utilizamos localStorage, sessionStorage
+   * ni persistencia del navegador para este dataset.
+   */
+  PROGRAM_RESTRICTED_DATA_CACHE.clear();
+
+  /*
+   * =====================================================
    * FEATURES JIRA ON-DEMAND
    * =====================================================
    */
@@ -5399,21 +5652,6 @@ function resetRcsProgramDataModes() {
    * =====================================================
    * HISTÓRICOS MSA ON-DEMAND
    * =====================================================
-   *
-   * IMPORTANTE:
-   *
-   * Los caches antiguos:
-   *
-   * JIRA_MSA_DATA_CACHE
-   * JIRA_MSA_DATA_REQUESTS
-   *
-   * ya no existen.
-   *
-   * Desde que la carga se hace de forma agregada
-   * para todos los MSAs del programa utilizamos:
-   *
-   * JIRA_MSA_HISTORY_CACHE
-   * JIRA_MSA_HISTORY_REQUESTS
    */
   JIRA_MSA_HISTORY_CACHE.clear();
 
