@@ -951,10 +951,12 @@ function getCoreAppData_() {
 
   /*
    * =====================================================
-   * CORE
+   * CORE EXISTENTE
    * =====================================================
    *
    * roadmapItemStatusHistory queda fuera.
+   * roadmapItemActivities se procesa aparte.
+   *
    * jiraWorkspaceFeatures queda fuera.
    *
    * jiraMsaIndex será únicamente una foto ligera.
@@ -983,12 +985,47 @@ function getCoreAppData_() {
   });
 
   /*
-   * Actividades del roadmap interno.
+   * =====================================================
+   * SDA GENERAL
+   * =====================================================
+   *
+   * Estas dos colecciones proceden de los PDFs SDA
+   * procesados por SdaImportGeneral.gs.
+   *
+   * Ninguna de ellas debe contener:
+   *
+   * - importes;
+   * - costes;
+   * - FTE sensibles;
+   * - información financiera.
+   *
+   * La información sensible vive exclusivamente
+   * en la Spreadsheet Restricted.
    */
+  const sdaFlightsSheet = spreadsheet.getSheetByName("sda_flights");
+
+  const sdaDeliverablesSheet = spreadsheet.getSheetByName("sda_deliverables");
+
+  result.sdaFlights = sdaFlightsSheet ? sheetToObjects_(sdaFlightsSheet) : [];
+
+  result.sdaDeliverables = sdaDeliverablesSheet
+    ? sheetToObjects_(sdaDeliverablesSheet)
+    : [];
+
+  /*
+   * =====================================================
+   * ROADMAP
+   * =====================================================
+   */
+
   result.roadmapItemActivities =
     getRoadmapItemActivitiesForExport_(spreadsheet);
 
   /*
+   * =====================================================
+   * JIRA
+   * =====================================================
+   *
    * Índice ligero de MSAs JIRA.
    *
    * Permite descubrir y pintar los MSAs
@@ -997,8 +1034,11 @@ function getCoreAppData_() {
   result.jiraMsaIndex = getJiraMsaIndexForExport_(spreadsheet);
 
   /*
-   * Producto.
+   * =====================================================
+   * PRODUCTO
+   * =====================================================
    */
+
   const productExperience = getProductExperienceData_(spreadsheet);
 
   result.productCatalog = productExperience.productCatalog;
@@ -1006,8 +1046,11 @@ function getCoreAppData_() {
   result.productFeatures = productExperience.productFeatures;
 
   /*
-   * Datasets diferidos.
+   * =====================================================
+   * DATASETS DIFERIDOS
+   * =====================================================
    */
+
   result.roadmapItemStatusHistory = [];
 
   result.jiraWorkspaceFeatures = [];
