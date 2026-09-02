@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="styles/roadmap-context-ux.css" />
   <link rel="icon" href="assets/favicon.ico">
   <link rel="stylesheet" href="styles/aixbanker-product-execution.css" />
+  <link rel="stylesheet" href="styles/flight-deck.css" />
 </head>
 
 <body>
@@ -94,75 +95,247 @@
   </template>
 
   <!--
-    Entrada específica del programa AIxBanker.
-
-    Por ahora esta plantilla no sustituye a la pantalla actual.
-    Se activará en el siguiente paso desde app.js.
+    AIxBanker · Departure gates.
+    La ruta program/aixbanker muestra esta landing.
   -->
   <template id="aixbanker-home-template">
-    <section class="aixbanker-home">
-      <button class="ghost-button" type="button" data-route="landing">
-        ← Volver al portfolio
-      </button>
+    <section class="flight-gates" id="flightGateLanding">
+      <div class="flight-gates-return-row">
+        <button class="ghost-button" type="button" data-route="landing">
+          ← Volver al portfolio
+        </button>
 
-      <header class="aixbanker-home-header">
-        <p class="aixbanker-home-eyebrow">
-          AIxBanker
-        </p>
+        <span class="flight-gates-terminal-label">
+          RCS TERMINAL · AIxBANKER
+        </span>
+      </div>
 
-        <h2>
-          Selecciona un producto
-        </h2>
-
-        <p>
-          Accede al roadmap, las iniciativas y la evolución de cada producto.
-        </p>
+      <header class="flight-gates-header">
+        <p>DEPARTURES · 2026</p>
+        <h2>Selecciona tu vuelo</h2>
+        <span>
+          Cada producto tiene su propio Flight Deck. Selecciona la pantalla de
+          embarque para abrir overhead, flight brief, plan de vuelo y gestión.
+        </span>
       </header>
 
-      <section class="aixbanker-product-grid" aria-label="Productos de AIxBanker">
-        <article class="aixbanker-product-card aixbanker-product-card-blue-buddy">
-          <div class="aixbanker-product-card-content">
-            <span class="aixbanker-product-label">
-              Producto
+      <section id="flightGateBoardGrid" class="flight-gate-board-grid" aria-label="Vuelos AIxBanker disponibles">
+      </section>
+    </section>
+  </template>
+
+  <!--
+    AIxBanker · Flight Deck de un producto concreto.
+    La ruta program/aixbanker/{productId} muestra esta vista.
+  -->
+  <template id="aixbanker-flight-deck-template">
+    <section class="flight-deck" id="flightDeck">
+      <div class="flight-deck-return-row">
+        <button class="ghost-button flight-deck-back" type="button" data-route="program/aixbanker">
+          ← Volver a vuelos
+        </button>
+
+        <div class="flight-deck-active-flight">
+          <span id="flightDeckGateCode">GATE —</span>
+          <strong id="flightDeckActiveFlightLabel">AIxBanker</strong>
+        </div>
+      </div>
+
+      <section class="flight-deck-overhead" aria-label="Controles superiores">
+        <div class="flight-deck-panel-label">
+          OVERHEAD
+        </div>
+
+        <nav class="flight-deck-overhead-controls" aria-label="Navegación técnica">
+          <button type="button" data-route="functional/aixbanker">
+            Functional
+          </button>
+
+          <button type="button" data-route="systems/aixbanker">
+            Systems
+          </button>
+
+          <button type="button" data-route="architecture/aixbanker">
+            Architecture
+          </button>
+        </nav>
+
+        <div class="flight-deck-source-lamps" aria-label="Fuentes de datos">
+          <span class="flight-deck-lamp is-on">
+            <i aria-hidden="true"></i>
+            SDA
+          </span>
+
+          <span class="flight-deck-lamp is-on">
+            <i aria-hidden="true"></i>
+            JIRA
+          </span>
+
+          <span class="flight-deck-lamp" id="flightDeckRestrictedLamp">
+            <i aria-hidden="true"></i>
+            Restricted
+          </span>
+        </div>
+      </section>
+
+      <section class="flight-deck-mcp" aria-label="Mode control panel">
+        <div class="flight-deck-mcp-readout">
+          <span>FLIGHT</span>
+          <strong id="flightDeckSdaCode">—</strong>
+        </div>
+
+        <div class="flight-deck-mcp-readout">
+          <span>YEAR</span>
+          <strong id="flightDeckYear">—</strong>
+        </div>
+
+        <div class="flight-deck-mcp-readout">
+          <span>WINDOW</span>
+          <strong id="flightDeckWindow">—</strong>
+        </div>
+
+        <div class="flight-deck-mcp-readout flight-deck-mcp-destination">
+          <span>DESTINATION</span>
+          <strong id="flightDeckDestination">—</strong>
+        </div>
+      </section>
+
+      <section class="flight-deck-windshield" aria-label="Flight brief">
+        <article class="flight-deck-window flight-deck-window-left">
+          <div class="flight-deck-window-content">
+            <span class="flight-deck-window-kicker">
+              Mission
             </span>
 
-            <h3>
-              Blue Buddy
-            </h3>
+            <h2 id="flightDeckProductName">
+              AIxBanker
+            </h2>
 
-            <p>
-              Roadmap, iniciativas, evolución funcional y capacidades del
-              producto Blue Buddy.
+            <p id="flightDeckMission">
+              Cargando información SDA...
             </p>
-          </div>
 
-          <button class="aixbanker-product-action" type="button" data-aixbanker-product="blue-buddy">
-            Abrir roadmap
-            <span aria-hidden="true">→</span>
-          </button>
+            <div class="flight-deck-mission-meta">
+              <span id="flightDeckProgramName">R2 AI Banker for Retail</span>
+              <span id="flightDeckCountry">Holding</span>
+            </div>
+          </div>
         </article>
 
-        <article class="aixbanker-product-card aixbanker-product-card-panorama">
-          <div class="aixbanker-product-card-content">
-            <span class="aixbanker-product-label">
-              Producto
+        <div class="flight-deck-center-post" aria-hidden="true">
+          <span>AIx</span>
+          <strong>BANKER</strong>
+        </div>
+
+        <article class="flight-deck-window flight-deck-window-right">
+          <div class="flight-deck-window-content">
+            <span class="flight-deck-window-kicker">
+              Flight brief
             </span>
 
-            <h3>
-              Panorama
-            </h3>
+            <dl class="flight-deck-brief-grid">
+              <div>
+                <dt>Sponsor</dt>
+                <dd id="flightDeckSponsor">—</dd>
+              </div>
 
-            <p>
-              Roadmap, iniciativas, evolución funcional y capacidades del
-              producto Panorama.
-            </p>
+              <div>
+                <dt>Product Owner</dt>
+                <dd id="flightDeckProductOwner">—</dd>
+              </div>
+
+              <div>
+                <dt>Program Manager</dt>
+                <dd id="flightDeckProgramManager">—</dd>
+              </div>
+
+              <div>
+                <dt>Engineering</dt>
+                <dd id="flightDeckEngineering">—</dd>
+              </div>
+            </dl>
+
+            <div class="flight-deck-country-strip">
+              <span>Beneficiary countries</span>
+              <div id="flightDeckCountries" class="flight-deck-country-list"></div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="flight-deck-instrument-panel" aria-label="Instrumentos principales">
+        <button class="flight-deck-instrument" id="flightDeckProjectTracking" type="button">
+          <span class="flight-deck-instrument-code">PFD</span>
+          <span class="flight-deck-instrument-label">Project Tracking</span>
+          <strong>Flight Plan</strong>
+          <small id="flightDeckProjectTrackingSummary">SDA + JIRA</small>
+          <span class="flight-deck-instrument-action">
+            Open
+            <b aria-hidden="true">→</b>
+          </span>
+        </button>
+
+        <button class="flight-deck-instrument" id="flightDeckTeamPlanning" type="button">
+          <span class="flight-deck-instrument-code">CREW</span>
+          <span class="flight-deck-instrument-label">Team Planning</span>
+          <strong>Crew</strong>
+          <small id="flightDeckTeamPlanningSummary">Staffing y capacidad</small>
+          <span class="flight-deck-instrument-action">
+            Open
+            <b aria-hidden="true">→</b>
+          </span>
+        </button>
+
+        <button class="flight-deck-instrument" id="flightDeckTrendingTopics" type="button">
+          <span class="flight-deck-instrument-code">ND</span>
+          <span class="flight-deck-instrument-label">Trending Topics</span>
+          <strong>Radar</strong>
+          <small id="flightDeckTrendingTopicsSummary">Riesgos y desviaciones</small>
+          <span class="flight-deck-instrument-action">
+            Open
+            <b aria-hidden="true">→</b>
+          </span>
+        </button>
+
+        <button class="flight-deck-instrument" id="flightDeckManagementReports" type="button">
+          <span class="flight-deck-instrument-code">EICAS</span>
+          <span class="flight-deck-instrument-label">Management Reports</span>
+          <strong>Instruments</strong>
+          <small id="flightDeckManagementReportsSummary">Executive summary</small>
+          <span class="flight-deck-instrument-action">
+            Open
+            <b aria-hidden="true">→</b>
+          </span>
+        </button>
+      </section>
+
+      <section class="flight-deck-pedestal" aria-label="Pedestal">
+        <div class="flight-deck-telemetry">
+          <div>
+            <span>SDA commitments</span>
+            <strong id="flightDeckDeliverablesCount">0</strong>
           </div>
 
-          <button class="aixbanker-product-action" type="button" data-aixbanker-product="panorama">
-            Abrir roadmap
-            <span aria-hidden="true">→</span>
-          </button>
-        </article>
+          <div>
+            <span>JIRA tracked</span>
+            <strong id="flightDeckJiraCount">0</strong>
+          </div>
+
+          <div>
+            <span>Risk / blocked</span>
+            <strong id="flightDeckRiskCount">0</strong>
+          </div>
+
+          <div>
+            <span>Done</span>
+            <strong id="flightDeckDoneCount">0</strong>
+          </div>
+        </div>
+
+        <button class="flight-deck-cabin-control" type="button" disabled>
+          <span>CABIN / HISTORY</span>
+          <small>Historical navigation</small>
+        </button>
       </section>
     </section>
   </template>
@@ -398,7 +571,7 @@
   <script src="js/program-adaptive-cards.js"></script>
   <script src="js/context-toolbar.js"></script>
   <script src="js/aixbanker-product-execution.js"></script>
-<script src="js/product-experience.js"></script>
+  <script src="js/product-experience.js"></script>
   <script src="js/roadmap-context-ux.js"></script>
 
   <footer class="footer">
