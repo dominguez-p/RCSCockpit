@@ -552,17 +552,31 @@ function programHomeRenderConfiguredModules(programId) {
   `;
 }
 
-renderProgram = function renderStandardProgramLanding(programId) {
+renderProgram = function renderStandardProgramLanding(
+  programId,
+  productId = null,
+) {
+  if (
+    String(programId || "").trim() === "aixbanker" &&
+    typeof renderAIxBankerHome === "function"
+  ) {
+    renderAIxBankerHome(programId, productId);
+
+    return;
+  }
+
   const program = programHomeRows("programs").find(
     (item) => String(item.id || "").trim() === String(programId || "").trim(),
   );
 
   if (!program) {
     renderLanding();
+
     return;
   }
 
   const context = programHomeBuildContext(programId);
+
   const status = programHomeStatusLabel(program.status);
 
   setHead(
@@ -573,85 +587,140 @@ renderProgram = function renderStandardProgramLanding(programId) {
 
   view.innerHTML = `
     <section class="program-home">
-      <button class="ghost-button" type="button" data-route="landing">
+
+      <button
+        class="ghost-button"
+        type="button"
+        data-route="landing"
+      >
         ← Volver al portfolio
       </button>
 
       <header class="program-home-hero">
+
         <div class="program-home-identity">
-          <span class="program-home-program-icon" aria-hidden="true">
+
+          <span
+            class="program-home-program-icon"
+            aria-hidden="true"
+          >
             ${programHomeEscape(program.icon || "●")}
           </span>
 
           <div>
+
             <div class="program-home-hero-topline">
-              <span class="pill ${programHomeStatusClass(status)}">
+
+              <span
+                class="pill ${programHomeStatusClass(status)}"
+              >
                 ${programHomeEscape(status)}
               </span>
-              <span>${programHomeEscape(selectedCountry)}</span>
+
+              <span>
+                ${programHomeEscape(selectedCountry)}
+              </span>
+
             </div>
 
-            <h2>${programHomeEscape(program.name || "Programa")}</h2>
-            <p>${programHomeEscape(program.description || "")}</p>
+            <h2>
+              ${programHomeEscape(program.name || "Programa")}
+            </h2>
+
+            <p>
+              ${programHomeEscape(program.description || "")}
+            </p>
+
           </div>
+
         </div>
 
       </header>
 
-
       ${programHomeRenderSnapshot(program, context)}
 
       <section class="program-home-section">
+
         <header class="program-home-section-header">
+
           <div>
-            <span>Vista del programa</span>
-            <h2>Mapas, arquitectura y ejecución</h2>
+            <span>
+              Vista del programa
+            </span>
+
+            <h2>
+              Mapas, arquitectura y ejecución
+            </h2>
           </div>
 
           <p>
-            Cuatro accesos comunes para todos los programas. Roadmap se
-            reorganizará en Resumen, Cronograma y Backlog en la siguiente rama.
+            Cuatro accesos comunes para todos los programas.
+            Roadmap se reorganizará en Resumen, Cronograma
+            y Backlog en la siguiente rama.
           </p>
+
         </header>
 
         ${programHomeRenderCoreModules(programId, context)}
+
       </section>
 
       ${programHomeRenderProducts(programId, context)}
 
       <section class="program-home-section">
+
         <header class="program-home-section-header">
+
           <div>
-            <span>Ambiciones RCS</span>
-            <h2>Marco común de lectura</h2>
+            <span>
+              Ambiciones RCS
+            </span>
+
+            <h2>
+              Marco común de lectura
+            </h2>
           </div>
 
           <p>
-            Esta vista prepara la estructura estratégica. La contribución real
-            de cada roadmap item se conectará en la cuarta rama.
+            Esta vista prepara la estructura estratégica.
+            La contribución real de cada roadmap item
+            se conectará en la cuarta rama.
           </p>
+
         </header>
 
         ${programHomeRenderStrategicLenses()}
+
       </section>
 
       <section class="program-home-section">
+
         <header class="program-home-section-header">
+
           <div>
-            <span>Gobierno</span>
-            <h2>Seguimiento operativo</h2>
+            <span>
+              Gobierno
+            </span>
+
+            <h2>
+              Seguimiento operativo
+            </h2>
           </div>
 
           <p>
-            Equipos, impedimentos y decisiones se mantienen accesibles sin
-            mezclar todavía la lógica de tarjetas adaptativas.
+            Equipos, impedimentos y decisiones se mantienen
+            accesibles sin mezclar todavía la lógica de
+            tarjetas adaptativas.
           </p>
+
         </header>
 
         ${programHomeRenderGovernanceModules(programId, context)}
+
       </section>
 
       ${programHomeRenderConfiguredModules(programId)}
+
     </section>
   `;
 };
