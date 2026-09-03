@@ -1386,32 +1386,39 @@ function installProductPlanComparison() {
         sources: {
           sda: true,
           msa: true,
-          features: false,
+          features: true,
         },
 
-        /*
-         * Holding comienza mostrando:
-         *
-         * - Holding
-         * - España
-         * - México
-         * - Perú
-         * - Colombia
-         *
-         * Todos son después activables/
-         * desactivables individualmente.
-         */
         holdingCountries: new Set(localCountryIds()),
 
         featuresLoading: false,
 
         featuresLoadError: false,
+
+        relationshipsLoading: false,
+
+        relationshipsLoadError: false,
+
+        relationshipsPromise: null,
       });
     }
 
-    return comparisonStates.get(key);
-  }
+    const state = comparisonStates.get(key);
 
+    if (state.relationshipsLoading === undefined) {
+      state.relationshipsLoading = false;
+    }
+
+    if (state.relationshipsLoadError === undefined) {
+      state.relationshipsLoadError = false;
+    }
+
+    if (state.relationshipsPromise === undefined) {
+      state.relationshipsPromise = null;
+    }
+
+    return state;
+  }
   function rowMatchesGeography(rowCountries, state) {
     const countries = Array.isArray(rowCountries)
       ? rowCountries
@@ -1720,15 +1727,6 @@ function installProductPlanComparison() {
           item.endDate || item.targetDate || item.nextMilestoneDate,
         );
 
-        /*
-         * Los MSAs abiertos que ya han
-         * comenzado llegan hasta hoy.
-         *
-         * Normalmente app.js ya viene
-         * con este dato enriquecido desde
-         * jiraMsaIndex, pero mantenemos
-         * este fallback defensivo.
-         */
         if (startDate && !endDate && startDate <= today) {
           endDate = new Date(
             today.getFullYear(),
@@ -1736,6 +1734,10 @@ function installProductPlanComparison() {
             today.getDate(),
           );
         }
+
+        const relationKeys = [item.id, item.jiraKey]
+          .flatMap(productPlanExtractJiraKeys)
+          .filter(Boolean);
 
         return {
           id: `msa-${item.id || item.jiraKey || item.title}`,
@@ -1763,6 +1765,8 @@ function installProductPlanComparison() {
 
           countries: parseCountries(item.country),
 
+          relationKeys: [...new Set(relationKeys)],
+
           raw: item,
         };
       })
@@ -1770,46 +1774,88 @@ function installProductPlanComparison() {
   }
 
   function collectFeatureRows(programId, productId) {
-    const items =
-      typeof roadmapWorkspaceJiraFeatureItems === "function"
-        ? roadmapWorkspaceJiraFeatureItems(programId)
-        : [];
+    const normalizedProgramId = String(programId || "").trim();
+
+    const normalizedProductId = normalizeProduct(productId);
+
+    const items = Array.isArray(DATA?.jiraWorkspaceFeatures)
+      ? DATA.jiraWorkspaceFeatures
+      : [];
 
     return items
-      .filter((item) => normalizeProduct(item.product) === productId)
-      .map((item) => ({
-        id: `feature-${item.id || item.jiraKey || item.title}`,
+      .filter((item) => {
+        const itemProgramId = String(
+          item.programId || normalizedProgramId,
+        ).trim();
 
-        sourceType: "features",
+        if (itemProgramId !== normalizedProgramId) {
+          return false;
+        }
 
-        sourceLabel: "JIRA · Feature",
+        return normalizeProduct(item.product) === normalizedProductId;
+      })
+      .map((item) => {
+        const deliverableRef = String(item.deliverable || "").trim();
 
-        sourceKey: String(
-          item.jiraKey || item.key || item.id || "Feature",
-        ).trim(),
+        const analysisId = String(item.analysisId || "")
+          .trim()
+          .toUpperCase();
 
-        title: String(
-          item.title || item.name || item.featureName || "Feature JIRA",
-        ).trim(),
+        const analysisKeys = productPlanExtractJiraKeys(analysisId);
 
-        subtitle: String(
-          item.statusRaw || item.currentStatus || item.status || "",
-        ).trim(),
+        return {
+          id: `feature-${item.id || item.jiraKey || item.name || item.summary}`,
 
-        startDate: parseDate(item.startDate),
+          sourceType: "features",
 
-        endDate: parseDate(item.endDate || item.targetDate),
+          sourceLabel: "JIRA · Feature",
 
-        countries: parseCountries(item.country),
+          sourceKey: String(item.jiraKey || item.id || "Feature").trim(),
 
-        raw: item,
-      }))
-      .filter((row) => row.startDate && row.endDate);
+          title: String(
+            item.name || item.summary || item.jiraKey || "Feature JIRA",
+          ).trim(),
+
+          subtitle: String(item.statusRaw || item.status || "").trim(),
+
+          startDate: parseDate(item.startDate),
+
+          endDate: parseDate(item.endDate || item.targetDate),
+
+          countries: parseCountries(item.country),
+
+          deliverableRef,
+
+          analysisId,
+
+          analysisKeys: [...new Set(analysisKeys)],
+
+          jiraKey: String(item.jiraKey || "")
+            .trim()
+            .toUpperCase(),
+
+          workspaceKey: String(item.workspaceKey || "")
+            .trim()
+            .toUpperCase(),
+
+          sdaId: String(item.sdaId || "").trim(),
+
+          sdaE2E: String(item.sdaE2E || "")
+            .trim()
+            .toUpperCase(),
+
+          hasPlanningDates: Boolean(
+            parseDate(item.startDate) &&
+            parseDate(item.endDate || item.targetDate),
+          ),
+
+          raw: item,
+        };
+      });
   }
 
-  function filterRows(rows, year, state) {
-    return rows
-      .filter((row) => rowMatchesGeography(row.countries, state))
+  function filterRowsByYear(rows, year) {
+    return (Array.isArray(rows) ? rows : [])
       .filter((row) => rangeOverlapsYear(row.startDate, row.endDate, year))
       .sort((left, right) => {
         const startDifference = left.startDate - right.startDate;
@@ -1823,6 +1869,14 @@ function installProductPlanComparison() {
           "es",
         );
       });
+  }
+
+  function filterRows(rows, year, state) {
+    const geographyRows = (Array.isArray(rows) ? rows : []).filter((row) =>
+      rowMatchesGeography(row.countries, state),
+    );
+
+    return filterRowsByYear(geographyRows, year);
   }
 
   function collectAvailableYears(sdaRows, msaRows, featureRows, selectedYear) {
@@ -2568,6 +2622,8 @@ function installProductPlanComparison() {
   }
 
   function renderComparison(programId, routeContext) {
+    installProductPlanRelationStyles();
+
     const program =
       typeof roadmapWorkspaceGetProgram === "function"
         ? roadmapWorkspaceGetProgram(programId)
@@ -2639,11 +2695,32 @@ function installProductPlanComparison() {
       ? collectFeatureRows(programId, productId)
       : [];
 
+    /*
+     * =====================================================
+     * FILTRO SDA
+     * =====================================================
+     *
+     * SDA es el ancla del árbol y por ello
+     * sí determina la geografía visible.
+     */
     const sdaRows = filterRows(allSdaRows, selectedYear, state);
 
-    const msaRows = filterRows(allMsaRows, selectedYear, state);
+    /*
+     * =====================================================
+     * FILTRO JIRA
+     * =====================================================
+     *
+     * Features y MSAs se restringen por año,
+     * pero NO por geografía antes de resolver
+     * la relación.
+     *
+     * Su geografía efectiva, cuando están
+     * relacionados, viene determinada por
+     * el Deliverable SDA padre.
+     */
+    const msaRows = filterRowsByYear(allMsaRows, selectedYear);
 
-    const featureRows = filterRows(allFeatureRows, selectedYear, state);
+    const featureRows = filterRowsByYear(allFeatureRows, selectedYear);
 
     const years = collectAvailableYears(
       allSdaRows,
@@ -2664,225 +2741,201 @@ function installProductPlanComparison() {
     setHead(
       `${productName} · Flight Plan`,
 
-      `Planificación SDA · Diseño MSA · Ejecución Features · ${geographyLabel}`,
+      `SDA · MSA · Features · ${geographyLabel}`,
 
       [
         "Retail Client Solutions",
         programName,
+
         requestedCountry === HOLDING_ID
           ? "Holding"
           : countryMeta(requestedCountry).label || requestedCountry,
+
         productName,
+
         "Flight Plan",
       ].join(" > "),
     );
 
-    const visibleLaneCount = [
-      state.sources.sda,
-      state.sources.msa,
-      state.sources.features,
-    ].filter(Boolean).length;
-
     view.innerHTML = `
-      <section
+    <section
+      class="
+        product-plan-comparison
+      "
+    >
+      <button
+        type="button"
         class="
-          product-plan-comparison
+          ghost-button
+          product-plan-back
+        "
+        data-route="program/${escapeHtml(programId)}/${escapeHtml(productId)}"
+      >
+        ← Volver al Flight Deck
+      </button>
+
+      <header
+        class="
+          product-plan-header
         "
       >
-        <button
-          type="button"
-          class="
-            ghost-button
-            product-plan-back
-          "
-          data-route="program/${escapeHtml(programId)}/${escapeHtml(productId)}"
-        >
-          ← Volver al Flight Deck
-        </button>
+        <div>
+          <span>
+            PRODUCT FLIGHT PLAN ·
+            ${selectedYear}
+          </span>
 
-        <header
-          class="
-            product-plan-header
-          "
-        >
-          <div>
-            <span>
-              PRODUCT FLIGHT PLAN ·
-              ${selectedYear}
-            </span>
+          <h2>
+            ${escapeHtml(productName)}
+          </h2>
 
-            <h2>
-              ${escapeHtml(productName)}
-            </h2>
+          <p>
+            Cada compromiso SDA muestra
+            debajo su diseño MSA y las
+            Features JIRA que materializan
+            su ejecución.
+          </p>
+        </div>
 
-            <p>
-              Planificación aprobada,
-              diseño y ejecución sobre
-              una única escala temporal.
-            </p>
-          </div>
+        <aside>
+          <span>
+            Ámbito
+          </span>
 
-          <aside>
-            <span>
-              Ámbito
-            </span>
+          <strong>
+            ${escapeHtml(geographyLabel)}
+          </strong>
+        </aside>
+      </header>
 
-            <strong>
-              ${escapeHtml(geographyLabel)}
-            </strong>
-          </aside>
-        </header>
-
-        <section
-          class="
-            product-plan-source-controls
-          "
-          aria-label="
-            Fuentes visibles
-          "
-        >
-          ${renderSourceToggle(
-            "sda",
-            "SDA",
-            "PLANIFICACIÓN",
-            "Compromisos y ventanas aprobadas",
-            state.sources.sda,
-            `${sdaRows.length} deliverables`,
-          )}
-
-          ${renderSourceToggle(
-            "msa",
-            "JIRA · MSAs",
-            "DISEÑO",
-            "Ciclo de análisis y diseño",
-            state.sources.msa,
-            `${msaRows.length} MSAs`,
-          )}
-
-          ${renderSourceToggle(
-            "features",
-            "JIRA · FEATURES",
-            "EJECUCIÓN",
-            featureLoaded
-              ? "Features oficiales de ejecución"
-              : "Carga bajo demanda desde JIRA",
-            state.sources.features,
-            featureLoaded ? `${featureRows.length} features` : "Cargar JIRA",
-            state.featuresLoading,
-          )}
-        </section>
-
-        ${renderGeographyControl(state)}
-
-        ${renderYearSelector(
-          programId,
-          productId,
-          years,
-          selectedYear,
-          requestedCountry,
+      <section
+        class="
+          product-plan-source-controls
+        "
+        aria-label="
+          Fuentes visibles
+        "
+      >
+        ${renderSourceToggle(
+          "sda",
+          "SDA",
+          "PLANIFICACIÓN",
+          "Ventana y estado del compromiso",
+          state.sources.sda,
+          `${sdaRows.length} deliverables`,
         )}
 
-        <section
+        ${renderSourceToggle(
+          "msa",
+          "JIRA · MSAs",
+          "DISEÑO",
+          "MSAs relacionados mediante ID Analysis",
+          state.sources.msa,
+          `${msaRows.length} MSAs`,
+        )}
+
+        ${renderSourceToggle(
+          "features",
+          "JIRA · FEATURES",
+          "EJECUCIÓN",
+          featureLoaded
+            ? "Features relacionadas con el Deliverable SDA"
+            : "Cargando relaciones JIRA",
+          state.sources.features,
+          featureLoaded ? `${featureRows.length} features` : "Relacionando...",
+          state.featuresLoading,
+        )}
+      </section>
+
+      ${renderGeographyControl(state)}
+
+      ${renderYearSelector(
+        programId,
+        productId,
+        years,
+        selectedYear,
+        requestedCountry,
+      )}
+
+      <section
+        class="
+          product-plan-timeline-shell
+        "
+      >
+        <div
           class="
-            product-plan-timeline-shell
+            product-plan-timeline-scroll
           "
         >
-          <div
-            class="
-              product-plan-timeline-scroll
-            "
-          >
-            <div
-              class="
-                product-plan-timeline
-              "
-            >
-              ${renderMonthAxis(selectedYear)}
-
-              ${
-                visibleLaneCount
-                  ? `
-                      ${
-                        state.sources.sda
-                          ? renderLane(
-                              "sda",
-                              "SDA",
-                              "Planificación",
-                              "Qué nos comprometimos a entregar",
-                              sdaRows,
-                              selectedYear,
-                            )
-                          : ""
-                      }
-
-                      ${
-                        state.sources.msa
-                          ? renderLane(
-                              "msa",
-                              "JIRA · MSAs",
-                              "Diseño",
-                              "Cuándo se analiza y diseña la solución",
-                              msaRows,
-                              selectedYear,
-                            )
-                          : ""
-                      }
-
-                      ${
-                        state.sources.features
-                          ? renderLane(
-                              "features",
-                              "JIRA · Features",
-                              "Ejecución",
-                              "Cuándo se ejecuta la entrega en JIRA",
-                              featureRows,
-                              selectedYear,
-                            )
-                          : ""
-                      }
-                    `
-                  : `
-                      <div
-                        class="
-                          product-plan-no-sources
-                        "
-                      >
-                        <strong>
-                          No hay fuentes visibles
-                        </strong>
-
-                        <span>
-                          Activa SDA, JIRA · MSAs
-                          o JIRA · Features.
-                        </span>
-                      </div>
-                    `
-              }
-            </div>
-          </div>
-        </section>
+          ${renderProductPlanGroupedTimeline(
+            sdaRows,
+            msaRows,
+            featureRows,
+            selectedYear,
+            state,
+            featureLoaded,
+          )}
+        </div>
       </section>
-    `;
+    </section>
+  `;
 
     requestAnimationFrame(() => {
       if (typeof renderSidebarCountryNavigation === "function") {
         renderSidebarCountryNavigation();
       }
+
+      /*
+       * Las Features se cargan aunque
+       * el toggle visual esté apagado.
+       *
+       * Necesitamos:
+       *
+       * Feature.deliverable
+       * Feature.analysisId
+       *
+       * para construir:
+       *
+       * SDA → Feature → MSA.
+       */
+      if (
+        !featureLoaded &&
+        !state.relationshipsLoading &&
+        !state.relationshipsLoadError
+      ) {
+        ensureProductPlanRelationshipData(programId, productId).catch(
+          console.error,
+        );
+      }
     });
   }
-
   function rerenderComparison() {
-    if (typeof roadmapWorkspaceParseRoute !== "function") {
+    const routeContext =
+      typeof roadmapWorkspaceParseRoute === "function"
+        ? roadmapWorkspaceParseRoute()
+        : null;
+
+    if (!routeContext) {
       return;
     }
 
-    const context = roadmapWorkspaceParseRoute();
+    const programId = String(routeContext.programId || "").trim();
 
-    if (String(context?.programId || "").trim() !== PROGRAM_ID) {
+    const productId = normalizeProduct(routeContext.productId);
+
+    /*
+     * Sólo repintamos cuando seguimos dentro
+     * del Product Flight Plan de AIxBanker.
+     *
+     * No comprobamos routeName porque no es
+     * necesario y evitamos depender de cómo
+     * lo devuelva roadmapWorkspaceParseRoute().
+     */
+    if (programId !== PROGRAM_ID || !productId || productId === ALL_ID) {
       return;
     }
 
-    renderRoadmapWorkspace(PROGRAM_ID, context);
+    renderComparison(programId, routeContext);
   }
 
   async function toggleSource(button) {
@@ -2912,67 +2965,69 @@ function installProductPlanComparison() {
     const nextValue = !state.sources[sourceType];
 
     /*
-     * Features:
-     *
-     * sólo accedemos a JIRA cuando
-     * el usuario las activa.
+     * SDA y MSA:
+     * únicamente controlan visibilidad.
      */
-    if (
-      sourceType === "features" &&
-      nextValue &&
-      !featuresAreLoaded(programId)
-    ) {
-      state.featuresLoading = true;
-
-      state.featuresLoadError = false;
+    if (sourceType !== "features") {
+      state.sources[sourceType] = nextValue;
 
       rerenderComparison();
 
-      if (typeof showLoadingOverlay === "function") {
-        showLoadingOverlay("Cargando Features oficiales de JIRA...");
-      }
+      return;
+    }
 
-      try {
-        const jiraData = await loadJiraFeaturesData(programId);
+    /*
+     * FEATURES
+     *
+     * La carga de Features puede haberse
+     * iniciado automáticamente aunque el
+     * toggle esté apagado, porque necesitamos:
+     *
+     * Feature.deliverable
+     * Feature.analysisId
+     *
+     * para construir toda la trazabilidad.
+     */
+    state.sources.features = nextValue;
 
-        installJiraFeaturesData(programId, jiraData);
+    state.featuresLoadError = false;
 
-        loadedFeaturePrograms.add(programId);
+    if (!nextValue) {
+      rerenderComparison();
 
-        state.sources.features = true;
+      return;
+    }
 
-        if (typeof clearDataFallbackBanner === "function") {
-          clearDataFallbackBanner();
-        }
-      } catch (error) {
-        console.error(
-          "[AIxBanker] No se han podido cargar las Features JIRA.",
-          error,
-        );
+    if (featuresAreLoaded(programId)) {
+      rerenderComparison();
 
-        state.sources.features = false;
+      return;
+    }
 
-        state.featuresLoadError = true;
+    rerenderComparison();
 
-        if (typeof showDataFallbackBanner === "function") {
-          showDataFallbackBanner(
-            "No se han podido cargar las Features JIRA. SDA y MSAs siguen disponibles.",
-          );
-        }
-      } finally {
-        state.featuresLoading = false;
+    const loaded = await ensureProductPlanRelationshipData(
+      programId,
+      productId,
+    );
 
-        if (typeof hideLoadingOverlay === "function") {
-          hideLoadingOverlay();
-        }
-
-        rerenderComparison();
+    if (loaded) {
+      if (typeof clearDataFallbackBanner === "function") {
+        clearDataFallbackBanner();
       }
 
       return;
     }
 
-    state.sources[sourceType] = nextValue;
+    state.sources.features = false;
+
+    state.featuresLoadError = true;
+
+    if (typeof showDataFallbackBanner === "function") {
+      showDataFallbackBanner(
+        "No se han podido cargar las Features JIRA. SDA y MSAs siguen disponibles.",
+      );
+    }
 
     rerenderComparison();
   }
@@ -3936,12 +3991,909 @@ function installProductPlanComparison() {
         baseRenderRoadmapWorkspace(programId, routeContext);
       };
   }
+  function productPlanExtractJiraKeys(value) {
+    return [
+      ...new Set(
+        (String(value || "").match(/\b[A-Z][A-Z0-9]+-\d+\b/gi) || []).map(
+          (key) => String(key).trim().toUpperCase(),
+        ),
+      ),
+    ];
+  }
 
+  function productPlanExtractDeliverableIds(value) {
+    return [
+      ...new Set(
+        (String(value || "").match(/\b\d{6,}\b/g) || []).map((id) =>
+          String(id).trim(),
+        ),
+      ),
+    ];
+  }
+
+  function productPlanRelationText(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/\[[^\]]+\]/g, " ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function productPlanSdaDeliverableIds(sdaRow) {
+    const raw = sdaRow?.raw && typeof sdaRow.raw === "object" ? sdaRow.raw : {};
+
+    return [raw.deliverableId, raw.sdaDeliverableId, sdaRow?.deliverableId]
+      .flatMap(productPlanExtractDeliverableIds)
+      .filter(Boolean);
+  }
+
+  function productPlanFeatureMatchesSda(featureRow, sdaRow) {
+    const sdaIds = new Set(productPlanSdaDeliverableIds(sdaRow));
+
+    const featureIds = productPlanExtractDeliverableIds(
+      featureRow?.deliverableRef,
+    );
+
+    if (featureIds.some((id) => sdaIds.has(id))) {
+      return true;
+    }
+
+    /*
+     * Fallback únicamente cuando JIRA entrega
+     * el campo Deliverable como texto en lugar
+     * del ID SDA.
+     *
+     * Exigimos cadenas suficientemente largas
+     * para evitar relaciones por palabras
+     * genéricas como "Blue Buddy".
+     */
+    const deliverableText = productPlanRelationText(featureRow?.deliverableRef);
+
+    const sdaTitle = productPlanRelationText(sdaRow?.title);
+
+    if (deliverableText.length < 12 || sdaTitle.length < 12) {
+      return false;
+    }
+
+    return (
+      deliverableText === sdaTitle ||
+      deliverableText.includes(sdaTitle) ||
+      sdaTitle.includes(deliverableText)
+    );
+  }
+
+  function productPlanMsaMatchesFeatures(msaRow, featureRows) {
+    const msaKeys = new Set(
+      Array.isArray(msaRow?.relationKeys) ? msaRow.relationKeys : [],
+    );
+
+    if (!msaKeys.size) {
+      return false;
+    }
+
+    return (Array.isArray(featureRows) ? featureRows : []).some((featureRow) =>
+      (Array.isArray(featureRow.analysisKeys)
+        ? featureRow.analysisKeys
+        : []
+      ).some((analysisKey) => msaKeys.has(analysisKey)),
+    );
+  }
+
+  function productPlanFeatureUniqueKey(row) {
+    return [row?.workspaceKey, row?.jiraKey, row?.sourceKey]
+      .map((value) =>
+        String(value || "")
+          .trim()
+          .toUpperCase(),
+      )
+      .filter(Boolean)
+      .join("::");
+  }
+
+  function productPlanMsaUniqueKey(row) {
+    return String(row?.sourceKey || row?.id || "")
+      .trim()
+      .toUpperCase();
+  }
+
+  function productPlanUniqueRows(rows, keyGetter) {
+    const result = new Map();
+
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const key = keyGetter(row);
+
+      if (key && !result.has(key)) {
+        result.set(key, row);
+      }
+    });
+
+    return [...result.values()];
+  }
+
+  function productPlanBuildSdaRelations(sdaRows, msaRows, featureRows, state) {
+    const linkedFeatureKeys = new Set();
+
+    const linkedMsaKeys = new Set();
+
+    const availableSdaRows = Array.isArray(sdaRows) ? sdaRows : [];
+
+    const availableMsaRows = Array.isArray(msaRows) ? msaRows : [];
+
+    const availableFeatureRows = Array.isArray(featureRows) ? featureRows : [];
+
+    /*
+     * =====================================================
+     * SDA ES EL ANCLA
+     * =====================================================
+     *
+     * Los sdaRows ya llegan filtrados por:
+     *
+     * - producto
+     * - año
+     * - geografía SDA
+     *
+     * A partir de aquí NO volvemos a exigir que
+     * la Feature o el MSA tengan la misma
+     * geografía.
+     *
+     * La relación oficial manda:
+     *
+     * SDA.deliverableId
+     *       ↓
+     * Feature.deliverable
+     *       ↓
+     * Feature.analysisId
+     *       ↓
+     * MSA.jiraKey / MSA.id
+     */
+    const groups = availableSdaRows.map((sdaRow) => {
+      const features = productPlanUniqueRows(
+        availableFeatureRows.filter((featureRow) =>
+          productPlanFeatureMatchesSda(featureRow, sdaRow),
+        ),
+
+        productPlanFeatureUniqueKey,
+      );
+
+      features.forEach((featureRow) => {
+        linkedFeatureKeys.add(productPlanFeatureUniqueKey(featureRow));
+      });
+
+      const msas = productPlanUniqueRows(
+        availableMsaRows.filter((msaRow) =>
+          productPlanMsaMatchesFeatures(msaRow, features),
+        ),
+
+        productPlanMsaUniqueKey,
+      );
+
+      msas.forEach((msaRow) => {
+        linkedMsaKeys.add(productPlanMsaUniqueKey(msaRow));
+      });
+
+      return {
+        sda: sdaRow,
+
+        msas,
+
+        features,
+      };
+    });
+
+    /*
+     * =====================================================
+     * JIRA SIN RELACIÓN SDA
+     * =====================================================
+     *
+     * Aquí sí aplicamos la geografía propia
+     * del elemento, porque ya no existe un
+     * Deliverable SDA que determine su ámbito.
+     */
+    const unlinkedFeatures = productPlanUniqueRows(
+      availableFeatureRows.filter((row) => {
+        const key = productPlanFeatureUniqueKey(row);
+
+        return (
+          !linkedFeatureKeys.has(key) &&
+          rowMatchesGeography(row.countries, state)
+        );
+      }),
+
+      productPlanFeatureUniqueKey,
+    );
+
+    const unlinkedMsas = productPlanUniqueRows(
+      availableMsaRows.filter((row) => {
+        const key = productPlanMsaUniqueKey(row);
+
+        return (
+          !linkedMsaKeys.has(key) && rowMatchesGeography(row.countries, state)
+        );
+      }),
+
+      productPlanMsaUniqueKey,
+    );
+
+    return {
+      groups,
+
+      unlinkedFeatures,
+
+      unlinkedMsas,
+    };
+  }
+
+  async function ensureProductPlanRelationshipData(programId, productId) {
+    if (featuresAreLoaded(programId)) {
+      return true;
+    }
+
+    const state = comparisonState(programId, productId);
+
+    /*
+     * Si renderComparison y el usuario
+     * disparan la carga al mismo tiempo,
+     * reutilizamos exactamente la misma
+     * promesa.
+     */
+    if (state.relationshipsPromise) {
+      return state.relationshipsPromise;
+    }
+
+    state.relationshipsLoading = true;
+
+    state.relationshipsLoadError = false;
+
+    state.featuresLoading = true;
+
+    state.relationshipsPromise = (async () => {
+      try {
+        const jiraData = await loadJiraFeaturesData(programId);
+
+        installJiraFeaturesData(programId, jiraData);
+
+        loadedFeaturePrograms.add(programId);
+
+        state.featuresLoadError = false;
+
+        return true;
+      } catch (error) {
+        console.error(
+          "[AIxBanker] No se han podido cargar las relaciones SDA/JIRA.",
+          error,
+        );
+
+        state.relationshipsLoadError = true;
+
+        state.featuresLoadError = true;
+
+        return false;
+      } finally {
+        state.relationshipsLoading = false;
+
+        state.featuresLoading = false;
+
+        state.relationshipsPromise = null;
+
+        rerenderComparison();
+      }
+    })();
+
+    return state.relationshipsPromise;
+  }
+
+  function renderProductPlanSdaAnchor(row, year, showPlanning) {
+    const layout = rowLayout(row, year);
+
+    const status = {
+      key: row.statusKey || "sin-estado",
+
+      label: row.statusLabel || "Sin estado",
+    };
+
+    const palette = productPlanSdaStatusPalette(status.key);
+
+    return `
+    <article
+      class="
+        product-plan-row
+        product-plan-sda-anchor
+      "
+    >
+      <div
+        class="
+          product-plan-row-info
+        "
+      >
+        <div
+          class="
+            product-plan-row-topline
+          "
+        >
+          <span
+            class="
+              product-plan-source-key
+            "
+          >
+            ${escapeHtml(row.sourceKey)}
+          </span>
+
+          <span
+            class="
+              product-plan-linked-status
+            "
+            style="
+              background:${palette.background};
+              color:${palette.text};
+              border-color:${palette.border};
+            "
+          >
+            ${escapeHtml(status.label)}
+          </span>
+
+          ${renderCountryBadges(row.countries)}
+        </div>
+
+        <strong
+          title="${escapeHtml(row.title)}"
+        >
+          ${escapeHtml(row.title)}
+        </strong>
+
+        ${
+          row.subtitle
+            ? `
+                <small>
+                  ${escapeHtml(row.subtitle)}
+                </small>
+              `
+            : ""
+        }
+      </div>
+
+      <div
+        class="
+          product-plan-row-track
+        "
+      >
+        ${renderTodayLine(year)}
+
+        ${
+          showPlanning
+            ? `
+                <span
+                  class="
+                    product-plan-bar
+                  "
+                  style="
+                    left:${layout.left}%;
+                    width:${layout.width}%;
+                    background:${palette.bar};
+                  "
+                  title="${escapeHtml(
+                    `${row.title} · ${status.label} · ` +
+                      `${formatShortDate(row.startDate)} → ${formatShortDate(
+                        row.endDate,
+                      )}`,
+                  )}"
+                >
+                  <span>
+                    ${escapeHtml(formatShortDate(row.startDate))}
+                    →
+                    ${escapeHtml(formatShortDate(row.endDate))}
+                    ·
+                    ${escapeHtml(status.label)}
+                  </span>
+                </span>
+              `
+            : `
+                <span
+                  class="
+                    product-plan-sda-hidden
+                  "
+                >
+                  Planificación SDA oculta
+                </span>
+              `
+        }
+      </div>
+    </article>
+  `;
+  }
+
+  function renderProductPlanLinkedRow(row, year, sourceType) {
+    const layout = rowLayout(row, year);
+
+    const label = sourceType === "msa" ? "MSA" : "FEATURE";
+
+    return `
+    <article
+      class="
+        product-plan-row
+        product-plan-linked-row
+        product-plan-linked-${escapeHtml(sourceType)}
+      "
+    >
+      <div
+        class="
+          product-plan-row-info
+        "
+      >
+        <div
+          class="
+            product-plan-row-topline
+          "
+        >
+          <span
+            class="
+              product-plan-linked-kind
+            "
+          >
+            ${label}
+          </span>
+
+          <span
+            class="
+              product-plan-source-key
+            "
+          >
+            ${escapeHtml(row.sourceKey)}
+          </span>
+
+          ${renderCountryBadges(row.countries)}
+        </div>
+
+        <strong
+          title="${escapeHtml(row.title)}"
+        >
+          ${escapeHtml(row.title)}
+        </strong>
+
+        ${
+          row.subtitle
+            ? `
+                <small>
+                  ${escapeHtml(row.subtitle)}
+                </small>
+              `
+            : ""
+        }
+      </div>
+
+      <div
+        class="
+          product-plan-row-track
+        "
+      >
+        ${renderTodayLine(year)}
+
+        <span
+          class="
+            product-plan-bar
+            product-plan-bar-${escapeHtml(sourceType)}
+          "
+          style="
+            left:${layout.left}%;
+            width:${layout.width}%;
+          "
+          title="${escapeHtml(
+            `${row.sourceKey} · ${row.title} · ` +
+              `${formatShortDate(row.startDate)} → ${formatShortDate(
+                row.endDate,
+              )}`,
+          )}"
+        >
+          <span>
+            ${escapeHtml(row.sourceKey)}
+            ·
+            ${escapeHtml(formatShortDate(row.startDate))}
+            →
+            ${escapeHtml(formatShortDate(row.endDate))}
+          </span>
+        </span>
+      </div>
+    </article>
+  `;
+  }
+
+  function renderProductPlanSdaGroup(group, year, state, relationshipsReady) {
+    const sda = group.sda;
+
+    const msas = Array.isArray(group.msas) ? group.msas : [];
+
+    const features = Array.isArray(group.features) ? group.features : [];
+
+    const visibleMsas = state.sources.msa ? msas : [];
+
+    const visibleFeatures = state.sources.features ? features : [];
+
+    const hasVisibleChildren = visibleMsas.length || visibleFeatures.length;
+
+    return `
+    <section
+      class="
+        product-plan-sda-group
+      "
+      data-sda-deliverable="${escapeHtml(String(sda.raw?.deliverableId || ""))}"
+    >
+      <header
+        class="
+          product-plan-sda-group-header
+        "
+      >
+        <span>
+          SDA DELIVERABLE
+        </span>
+
+        <strong>
+          ${escapeHtml(sda.title)}
+        </strong>
+
+        <div>
+          <span>
+            ${msas.length}
+            ${msas.length === 1 ? "MSA" : "MSAs"}
+          </span>
+
+          <span>
+            ${features.length}
+            ${features.length === 1 ? "Feature" : "Features"}
+          </span>
+        </div>
+      </header>
+
+      ${renderProductPlanSdaAnchor(sda, year, state.sources.sda)}
+
+      ${
+        relationshipsReady && hasVisibleChildren
+          ? `
+              <div
+                class="
+                  product-plan-linked-rows
+                "
+              >
+                ${visibleMsas
+                  .map((row) => renderProductPlanLinkedRow(row, year, "msa"))
+                  .join("")}
+
+                ${visibleFeatures
+                  .map((row) =>
+                    renderProductPlanLinkedRow(row, year, "features"),
+                  )
+                  .join("")}
+              </div>
+            `
+          : ""
+      }
+
+      ${
+        relationshipsReady &&
+        !hasVisibleChildren &&
+        (state.sources.msa || state.sources.features)
+          ? `
+              <div
+                class="
+                  product-plan-no-linked-jira
+                "
+              >
+                Sin elementos JIRA relacionados
+                con este entregable SDA.
+              </div>
+            `
+          : ""
+      }
+    </section>
+  `;
+  }
+
+  function renderProductPlanUnlinked(relations, year, state) {
+    const msas = state.sources.msa ? relations.unlinkedMsas : [];
+
+    const features = state.sources.features ? relations.unlinkedFeatures : [];
+
+    if (!msas.length && !features.length) {
+      return "";
+    }
+
+    return `
+    <details
+      class="
+        product-plan-unlinked
+      "
+    >
+      <summary>
+        <strong>
+          JIRA sin relación SDA
+        </strong>
+
+        <span>
+          ${msas.length} MSAs ·
+          ${features.length} Features
+        </span>
+      </summary>
+
+      <div>
+        ${msas
+          .map((row) => renderProductPlanLinkedRow(row, year, "msa"))
+          .join("")}
+
+        ${features
+          .map((row) => renderProductPlanLinkedRow(row, year, "features"))
+          .join("")}
+      </div>
+    </details>
+  `;
+  }
+
+  function renderProductPlanGroupedTimeline(
+    sdaRows,
+    msaRows,
+    featureRows,
+    year,
+    state,
+    relationshipsReady,
+  ) {
+    const relations = productPlanBuildSdaRelations(
+      sdaRows,
+      msaRows,
+      featureRows,
+      state,
+    );
+
+    return `
+    <div
+      class="
+        product-plan-timeline
+        product-plan-linked-timeline
+      "
+    >
+      ${renderMonthAxis(year)}
+
+      ${
+        state.relationshipsLoading
+          ? `
+              <div
+                class="
+                  product-plan-relations-loading
+                "
+              >
+                Relacionando entregables SDA
+                con MSAs y Features JIRA...
+              </div>
+            `
+          : ""
+      }
+
+      ${
+        state.relationshipsLoadError
+          ? `
+              <div
+                class="
+                  product-plan-relations-error
+                "
+              >
+                No se han podido cargar
+                las relaciones JIRA.
+              </div>
+            `
+          : ""
+      }
+
+      ${relations.groups
+        .map((group) =>
+          renderProductPlanSdaGroup(group, year, state, relationshipsReady),
+        )
+        .join("")}
+
+      ${
+        relationshipsReady
+          ? renderProductPlanUnlinked(relations, year, state)
+          : ""
+      }
+    </div>
+  `;
+  }
   document.addEventListener("click", handleComparisonClick);
 
   window.addEventListener("click", handleSidebarCountryClick, true);
 
   installStyles();
+}
+function installProductPlanRelationStyles() {
+  if (document.getElementById("productPlanRelationStyles")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+
+  style.id = "productPlanRelationStyles";
+
+  style.textContent = `
+    .product-plan-sda-group {
+      border-bottom: 1px solid #dbe4f0;
+      background: #ffffff;
+    }
+
+    .product-plan-sda-group:last-child {
+      border-bottom: 0;
+    }
+
+    .product-plan-sda-group-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 42px;
+      padding: 8px 18px 8px 22px;
+      border-left: 5px solid #1464c9;
+      border-bottom: 1px solid #edf1f6;
+      background: #f7faff;
+    }
+
+    .product-plan-sda-group-header > span {
+      flex: 0 0 auto;
+      color: #1464c9;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+    }
+
+    .product-plan-sda-group-header > strong {
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+      color: #142e55;
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .product-plan-sda-group-header > div {
+      display: inline-flex;
+      gap: 6px;
+    }
+
+    .product-plan-sda-group-header > div > span {
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #eaf0f8;
+      color: #58708f;
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .product-plan-sda-anchor {
+      min-height: 78px;
+      background: #ffffff;
+    }
+
+    .product-plan-linked-rows {
+      position: relative;
+      background: #fbfcfe;
+    }
+
+    .product-plan-linked-row {
+      min-height: 66px;
+      background: #fbfcfe;
+    }
+
+    .product-plan-linked-row
+      .product-plan-row-info {
+      position: relative;
+      padding-left: 54px;
+    }
+
+    .product-plan-linked-row
+      .product-plan-row-info::before {
+      content: "";
+      position: absolute;
+      left: 29px;
+      top: 0;
+      bottom: 50%;
+      width: 14px;
+      border-left: 1px solid #bac8da;
+      border-bottom: 1px solid #bac8da;
+      border-bottom-left-radius: 8px;
+    }
+
+    .product-plan-linked-kind {
+      flex: 0 0 auto;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+    }
+
+    .product-plan-linked-msa
+      .product-plan-linked-kind {
+      background: #eeeafd;
+      color: #6755c4;
+    }
+
+    .product-plan-linked-features
+      .product-plan-linked-kind {
+      background: #e6f7f3;
+      color: #11856f;
+    }
+
+    .product-plan-linked-status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 21px;
+      padding: 2px 7px;
+      border: 1px solid;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .product-plan-sda-hidden {
+      position: absolute;
+      top: 50%;
+      left: 12px;
+      transform: translateY(-50%);
+      color: #8493aa;
+      font-size: 10px;
+      font-style: italic;
+    }
+
+    .product-plan-no-linked-jira {
+      padding: 8px 22px 10px 54px;
+      border-top: 1px dashed #e3e9f1;
+      background: #fbfcfe;
+      color: #8a98ac;
+      font-size: 10px;
+    }
+
+    .product-plan-relations-loading,
+    .product-plan-relations-error {
+      padding: 12px 22px;
+      border-bottom: 1px solid #dce5f0;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .product-plan-relations-loading {
+      background: #f4f8ff;
+      color: #42658f;
+    }
+
+    .product-plan-relations-error {
+      background: #fff3f1;
+      color: #a83b31;
+    }
+
+    .product-plan-unlinked {
+      border-top: 4px solid #a4afbd;
+      background: #f7f9fc;
+    }
+
+    .product-plan-unlinked > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 15px 22px;
+      cursor: pointer;
+      color: #50637e;
+    }
+
+    .product-plan-unlinked > summary strong {
+      color: #233c63;
+      font-size: 13px;
+    }
+
+    .product-plan-unlinked > summary span {
+      font-size: 11px;
+      font-weight: 800;
+    }
+  `;
+
+  document.head.append(style);
 }
 
 installProductPlanComparison();
