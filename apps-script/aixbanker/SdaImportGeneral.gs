@@ -59,14 +59,47 @@ const SDA_DELIVERABLES_HEADERS = [
   "productId",
   "year",
   "sdaCode",
+
   "deliverableId",
+  "deliverableIndex",
+
   "deliverableType",
+  "suiteTags",
+
   "name",
   "startQuarter",
   "endQuarter",
   "description",
+
   "beneficiaryCountries",
+
   "goal",
+
+  "status",
+  "statusKey",
+
+  "softwareDeliverable",
+
+  "developmentEndDate",
+  "productionDate",
+  "clientDate",
+
+  "replanned",
+  "delayed",
+  "hasBlockedHistory",
+  "hasCanceledHistory",
+
+  "trackingCount",
+  "lastTrackingType",
+  "lastTrackingAt",
+  "lastTrackingComment",
+
+  "sourceType",
+
+  "mapSourceFileId",
+  "mapSourceFileName",
+  "mapSourceUpdatedAt",
+
   "sourceFileId",
   "sourceFileName",
   "sourceUpdatedAt",
@@ -90,31 +123,165 @@ function refreshSdaGeneralData() {
   }
 
   try {
-    spreadsheet.toast("Leyendo PDFs SDA...", "AIxBanker", 5);
+    spreadsheet.toast("Procesando MAP y SDA Suite...", "AIxBanker", 6);
 
     const sourceFiles = getSdaPdfFiles_();
 
     if (!sourceFiles.length) {
       throw new Error(
-        "No se han encontrado PDFs en la carpeta SDA configurada.",
+        "No se han encontrado PDFs SDA en la carpeta configurada.",
       );
     }
+
+    /*
+     * =====================================================
+     * AGRUPAMOS POR SDA
+     * =====================================================
+     *
+     * Cada SDA puede tener:
+     *
+     * - 1 MAP PDF
+     * - 1 SDA Suite PDF
+     *
+     * Si existen varias versiones del mismo tipo,
+     * utilizamos la más reciente.
+     */
+    const sourcesBySda = new Map();
+
+    const ignoredFiles = [];
+
+    sourceFiles.forEach((file) => {
+      const text = extractSdaPdfText_(file);
+
+      const sourceType = detectSdaPdfSourceType_(file, text);
+
+      if (sourceType === "unknown") {
+        ignoredFiles.push(file.getName());
+
+        return;
+      }
+
+      const sdaCode = extractSdaCode_(text, file.getName());
+
+      if (!sourcesBySda.has(sdaCode)) {
+        sourcesBySda.set(sdaCode, {
+          map: null,
+          suite: null,
+        });
+      }
+
+      const bucket = sourcesBySda.get(sdaCode);
+
+      const candidate = {
+        file,
+        text,
+
+        updatedAt: file.getLastUpdated().getTime(),
+      };
+
+      const current = bucket[sourceType];
+
+      if (!current || candidate.updatedAt > current.updatedAt) {
+        bucket[sourceType] = candidate;
+      }
+    });
 
     const flights = [];
 
     const deliverables = [];
 
-    sourceFiles.forEach((file) => {
-      const text = extractSdaPdfText_(file);
+    const diagnostics = [];
 
-      const parsed = parseSdaGeneralDocument_(file, text);
+    sourcesBySda.forEach((sources, sdaCode) => {
+      /*
+       * =================================================
+       * MAP
+       * =================================================
+       */
+      let mapParsed = null;
 
-      flights.push(parsed.flight);
+      if (sources.map) {
+        mapParsed = parseSdaGeneralDocument_(
+          sources.map.file,
+          sources.map.text,
+        );
 
-      parsed.deliverables.forEach((deliverable) => {
-        deliverables.push(deliverable);
+        flights.push(mapParsed.flight);
+      }
+
+      const mapDeliverables = Array.isArray(mapParsed?.deliverables)
+        ? mapParsed.deliverables
+        : [];
+
+      /*
+       * =================================================
+       * SDA SUITE PDF
+       * =================================================
+       */
+      const suiteDeliverables = sources.suite
+        ? extractSdaSuiteDeliverables_(
+            sources.suite.file,
+            sources.suite.text,
+            sdaCode,
+          )
+        : [];
+
+      /*
+       * =================================================
+       * FUENTE FINAL DE DELIVERABLES
+       * =================================================
+       *
+       * SDA Suite manda cuando existe.
+       *
+       * MAP queda como complemento para campos
+       * como Goal y trazabilidad del origen anterior.
+       */
+      const finalDeliverables = suiteDeliverables.length
+        ? mergeSdaSuiteAndMapDeliverables_(suiteDeliverables, mapDeliverables)
+        : mapDeliverables.map((row) => normalizeMapOnlySdaDeliverable_(row));
+
+      finalDeliverables.forEach((row) => {
+        deliverables.push(row);
+      });
+
+      /*
+       * El caso normal debe tener MAP.
+       *
+       * Este fallback evita perder completamente
+       * el producto si algún día sólo queda Suite.
+       */
+      if (!mapParsed && suiteDeliverables.length) {
+        flights.push(
+          buildSdaFlightFromSuite_(
+            sdaCode,
+            suiteDeliverables,
+            sources.suite.file,
+          ),
+        );
+      }
+
+      diagnostics.push({
+        sdaCode,
+
+        map: Boolean(sources.map),
+
+        suite: Boolean(sources.suite),
+
+        mapDeliverables: mapDeliverables.length,
+
+        suiteDeliverables: suiteDeliverables.length,
+
+        finalDeliverables: finalDeliverables.length,
       });
     });
+
+    if (!flights.length) {
+      throw new Error("No se ha podido construir ningún flight SDA.");
+    }
+
+    if (!deliverables.length) {
+      throw new Error("No se ha podido construir ningún deliverable SDA.");
+    }
 
     writeSdaSheet_(
       spreadsheet,
@@ -132,10 +299,14 @@ function refreshSdaGeneralData() {
 
     SpreadsheetApp.flush();
 
+    const suiteCount = diagnostics.filter((item) => item.suite).length;
+
     spreadsheet.toast(
-      [`SDA: ${flights.length}`, `Deliverables: ${deliverables.length}`].join(
-        " · ",
-      ),
+      [
+        `Flights: ${flights.length}`,
+        `Deliverables: ${deliverables.length}`,
+        `Suite: ${suiteCount}`,
+      ].join(" · "),
       "SDA actualizada",
       8,
     );
@@ -144,13 +315,35 @@ function refreshSdaGeneralData() {
       JSON.stringify(
         {
           files: sourceFiles.length,
+
+          ignoredFiles,
+
           flights: flights.length,
+
           deliverables: deliverables.length,
+
+          diagnostics,
+
+          statuses: deliverables.reduce((accumulator, row) => {
+            const key = row.statusKey || "sin-estado";
+
+            accumulator[key] = Number(accumulator[key] || 0) + 1;
+
+            return accumulator;
+          }, {}),
         },
         null,
         2,
       ),
     );
+  } catch (error) {
+    const message = error && error.message ? error.message : String(error);
+
+    spreadsheet.toast(message, "Error actualizando SDA", 10);
+
+    console.error(error);
+
+    throw error;
   } finally {
     lock.releaseLock();
   }
@@ -377,6 +570,10 @@ function extractSdaDeliverables_(text, context) {
       beneficiaryCountries: normalizeSdaCountries_(fields.beneficiaryCountries),
 
       goal: fields.goal,
+
+      status: fields.status,
+
+      statusKey: fields.statusKey,
 
       sourceFileId: context.sourceFileId,
 
@@ -670,11 +867,12 @@ function parseSdaDeliverableFields_(block) {
    * - Name
    * - Date
    * - Description
+   * - Status
    *
    * Por eso no asumimos un layout fijo.
    */
   const labelRegex =
-    /\b(Name|Date|Description|Beneficiary countries|Goal|Financials\s*\(EUR\)|Deliverable FTEs\s*&\s*External Services)\b/gi;
+    /\b(Name|Date|Description|Beneficiary countries|Goal|Deliverable status|Status|Estado|Estatus|Financials\s*\(EUR\)|Deliverable FTEs\s*&\s*External Services)\b/gi;
 
   const positions = [];
 
@@ -709,11 +907,15 @@ function parseSdaDeliverableFields_(block) {
    * NAME
    * =====================================================
    */
+
   let name = rawFields.Name || "";
 
   name = name
     .replace(/\bDescription\s*$/i, "")
     .replace(/\bDate\s*$/i, "")
+    .replace(/\b(?:Deliverable\s+)?Status\s*$/i, "")
+    .replace(/\bEstado\s*$/i, "")
+    .replace(/\bEstatus\s*$/i, "")
     .trim();
 
   /*
@@ -721,6 +923,7 @@ function parseSdaDeliverableFields_(block) {
    * DATE
    * =====================================================
    */
+
   const rawDate = rawFields.Date || "";
 
   const dateMatch = rawDate.match(
@@ -734,6 +937,7 @@ function parseSdaDeliverableFields_(block) {
    * DESCRIPTION
    * =====================================================
    */
+
   let description = rawFields.Description || "";
 
   /*
@@ -765,21 +969,15 @@ function parseSdaDeliverableFields_(block) {
    * BENEFICIARY COUNTRIES
    * =====================================================
    */
+
   const beneficiaryCountries = rawFields["Beneficiary countries"] || "";
 
   /*
    * =====================================================
    * GOAL
    * =====================================================
-   *
-   * Dependiendo del OCR, "Financials (EUR)"
-   * puede no haberse detectado correctamente como
-   * etiqueta independiente.
-   *
-   * Por eso aplicamos una segunda barrera:
-   * nunca permitimos que Goal contenga Financials
-   * ni Deliverable FTEs.
    */
+
   let goal = rawFields.Goal || "";
 
   goal = goal
@@ -789,12 +987,36 @@ function parseSdaDeliverableFields_(block) {
 
   /*
    * =====================================================
+   * STATUS
+   * =====================================================
+   *
+   * Dos posibilidades:
+   *
+   * 1. El PDF contiene una etiqueta Status / Estado.
+   *
+   * 2. El OCR incluye el estado dentro del bloque pero
+   *    sin una etiqueta explícita.
+   *
+   * En el segundo caso utilizamos el detector de
+   * estados oficiales SDA que ya tienes definido.
+   */
+
+  const explicitStatus = rawFields.Status || "";
+
+  const detectedStatus =
+    explicitStatus || extractSdaDeliverableStatusFromBlock_(normalized);
+
+  const normalizedStatus = normalizeSdaDeliverableStatus_(detectedStatus);
+
+  /*
+   * =====================================================
    * DEFENSAS FINALES
    * =====================================================
    *
    * Los campos generales nunca deben contener
    * información financiera.
    */
+
   description = description
     .replace(/\s*Financials\s*\(EUR\)[\s\S]*$/i, "")
     .replace(/\s*Deliverable FTEs\s*&\s*External Services[\s\S]*$/i, "")
@@ -802,10 +1024,18 @@ function parseSdaDeliverableFields_(block) {
 
   return {
     name,
+
     date,
+
     description,
+
     beneficiaryCountries,
+
     goal,
+
+    status: normalizedStatus.label,
+
+    statusKey: normalizedStatus.key,
   };
 }
 function normalizeSdaDeliverableLabel_(value) {
@@ -834,6 +1064,15 @@ function normalizeSdaDeliverableLabel_(value) {
     return "Goal";
   }
 
+  if (
+    normalized === "status" ||
+    normalized === "deliverable status" ||
+    normalized === "estado" ||
+    normalized === "estatus"
+  ) {
+    return "Status";
+  }
+
   if (normalized.startsWith("financials")) {
     return "Financials";
   }
@@ -843,6 +1082,151 @@ function normalizeSdaDeliverableLabel_(value) {
   }
 
   return String(value || "").trim();
+}
+function extractSdaDeliverableStatusFromBlock_(block) {
+  const source = String(block || "");
+
+  /*
+   * Estados oficiales SDA Suite.
+   *
+   * Orden importante:
+   * buscamos expresiones más específicas
+   * antes que cualquier fallback.
+   */
+  const knownStatuses = [
+    /\bNo\s+Iniciad[oa]\b/i,
+    /\bEn\s+Curso\b/i,
+    /\bBloquead[oa]\b/i,
+    /\bCancelad[oa]\b/i,
+    /\bFinalizad[oa]\b/i,
+
+    /*
+     * Equivalencias defensivas por si algún
+     * export futuro viene en inglés.
+     */
+    /\bNot\s+Started\b/i,
+    /\bIn\s+Progress\b/i,
+    /\bBlocked\b/i,
+    /\bCancelled\b/i,
+    /\bCanceled\b/i,
+    /\bCompleted\b/i,
+    /\bFinalized\b/i,
+  ];
+
+  for (const statusRegex of knownStatuses) {
+    const match = source.match(statusRegex);
+
+    if (match) {
+      return String(match[0] || "").trim();
+    }
+  }
+
+  return "";
+}
+
+function normalizeSdaDeliverableStatus_(value) {
+  const raw = String(value || "").trim();
+
+  if (!raw) {
+    return {
+      key: "sin-estado",
+      label: "Sin estado",
+    };
+  }
+
+  const normalized = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  /*
+   * =====================================================
+   * NO INICIADO
+   * =====================================================
+   */
+  if (
+    normalized === "no iniciado" ||
+    normalized === "no iniciada" ||
+    normalized === "not started"
+  ) {
+    return {
+      key: "no-iniciado",
+      label: "No Iniciado",
+    };
+  }
+
+  /*
+   * =====================================================
+   * EN CURSO
+   * =====================================================
+   */
+  if (
+    normalized === "en curso" ||
+    normalized === "en progreso" ||
+    normalized === "in progress"
+  ) {
+    return {
+      key: "en-curso",
+      label: "En Curso",
+    };
+  }
+
+  /*
+   * =====================================================
+   * BLOQUEADO
+   * =====================================================
+   */
+  if (
+    normalized === "bloqueado" ||
+    normalized === "bloqueada" ||
+    normalized === "blocked"
+  ) {
+    return {
+      key: "bloqueado",
+      label: "Bloqueado",
+    };
+  }
+
+  /*
+   * =====================================================
+   * CANCELADO
+   * =====================================================
+   */
+  if (
+    normalized === "cancelado" ||
+    normalized === "cancelada" ||
+    normalized === "cancelled" ||
+    normalized === "canceled"
+  ) {
+    return {
+      key: "cancelado",
+      label: "Cancelado",
+    };
+  }
+
+  /*
+   * =====================================================
+   * FINALIZADO
+   * =====================================================
+   */
+  if (
+    normalized === "finalizado" ||
+    normalized === "finalizada" ||
+    normalized === "completed" ||
+    normalized === "finalized"
+  ) {
+    return {
+      key: "finalizado",
+      label: "Finalizado",
+    };
+  }
+
+  return {
+    key: "otro",
+    label: raw,
+  };
 }
 function extractSdaResponsibles_(text) {
   const summaryText = extractSdaSection_(
@@ -970,4 +1354,983 @@ function normalizeSdaDisplayProductName_(value) {
 }
 function escapeSdaRegExp_(value) {
   return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function detectSdaPdfSourceType_(file, rawText) {
+  const fileName = String(file?.getName?.() || "")
+    .trim()
+    .toLowerCase();
+
+  const text = String(rawText || "");
+
+  /*
+   * =====================================================
+   * SDA SUITE
+   * =====================================================
+   *
+   * Detectamos primero Suite porque dentro de sus
+   * descripciones también puede aparecer "MAP:".
+   */
+  if (
+    fileName.includes("sda suite") ||
+    (/PROJECT\s+SDATOOL-\d+/i.test(text) &&
+      /Beneficiary countries/i.test(text) &&
+      /Software Deliverable/i.test(text) &&
+      /\b(No\s+Iniciado|En\s+Curso|Bloqueado|Cancelado|Finalizado)\b/i.test(
+        text,
+      ))
+  ) {
+    return "suite";
+  }
+
+  /*
+   * =====================================================
+   * MAP
+   * =====================================================
+   */
+  if (
+    fileName.startsWith("map") ||
+    /Current year financials/i.test(text) ||
+    /Current year FTEs/i.test(text) ||
+    /Deliverable\s+\d+\s*:/i.test(text)
+  ) {
+    return "map";
+  }
+
+  return "unknown";
+}
+
+function normalizeSdaSuiteText_(value) {
+  return String(value || "")
+    .normalize("NFC")
+    .replace(/[\uE000-\uF8FF]/g, " ")
+    .replace(/\u00A0/g, " ")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .trim();
+}
+
+function normalizeSdaSuiteFlatText_(value) {
+  return normalizeSdaSuiteText_(value)
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractSdaSuiteDeliverables_(file, rawText, sdaCode) {
+  const text = normalizeSdaSuiteText_(rawText);
+
+  const product = getSdaProductMetadataByCode_(sdaCode);
+
+  /*
+   * Cada deliverable comienza por:
+   *
+   * [2450764] - ...
+   */
+  const headerRegex = /^\[(\d{6,})\]\s*-\s*/gm;
+
+  const headers = [];
+
+  let match;
+
+  while ((match = headerRegex.exec(text)) !== null) {
+    headers.push({
+      id: String(match[1] || "").trim(),
+
+      start: match.index,
+    });
+  }
+
+  const sourceUpdatedAt = Utilities.formatDate(
+    file.getLastUpdated(),
+    Session.getScriptTimeZone(),
+    "yyyy-MM-dd'T'HH:mm:ss",
+  );
+
+  const rows = [];
+
+  headers.forEach((header, index) => {
+    const next = headers[index + 1];
+
+    const block = text.slice(header.start, next ? next.start : text.length);
+
+    const row = parseSdaSuiteDeliverableBlock_(block, {
+      programId: SDA_GENERAL_CONFIG.programId,
+
+      productId: product.productId,
+
+      sdaCode,
+
+      sdaDeliverableId: header.id,
+
+      sourceFileId: file.getId(),
+
+      sourceFileName: file.getName(),
+
+      sourceUpdatedAt,
+    });
+
+    if (row) {
+      rows.push(row);
+    }
+  });
+
+  Logger.log(`[SDA Suite PDF] ${sdaCode}: ${rows.length} deliverables`);
+
+  return rows;
+}
+
+function parseSdaSuiteDeliverableBlock_(block, context) {
+  const source = normalizeSdaSuiteText_(block);
+
+  const flat = normalizeSdaSuiteFlatText_(block);
+
+  const headerMatch = source.match(/^\[(\d{6,})\]\s*-\s*/);
+
+  if (!headerMatch) {
+    return null;
+  }
+
+  const body = source.slice(headerMatch[0].length);
+
+  /*
+   * El estado actual aparece justo después
+   * del título:
+   *
+   * En Curso -
+   * Finalizado -
+   * Cancelado -
+   * ...
+   */
+  const statusMatch = body.match(
+    /\b(No\s+Iniciado|En\s+Curso|Bloqueado|Cancelado|Finalizado)\s*-\s*/i,
+  );
+
+  if (!statusMatch) {
+    Logger.log(
+      `[SDA Suite PDF] Sin estado reconocible: ${context.sdaDeliverableId}`,
+    );
+
+    return null;
+  }
+
+  const status = normalizeSdaSuiteStatusLabel_(statusMatch[1]);
+
+  const rawTitle = cleanupSdaField_(body.slice(0, statusMatch.index));
+
+  const afterStatus = body.slice(statusMatch.index + statusMatch[0].length);
+
+  /*
+   * Descripción hasta que comienza la tabla:
+   *
+   * ID | Beneficiary countries | ...
+   */
+  const tableStart = afterStatus.search(/ID[\s\S]{0,12}Beneficiary countries/i);
+
+  const description = cleanupSdaField_(
+    tableStart >= 0
+      ? afterStatus.slice(0, tableStart)
+      : afterStatus.split(/\bAlerts\b/i)[0],
+  );
+
+  const currentData = extractSdaSuiteCurrentData_(
+    flat,
+    context.sdaDeliverableId,
+  );
+
+  if (!currentData) {
+    Logger.log(
+      `[SDA Suite PDF] Sin tabla estructurada: ${context.sdaDeliverableId}`,
+    );
+
+    return null;
+  }
+
+  const suiteTags = extractSdaSuiteTags_(rawTitle);
+
+  const name = cleanupSdaSuiteTitle_(rawTitle);
+
+  const tracking = extractSdaSuiteTrackingSummary_(source);
+
+  const actualDates = extractSdaSuiteActualDates_(
+    source,
+    flat,
+    currentData.rowEndIndex,
+  );
+
+  const year =
+    Number(currentData.startYear || currentData.endYear) ||
+    new Date().getFullYear();
+
+  return {
+    programId: context.programId,
+
+    productId: context.productId,
+
+    year,
+
+    sdaCode: context.sdaCode,
+
+    /*
+     * ID real de SDA Suite.
+     */
+    deliverableId: context.sdaDeliverableId,
+
+    /*
+     * Se completará con el índice MAP
+     * cuando podamos cruzar ambas fuentes.
+     */
+    deliverableIndex: "",
+
+    deliverableType: extractSdaSuiteDeliverableType_(suiteTags),
+
+    suiteTags: suiteTags.join("|"),
+
+    name,
+
+    startQuarter: formatSdaSuiteQuarter_(
+      currentData.startQuarter,
+      currentData.startYear,
+    ),
+
+    endQuarter: formatSdaSuiteQuarter_(
+      currentData.endQuarter,
+      currentData.endYear,
+    ),
+
+    description,
+
+    beneficiaryCountries: normalizeSdaSuiteCountries_(currentData.countries),
+
+    /*
+     * MAP seguirá aportando Goal cuando
+     * encontremos correspondencia.
+     */
+    goal: "",
+
+    status: status.label,
+
+    statusKey: status.key,
+
+    softwareDeliverable: currentData.softwareDeliverable,
+
+    developmentEndDate: actualDates.developmentEndDate,
+
+    productionDate: actualDates.productionDate,
+
+    clientDate: actualDates.clientDate,
+
+    replanned: tracking.replanned,
+
+    delayed: tracking.delayed,
+
+    hasBlockedHistory: tracking.hasBlockedHistory,
+
+    hasCanceledHistory: tracking.hasCanceledHistory,
+
+    trackingCount: tracking.trackingCount,
+
+    lastTrackingType: tracking.lastTrackingType,
+
+    lastTrackingAt: tracking.lastTrackingAt,
+
+    lastTrackingComment: tracking.lastTrackingComment,
+
+    sourceType: "sda-suite-pdf",
+
+    mapSourceFileId: "",
+
+    mapSourceFileName: "",
+
+    mapSourceUpdatedAt: "",
+
+    sourceFileId: context.sourceFileId,
+
+    sourceFileName: context.sourceFileName,
+
+    sourceUpdatedAt: context.sourceUpdatedAt,
+  };
+}
+
+function extractSdaSuiteCurrentData_(flatText, deliverableId) {
+  const source = String(flatText || "");
+
+  const escapedId = escapeSdaRegExp_(deliverableId);
+
+  /*
+   * Ejemplos reales:
+   *
+   * 2450764 Holding, Mexico 3Q 2026 4Q 2026 Yes
+   *
+   * 2297167 Peru 2Q 2026 4Q 2026 No
+   *
+   * 2165389 Colombia, Holding, Mexico,
+   * 2Q 2026 3Q 2026 Yes
+   */
+  const regex = new RegExp(
+    "(?:^|\\s)" +
+      escapedId +
+      "\\s+" +
+      "(.+?)\\s+" +
+      "([1-4])Q\\s+(20\\d{2})\\s+" +
+      "([1-4])Q\\s+(20\\d{2})\\s+" +
+      "(Yes|No)\\b",
+    "i",
+  );
+
+  const match = source.match(regex);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    countries: cleanupSdaField_(match[1]),
+
+    startQuarter: Number(match[2]),
+
+    startYear: Number(match[3]),
+
+    endQuarter: Number(match[4]),
+
+    endYear: Number(match[5]),
+
+    softwareDeliverable:
+      String(match[6] || "")
+        .trim()
+        .toLowerCase() === "yes"
+        ? "Yes"
+        : "No",
+
+    rowEndIndex: Number(match.index || 0) + match[0].length,
+  };
+}
+
+function normalizeSdaSuiteStatusLabel_(value) {
+  const normalized = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  if (normalized === "no iniciado") {
+    return {
+      key: "no-iniciado",
+
+      label: "No Iniciado",
+    };
+  }
+
+  if (normalized === "en curso") {
+    return {
+      key: "en-curso",
+
+      label: "En Curso",
+    };
+  }
+
+  if (normalized === "bloqueado") {
+    return {
+      key: "bloqueado",
+
+      label: "Bloqueado",
+    };
+  }
+
+  if (normalized === "cancelado") {
+    return {
+      key: "cancelado",
+
+      label: "Cancelado",
+    };
+  }
+
+  if (normalized === "finalizado") {
+    return {
+      key: "finalizado",
+
+      label: "Finalizado",
+    };
+  }
+
+  return {
+    key: "sin-estado",
+
+    label: "Sin estado",
+  };
+}
+
+function normalizeSdaSuiteCountries_(value) {
+  const aliases = {
+    HOLDING: "HL",
+
+    HLD: "HL",
+
+    HL: "HL",
+
+    SPAIN: "ES",
+
+    ESPANA: "ES",
+
+    ESP: "ES",
+
+    ES: "ES",
+
+    MEXICO: "MX",
+
+    MEX: "MX",
+
+    MX: "MX",
+
+    PERU: "PE",
+
+    PER: "PE",
+
+    PE: "PE",
+
+    COLOMBIA: "CO",
+
+    COL: "CO",
+
+    CO: "CO",
+  };
+
+  const result = String(value || "")
+    .split(/[,;|]+/)
+    .map((item) =>
+      String(item || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toUpperCase(),
+    )
+    .filter(Boolean)
+    .map((item) => aliases[item] || "")
+    .filter(Boolean);
+
+  return [...new Set(result)].join("|");
+}
+
+function extractSdaSuiteTags_(rawTitle) {
+  return [...String(rawTitle || "").matchAll(/\[([^\]]+)\]/g)]
+    .map((match) => String(match[1] || "").trim())
+    .filter(Boolean);
+}
+
+function cleanupSdaSuiteTitle_(rawTitle) {
+  return String(rawTitle || "")
+    .replace(/^(?:\s*\[[^\]]+\]\s*)+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractSdaSuiteDeliverableType_(tags) {
+  const ignored = new Set([
+    "HIT",
+    "HLD",
+    "HL",
+
+    "ES",
+    "ESP",
+
+    "MX",
+    "MEX",
+
+    "PE",
+    "PER",
+
+    "CO",
+    "COL",
+  ]);
+
+  return (Array.isArray(tags) ? tags : [])
+    .filter(
+      (tag) =>
+        !ignored.has(
+          String(tag || "")
+            .trim()
+            .toUpperCase(),
+        ),
+    )
+    .join("|");
+}
+
+function formatSdaSuiteQuarter_(quarter, year) {
+  const normalizedQuarter = Number(quarter);
+
+  const normalizedYear = Number(year);
+
+  if (
+    !Number.isFinite(normalizedQuarter) ||
+    normalizedQuarter < 1 ||
+    normalizedQuarter > 4 ||
+    !Number.isFinite(normalizedYear)
+  ) {
+    return "";
+  }
+
+  return `Q${normalizedQuarter} ` + `${normalizedYear}`;
+}
+
+function extractSdaSuiteActualDates_(block, flatText, rowEndIndex) {
+  const source = String(block || "");
+
+  const flat = String(flatText || "");
+
+  const tail = flat.slice(Number(rowEndIndex || 0));
+
+  /*
+   * Las fechas de tracking llevan:
+   *
+   * 31/07/2026, 13:06:56
+   *
+   * Las fechas productivas no llevan coma/hora.
+   */
+  const dates = [...tail.matchAll(/\b(\d{2}\/\d{2}\/20\d{2})\b(?!\s*,)/g)].map(
+    (match) => normalizeSdaSuiteDate_(match[1]),
+  );
+
+  let index = 0;
+
+  let developmentEndDate = "";
+
+  let productionDate = "";
+
+  let clientDate = "";
+
+  if (/Development End Date/i.test(source)) {
+    developmentEndDate = dates[index] || "";
+
+    index += 1;
+  }
+
+  if (/Production Date/i.test(source)) {
+    productionDate = dates[index] || "";
+
+    index += 1;
+  }
+
+  if (/EMC Date\s*\(In Customer'?s Hands\)/i.test(source)) {
+    clientDate = dates[index] || "";
+  }
+
+  return {
+    developmentEndDate,
+    productionDate,
+    clientDate,
+  };
+}
+
+function normalizeSdaSuiteDate_(value) {
+  const text = String(value || "").trim();
+
+  const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+  if (!match) {
+    return text;
+  }
+
+  return `${match[3]}-` + `${match[2]}-` + `${match[1]}`;
+}
+
+function extractSdaSuiteTrackingSummary_(block) {
+  const source = normalizeSdaSuiteFlatText_(block);
+
+  const eventRegex =
+    /\b(Deliverable Creation|Software Deliverable Change|Rescheduling|Blocked|Canceled)\b/gi;
+
+  const events = [];
+
+  let match;
+
+  while ((match = eventRegex.exec(source)) !== null) {
+    events.push({
+      type: normalizeSdaSuiteTrackingType_(match[1]),
+
+      index: match.index,
+    });
+  }
+
+  const timestampRegex = /\b(\d{2}\/\d{2}\/20\d{2}),\s*(\d{2}:\d{2}:\d{2})/g;
+
+  const timestamps = [];
+
+  while ((match = timestampRegex.exec(source)) !== null) {
+    timestamps.push({
+      value: `${match[1]} ${match[2]}`,
+
+      index: match.index,
+    });
+  }
+
+  /*
+   * En el PDF los eventos se muestran del más
+   * reciente al más antiguo.
+   */
+  const firstEvent = events[0] || null;
+
+  const firstTimestamp = timestamps[0] || null;
+
+  let lastTrackingComment = "";
+
+  if (firstEvent) {
+    const nextEvent = events[1];
+
+    const eventText = source.slice(
+      firstEvent.index,
+      nextEvent ? nextEvent.index : source.length,
+    );
+
+    /*
+     * Extraemos un comentario únicamente cuando hay
+     * texto libre después de las ventanas temporales.
+     *
+     * No es crítico para el Flight Plan.
+     */
+    const quarterMatches = [
+      ...eventText.matchAll(/\b[1-4]Q\s+20\d{2}\b|\bQ\s*[1-4]\s+20\d{2}\b/gi),
+    ];
+
+    if (quarterMatches.length) {
+      const lastQuarter = quarterMatches[quarterMatches.length - 1];
+
+      const commentCandidate = cleanupSdaField_(
+        eventText.slice(Number(lastQuarter.index || 0) + lastQuarter[0].length),
+      );
+
+      if (commentCandidate && !/^(No alerts)$/i.test(commentCandidate)) {
+        lastTrackingComment = commentCandidate;
+      }
+    }
+  }
+
+  return {
+    replanned: events.some((item) => item.type === "Rescheduling"),
+
+    /*
+     * El PDF ofrece Retrasado como alerta independiente,
+     * pero no siempre aparece en el texto expandido.
+     */
+    delayed:
+      /\bRetrasado\b/i.test(source) && !/Estados.*Retrasado/i.test(source),
+
+    hasBlockedHistory: events.some((item) => item.type === "Blocked"),
+
+    hasCanceledHistory: events.some((item) => item.type === "Canceled"),
+
+    trackingCount: events.length,
+
+    lastTrackingType: firstEvent?.type || "",
+
+    lastTrackingAt: firstTimestamp?.value || "",
+
+    lastTrackingComment,
+  };
+}
+
+function normalizeSdaSuiteTrackingType_(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized === "deliverable creation") {
+    return "Deliverable Creation";
+  }
+
+  if (normalized === "software deliverable change") {
+    return "Software Deliverable Change";
+  }
+
+  if (normalized === "rescheduling") {
+    return "Rescheduling";
+  }
+
+  if (normalized === "blocked") {
+    return "Blocked";
+  }
+
+  if (normalized === "canceled") {
+    return "Canceled";
+  }
+
+  return String(value || "").trim();
+}
+
+function getSdaProductMetadataByCode_(sdaCode) {
+  const normalized = String(sdaCode || "")
+    .trim()
+    .toUpperCase();
+
+  if (normalized === "SDATOOL-54491") {
+    return {
+      productId: "blue-buddy",
+
+      productName: "Blue Buddy",
+    };
+  }
+
+  if (normalized === "SDATOOL-55522") {
+    return {
+      productId: "panorama",
+
+      productName: "Panorama",
+    };
+  }
+
+  return {
+    productId: normalized.toLowerCase(),
+
+    productName: normalized,
+  };
+}
+
+function mergeSdaSuiteAndMapDeliverables_(suiteRows, mapRows) {
+  const mapCandidates = Array.isArray(mapRows) ? mapRows : [];
+
+  return (Array.isArray(suiteRows) ? suiteRows : []).map((suiteRow) => {
+    const mapMatch = findBestMapDeliverableForSuite_(suiteRow, mapCandidates);
+
+    if (!mapMatch) {
+      return suiteRow;
+    }
+
+    return {
+      ...suiteRow,
+
+      deliverableIndex: String(mapMatch.deliverableId || "").trim(),
+
+      /*
+       * El MAP conserva el Goal,
+       * que el PDF Suite no expone como
+       * campo propio.
+       */
+      goal: mapMatch.goal || "",
+
+      mapSourceFileId: mapMatch.sourceFileId || "",
+
+      mapSourceFileName: mapMatch.sourceFileName || "",
+
+      mapSourceUpdatedAt: mapMatch.sourceUpdatedAt || "",
+    };
+  });
+}
+
+function findBestMapDeliverableForSuite_(suiteRow, mapRows) {
+  let bestRow = null;
+
+  let bestScore = 0;
+
+  (Array.isArray(mapRows) ? mapRows : []).forEach((mapRow) => {
+    const score = scoreSdaDeliverableMatch_(suiteRow, mapRow);
+
+    if (score > bestScore) {
+      bestScore = score;
+
+      bestRow = mapRow;
+    }
+  });
+
+  /*
+   * Evitamos un join dudoso.
+   */
+  return bestScore >= 0.48 ? bestRow : null;
+}
+
+function scoreSdaDeliverableMatch_(suiteRow, mapRow) {
+  const suiteName = normalizeSdaMatchText_(suiteRow?.name);
+
+  const mapName = normalizeSdaMatchText_(mapRow?.name);
+
+  if (!suiteName || !mapName) {
+    return 0;
+  }
+
+  if (suiteName === mapName) {
+    return 1;
+  }
+
+  if (suiteName.includes(mapName) || mapName.includes(suiteName)) {
+    return 0.9;
+  }
+
+  const suiteTokens = new Set(
+    suiteName.split(/\s+/).filter((token) => token.length >= 4),
+  );
+
+  const mapTokens = new Set(
+    mapName.split(/\s+/).filter((token) => token.length >= 4),
+  );
+
+  if (!suiteTokens.size || !mapTokens.size) {
+    return 0;
+  }
+
+  const intersection = [...suiteTokens].filter((token) =>
+    mapTokens.has(token),
+  ).length;
+
+  const union = new Set([...suiteTokens, ...mapTokens]).size;
+
+  let score = union ? intersection / union : 0;
+
+  if (
+    suiteRow?.startQuarter &&
+    mapRow?.startQuarter &&
+    suiteRow.startQuarter === mapRow.startQuarter
+  ) {
+    score += 0.08;
+  }
+
+  if (
+    suiteRow?.endQuarter &&
+    mapRow?.endQuarter &&
+    suiteRow.endQuarter === mapRow.endQuarter
+  ) {
+    score += 0.08;
+  }
+
+  return Math.min(1, score);
+}
+
+function normalizeSdaMatchText_(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\[[^\]]+\]/g, " ")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeMapOnlySdaDeliverable_(row) {
+  return {
+    ...row,
+
+    deliverableIndex: String(row?.deliverableId || "").trim(),
+
+    suiteTags: "",
+
+    status: "Sin estado",
+
+    statusKey: "sin-estado",
+
+    softwareDeliverable: "",
+
+    developmentEndDate: "",
+
+    productionDate: "",
+
+    clientDate: "",
+
+    replanned: false,
+
+    delayed: false,
+
+    hasBlockedHistory: false,
+
+    hasCanceledHistory: false,
+
+    trackingCount: 0,
+
+    lastTrackingType: "",
+
+    lastTrackingAt: "",
+
+    lastTrackingComment: "",
+
+    sourceType: "map-pdf",
+
+    mapSourceFileId: row?.sourceFileId || "",
+
+    mapSourceFileName: row?.sourceFileName || "",
+
+    mapSourceUpdatedAt: row?.sourceUpdatedAt || "",
+  };
+}
+
+function buildSdaFlightFromSuite_(sdaCode, suiteRows, file) {
+  const product = getSdaProductMetadataByCode_(sdaCode);
+
+  const rows = Array.isArray(suiteRows) ? suiteRows : [];
+
+  const years = rows.map((row) => Number(row.year)).filter(Number.isFinite);
+
+  const year = years.length ? Math.max(...years) : new Date().getFullYear();
+
+  const periods = rows
+    .flatMap((row) => [
+      parseSdaNormalizedQuarter_(row.startQuarter),
+
+      parseSdaNormalizedQuarter_(row.endQuarter),
+    ])
+    .filter(Boolean)
+    .sort((left, right) => left.order - right.order);
+
+  return {
+    programId: SDA_GENERAL_CONFIG.programId,
+
+    productId: product.productId,
+
+    year,
+
+    sdaCode,
+
+    productName: product.productName,
+
+    programName: "R2 AI Banker for Retail",
+
+    country: "Holding",
+
+    description: "",
+
+    rationale: "",
+
+    sponsor: "",
+
+    productOwner: "",
+
+    programManager: "",
+
+    engineeringResponsible: "",
+
+    startQuarter: periods[0]?.label || `Q1 ${year}`,
+
+    endQuarter: periods[periods.length - 1]?.label || `Q4 ${year}`,
+
+    sourceFileId: file.getId(),
+
+    sourceFileName: file.getName(),
+
+    sourceUpdatedAt: Utilities.formatDate(
+      file.getLastUpdated(),
+      Session.getScriptTimeZone(),
+      "yyyy-MM-dd'T'HH:mm:ss",
+    ),
+  };
+}
+
+function parseSdaNormalizedQuarter_(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/^Q([1-4])\s+(20\d{2})$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const quarter = Number(match[1]);
+
+  const year = Number(match[2]);
+
+  return {
+    quarter,
+    year,
+
+    order: year * 4 + quarter,
+
+    label: `Q${quarter} ${year}`,
+  };
 }

@@ -175,23 +175,62 @@ function refreshSdaRestrictedData() {
  */
 
 function getSdaPdfFiles_() {
-  const folder = DriveApp.getFolderById(SDA_RESTRICTED_CONFIG.sourceFolderId);
+  const folderId = String(SDA_RESTRICTED_CONFIG.sourceFolderId || "").trim();
+
+  if (!folderId || folderId === "PEGA_AQUI_ID_CARPETA_SDA") {
+    throw new Error("Configura SDA_RESTRICTED_CONFIG.sourceFolderId.");
+  }
+
+  const folder = DriveApp.getFolderById(folderId);
 
   const iterator = folder.getFiles();
+
   const files = [];
 
   while (iterator.hasNext()) {
     const file = iterator.next();
 
-    if (
-      file.getMimeType() === MimeType.PDF ||
-      file.getName().toLowerCase().endsWith(".pdf")
-    ) {
-      files.push(file);
+    const fileName = String(file.getName() || "")
+      .trim()
+      .toLowerCase();
+
+    const isPdf =
+      file.getMimeType() === MimeType.PDF || fileName.endsWith(".pdf");
+
+    if (!isPdf) {
+      continue;
     }
+
+    /*
+     * =====================================================
+     * RESTRICTED SOLO PROCESA LOS MAP
+     * =====================================================
+     *
+     * La carpeta SDA contiene ahora dos tipos de PDF:
+     *
+     * MAP ...
+     *   -> Financials
+     *   -> Resources / FTEs
+     *
+     * SDA Suite ...
+     *   -> Deliverables
+     *   -> Status
+     *   -> Geography
+     *   -> Tracking
+     *
+     * La información restricted sigue obteniéndose
+     * exclusivamente de los MAP.
+     */
+    if (!fileName.startsWith("map")) {
+      continue;
+    }
+
+    files.push(file);
   }
 
-  return files.sort((a, b) => a.getName().localeCompare(b.getName(), "es"));
+  return files.sort((left, right) =>
+    left.getName().localeCompare(right.getName(), "es"),
+  );
 }
 
 function extractPdfText_(file) {
