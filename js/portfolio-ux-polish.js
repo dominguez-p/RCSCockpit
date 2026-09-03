@@ -326,8 +326,227 @@ async function portfolioUxLoadProgramContribution(
     return;
   }
 
+  /*
+   * =====================================================
+   * DEMO
+   * =====================================================
+   *
+   * Si el portfolio ya está en modo demo
+   * NO intentamos consultar ningún Apps Script.
+   *
+   * Antes estábamos intentando acceder a los
+   * orígenes reales de todos los programas
+   * incluso después de haber activado demo.
+   */
+  const portfolioIsDemo =
+    typeof getRcsDataMode === "function" &&
+    getRcsDataMode("portfolio") === "demo";
+
+  function renderDemoContribution() {
+    const demoProgramData =
+      typeof getDemoProgramData === "function"
+        ? getDemoProgramData(programId)
+        : null;
+
+    if (!demoProgramData) {
+      return false;
+    }
+
+    if (generation !== portfolioUxContributionGeneration) {
+      return true;
+    }
+
+    const demoSummary = portfolioUxContributionSummary(demoProgramData);
+
+    portfolioUxUpdateContribution(
+      programId,
+      `
+        <div
+          class="
+            portfolio-program-demo-message
+          "
+        >
+          <span
+            class="
+              portfolio-program-demo-badge
+            "
+          >
+            DEMO
+          </span>
+
+          <div>
+            <strong>
+              Datos sintéticos
+            </strong>
+
+            <small>
+              No representan información
+              operativa real
+            </small>
+          </div>
+        </div>
+
+        ${portfolioUxRenderContribution(demoSummary)}
+      `,
+      "demo",
+    );
+
+    return true;
+  }
+
+  if (portfolioIsDemo) {
+    if (!renderDemoContribution()) {
+      portfolioUxUpdateContribution(
+        programId,
+        `
+          <div
+            class="
+              portfolio-program-contribution-empty
+            "
+          >
+            <strong>
+              Demo no disponible
+            </strong>
+
+            <span>
+              Este programa no dispone
+              de datos sintéticos.
+            </span>
+          </div>
+        `,
+        "error",
+      );
+    }
+
+    return;
+  }
+
+  /*
+   * =====================================================
+   * ORIGEN
+   * =====================================================
+   */
+
+  const source =
+    typeof getProgramSource === "function" ? getProgramSource(programId) : null;
+
+  const driveJsonUrl = String(source?.driveJsonUrl || "").trim();
+
+  /*
+   * No lanzamos una petición que sabemos
+   * de antemano que va a fallar.
+   *
+   * Esto elimina los errores actuales de:
+   *
+   * interaction-orchestration
+   * openmarket
+   *
+   * cuando no tienen driveJsonUrl.
+   */
+  if (
+    !driveJsonUrl ||
+    driveJsonUrl.includes("URL_APPS_SCRIPT") ||
+    driveJsonUrl.includes("PEGA_AQUI")
+  ) {
+    if (renderDemoContribution()) {
+      return;
+    }
+
+    portfolioUxUpdateContribution(
+      programId,
+      `
+        <div
+          class="
+            portfolio-program-contribution-empty
+          "
+        >
+          <strong>
+            Origen pendiente
+          </strong>
+
+          <span>
+            El programa todavía no tiene
+            un origen de datos configurado.
+          </span>
+        </div>
+      `,
+      "error",
+    );
+
+    return;
+  }
+
   try {
-    const programData = await loadProgramData(programId, forceRefresh);
+    let programData = null;
+
+    /*
+     * ===================================================
+     * CACHE DEL PROGRAMA
+     * ===================================================
+     *
+     * Si el usuario ya ha entrado antes
+     * en el programa utilizamos el dataset
+     * completo que ya está en memoria.
+     */
+    if (
+      !forceRefresh &&
+      typeof PROGRAM_DATA_CACHE !== "undefined" &&
+      PROGRAM_DATA_CACHE instanceof Map &&
+      PROGRAM_DATA_CACHE.has(programId)
+    ) {
+      programData = PROGRAM_DATA_CACHE.get(programId);
+    }
+
+    /*
+     * ===================================================
+     * CACHE LIGERA DEL PORTFOLIO
+     * ===================================================
+     *
+     * No utilizamos PROGRAM_DATA_CACHE para
+     * almacenar este resultado porque contiene
+     * únicamente core.
+     *
+     * Si lo hiciéramos, al entrar después en
+     * AIxBanker loadProgramData() podría creer
+     * erróneamente que Restricted ya está cargado.
+     */
+    if (!(window.__portfolioUxContributionCoreCache instanceof Map)) {
+      window.__portfolioUxContributionCoreCache = new Map();
+    }
+
+    const coreCache = window.__portfolioUxContributionCoreCache;
+
+    if (!programData && !forceRefresh && coreCache.has(programId)) {
+      programData = coreCache.get(programId);
+    }
+
+    /*
+     * ===================================================
+     * CORE ONLY
+     * ===================================================
+     *
+     * La landing sólo necesita roadmapItems
+     * para calcular contribución a ambiciones.
+     *
+     * NO necesitamos:
+     *
+     * - Restricted
+     * - históricos MSA
+     * - Features JIRA
+     * - financieros SDA
+     * - recursos SDA
+     */
+    if (!programData) {
+      const rawData = await loadConfiguredSource(source, {
+        timeoutMs: 8000,
+        attempts: 1,
+        retryDelayMs: 0,
+      });
+
+      programData = normalizeProgramData(programId, rawData);
+
+      coreCache.set(programId, programData);
+    }
 
     if (generation !== portfolioUxContributionGeneration) {
       return;
@@ -341,9 +560,12 @@ async function portfolioUxLoadProgramContribution(
       "ready",
     );
   } catch (error) {
-    console.warn(
-      `[RCS Cockpit] No se pudo calcular ` +
-        `la contribución real de ${programId}.`,
+    /*
+     * Esta carga es decorativa para la
+     * landing y nunca debe bloquearla.
+     */
+    console.info(
+      `[RCS Cockpit] Contribución de ${programId} no disponible.`,
       error,
     );
 
@@ -351,47 +573,7 @@ async function portfolioUxLoadProgramContribution(
       return;
     }
 
-    const demoProgramData =
-      typeof getDemoProgramData === "function"
-        ? getDemoProgramData(programId)
-        : null;
-
-    if (demoProgramData) {
-      const demoSummary = portfolioUxContributionSummary(demoProgramData);
-
-      portfolioUxUpdateContribution(
-        programId,
-        `
-          <div
-            class="
-              portfolio-program-demo-message
-            "
-          >
-            <span
-              class="
-                portfolio-program-demo-badge
-              "
-            >
-              DEMO
-            </span>
-
-            <div>
-              <strong>
-                Datos sintéticos
-              </strong>
-
-              <small>
-                No representan información
-                operativa real
-              </small>
-            </div>
-          </div>
-
-          ${portfolioUxRenderContribution(demoSummary)}
-        `,
-        "demo",
-      );
-
+    if (renderDemoContribution()) {
       return;
     }
 
@@ -405,15 +587,12 @@ async function portfolioUxLoadProgramContribution(
           "
         >
           <strong>
-            Contribución temporalmente
-            no disponible
+            Contribución no disponible
           </strong>
 
           <span>
-            El origen del programa no
-            ha respondido.
-            Los datos reales no se
-            sustituyen por ceros.
+            El origen del programa
+            no ha respondido.
           </span>
         </div>
       `,

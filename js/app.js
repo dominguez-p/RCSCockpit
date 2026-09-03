@@ -5668,7 +5668,7 @@ function buildProgramData(programData) {
   };
 }
 
-async function loadConfiguredSource(source) {
+async function loadConfiguredSource(source, options = {}) {
   if (
     !source?.driveJsonUrl ||
     source.driveJsonUrl.includes("URL_APPS_SCRIPT") ||
@@ -5683,9 +5683,19 @@ async function loadConfiguredSource(source) {
 
   const url = new URL(source.driveJsonUrl, window.location.href);
 
-  url.searchParams.set("dataset", "core");
+  /*
+   * El endpoint principal trabaja
+   * por defecto contra el dataset core.
+   *
+   * Los datasets JIRA diferidos utilizan
+   * buildProgramDatasetUrl() y no pasan
+   * por esta función.
+   */
+  if (!url.searchParams.has("dataset")) {
+    url.searchParams.set("dataset", "core");
+  }
 
-  return loadJsonp(url.toString());
+  return loadJsonp(url.toString(), options);
 }
 async function loadJiraFeaturesData(programId, forceRefresh = false) {
   const normalizedProgramId = String(programId || "").trim();
@@ -5946,7 +5956,26 @@ async function loadPortfolioData(forceRefresh = false) {
 
   const source = window.APP_CONFIG.portfolio;
 
-  const rawData = await loadConfiguredSource(source);
+  /*
+   * =====================================================
+   * PORTFOLIO · FAST FAIL
+   * =====================================================
+   *
+   * El portfolio es únicamente la puerta
+   * de entrada al cockpit.
+   *
+   * Si Apps Script no responde rápidamente
+   * preferimos activar el modo demo y dejar
+   * la aplicación utilizable.
+   *
+   * Los programas mantienen sus tiempos
+   * normales de carga.
+   */
+  const rawData = await loadConfiguredSource(source, {
+    timeoutMs: 8000,
+    attempts: 1,
+    retryDelayMs: 0,
+  });
 
   PORTFOLIO_DATA = normalizePortfolioData(rawData);
 
