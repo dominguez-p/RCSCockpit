@@ -1918,16 +1918,74 @@ function installProductPlanComparison() {
 
     return new Date().getFullYear();
   }
+  function productPlanSdaDeliverableId(row) {
+    const raw = row?.raw && typeof row.raw === "object" ? row.raw : {};
 
-  function buildRoute(programId, productId, year, countryId) {
+    const directId = String(
+      raw.deliverableId || raw.sdaDeliverableId || row?.deliverableId || "",
+    ).trim();
+
+    if (directId) {
+      return directId;
+    }
+
+    const ids = productPlanExtractDeliverableIds(row?.sourceKey);
+
+    return ids[0] || "";
+  }
+
+  function productPlanRequestedSdaDeliverableId(routeContext) {
+    const value = String(routeContext?.capabilityId || "").trim();
+
+    if (!value || value.toUpperCase() === ALL_ID) {
+      return ALL_ID;
+    }
+
+    return value;
+  }
+
+  function productPlanResolveSdaDeliverableId(routeContext, rows) {
+    const requestedId = productPlanRequestedSdaDeliverableId(routeContext);
+
+    if (requestedId === ALL_ID) {
+      return ALL_ID;
+    }
+
+    const exists = (Array.isArray(rows) ? rows : []).some(
+      (row) => productPlanSdaDeliverableId(row) === requestedId,
+    );
+
+    return exists ? requestedId : ALL_ID;
+  }
+  function buildRoute(
+    programId,
+    productId,
+    year,
+    countryId,
+    sdaDeliverableId = ALL_ID,
+  ) {
+    const normalizedDeliverableId =
+      String(sdaDeliverableId || ALL_ID).trim() || ALL_ID;
+
     return [
       "roadmap",
       encodeURIComponent(programId),
       "timeline",
       encodeURIComponent(productId),
       encodeURIComponent(String(year)),
+
+      /*
+       * ambitionId
+       */
       ALL_ID,
-      ALL_ID,
+
+      /*
+       * capabilityId se utiliza en
+       * Product Flight Plan como filtro
+       * de Deliverable SDA.
+       */
+      encodeURIComponent(normalizedDeliverableId),
+
       encodeURIComponent(countryId || HOLDING_ID),
     ].join("/");
   }
@@ -2529,78 +2587,194 @@ function installProductPlanComparison() {
     </section>
   `;
   }
+  function renderSdaDeliverableSelector(
+    programId,
+    productId,
+    year,
+    countryId,
+    rows,
+    selectedDeliverableId,
+  ) {
+    const availableRows = Array.isArray(rows) ? rows : [];
 
+    const selectedRow = availableRows.find(
+      (row) => productPlanSdaDeliverableId(row) === selectedDeliverableId,
+    );
+
+    const selectedLabel = selectedRow
+      ? selectedRow.title
+      : "Todos los entregables SDA";
+
+    return `
+    <section
+      class="
+        product-plan-sda-selector
+      "
+      aria-label="
+        Seleccionar elemento SDA
+      "
+    >
+      <div
+        class="
+          product-plan-sda-selector-copy
+        "
+      >
+        <span>
+          ELEMENTO SDA
+        </span>
+
+        <strong>
+          ${escapeHtml(selectedLabel)}
+        </strong>
+
+        <small>
+          Selecciona un Deliverable SDA
+          para mostrar únicamente su
+          planificación, MSAs y Features
+          relacionadas.
+        </small>
+      </div>
+
+      <label
+        class="
+          product-plan-sda-selector-control
+        "
+      >
+        <span>
+          Deliverable
+        </span>
+
+        <select
+          aria-label="
+            Seleccionar Deliverable SDA
+          "
+          onchange="
+            route(this.value)
+          "
+          ${availableRows.length ? "" : "disabled"}
+        >
+          <option
+            value="${escapeHtml(
+              buildRoute(programId, productId, year, countryId, ALL_ID),
+            )}"
+            ${selectedDeliverableId === ALL_ID ? "selected" : ""}
+          >
+            Todos los entregables SDA
+            (${availableRows.length})
+          </option>
+
+          ${availableRows
+            .map((row) => {
+              const deliverableId = productPlanSdaDeliverableId(row);
+
+              const selected = deliverableId === selectedDeliverableId;
+
+              const optionLabel = [
+                deliverableId ? `D${deliverableId}` : row.sourceKey,
+
+                row.title,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+
+              return `
+                  <option
+                    value="${escapeHtml(
+                      buildRoute(
+                        programId,
+                        productId,
+                        year,
+                        countryId,
+                        deliverableId,
+                      ),
+                    )}"
+                    ${selected ? "selected" : ""}
+                  >
+                    ${escapeHtml(optionLabel)}
+                  </option>
+                `;
+            })
+            .join("")}
+        </select>
+      </label>
+    </section>
+  `;
+  }
   function renderYearSelector(
     programId,
     productId,
     years,
     selectedYear,
     countryId,
+    selectedSdaDeliverableId = ALL_ID,
   ) {
     return `
-      <section
-        class="
-          product-plan-period
-        "
-      >
-        <div>
-          <span>
-            PERIODO DEL CRONOGRAMA
-          </span>
+    <section
+      class="
+        product-plan-period
+      "
+    >
+      <div>
+        <span>
+          PERIODO DEL CRONOGRAMA
+        </span>
 
-          <strong>
-            ${selectedYear}
-          </strong>
-        </div>
+        <strong>
+          ${selectedYear}
+        </strong>
+      </div>
 
-        ${
-          years.length > 1
-            ? `
-                <nav
-                  class="
-                    product-plan-year-selector
-                  "
-                  aria-label="
-                    Seleccionar año
-                  "
-                >
-                  ${years
-                    .map(
-                      (year) => `
-                        <button
-                          type="button"
-                          class="
-                            ${year === selectedYear ? "active" : ""}
-                          "
-                          data-product-plan-year="${year}"
-                          data-product-plan-program="${escapeHtml(programId)}"
-                          data-product-plan-product="${escapeHtml(productId)}"
-                          data-product-plan-country-scope="${escapeHtml(
-                            countryId,
-                          )}"
-                          aria-pressed="${
-                            year === selectedYear ? "true" : "false"
-                          }"
-                        >
-                          ${year}
-                        </button>
-                      `,
-                    )
-                    .join("")}
-                </nav>
-              `
-            : `
-                <span
-                  class="
-                    product-plan-single-year
-                  "
-                >
-                  Único año disponible
-                </span>
-              `
-        }
-      </section>
-    `;
+      ${
+        years.length > 1
+          ? `
+              <nav
+                class="
+                  product-plan-year-selector
+                "
+                aria-label="
+                  Seleccionar año
+                "
+              >
+                ${years
+                  .map(
+                    (year) => `
+                      <button
+                        type="button"
+                        class="
+                          ${year === selectedYear ? "active" : ""}
+                        "
+                        data-product-plan-year="${year}"
+                        data-product-plan-program="${escapeHtml(programId)}"
+                        data-product-plan-product="${escapeHtml(productId)}"
+                        data-product-plan-country-scope="${escapeHtml(
+                          countryId,
+                        )}"
+                        data-product-plan-sda-deliverable="${escapeHtml(
+                          selectedSdaDeliverableId,
+                        )}"
+                        aria-pressed="${
+                          year === selectedYear ? "true" : "false"
+                        }"
+                      >
+                        ${year}
+                      </button>
+                    `,
+                  )
+                  .join("")}
+              </nav>
+            `
+          : `
+              <span
+                class="
+                  product-plan-single-year
+                "
+              >
+                Único año disponible
+              </span>
+            `
+      }
+    </section>
+  `;
   }
 
   function featuresAreLoaded(programId) {
@@ -2623,6 +2797,8 @@ function installProductPlanComparison() {
 
   function renderComparison(programId, routeContext) {
     installProductPlanRelationStyles();
+
+    installProductPlanSdaSelectorStyles();
 
     const program =
       typeof roadmapWorkspaceGetProgram === "function"
@@ -2659,6 +2835,88 @@ function installProductPlanComparison() {
 
     selectedExecutiveProduct = productId;
 
+    const state = comparisonState(programId, productId);
+
+    const allSdaRows = collectSdaRows(programId, productId);
+
+    const allMsaRows = collectMsaRows(programId, productId);
+
+    const featureLoaded = featuresAreLoaded(programId);
+
+    const allFeatureRows = featureLoaded
+      ? collectFeatureRows(programId, productId)
+      : [];
+
+    /*
+     * =====================================================
+     * SDA DISPONIBLES
+     * =====================================================
+     *
+     * Aplicamos primero:
+     *
+     * - año
+     * - geografía
+     *
+     * Esta colección alimenta el selector.
+     */
+    const availableSdaRows = filterRows(allSdaRows, selectedYear, state);
+
+    /*
+     * Validamos el Deliverable solicitado.
+     *
+     * Si la URL contiene un Deliverable que
+     * no existe en este año/geografía,
+     * volvemos automáticamente a ALL.
+     */
+    const selectedSdaDeliverableId = productPlanResolveSdaDeliverableId(
+      routeContext,
+      availableSdaRows,
+    );
+
+    /*
+     * =====================================================
+     * SDA A PINTAR
+     * =====================================================
+     */
+
+    const sdaRows =
+      selectedSdaDeliverableId === ALL_ID
+        ? availableSdaRows
+        : availableSdaRows.filter(
+            (row) =>
+              productPlanSdaDeliverableId(row) === selectedSdaDeliverableId,
+          );
+
+    /*
+     * =====================================================
+     * JIRA
+     * =====================================================
+     *
+     * No filtramos por Deliverable aquí.
+     *
+     * productPlanBuildSdaRelations()
+     * resolverá:
+     *
+     * SDA
+     *   → Feature.deliverable
+     *   → Feature.analysisId
+     *   → MSA
+     */
+    const msaRows = filterRowsByYear(allMsaRows, selectedYear);
+
+    const featureRows = filterRowsByYear(allFeatureRows, selectedYear);
+
+    const years = collectAvailableYears(
+      allSdaRows,
+      allMsaRows,
+      allFeatureRows,
+      selectedYear,
+    );
+
+    /*
+     * Conservamos el filtro SDA dentro
+     * del estado de ruta del roadmap.
+     */
     if (typeof roadmapWorkspaceState === "function") {
       const workspaceState = roadmapWorkspaceState(programId);
 
@@ -2675,59 +2933,13 @@ function installProductPlanComparison() {
       if (
         Object.prototype.hasOwnProperty.call(workspaceState, "capabilityId")
       ) {
-        workspaceState.capabilityId = ALL_ID;
+        workspaceState.capabilityId = selectedSdaDeliverableId;
       }
 
       if (Object.prototype.hasOwnProperty.call(workspaceState, "countryId")) {
         workspaceState.countryId = requestedCountry;
       }
     }
-
-    const state = comparisonState(programId, productId);
-
-    const allSdaRows = collectSdaRows(programId, productId);
-
-    const allMsaRows = collectMsaRows(programId, productId);
-
-    const featureLoaded = featuresAreLoaded(programId);
-
-    const allFeatureRows = featureLoaded
-      ? collectFeatureRows(programId, productId)
-      : [];
-
-    /*
-     * =====================================================
-     * FILTRO SDA
-     * =====================================================
-     *
-     * SDA es el ancla del árbol y por ello
-     * sí determina la geografía visible.
-     */
-    const sdaRows = filterRows(allSdaRows, selectedYear, state);
-
-    /*
-     * =====================================================
-     * FILTRO JIRA
-     * =====================================================
-     *
-     * Features y MSAs se restringen por año,
-     * pero NO por geografía antes de resolver
-     * la relación.
-     *
-     * Su geografía efectiva, cuando están
-     * relacionados, viene determinada por
-     * el Deliverable SDA padre.
-     */
-    const msaRows = filterRowsByYear(allMsaRows, selectedYear);
-
-    const featureRows = filterRowsByYear(allFeatureRows, selectedYear);
-
-    const years = collectAvailableYears(
-      allSdaRows,
-      allMsaRows,
-      allFeatureRows,
-      selectedYear,
-    );
 
     const productName = productLabel(productId);
 
@@ -2738,10 +2950,28 @@ function installProductPlanComparison() {
         ? `Holding · ${holdingScopeText(state)}`
         : countryMeta(requestedCountry).label || requestedCountry;
 
+    const selectedSdaRow =
+      selectedSdaDeliverableId === ALL_ID
+        ? null
+        : availableSdaRows.find(
+            (row) =>
+              productPlanSdaDeliverableId(row) === selectedSdaDeliverableId,
+          );
+
+    const sdaScopeLabel = selectedSdaRow
+      ? `D${selectedSdaDeliverableId} · ${selectedSdaRow.title}`
+      : "Todos los Deliverables SDA";
+
     setHead(
       `${productName} · Flight Plan`,
 
-      `SDA · MSA · Features · ${geographyLabel}`,
+      [
+        "SDA · MSA · Features",
+        geographyLabel,
+        selectedSdaRow ? `D${selectedSdaDeliverableId}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
 
       [
         "Retail Client Solutions",
@@ -2752,9 +2982,12 @@ function installProductPlanComparison() {
           : countryMeta(requestedCountry).label || requestedCountry,
 
         productName,
-
         "Flight Plan",
-      ].join(" > "),
+
+        selectedSdaRow ? `D${selectedSdaDeliverableId}` : "",
+      ]
+        .filter(Boolean)
+        .join(" > "),
     );
 
     view.innerHTML = `
@@ -2805,6 +3038,14 @@ function installProductPlanComparison() {
           <strong>
             ${escapeHtml(geographyLabel)}
           </strong>
+
+          <span>
+            SDA
+          </span>
+
+          <strong>
+            ${escapeHtml(sdaScopeLabel)}
+          </strong>
         </aside>
       </header>
 
@@ -2822,7 +3063,10 @@ function installProductPlanComparison() {
           "PLANIFICACIÓN",
           "Ventana y estado del compromiso",
           state.sources.sda,
-          `${sdaRows.length} deliverables`,
+
+          selectedSdaDeliverableId === ALL_ID
+            ? `${availableSdaRows.length} deliverables`
+            : `${sdaRows.length} de ${availableSdaRows.length} deliverables`,
         )}
 
         ${renderSourceToggle(
@@ -2838,11 +3082,15 @@ function installProductPlanComparison() {
           "features",
           "JIRA · FEATURES",
           "EJECUCIÓN",
+
           featureLoaded
             ? "Features relacionadas con el Deliverable SDA"
             : "Cargando relaciones JIRA",
+
           state.sources.features,
+
           featureLoaded ? `${featureRows.length} features` : "Relacionando...",
+
           state.featuresLoading,
         )}
       </section>
@@ -2855,6 +3103,16 @@ function installProductPlanComparison() {
         years,
         selectedYear,
         requestedCountry,
+        selectedSdaDeliverableId,
+      )}
+
+      ${renderSdaDeliverableSelector(
+        programId,
+        productId,
+        selectedYear,
+        requestedCountry,
+        availableSdaRows,
+        selectedSdaDeliverableId,
       )}
 
       <section
@@ -2874,6 +3132,7 @@ function installProductPlanComparison() {
             selectedYear,
             state,
             featureLoaded,
+            selectedSdaDeliverableId,
           )}
         </div>
       </section>
@@ -2885,19 +3144,6 @@ function installProductPlanComparison() {
         renderSidebarCountryNavigation();
       }
 
-      /*
-       * Las Features se cargan aunque
-       * el toggle visual esté apagado.
-       *
-       * Necesitamos:
-       *
-       * Feature.deliverable
-       * Feature.analysisId
-       *
-       * para construir:
-       *
-       * SDA → Feature → MSA.
-       */
       if (
         !featureLoaded &&
         !state.relationshipsLoading &&
@@ -3119,11 +3365,15 @@ function installProductPlanComparison() {
       normalizeCountry(selectedCountry) ||
       HOLDING_ID;
 
+    const sdaDeliverableId =
+      String(button.dataset.productPlanSdaDeliverable || ALL_ID).trim() ||
+      ALL_ID;
+
     if (!Number.isFinite(year) || !programId || !productId) {
       return;
     }
 
-    route(buildRoute(programId, productId, year, countryId));
+    route(buildRoute(programId, productId, year, countryId, sdaDeliverableId));
   }
 
   function handleComparisonClick(event) {
@@ -3225,7 +3475,15 @@ function installProductPlanComparison() {
 
     const year = requestedYear(context);
 
-    const targetRoute = buildRoute(programId, productId, year, countryId);
+    const sdaDeliverableId = productPlanRequestedSdaDeliverableId(context);
+
+    const targetRoute = buildRoute(
+      programId,
+      productId,
+      year,
+      countryId,
+      sdaDeliverableId,
+    );
 
     const currentRoute = String(location.hash || "")
       .replace(/^#\/?/, "")
@@ -4635,6 +4893,7 @@ function installProductPlanComparison() {
     year,
     state,
     relationshipsReady,
+    selectedSdaDeliverableId = ALL_ID,
   ) {
     const relations = productPlanBuildSdaRelations(
       sdaRows,
@@ -4642,6 +4901,8 @@ function installProductPlanComparison() {
       featureRows,
       state,
     );
+
+    const showUnlinked = selectedSdaDeliverableId === ALL_ID;
 
     return `
     <div
@@ -4682,14 +4943,38 @@ function installProductPlanComparison() {
           : ""
       }
 
-      ${relations.groups
-        .map((group) =>
-          renderProductPlanSdaGroup(group, year, state, relationshipsReady),
-        )
-        .join("")}
+      ${
+        relations.groups.length
+          ? relations.groups
+              .map((group) =>
+                renderProductPlanSdaGroup(
+                  group,
+                  year,
+                  state,
+                  relationshipsReady,
+                ),
+              )
+              .join("")
+          : `
+              <div
+                class="
+                  product-plan-no-sources
+                "
+              >
+                <strong>
+                  Sin Deliverables SDA
+                </strong>
+
+                <span>
+                  No hay elementos SDA
+                  para esta selección.
+                </span>
+              </div>
+            `
+      }
 
       ${
-        relationshipsReady
+        relationshipsReady && showUnlinked
           ? renderProductPlanUnlinked(relations, year, state)
           : ""
       }
@@ -4890,6 +5175,122 @@ function installProductPlanRelationStyles() {
     .product-plan-unlinked > summary span {
       font-size: 11px;
       font-weight: 800;
+    }
+  `;
+
+  document.head.append(style);
+}
+function installProductPlanSdaSelectorStyles() {
+  if (document.getElementById("productPlanSdaSelectorStyles")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+
+  style.id = "productPlanSdaSelectorStyles";
+
+  style.textContent = `
+    .product-plan-sda-selector {
+      display: grid;
+      grid-template-columns:
+        minmax(240px, 0.9fr)
+        minmax(320px, 1.6fr);
+      gap: 28px;
+      align-items: center;
+      padding: 18px 22px;
+      border: 1px solid #d7e1ef;
+      border-left: 5px solid #1464c9;
+      border-radius: 18px;
+      background: #ffffff;
+      box-shadow:
+        0 8px 22px
+        rgba(10, 43, 92, 0.04);
+    }
+
+    .product-plan-sda-selector-copy {
+      min-width: 0;
+    }
+
+    .product-plan-sda-selector-copy > span {
+      display: block;
+      margin-bottom: 6px;
+      color: #1464c9;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.09em;
+    }
+
+    .product-plan-sda-selector-copy > strong {
+      display: block;
+      overflow: hidden;
+      color: #071a8c;
+      font-size: 16px;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .product-plan-sda-selector-copy > small {
+      display: block;
+      margin-top: 5px;
+      color: #71819b;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .product-plan-sda-selector-control {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .product-plan-sda-selector-control > span {
+      color: #647694;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .product-plan-sda-selector-control select {
+      width: 100%;
+      min-width: 0;
+      min-height: 46px;
+      padding: 0 42px 0 14px;
+      border: 1px solid #cbd8e8;
+      border-radius: 12px;
+      outline: none;
+      background: #f7f9fc;
+      color: #17315a;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .product-plan-sda-selector-control select:hover {
+      border-color: #8da9cf;
+      background: #ffffff;
+    }
+
+    .product-plan-sda-selector-control select:focus {
+      border-color: #1464c9;
+      box-shadow:
+        0 0 0 3px
+        rgba(20, 100, 201, 0.12);
+      background: #ffffff;
+    }
+
+    .product-plan-sda-selector-control select:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    @media (max-width: 900px) {
+      .product-plan-sda-selector {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
     }
   `;
 
