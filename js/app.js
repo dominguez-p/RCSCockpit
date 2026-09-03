@@ -5962,19 +5962,28 @@ async function loadPortfolioData(forceRefresh = false) {
    * =====================================================
    *
    * El portfolio es únicamente la puerta
-   * de entrada al cockpit.
+   * de entrada al Cockpit.
    *
-   * Si Apps Script no responde rápidamente
-   * preferimos activar el modo demo y dejar
-   * la aplicación utilizable.
+   * Hacemos UN único intento de 8 segundos.
    *
-   * Los programas mantienen sus tiempos
-   * normales de carga.
+   * Antes utilizábamos:
+   *
+   * attempts: 1
+   *
+   * pero loadJsonp() utiliza "retries".
+   * Eso hacía que el valor fuese ignorado y
+   * se ejecutasen dos peticiones:
+   *
+   * Intento 1/2
+   * Intento 2/2
+   *
+   * Si falla este único intento activamos
+   * inmediatamente el modo demo.
    */
   const rawData = await loadConfiguredSource(source, {
     timeoutMs: 8000,
-    attempts: 1,
-    retryDelayMs: 0,
+
+    retries: 0,
   });
 
   PORTFOLIO_DATA = normalizePortfolioData(rawData);

@@ -12,11 +12,41 @@ function createJsonpRequest(url, timeoutMs = 25000) {
 
     let timer = null;
 
-    const cleanup = () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
+    /*
+     * =====================================================
+     * CALLBACK TARDÍO
+     * =====================================================
+     *
+     * Apps Script puede seguir ejecutándose aunque
+     * nosotros hayamos alcanzado el timeout.
+     *
+     * Eliminar inmediatamente:
+     *
+     * window[callbackName]
+     *
+     * provoca:
+     *
+     * ReferenceError:
+     * __rcsJsonp_xxx is not defined
+     *
+     * cuando la respuesta llega unos segundos después.
+     *
+     * En caso de timeout dejamos temporalmente un
+     * callback vacío que absorbe esa respuesta tardía.
+     */
+    const installLateCallback = () => {
+      window[callbackName] = () => {};
 
+      window.setTimeout(() => {
+        try {
+          delete window[callbackName];
+        } catch {
+          window[callbackName] = undefined;
+        }
+      }, 180000);
+    };
+
+    const removeCallback = () => {
       try {
         delete window[callbackName];
       } catch {
@@ -24,7 +54,13 @@ function createJsonpRequest(url, timeoutMs = 25000) {
       }
     };
 
-    const finish = (callback) => {
+    const removeScript = () => {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
+
+    const finish = (callback, { preserveLateCallback = false } = {}) => {
       if (settled) {
         return;
       }
@@ -33,9 +69,17 @@ function createJsonpRequest(url, timeoutMs = 25000) {
 
       if (timer) {
         window.clearTimeout(timer);
+
+        timer = null;
       }
 
-      cleanup();
+      removeScript();
+
+      if (preserveLateCallback) {
+        installLateCallback();
+      } else {
+        removeCallback();
+      }
 
       callback();
     };
@@ -53,9 +97,14 @@ function createJsonpRequest(url, timeoutMs = 25000) {
     };
 
     timer = window.setTimeout(() => {
-      finish(() => {
-        reject(new Error("Tiempo de espera agotado al cargar Apps Script."));
-      });
+      finish(
+        () => {
+          reject(new Error("Tiempo de espera agotado al cargar Apps Script."));
+        },
+        {
+          preserveLateCallback: true,
+        },
+      );
     }, timeoutMs);
 
     script.src =
