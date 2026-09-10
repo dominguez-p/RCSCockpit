@@ -6174,13 +6174,13 @@ async function loadProgramData(programId, forceRefresh = false) {
 
   /*
    * =====================================================
-   * GENERAL
+   * CORE
    * =====================================================
    *
-   * Es obligatorio.
+   * Únicamente se carga el origen general del programa.
    *
-   * Si falla, la carga del programa falla igual que hasta
-   * ahora.
+   * El origen restricted no se consulta durante la carga
+   * para evitar penalizar el tiempo de entrada al Cockpit.
    */
   const rawData = await loadConfiguredSource(source);
 
@@ -6191,28 +6191,17 @@ async function loadProgramData(programId, forceRefresh = false) {
    * RESTRICTED
    * =====================================================
    *
-   * Es opcional.
+   * No se realiza ninguna llamada al origen restricted.
    *
-   * loadProgramRestrictedData() encapsula cualquier error
-   * de autorización o indisponibilidad y devuelve:
-   *
-   * {
-   *   available: false,
-   *   sdaFinancials: [],
-   *   sdaResources: []
-   * }
-   *
-   * cuando el usuario no puede consultar ese origen.
+   * Se mantiene la estructura que espera el frontal con
+   * available = false para que el indicador Restricted
+   * permanezca desactivado.
    */
-  const restricted = await loadProgramRestrictedData(
-    normalizedProgramId,
-    forceRefresh,
-  );
+  const restrictedData = getEmptyRestrictedProgramData();
 
   const completeProgramData = {
     ...programData,
-
-    restricted,
+    restricted: restrictedData,
   };
 
   PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
