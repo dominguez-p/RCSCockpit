@@ -150,13 +150,7 @@ function renderLanding() {
     .join("");
 }
 function getAIxBankerProduct(productId) {
-  const normalizedProductId = String(productId || "").trim();
-
-  if (!normalizedProductId) {
-    return null;
-  }
-
-  const fallbackProducts = {
+  const products = {
     "blue-buddy": {
       id: "blue-buddy",
       label: "Blue Buddy",
@@ -172,44 +166,11 @@ function getAIxBankerProduct(productId) {
     blue: {
       id: "blue",
       label: "Blue",
-      description: "Roadmap, entregables y evolución del producto Blue.",
+      description: "Solución agentic para cliente.",
     },
   };
 
-  const catalogItem = Array.isArray(DATA?.productCatalog)
-    ? DATA.productCatalog.find((item) => {
-        const itemId = String(
-          item.product_id || item.productId || item.id || "",
-        ).trim();
-
-        return itemId === normalizedProductId;
-      })
-    : null;
-
-  const fallback = fallbackProducts[normalizedProductId] || null;
-
-  if (!catalogItem) {
-    return fallback;
-  }
-
-  return {
-    id: normalizedProductId,
-
-    label:
-      catalogItem.product_name ||
-      catalogItem.productName ||
-      catalogItem.name ||
-      fallback?.label ||
-      normalizedProductId,
-
-    description:
-      catalogItem.overview ||
-      catalogItem.tagline ||
-      catalogItem.value_proposition ||
-      catalogItem.valueProposition ||
-      fallback?.description ||
-      "Roadmap y evolución del producto.",
-  };
+  return products[productId] || null;
 }
 function getCurrentQuarter() {
   const month = new Date().getMonth();
@@ -3881,13 +3842,8 @@ function renderAIxBankerHome(programId, productId = null) {
 
   /*
    * =====================================================
-   * LANDING DE PRODUCTOS AIxBANKER
+   * LANDING DE PRODUCTOS
    * =====================================================
-   *
-   * AIxBanker mantiene su selector de productos.
-   *
-   * BLUE entra directamente al producto "blue", por lo
-   * que nunca necesita esta pantalla intermedia.
    */
   if (!product) {
     setHead(
@@ -3899,308 +3855,260 @@ function renderAIxBankerHome(programId, productId = null) {
     view.innerHTML = "";
     view.append(tpl("#aixbanker-home-template"));
 
-    window.renderAIxBankerProductDepartureBoard =
-      function renderAIxBankerProductDepartureBoard(programId) {
-        const grid = document.querySelector("#flightGateBoardGrid");
+    const board = document.querySelector("#flightGateBoardGrid");
 
-        if (!grid) {
-          return;
-        }
+    if (!board) {
+      return;
+    }
 
-        const normalizedProgramId = String(programId || "aixbanker").trim();
+    const catalogProducts = (
+      Array.isArray(DATA?.productCatalog) ? DATA.productCatalog : []
+    )
+      .filter((item) => {
+        const itemProgramId = String(
+          item.programId || item.program_id || normalizedProgramId,
+        ).trim();
 
-        if (normalizedProgramId !== "aixbanker") {
-          grid.innerHTML = "";
-          return;
-        }
-
-        const escapeHtml = (value) =>
-          String(value ?? "")
-            .replaceAll("&", "&amp;")
-            .replaceAll("<", "&lt;")
-            .replaceAll(">", "&gt;")
-            .replaceAll('"', "&quot;")
-            .replaceAll("'", "&#039;");
-
-        const normalizeId = (value) =>
-          String(value || "")
-            .trim()
-            .toLowerCase();
-
-        const parseEnabled = (value) => {
-          if (typeof value === "boolean") {
-            return value;
-          }
-
-          return ![
-            "false",
-            "0",
-            "no",
-            "disabled",
-            "inactive",
-            "inactivo",
-          ].includes(
-            String(value ?? "true")
+        const enabled =
+          item.enabled === true ||
+          !["false", "0", "no", "disabled", "inactive", "inactivo"].includes(
+            String(item.enabled ?? "true")
               .trim()
               .toLowerCase(),
           );
-        };
 
-        const catalog = Array.isArray(DATA?.productCatalog)
-          ? DATA.productCatalog
-          : [];
+        return itemProgramId === normalizedProgramId && enabled;
+      })
+      .sort(
+        (left, right) =>
+          Number(left.sortOrder ?? left.sort_order ?? 999) -
+          Number(right.sortOrder ?? right.sort_order ?? 999),
+      );
 
-        const productFeatures = Array.isArray(DATA?.productFeatures)
-          ? DATA.productFeatures
-          : [];
-
-        const fallbackProducts = [
+    const products = catalogProducts.length
+      ? catalogProducts
+      : [
           {
             id: "blue-buddy",
+            productId: "blue-buddy",
+            product_id: "blue-buddy",
+            label: "Blue Buddy",
             productName: "Blue Buddy",
-            sortOrder: 1,
+            product_name: "Blue Buddy",
+            tagline: "AI Banker para interacción conversacional con clientes.",
             enabled: true,
-            gate: "01",
+            sortOrder: 1,
           },
           {
             id: "panorama",
+            productId: "panorama",
+            product_id: "panorama",
+            label: "Panorama",
             productName: "Panorama",
-            sortOrder: 2,
+            product_name: "Panorama",
+            tagline:
+              "Capacidades de conocimiento y visión integral para AIxBanker.",
             enabled: true,
-            gate: "02",
+            sortOrder: 2,
           },
         ];
 
-        const products = fallbackProducts
-          .map((fallbackProduct) => {
-            const sourceProduct = catalog.find((item) => {
-              const itemProgramId = String(
-                item.programId || item.program_id || normalizedProgramId,
-              ).trim();
+    const features = Array.isArray(DATA?.productFeatures)
+      ? DATA.productFeatures
+      : [];
 
-              const itemProductId = normalizeId(
-                item.productId || item.product_id || item.id,
-              );
+    const getProductStats = (productId) => {
+      const normalizedProductId = String(productId || "")
+        .trim()
+        .toLowerCase();
 
-              return (
-                itemProgramId === normalizedProgramId &&
-                itemProductId === fallbackProduct.id
-              );
-            });
+      const productFeatures = features.filter(
+        (feature) =>
+          String(feature.productId || feature.product_id || "")
+            .trim()
+            .toLowerCase() === normalizedProductId,
+      );
 
-            return {
-              ...fallbackProduct,
-              ...(sourceProduct || {}),
-              id: fallbackProduct.id,
-              gate: fallbackProduct.gate,
-              productName:
-                sourceProduct?.productName ||
-                sourceProduct?.product_name ||
-                sourceProduct?.name ||
-                sourceProduct?.label ||
-                fallbackProduct.productName,
-              enabled: sourceProduct
-                ? parseEnabled(sourceProduct.enabled)
-                : fallbackProduct.enabled,
-              sortOrder:
-                Number(
-                  sourceProduct?.sortOrder ??
-                    sourceProduct?.sort_order ??
-                    fallbackProduct.sortOrder,
-                ) || fallbackProduct.sortOrder,
-            };
-          })
-          .sort((left, right) => left.sortOrder - right.sortOrder);
+      const capabilities = new Set(
+        productFeatures
+          .map((feature) =>
+            String(feature.capabilityId || feature.capability_id || "").trim(),
+          )
+          .filter(Boolean),
+      );
 
-        grid.innerHTML = products
-          .map((product) => {
-            const features = productFeatures.filter((feature) => {
-              const featureProductId = normalizeId(
-                feature.productId || feature.product_id || feature.product,
-              );
+      const countries = new Set();
 
-              return featureProductId === product.id;
-            });
+      productFeatures.forEach((feature) => {
+        String(feature.country || feature.countries || "")
+          .split(/[|,;\n]+/)
+          .map((value) => value.trim().toUpperCase())
+          .filter(Boolean)
+          .forEach((countryId) => countries.add(countryId));
+      });
 
-            const capabilityIds = new Set();
+      return {
+        capabilityCount: capabilities.size,
 
-            features.forEach((feature) => {
-              const capabilityId = normalizeId(
-                feature.capabilityId ||
-                  feature.capability_id ||
-                  feature.capabilityName ||
-                  feature.capability_name,
-              );
+        featureCount: productFeatures.length,
 
-              if (capabilityId) {
-                capabilityIds.add(capabilityId);
-              }
-            });
+        countries: [...countries]
+          .map((countryId) =>
+            COUNTRIES.find((country) => country.id === countryId),
+          )
+          .filter(Boolean)
+          .slice(0, 4),
+      };
+    };
 
-            const informedFunctionalCases = features.filter((feature) =>
-              String(
-                feature.deliverableName ||
-                  feature.deliverable_name ||
-                  feature.functionalCase ||
-                  feature.functional_case ||
-                  "",
-              ).trim(),
-            ).length;
+    board.innerHTML = products
+      .map((item, index) => {
+        const productId = String(
+          item.productId || item.product_id || item.id || "",
+        ).trim();
 
-            const functionalCaseCount =
-              informedFunctionalCases || features.length;
+        if (!productId) {
+          return "";
+        }
 
-            const countryIds = new Set();
+        const productDefinition = getAIxBankerProduct(productId);
 
-            features.forEach((feature) => {
-              const rawCountries =
-                feature.country ??
-                feature.countries ??
-                feature.countryId ??
-                feature.country_id ??
-                "";
+        const productName = String(
+          item.productName ||
+            item.product_name ||
+            item.label ||
+            productDefinition?.label ||
+            productId,
+        ).trim();
 
-              String(rawCountries)
-                .split(/[|,;\n]+/)
-                .map((value) =>
-                  String(value || "")
-                    .trim()
-                    .toUpperCase(),
-                )
-                .filter(
-                  (value) =>
-                    value &&
-                    value !== "ALL" &&
-                    value !== "HL" &&
-                    value !== "HOLDING",
-                )
-                .forEach((value) => countryIds.add(value));
-            });
+        const description = String(
+          item.tagline ||
+            item.overview ||
+            productDefinition?.description ||
+            "Producto AIxBanker.",
+        ).trim();
 
-            const coverageLabel = countryIds.size
-              ? [...countryIds].join(" · ")
-              : "HOLDING";
+        const stats = getProductStats(productId);
 
-            const panoramaClass =
-              product.id === "panorama" ? "is-panorama" : "";
+        const normalizedProductId = productId.toLowerCase();
 
-            const routeValue = `program/${normalizedProgramId}/${product.id}`;
+        const isPanorama = normalizedProductId === "panorama";
 
-            const statusLabel = product.enabled ? "READY" : "STANDBY";
+        const gateCode = isPanorama ? "PNM" : "BBY";
 
-            const buttonMarkup = product.enabled
-              ? `
-              <button
-                class="flight-gate-open"
-                type="button"
-                data-route="${escapeHtml(routeValue)}"
-                aria-label="Abrir Flight Deck de ${escapeHtml(
-                  product.productName,
-                )}"
-              >
-                OPEN FLIGHT DECK
-                <span aria-hidden="true">→</span>
-              </button>
-            `
-              : `
-              <button
-                class="flight-gate-open"
-                type="button"
-                disabled
-                aria-label="${escapeHtml(product.productName)} no disponible"
-              >
-                NOT AVAILABLE
-              </button>
-            `;
+        const productShortName = isPanorama ? "PANORAMA" : "BLUE BUDDY";
 
-            return `
+        const availability = stats.countries.length
+          ? stats.countries
+              .map(
+                (country) =>
+                  `<span title="${rcsEsc(country.label)}">${rcsEsc(
+                    country.id,
+                  )}</span>`,
+              )
+              .join(" ")
+          : "—";
+
+        return `
           <article
-            class="flight-gate-board ${panoramaClass}"
-            data-product="${escapeHtml(product.id)}"
+            class="flight-gate-board ${isPanorama ? "is-panorama" : ""}"
           >
-            <div
-              class="flight-gate-sign"
-              aria-label="Gate ${escapeHtml(product.gate)}"
-            >
-              ${escapeHtml(product.gate)}
+            <div class="flight-gate-sign">
+              ${gateCode}
             </div>
 
             <div class="flight-gate-monitor-frame">
               <div class="flight-gate-monitor">
+
                 <div class="flight-gate-monitor-top">
                   <div class="flight-gate-airline">
-                    RCS · AIxBANKER
+                    AIxBanker
                   </div>
 
                   <div class="flight-gate-flight-meta">
                     <strong>
-                      ${escapeHtml(
-                        product.id.replaceAll("-", " ").toUpperCase(),
-                      )}
+                      ${rcsEsc(productName)}
                     </strong>
 
                     <small>
-                      2026 · HOLDING
+                      PRODUCTO GLOBAL
                     </small>
                   </div>
                 </div>
 
                 <div class="flight-gate-destination">
-                  ${escapeHtml(product.productName)}
+                  ${rcsEsc(productShortName)}
                 </div>
 
                 <div class="flight-gate-info">
+
                   <div>
-                    <span>CAPABILITIES</span>
+                    <span>
+                      Capacidades
+                    </span>
 
                     <strong>
-                      ${capabilityIds.size}
+                      ${stats.capabilityCount}
                     </strong>
                   </div>
 
                   <div>
-                    <span>FUNCTIONAL CASES</span>
+                    <span>
+                      Casos funcionales
+                    </span>
 
                     <strong>
-                      ${functionalCaseCount}
+                      ${stats.featureCount}
                     </strong>
                   </div>
 
                   <div>
-                    <span>AVAILABLE</span>
+                    <span>
+                      Disponible en
+                    </span>
 
-                    <strong title="${escapeHtml(coverageLabel)}">
-                      ${escapeHtml(coverageLabel)}
+                    <strong>
+                      ${availability}
                     </strong>
                   </div>
+
                 </div>
 
                 <div class="flight-gate-status">
-                  ${escapeHtml(statusLabel)}
+                  ${rcsEsc(description)}
                 </div>
 
-                ${buttonMarkup}
-              </div>
+                <button
+                  class="flight-gate-open"
+                  type="button"
+                  data-route="program/${normalizedProgramId}/${productId}"
+                  aria-label="Abrir ${rcsEsc(productName)}"
+                >
+                  <span aria-hidden="true">
+                    →
+                  </span>
 
-              <span
-                class="flight-gate-monitor-brand"
-                aria-hidden="true"
-              >
-                BBVA · RETAIL CLIENT SOLUTIONS
-              </span>
+                  Abrir producto
+                </button>
+
+                <small class="flight-gate-monitor-brand">
+                  RCS · AIxBANKER · GATE ${index + 1}
+                </small>
+
+              </div>
             </div>
           </article>
         `;
-          })
-          .join("");
-      };
+      })
+      .filter(Boolean)
+      .join("");
 
     return;
   }
 
   /*
    * =====================================================
-   * DATOS SDA DEL PRODUCTO
+   * DATOS SDA
    * =====================================================
    */
   const activeProductId = product.id;
@@ -4239,7 +4147,7 @@ function renderAIxBankerHome(programId, productId = null) {
 
   /*
    * =====================================================
-   * ROADMAP LEGACY
+   * ROADMAP
    * =====================================================
    */
   const roadmapItems = Array.isArray(DATA?.roadmapItems)
@@ -4264,11 +4172,6 @@ function renderAIxBankerHome(programId, productId = null) {
         .toLowerCase() === "msa",
   );
 
-  /*
-   * Para los programas nuevos, como BLUE, SDA es la
-   * fuente principal. AIxBanker sigue manteniendo
-   * compatibilidad con roadmapItems.
-   */
   const statusItems = roadmapItems.length ? roadmapItems : sdaDeliverables;
 
   const riskItems = statusItems.filter((item) => {
@@ -4334,11 +4237,12 @@ function renderAIxBankerHome(programId, productId = null) {
   );
 
   view.innerHTML = "";
+
   view.append(tpl("#aixbanker-flight-deck-template"));
 
   /*
    * =====================================================
-   * NAVEGACIÓN SUPERIOR
+   * NAVEGACION SUPERIOR
    * =====================================================
    */
   const backButton = document.querySelector(".flight-deck-back");
@@ -4381,7 +4285,7 @@ function renderAIxBankerHome(programId, productId = null) {
 
   /*
    * =====================================================
-   * IDENTIDAD VISUAL
+   * IDENTIDAD
    * =====================================================
    */
   const centerPost = document.querySelector(".flight-deck-center-post");
@@ -4573,7 +4477,7 @@ function renderAIxBankerHome(programId, productId = null) {
 
   /*
    * =====================================================
-   * TELEMETRÍA
+   * TELEMETRIA
    * =====================================================
    */
   const deliverablesCountElement = document.querySelector(
@@ -4637,6 +4541,11 @@ function renderAIxBankerHome(programId, productId = null) {
     "#flightDeckManagementReports",
   );
 
+  /*
+   * -----------------------------------------------------
+   * PROJECT TRACKING
+   * -----------------------------------------------------
+   */
   if (projectTrackingButton) {
     const roadmapRoute =
       typeof roadmapWorkspaceRoute === "function"
@@ -4651,32 +4560,61 @@ function renderAIxBankerHome(programId, productId = null) {
     projectTrackingButton.dataset.route = roadmapRoute;
 
     projectTrackingButton.addEventListener("click", () => {
+      const returnRoute = `program/${normalizedProgramId}/${activeProductId}`;
+
+      sessionStorage.setItem("flightDeckReturnRoute", returnRoute);
+
+      sessionStorage.setItem("productExperienceReturnRoute", returnRoute);
+    });
+  }
+
+  /*
+   * -----------------------------------------------------
+   * KEY ISSUES
+   * -----------------------------------------------------
+   */
+  if (trendingTopicsButton) {
+    trendingTopicsButton.dataset.route = `impediments/${normalizedProgramId}/${activeProductId}`;
+
+    trendingTopicsButton.addEventListener("click", () => {
+      const returnRoute = `program/${normalizedProgramId}/${activeProductId}`;
+
+      sessionStorage.setItem("flightDeckReturnRoute", returnRoute);
+
+      sessionStorage.setItem("programGovernanceReturnRoute", returnRoute);
+    });
+  }
+
+  /*
+   * -----------------------------------------------------
+   * STAFFING
+   * -----------------------------------------------------
+   */
+  if (teamPlanningButton) {
+    teamPlanningButton.dataset.route = `teams/${normalizedProgramId}`;
+
+    teamPlanningButton.addEventListener("click", () => {
       sessionStorage.setItem(
-        "productExperienceReturnRoute",
+        "flightDeckReturnRoute",
         `program/${normalizedProgramId}/${activeProductId}`,
       );
     });
   }
 
-  if (trendingTopicsButton) {
-    trendingTopicsButton.dataset.route = `impediments/${normalizedProgramId}/${activeProductId}`;
-
-    trendingTopicsButton.addEventListener("click", () => {
-      sessionStorage.setItem(
-        "programGovernanceReturnRoute",
-        normalizedProgramId === "blue"
-          ? "program/blue"
-          : `program/${normalizedProgramId}/${activeProductId}`,
-      );
-    });
-  }
-
-  if (teamPlanningButton) {
-    teamPlanningButton.dataset.route = `teams/${normalizedProgramId}`;
-  }
-
+  /*
+   * -----------------------------------------------------
+   * MANAGEMENT REPORTS
+   * -----------------------------------------------------
+   */
   if (managementReportsButton) {
     managementReportsButton.dataset.route = `projects/${normalizedProgramId}`;
+
+    managementReportsButton.addEventListener("click", () => {
+      sessionStorage.setItem(
+        "flightDeckReturnRoute",
+        `program/${normalizedProgramId}/${activeProductId}`,
+      );
+    });
   }
 }
 function renderProgram(programId) {
@@ -5495,6 +5433,24 @@ function renderSystems(programId, mode = "systems") {
       .join("");
   }
 }
+function getFlightDeckReturnRoute(programId) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const storedRoute = sessionStorage.getItem("flightDeckReturnRoute");
+
+  if (
+    storedRoute &&
+    storedRoute.startsWith(`program/${normalizedProgramId}/`)
+  ) {
+    return storedRoute;
+  }
+
+  return `program/${normalizedProgramId}`;
+}
+
+function clearFlightDeckReturnRoute() {
+  sessionStorage.removeItem("flightDeckReturnRoute");
+}
 function getCurrentRoute() {
   const hash = location.hash.replace("#", "") || "landing";
 
@@ -5928,15 +5884,9 @@ function normalizePortfolioData(rawData) {
 }
 
 function normalizeProgramData(programId, rawData) {
-  const normalizedProgramId = String(programId || "").trim();
   const source = rawData || {};
   const normalized = getEmptyProgramData();
 
-  /*
-   * =====================================================
-   * NORMALIZACIÓN GENERAL
-   * =====================================================
-   */
   Object.keys(normalized).forEach((collectionName) => {
     const rows = Array.isArray(source[collectionName])
       ? source[collectionName]
@@ -5944,252 +5894,9 @@ function normalizeProgramData(programId, rawData) {
 
     normalized[collectionName] = rows.map((row) => ({
       ...row,
-
-      programId: row?.programId || row?.program_id || normalizedProgramId,
+      programId: row.programId || programId,
     }));
   });
-
-  /*
-   * =====================================================
-   * PRODUCT CATALOG
-   * =====================================================
-   *
-   * Homogeneizamos snake_case / camelCase para que
-   * cualquier renderer pueda trabajar con el catálogo
-   * independientemente del formato del Spreadsheet.
-   */
-  normalized.productCatalog = (
-    Array.isArray(normalized.productCatalog) ? normalized.productCatalog : []
-  )
-    .map((row) => {
-      const productId = String(
-        row.product_id || row.productId || row.id || "",
-      ).trim();
-
-      if (!productId) {
-        return null;
-      }
-
-      const rowProgramId = String(
-        row.program_id || row.programId || normalizedProgramId,
-      ).trim();
-
-      const productName = String(
-        row.product_name ||
-          row.productName ||
-          row.name ||
-          row.label ||
-          productId,
-      ).trim();
-
-      const rawEnabled = row.enabled;
-
-      const enabled =
-        typeof rawEnabled === "boolean"
-          ? rawEnabled
-          : !["false", "0", "no", "disabled", "inactive", "inactivo"].includes(
-              String(rawEnabled || "true")
-                .trim()
-                .toLowerCase(),
-            );
-
-      const sortOrder = Number(row.sort_order ?? row.sortOrder ?? 999) || 999;
-
-      return {
-        ...row,
-
-        product_id: productId,
-        productId,
-        id: productId,
-
-        program_id: rowProgramId,
-        programId: rowProgramId,
-
-        product_name: productName,
-        productName,
-        name: productName,
-        label: productName,
-
-        sort_order: sortOrder,
-        sortOrder,
-
-        enabled,
-      };
-    })
-    .filter(Boolean);
-
-  /*
-   * =====================================================
-   * COMPATIBILIDAD AIxBANKER
-   * =====================================================
-   *
-   * El Flight Deck histórico de AIxBanker ya tenía dos
-   * productos funcionales:
-   *
-   * - Blue Buddy
-   * - Panorama
-   *
-   * Si el origen actual no devuelve productCatalog, o
-   * devuelve un catálogo incompleto, mantenemos estos
-   * productos para no romper la landing de Departures.
-   *
-   * El origen sigue teniendo prioridad: sólo añadimos
-   * un producto cuando no existe.
-   */
-  if (normalizedProgramId === "aixbanker") {
-    const fallbackProducts = [
-      {
-        product_id: "blue-buddy",
-        productId: "blue-buddy",
-        id: "blue-buddy",
-
-        program_id: "aixbanker",
-        programId: "aixbanker",
-
-        product_name: "Blue Buddy",
-        productName: "Blue Buddy",
-        name: "Blue Buddy",
-        label: "Blue Buddy",
-
-        tagline: "AI Banker para interacción conversacional con clientes.",
-
-        overview: "Roadmap, iniciativas y evolución del producto Blue Buddy.",
-
-        value_proposition: "",
-        valueProposition: "",
-
-        target_users: "",
-        targetUsers: "",
-
-        icon: "",
-
-        sort_order: 1,
-        sortOrder: 1,
-
-        enabled: true,
-      },
-
-      {
-        product_id: "panorama",
-        productId: "panorama",
-        id: "panorama",
-
-        program_id: "aixbanker",
-        programId: "aixbanker",
-
-        product_name: "Panorama",
-        productName: "Panorama",
-        name: "Panorama",
-        label: "Panorama",
-
-        tagline:
-          "Capacidades de conocimiento y visión integral para AIxBanker.",
-
-        overview: "Roadmap, iniciativas y evolución del producto Panorama.",
-
-        value_proposition: "",
-        valueProposition: "",
-
-        target_users: "",
-        targetUsers: "",
-
-        icon: "",
-
-        sort_order: 2,
-        sortOrder: 2,
-
-        enabled: true,
-      },
-    ];
-
-    fallbackProducts.forEach((fallbackProduct) => {
-      const existingIndex = normalized.productCatalog.findIndex((item) => {
-        const itemProgramId = String(
-          item.program_id || item.programId || normalizedProgramId,
-        ).trim();
-
-        const itemProductId = String(
-          item.product_id || item.productId || item.id || "",
-        ).trim();
-
-        return (
-          itemProgramId === "aixbanker" &&
-          itemProductId === fallbackProduct.product_id
-        );
-      });
-
-      if (existingIndex === -1) {
-        normalized.productCatalog.push(fallbackProduct);
-
-        return;
-      }
-
-      /*
-       * El registro del Spreadsheet tiene prioridad.
-       *
-       * Únicamente completamos aliases necesarios para
-       * los distintos componentes del frontend.
-       */
-      normalized.productCatalog[existingIndex] = {
-        ...fallbackProduct,
-        ...normalized.productCatalog[existingIndex],
-
-        product_id:
-          normalized.productCatalog[existingIndex].product_id ||
-          fallbackProduct.product_id,
-
-        productId:
-          normalized.productCatalog[existingIndex].productId ||
-          normalized.productCatalog[existingIndex].product_id ||
-          fallbackProduct.productId,
-
-        id:
-          normalized.productCatalog[existingIndex].id ||
-          normalized.productCatalog[existingIndex].productId ||
-          normalized.productCatalog[existingIndex].product_id ||
-          fallbackProduct.id,
-
-        program_id:
-          normalized.productCatalog[existingIndex].program_id ||
-          fallbackProduct.program_id,
-
-        programId:
-          normalized.productCatalog[existingIndex].programId ||
-          normalized.productCatalog[existingIndex].program_id ||
-          fallbackProduct.programId,
-
-        product_name:
-          normalized.productCatalog[existingIndex].product_name ||
-          fallbackProduct.product_name,
-
-        productName:
-          normalized.productCatalog[existingIndex].productName ||
-          normalized.productCatalog[existingIndex].product_name ||
-          fallbackProduct.productName,
-
-        name:
-          normalized.productCatalog[existingIndex].name ||
-          normalized.productCatalog[existingIndex].productName ||
-          normalized.productCatalog[existingIndex].product_name ||
-          fallbackProduct.name,
-
-        label:
-          normalized.productCatalog[existingIndex].label ||
-          normalized.productCatalog[existingIndex].name ||
-          normalized.productCatalog[existingIndex].productName ||
-          normalized.productCatalog[existingIndex].product_name ||
-          fallbackProduct.label,
-
-        enabled: normalized.productCatalog[existingIndex].enabled !== false,
-      };
-    });
-
-    normalized.productCatalog.sort(
-      (left, right) =>
-        Number(left.sort_order ?? left.sortOrder ?? 999) -
-        Number(right.sort_order ?? right.sortOrder ?? 999),
-    );
-  }
 
   return normalized;
 }
@@ -6675,21 +6382,21 @@ function renderCurrentRoute(
    * PROGRAMA
    * =====================================================
    *
-   * AIxBanker:
+   * AIxBanker mantiene su selector de productos:
    *
    * program/aixbanker
-   *   -> selector de productos
+   *   -> Departures
    *
    * program/aixbanker/blue-buddy
-   *   -> Flight Deck Blue Buddy
+   *   -> Blue Buddy Flight Deck
    *
    * program/aixbanker/panorama
-   *   -> Flight Deck Panorama
+   *   -> Panorama Flight Deck
    *
-   * BLUE:
+   * Blue utiliza directamente el mismo Flight Deck:
    *
    * program/blue
-   *   -> Flight Deck Blue directamente
+   *   -> Blue Flight Deck
    */
   if (routeName === "program") {
     if (usesProductFlightDeck && typeof renderAIxBankerHome === "function") {
@@ -6708,15 +6415,11 @@ function renderCurrentRoute(
 
   /*
    * =====================================================
-   * ROADMAP LEGACY
+   * ROADMAP LEGACY AIxBANKER
    * =====================================================
    */
-  if (routeName === "roadmap" && usesProductFlightDeck) {
-    renderAIxBankerRoadmap(
-      programId,
-      productId || (normalizedProgramId === "blue" ? "blue" : null),
-      quarter,
-    );
+  if (routeName === "roadmap" && programId === "aixbanker") {
+    renderAIxBankerRoadmap(programId, productId, quarter);
 
     return;
   }
@@ -6726,10 +6429,10 @@ function renderCurrentRoute(
    * DETALLE ROADMAP
    * =====================================================
    */
-  if (routeName === "roadmap-detail" && usesProductFlightDeck) {
+  if (routeName === "roadmap-detail" && programId === "aixbanker") {
     renderAIxBankerRoadmapDetail(
       programId,
-      productId || (normalizedProgramId === "blue" ? "blue" : null),
+      productId,
       quarter,
       itemType,
       itemId,
@@ -6743,10 +6446,10 @@ function renderCurrentRoute(
    * DETALLE ACTIVIDAD ROADMAP
    * =====================================================
    */
-  if (routeName === "roadmap-activity" && usesProductFlightDeck) {
+  if (routeName === "roadmap-activity" && programId === "aixbanker") {
     renderAIxBankerRoadmapActivityDetail(
       programId,
-      productId || (normalizedProgramId === "blue" ? "blue" : null),
+      productId,
       quarter,
       itemType,
       itemId,
@@ -6791,11 +6494,11 @@ function renderCurrentRoute(
 
   /*
    * =====================================================
-   * KEY ISSUES
+   * IMPEDIMENTOS
    * =====================================================
    */
   if (routeName === "impediments") {
-    renderImpediments(programId, productId);
+    renderImpediments(programId);
 
     return;
   }
@@ -7967,7 +7670,8 @@ function renderProjectsView(programId) {
   const backButton = document.querySelector(".back-to-program-btn");
 
   if (backButton) {
-    backButton.dataset.route = `program/${programId}`;
+    backButton.dataset.route = getFlightDeckReturnRoute(programId);
+
     backButton.textContent = `← Volver a ${program?.name || "programa"}`;
   }
 
@@ -9711,6 +9415,7 @@ function formatDate(value) {
 /* teams */
 function renderTeamsView(programId) {
   const p = DATA.programs.find((x) => x.id === programId);
+
   const country = COUNTRIES.find((c) => c.id === selectedCountry);
 
   view.innerHTML = "";
@@ -9719,20 +9424,26 @@ function renderTeamsView(programId) {
   view.insertAdjacentHTML(
     "afterbegin",
     `
-    ${renderCountrySelector()}
-    ${renderTeamsQuarterSelector()}
-  `,
+      ${renderCountrySelector()}
+      ${renderTeamsQuarterSelector()}
+    `,
   );
+
   setHead(
     `${p?.name || "Programa"} · Teams`,
-    `Scrums y staffing · ${country?.label || selectedCountry} · ${selectedTeamQuarter === "ALL" ? "Todo el año" : selectedTeamQuarter}`,
-    `Retail Client Solutions > ${p?.name || programId} > ${country?.label || selectedCountry} > Teams`,
+    `Scrums y staffing · ${country?.label || selectedCountry} · ${
+      selectedTeamQuarter === "ALL" ? "Todo el año" : selectedTeamQuarter
+    }`,
+    `Retail Client Solutions > ${p?.name || programId} > ${
+      country?.label || selectedCountry
+    } > Teams`,
   );
 
   const backButton = document.querySelector(".back-to-program-btn");
 
   if (backButton) {
-    backButton.dataset.route = `program/${programId}`;
+    backButton.dataset.route = getFlightDeckReturnRoute(programId);
+
     backButton.textContent = `← Volver a ${p?.name || "programa"}`;
   }
 

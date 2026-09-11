@@ -143,191 +143,13 @@
   }
 
   function pxCatalog() {
-    const sourceProducts = pxRows("productCatalog")
-      .map((product, index) => {
-        const productId = pxNormalizeId(
-          product.productId || product.product_id || product.id || "",
-        );
+    return pxRows("productCatalog")
+      .filter((product) => {
+        const programId = String(product.programId || PROGRAM_ID).trim();
 
-        const programId = String(
-          product.programId || product.program_id || PROGRAM_ID,
-        ).trim();
-
-        if (!productId || programId !== PROGRAM_ID) {
-          return null;
-        }
-
-        const productName = pxClean(
-          product.productName ||
-            product.product_name ||
-            product.name ||
-            product.label ||
-            productId,
-        );
-
-        const sortOrder =
-          Number(product.sortOrder ?? product.sort_order ?? index + 1) ||
-          index + 1;
-
-        const enabled = pxBoolean(product.enabled ?? true);
-
-        return {
-          ...product,
-
-          productId,
-          product_id: productId,
-
-          programId,
-          program_id: programId,
-
-          productName,
-          product_name: productName,
-
-          tagline: pxClean(product.tagline || ""),
-
-          overview: pxClean(product.overview || ""),
-
-          valueProposition: pxClean(
-            product.valueProposition || product.value_proposition || "",
-          ),
-
-          value_proposition: pxClean(
-            product.value_proposition || product.valueProposition || "",
-          ),
-
-          targetUsers: pxClean(
-            product.targetUsers || product.target_users || "",
-          ),
-
-          target_users: pxClean(
-            product.target_users || product.targetUsers || "",
-          ),
-
-          icon: pxClean(product.icon || ""),
-
-          sortOrder,
-          sort_order: sortOrder,
-
-          enabled,
-        };
+        return programId === PROGRAM_ID && pxBoolean(product.enabled);
       })
-      .filter(Boolean)
-      .filter((product) => product.enabled);
-
-    const fallbackProducts = [
-      {
-        productId: "blue-buddy",
-        product_id: "blue-buddy",
-
-        programId: PROGRAM_ID,
-        program_id: PROGRAM_ID,
-
-        productName: "Blue Buddy",
-        product_name: "Blue Buddy",
-
-        tagline: "AI Banker para interacción conversacional con clientes.",
-
-        overview:
-          "Blue Buddy es el producto de asistencia inteligente de AIxBanker que acompaña al gestor en sus principales tareas comerciales y operativas.",
-
-        valueProposition: "",
-        value_proposition: "",
-
-        targetUsers: "",
-        target_users: "",
-
-        icon: "🧠",
-
-        sortOrder: 1,
-        sort_order: 1,
-
-        enabled: true,
-      },
-
-      {
-        productId: "panorama",
-        product_id: "panorama",
-
-        programId: PROGRAM_ID,
-        program_id: PROGRAM_ID,
-
-        productName: "Panorama",
-        product_name: "Panorama",
-
-        tagline:
-          "Capacidades de conocimiento y visión integral para AIxBanker.",
-
-        overview:
-          "Visión integral de información y conocimiento para apoyar la actividad del gestor.",
-
-        valueProposition: "",
-        value_proposition: "",
-
-        targetUsers: "",
-        target_users: "",
-
-        icon: "✈",
-
-        sortOrder: 2,
-        sort_order: 2,
-
-        enabled: true,
-      },
-    ];
-
-    const productsById = new Map();
-
-    sourceProducts.forEach((product) => {
-      productsById.set(pxNormalizeId(product.productId), product);
-    });
-
-    fallbackProducts.forEach((fallbackProduct) => {
-      const productId = pxNormalizeId(fallbackProduct.productId);
-
-      const currentProduct = productsById.get(productId);
-
-      if (!currentProduct) {
-        productsById.set(productId, fallbackProduct);
-
-        return;
-      }
-
-      productsById.set(productId, {
-        ...fallbackProduct,
-        ...currentProduct,
-
-        productId,
-
-        product_id: productId,
-
-        programId: PROGRAM_ID,
-
-        program_id: PROGRAM_ID,
-
-        productName: currentProduct.productName || fallbackProduct.productName,
-
-        product_name:
-          currentProduct.product_name ||
-          currentProduct.productName ||
-          fallbackProduct.product_name,
-
-        tagline: currentProduct.tagline || fallbackProduct.tagline,
-
-        overview: currentProduct.overview || fallbackProduct.overview,
-
-        icon: currentProduct.icon || fallbackProduct.icon,
-
-        enabled: currentProduct.enabled !== false,
-      });
-    });
-
-    return [...productsById.values()]
-      .filter((product) => product.enabled)
-      .sort(
-        (left, right) =>
-          Number(left.sortOrder ?? left.sort_order ?? 999) -
-          Number(right.sortOrder ?? right.sort_order ?? 999),
-      );
+      .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
   }
 
   function pxFeatures(productId = null) {
@@ -1333,8 +1155,7 @@
           currentRoute.routeName === "product" &&
           currentRoute.programId === PROGRAM_ID &&
           pxNormalizeId(currentRoute.productId) === pxNormalizeId(productId) &&
-          pxValidCountryId(currentRoute.countryId) ===
-            pxValidCountryId(countryId)
+          pxValidCountryId(currentRoute.countryId) === pxValidCountryId(countryId)
         ) {
           pxRenderLocalProduct(productId, countryId);
         }
@@ -1838,113 +1659,99 @@
 
     const countryIds = pxProductCountryIds(productId);
 
-    const availableLabel = countryIds.length
-      ? countryIds.join(" · ")
-      : "HOLDING";
-
-    const gateNumber =
-      productId === "blue-buddy"
-        ? "01"
-        : productId === "panorama"
-          ? "02"
-          : String(Number(product.sortOrder || 99)).padStart(2, "0");
-
-    const productClass = productId === "panorama" ? "is-panorama" : "";
-
-    const productName =
-      product.productName || product.name || product.label || productId;
+    const countriesMarkup = countryIds.length
+      ? countryIds.map(pxCountryBadge).join("")
+      : `
+          <span
+            class="
+              product-experience-country-unassigned
+            "
+          >
+            Sin geografía
+          </span>
+        `;
 
     return `
     <article
-      class="flight-gate-board ${productClass}"
-      data-product="${pxEsc(productId)}"
+      class="
+        product-experience-program-card
+      "
+      data-route="product/${PROGRAM_ID}/${pxEsc(productId)}"
     >
       <div
-        class="flight-gate-sign"
-        aria-label="Gate ${pxEsc(gateNumber)}"
+        class="
+          product-experience-program-card-topline
+        "
       >
-        ${pxEsc(gateNumber)}
+        <span>
+          Producto global
+        </span>
+
+        <small>
+          Holding
+        </small>
       </div>
 
-      <div class="flight-gate-monitor-frame">
-        <div class="flight-gate-monitor">
-
-          <div class="flight-gate-monitor-top">
-            <div class="flight-gate-airline">
-              RCS · AIxBANKER
-            </div>
-
-            <div class="flight-gate-flight-meta">
-              <strong>
-                ${pxEsc(productId.replaceAll("-", " ").toUpperCase())}
-              </strong>
-
-              <small>
-                2026 · HOLDING
-              </small>
-            </div>
-          </div>
-
-          <div class="flight-gate-destination">
-            ${pxEsc(productName)}
-          </div>
-
-          <div class="flight-gate-info">
-            <div>
-              <span>
-                CAPABILITIES
-              </span>
-
-              <strong>
-                ${capabilityCount}
-              </strong>
-            </div>
-
-            <div>
-              <span>
-                FUNCTIONAL CASES
-              </span>
-
-              <strong>
-                ${deliverableCount}
-              </strong>
-            </div>
-
-            <div>
-              <span>
-                AVAILABLE
-              </span>
-
-              <strong title="${pxEsc(availableLabel)}">
-                ${pxEsc(availableLabel)}
-              </strong>
-            </div>
-          </div>
-
-          <div class="flight-gate-status">
-            READY
-          </div>
-
-          <button
-            class="flight-gate-open"
-            type="button"
-            data-route="program/${PROGRAM_ID}/${pxEsc(productId)}"
-            aria-label="Abrir Flight Deck de ${pxEsc(productName)}"
-          >
-            OPEN FLIGHT DECK
-            <span aria-hidden="true">
-              →
-            </span>
-          </button>
-        </div>
-
+      <div
+        class="
+          product-experience-program-card-heading
+        "
+      >
         <span
-          class="flight-gate-monitor-brand"
+          class="
+            product-experience-product-icon
+          "
           aria-hidden="true"
         >
-          BBVA · RETAIL CLIENT SOLUTIONS
+          ${pxEsc(product.icon || "◇")}
         </span>
+
+        <div>
+          <h3>
+            ${pxEsc(product.productName || productId)}
+          </h3>
+
+          <p>
+            ${pxEsc(product.tagline || product.overview || "")}
+          </p>
+
+          <div
+            class="
+              product-experience-capability-availability
+            "
+          >
+            <span>
+              Disponible en
+            </span>
+
+            <div
+              class="
+                product-experience-deliverable-countries
+              "
+              aria-label="
+                Países donde está disponible
+                ${pxEsc(product.productName || productId)}
+              "
+            >
+              ${countriesMarkup}
+            </div>
+          </div>
+        </div>
       </div>
+
+      <footer>
+        <span>
+          ${capabilityCount}
+          ${capabilityCount === 1 ? "capacidad" : "capacidades"}
+          ·
+          ${deliverableCount}
+          ${deliverableCount === 1 ? "caso funcional" : "casos funcionales"}
+        </span>
+
+        <strong>
+          Explorar producto →
+        </strong>
+      </footer>
     </article>
   `;
   }
@@ -2100,72 +1907,6 @@
       return;
     }
 
-    const countryId = pxSelectedCountryId();
-
-    const isHolding = countryId === HOLDING_COUNTRY_ID;
-
-    const countryLabel = pxSelectedCountryLabel();
-
-    const products = pxLandingProducts();
-
-    /*
-     * =====================================================
-     * NUEVA LANDING AIxBANKER
-     * =====================================================
-     *
-     * renderAIxBankerHome() utiliza ahora:
-     *
-     * #flightGateBoardGrid
-     *
-     * Reutilizamos las tarjetas originales de
-     * product-experience para conservar exactamente
-     * el diseño y la navegación existentes.
-     */
-    const flightGateGrid = view.querySelector("#flightGateBoardGrid");
-
-    if (flightGateGrid) {
-      if (flightGateGrid.dataset.productExperienceEnhanced === countryId) {
-        return;
-      }
-
-      flightGateGrid.classList.add(
-        "program-home-product-grid",
-        "product-experience-program-grid",
-      );
-
-      if (!products.length) {
-        flightGateGrid.innerHTML = `
-        <p
-          class="
-            product-experience-empty-copy
-          "
-        >
-          No hay productos informados.
-        </p>
-      `;
-      } else if (isHolding) {
-        flightGateGrid.innerHTML = products
-          .map((product) => pxHoldingProductCard(product))
-          .join("");
-      } else {
-        flightGateGrid.innerHTML = products
-          .map((product) => pxLocalProductCard(product))
-          .join("");
-      }
-
-      flightGateGrid.dataset.productExperienceEnhanced = countryId;
-
-      return;
-    }
-
-    /*
-     * =====================================================
-     * LANDING LEGACY
-     * =====================================================
-     *
-     * Se mantiene compatibilidad con la antigua
-     * estructura .program-home.
-     */
     const home = view.querySelector(".program-home");
 
     if (!home) {
@@ -2195,9 +1936,25 @@
       return;
     }
 
+    const countryId = pxSelectedCountryId();
+
+    /*
+     * El render base genera una sección
+     * nueva cuando cambia el ámbito.
+     *
+     * Este marcador evita volver a
+     * modificar continuamente el mismo
+     * DOM desde el MutationObserver.
+     */
     if (section.dataset.productExperienceEnhanced === countryId) {
       return;
     }
+
+    const products = pxLandingProducts();
+
+    const isHolding = countryId === HOLDING_COUNTRY_ID;
+
+    const countryLabel = pxSelectedCountryLabel();
 
     header.innerHTML = `
     <div>
@@ -2246,13 +2003,9 @@
       </p>
     `;
     } else if (isHolding) {
-      grid.innerHTML = products
-        .map((product) => pxHoldingProductCard(product))
-        .join("");
+      grid.innerHTML = products.map(pxHoldingProductCard).join("");
     } else {
-      grid.innerHTML = products
-        .map((product) => pxLocalProductCard(product))
-        .join("");
+      grid.innerHTML = products.map(pxLocalProductCard).join("");
     }
 
     section.dataset.productExperienceEnhanced = countryId;
