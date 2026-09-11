@@ -1,37 +1,85 @@
 /**
- * AIxBanker - JIRA Feature execution source (XLSX)
+ * AIxBanker - JIRA Feature source from JIRA XML/RSS exports.
  *
- * Replaces the previous HTML-workspace parser while preserving the public
- * sheet/function contract used by the current Apps Script backend:
- *   - sheet: jiraWorkspaceFeatures
- *   - refresh function: refreshJiraWorkspaceFeatures()
+ * Official sources:
  *
- * Source workbook expected columns:
- *   Priority | Status | Summary | Progress | Blocked issues | Total Stories
+ *   SearchRequest_AIB.xml
+ *   SearchRequest_DATA.xml
  *
- * Hierarchy is read from the Excel row outlineLevel:
- *   0 = aggregate/container
- *   1 = Feature
- *   2 = Story/task (not exported yet; lower-level navigation will be added later)
+ * Public contract preserved:
+ *
+ *   sheet:
+ *     jiraWorkspaceFeatures
+ *
+ *   refresh function:
+ *     refreshJiraWorkspaceFeatures()
+ *
+ * Traceability:
+ *
+ *   SDA Deliverable
+ *        ↑
+ *        │ Deliverable
+ *        │
+ *   JIRA Feature
+ *        │
+ *        │ ID Analysis
+ *        ↓
+ *      JIRA MSA
  */
 
-const JIRA_FEATURE_XLSX_CONFIG_ = Object.freeze({
+const JIRA_FEATURE_XML_CONFIG_ = Object.freeze({
   programId: "aixbanker",
-  defaultCountry: "ES",
-  defaultProduct: "blue-buddy",
+
   sheetName: "jiraWorkspaceFeatures",
-  mappingSheetName: "jiraCapabilityMapping",
-  sourceNameTokens: ["AI", "BANKER"],
-  containerPreference: [
-    "RETAIL26 - AI X BANKER [ESP] 2026",
-    "BLUE BUDDY",
-    "AI X BANKER",
-    "RETAIL AI EXPERIENCE 2025",
+
+  sources: [
+    {
+      id: "AIB",
+      fileToken: "SEARCHREQUEST_AIB",
+      workspaceType: "AIB",
+    },
+    {
+      id: "DATA",
+      fileToken: "SEARCHREQUEST_DATA",
+      workspaceType: "DATA",
+    },
   ],
+
+  productsBySdaId: {
+    54491: {
+      product: "blue-buddy",
+      sdaName: "Blue Buddy",
+      sdaCode: "SDATOOL-54491",
+      sdaE2E: "E2E-336501",
+    },
+
+    55522: {
+      product: "panorama",
+      sdaName: "Panorama",
+      sdaCode: "SDATOOL-55522",
+      sdaE2E: "E2E-340058",
+    },
+  },
 });
 
+const JIRA_FEATURE_XML_CUSTOM_FIELDS_ = Object.freeze([
+  "Commitment type",
+  "Deliverable",
+  "ID Analysis",
+  "Analysis Status",
+  "PI Estimate",
+  "Program Increment",
+  "SDA Project",
+  "SDA Status",
+  "Sprint Estimate",
+  "Team Backlog",
+  "Team Backlog Geography",
+  "Type of Delivery",
+  "Workspace Geography",
+]);
+
 function jiraWorkspaceFeatureSheetName_() {
-  return JIRA_FEATURE_XLSX_CONFIG_.sheetName;
+  return JIRA_FEATURE_XML_CONFIG_.sheetName;
 }
 
 function jiraProductMappingSheetName_() {
@@ -99,6 +147,7 @@ function jiraWorkspaceFeatureHeaders_() {
 
 function refreshJiraWorkspaceFeatures() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
   const lock = LockService.getDocumentLock();
 
   if (!lock.tryLock(1000)) {
@@ -107,94 +156,211 @@ function refreshJiraWorkspaceFeatures() {
       "AIxBanker",
       6,
     );
+
     return;
   }
 
   try {
     spreadsheet.toast(
-      "Procesando fichero XLSX de Features JIRA...",
+      "Procesando XML oficiales de Features JIRA...",
       "AIxBanker",
       6,
     );
 
-    const sourceFile = jiraFeatureFindLatestXlsx_();
-    const parsedRows = jiraFeatureParseXlsx_(sourceFile.getBlob());
-    const featureRows = jiraFeatureSelectFeatures_(parsedRows);
-    const mappingIndex = jiraFeatureLoadMappingIndex_(spreadsheet);
-    const exportedRows = featureRows.map((feature) =>
-      jiraFeatureBuildExportRow_(feature, sourceFile, mappingIndex),
+    const allRows = [];
+
+    const sourceDiagnostics = [];
+
+    JIRA_FEATURE_XML_CONFIG_.sources.forEach((sourceConfig) => {
+      const file = jiraFeatureFindLatestXml_(sourceConfig.fileToken);
+
+      const result = jiraFeatureParseXmlFile_(file, sourceConfig);
+
+      allRows.push(...result.rows);
+
+      sourceDiagnostics.push({
+        source: sourceConfig.id,
+
+        sourceFile: file.getName(),
+
+        rawFeatures: result.rawFeatures,
+
+        exportedRows: result.rows.length,
+      });
+    });
+
+    const rows = jiraFeatureUniqueRows_(allRows);
+
+    const invalidRows = rows.filter(
+      (row) =>
+        !String(row.sdaId || "").trim() ||
+        !String(row.product || "").trim() ||
+        !String(row.jiraKey || "").trim(),
     );
 
-    jiraFeatureReplaceSheet_(spreadsheet, exportedRows);
+    if (!rows.length) {
+      throw new Error(
+        [
+          "Los XML JIRA no han generado",
+          "ninguna Feature para",
+          "SDATOOL-54491 o SDATOOL-55522.",
+          "No se modifica jiraWorkspaceFeatures.",
+        ].join(" "),
+      );
+    }
+
+    if (invalidRows.length) {
+      throw new Error(
+        [
+          `Se han generado ${invalidRows.length}`,
+          "filas JIRA inválidas.",
+          "No se publica la nueva foto.",
+        ].join(" "),
+      );
+    }
+
+    rows.sort((left, right) => {
+      const productDifference = String(left.product || "").localeCompare(
+        String(right.product || ""),
+        "es",
+      );
+
+      if (productDifference !== 0) {
+        return productDifference;
+      }
+
+      const workspaceDifference = String(left.workspaceKey || "").localeCompare(
+        String(right.workspaceKey || ""),
+        "es",
+      );
+
+      if (workspaceDifference !== 0) {
+        return workspaceDifference;
+      }
+
+      return jiraFeatureCompareKeys_(left.jiraKey, right.jiraKey);
+    });
+
+    const sheet = ensureJiraWorkspaceFeatureSheet_(spreadsheet);
+
+    replaceJiraWorkspaceFeatureRows_(sheet, rows);
+
     SpreadsheetApp.flush();
 
-    const mapped = exportedRows.filter(
-      (row) => row.mappingMatch && row.mappingMatch !== "unmapped",
-    ).length;
-    const blocked = exportedRows.filter(
-      (row) => jiraFeatureStatusToken_(row.statusRaw) === "blocked",
-    ).length;
+    const blueBuddyRows = rows.filter((row) => row.product === "blue-buddy");
+
+    const panoramaRows = rows.filter((row) => row.product === "panorama");
+
+    const diagnostics = {
+      sourceFiles: sourceDiagnostics,
+
+      totalRows: rows.length,
+
+      blueBuddy: {
+        rows: blueBuddyRows.length,
+
+        withDeliverable: blueBuddyRows.filter((row) =>
+          String(row.deliverable || "").trim(),
+        ).length,
+
+        withAnalysisId: blueBuddyRows.filter((row) =>
+          String(row.analysisId || "").trim(),
+        ).length,
+      },
+
+      panorama: {
+        rows: panoramaRows.length,
+
+        withDeliverable: panoramaRows.filter((row) =>
+          String(row.deliverable || "").trim(),
+        ).length,
+
+        withAnalysisId: panoramaRows.filter((row) =>
+          String(row.analysisId || "").trim(),
+        ).length,
+      },
+
+      sample: rows.slice(0, 20).map((row) => ({
+        jiraKey: row.jiraKey,
+
+        product: row.product,
+
+        sdaId: row.sdaId,
+
+        sdaE2E: row.sdaE2E,
+
+        deliverable: row.deliverable,
+
+        analysisId: row.analysisId,
+
+        programIncrement: row.programIncrement,
+
+        startDate: row.startDate,
+
+        endDate: row.endDate,
+
+        sourceFile: row.sourceFile,
+      })),
+    };
+
+    Logger.log(JSON.stringify(diagnostics, null, 2));
 
     spreadsheet.toast(
-      `Features JIRA: ${exportedRows.length} · mapeadas: ${mapped} · bloqueadas: ${blocked}`,
+      [
+        `Features: ${rows.length}`,
+        `Blue Buddy: ${blueBuddyRows.length}`,
+        `Panorama: ${panoramaRows.length}`,
+      ].join(" · "),
       "Foto JIRA actualizada",
       10,
     );
-
-    Logger.log(
-      JSON.stringify(
-        {
-          sourceFile: sourceFile.getName(),
-          sourceUpdatedAt: sourceFile.getLastUpdated().toISOString(),
-          parsedRows: parsedRows.length,
-          featureRowsBeforeDedup: parsedRows.filter(
-            (row) => row.outlineLevel === 1,
-          ).length,
-          features: exportedRows.length,
-          mapped,
-          blocked,
-        },
-        null,
-        2,
-      ),
-    );
   } catch (error) {
     const message = error && error.message ? error.message : String(error);
+
     spreadsheet.toast(message, "Error actualizando Features JIRA", 10);
+
     console.error(error);
+
     throw error;
   } finally {
     lock.releaseLock();
   }
 }
 
-function jiraFeatureFindLatestXlsx_() {
+function jiraFeatureFindLatestXml_(fileToken) {
   if (typeof getJiraE2EFolder_ !== "function") {
     throw new Error(
-      "No está disponible getJiraE2EFolder_(). Mantén cargado el módulo JIRA de MSAs.",
+      [
+        "No está disponible",
+        "getJiraE2EFolder_().",
+        "Mantén cargado el módulo",
+        "JIRA de MSAs.",
+      ].join(" "),
     );
   }
 
   const folder = getJiraE2EFolder_();
+
   const files = folder.getFiles();
+
+  const requiredToken = String(fileToken || "")
+    .trim()
+    .toUpperCase();
+
   const matches = [];
-  const requiredTokens = JIRA_FEATURE_XLSX_CONFIG_.sourceNameTokens.map(
-    (value) => String(value).trim().toUpperCase(),
-  );
 
   while (files.hasNext()) {
     const file = files.next();
-    const name = String(file.getName() || "");
-    const comparable = name.toUpperCase();
 
-    if (!/\.XLSX$/i.test(name)) {
+    const name = String(file.getName() || "").trim();
+
+    if (!/\.XML$/i.test(name)) {
       continue;
     }
 
-    if (
-      requiredTokens.length &&
-      !requiredTokens.every((token) => comparable.includes(token))
-    ) {
+    const comparable = name.toUpperCase();
+
+    if (!comparable.includes(requiredToken)) {
       continue;
     }
 
@@ -203,9 +369,9 @@ function jiraFeatureFindLatestXlsx_() {
 
   if (!matches.length) {
     throw new Error(
-      `No se ha encontrado ningún XLSX JIRA que contenga: ${requiredTokens.join(
-        " + ",
-      )}.`,
+      ["No se ha encontrado", "ningún XML JIRA", `para ${requiredToken}.`].join(
+        " ",
+      ),
     );
   }
 
@@ -217,701 +383,816 @@ function jiraFeatureFindLatestXlsx_() {
   return matches[0];
 }
 
-function jiraFeatureParseXlsx_(blob) {
-  if (!blob) {
-    throw new Error("No se ha recibido el fichero XLSX de Features JIRA.");
-  }
+function jiraFeatureParseXmlFile_(file, sourceConfig) {
+  const xml = file.getBlob().getDataAsString("UTF-8");
 
-  /*
-   * Un XLSX es internamente un fichero ZIP.
-   *
-   * Drive entrega normalmente el blob con MIME:
-   *
-   * application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-   *
-   * pero Utilities.unzip() exige explícitamente:
-   *
-   * application/zip
-   *
-   * Cambiamos únicamente el Content-Type de una copia
-   * del blob. El contenido binario no se modifica.
-   */
-  const zipBlob = blob.copyBlob().setContentType("application/zip");
-
-  let entries;
-
-  try {
-    entries = Utilities.unzip(zipBlob);
-  } catch (error) {
-    const message = error && error.message ? error.message : String(error);
-
-    throw new Error(`No se ha podido abrir el XLSX como ZIP: ${message}`);
-  }
-
-  if (!Array.isArray(entries) || !entries.length) {
-    throw new Error(
-      "El fichero XLSX está vacío o no contiene una estructura ZIP válida.",
-    );
-  }
-
-  const byName = new Map();
-
-  entries.forEach((entry) => {
-    const name = String(entry.getName() || "")
-      .replace(/\\/g, "/")
-      .replace(/^\/+/, "");
-
-    if (!name) {
-      return;
-    }
-
-    byName.set(name, entry);
-  });
-
-  /*
-   * Shared Strings es opcional.
-   *
-   * Algunos Excel guardan los textos
-   * directamente como inlineStr.
-   */
-  const sharedStrings = jiraFeatureReadSharedStrings_(
-    byName.get("xl/sharedStrings.xml"),
-  );
-
-  /*
-   * De momento trabajamos con la primera
-   * worksheet del fichero origen.
-   *
-   * Es la hoja que contiene:
-   *
-   * Priority
-   * Status
-   * Summary
-   * Progress
-   * Blocked issues
-   * Total Stories
-   */
-  const worksheet = byName.get("xl/worksheets/sheet1.xml");
-
-  if (!worksheet) {
-    const availableWorksheets = [...byName.keys()]
-      .filter((name) => name.startsWith("xl/worksheets/"))
-      .join(", ");
-
-    throw new Error(
-      "El XLSX no contiene xl/worksheets/sheet1.xml." +
-        (availableWorksheets
-          ? ` Worksheets disponibles: ${availableWorksheets}`
-          : ""),
-    );
-  }
-
-  let document;
-
-  try {
-    document = XmlService.parse(worksheet.getDataAsString("UTF-8"));
-  } catch (error) {
-    const message = error && error.message ? error.message : String(error);
-
-    throw new Error(`No se ha podido interpretar sheet1.xml: ${message}`);
-  }
+  const document = XmlService.parse(xml);
 
   const root = document.getRootElement();
 
-  const namespace = root.getNamespace();
+  const channel = root.getChild("channel");
 
-  const sheetData = root.getChild("sheetData", namespace);
-
-  if (!sheetData) {
-    throw new Error("No se ha encontrado sheetData en el XLSX.");
-  }
-
-  const rows = sheetData.getChildren("row", namespace);
-
-  if (!rows.length) {
-    return [];
-  }
-
-  /*
-   * =====================================================
-   * FILAS RAW
-   * =====================================================
-   *
-   * Conservamos outlineLevel:
-   *
-   * 0 -> contenedor
-   * 1 -> Feature
-   * 2 -> Story / task
-   */
-  const rawRows = rows.map((row) => {
-    const outlineAttribute = row.getAttribute("outlineLevel");
-
-    const outlineLevel = outlineAttribute
-      ? Number(outlineAttribute.getValue() || 0)
-      : 0;
-
-    const cells = {};
-
-    row.getChildren("c", namespace).forEach((cell) => {
-      const ref = String(cell.getAttribute("r")?.getValue() || "");
-
-      const column = ref.replace(/\d+/g, "");
-
-      if (!column) {
-        return;
-      }
-
-      cells[column] = jiraFeatureReadCell_(cell, namespace, sharedStrings);
-    });
-
-    return {
-      outlineLevel: Number.isFinite(outlineLevel) ? outlineLevel : 0,
-
-      cells,
-    };
-  });
-
-  /*
-   * =====================================================
-   * CABECERAS
-   * =====================================================
-   */
-  const headerRow = rawRows[0]?.cells || {};
-
-  const headerByColumn = {};
-
-  Object.keys(headerRow).forEach((column) => {
-    const header = String(headerRow[column] || "").trim();
-
-    if (!header) {
-      return;
-    }
-
-    headerByColumn[column] = header;
-  });
-
-  const requiredHeaders = [
-    "Priority",
-    "Status",
-    "Summary",
-    "Progress",
-    "Blocked issues",
-    "Total Stories",
-  ];
-
-  const availableHeaders = Object.values(headerByColumn);
-
-  const missingHeaders = requiredHeaders.filter(
-    (header) => !availableHeaders.includes(header),
-  );
-
-  if (missingHeaders.length) {
+  if (!channel) {
     throw new Error(
-      `Faltan columnas requeridas en el XLSX: ${missingHeaders.join(", ")}`,
+      `El fichero ${file.getName()} no contiene un channel RSS de JIRA.`,
     );
   }
 
+  const items = channel.getChildren("item");
+
+  const rows = [];
+
+  items.forEach((item) => {
+    rows.push(...jiraFeatureBuildRowsFromItem_(item, file, sourceConfig));
+  });
+
+  return {
+    rawFeatures: items.length,
+
+    rows,
+  };
+}
+
+function jiraFeatureBuildRowsFromItem_(item, file, sourceConfig) {
+  const jiraKey = jiraFeatureChildText_(item, "key").toUpperCase();
+
+  if (!jiraKey) {
+    return [];
+  }
+
+  const issueType = jiraFeatureChildText_(item, "type");
+
+  if (jiraFeatureNormalizeToken_(issueType) !== "feature") {
+    return [];
+  }
+
+  const customFields = jiraFeatureCustomFields_(item);
+
+  const deliverable = String(customFields.Deliverable || "").trim();
+
+  const sdaProject = String(customFields["SDA Project"] || "").trim();
+
+  const deliverableSdaIds = jiraFeatureTargetSdaIds_(deliverable);
+
+  const projectSdaIds = jiraFeatureTargetSdaIds_(sdaProject);
+
+  const targetSdaIds = [...new Set([...deliverableSdaIds, ...projectSdaIds])];
+
+  if (!targetSdaIds.length) {
+    return [];
+  }
+
+  const jiraUrl = jiraFeatureChildText_(item, "link");
+
+  const summary = jiraFeatureChildText_(item, "summary");
+
+  const description = jiraFeatureStripMarkup_(
+    jiraFeatureChildText_(item, "description"),
+  );
+
+  const statusRaw = jiraFeatureChildText_(item, "status");
+
+  const resolution = jiraFeatureChildText_(item, "resolution");
+
+  const priority = jiraFeatureChildText_(item, "priority");
+
+  const assignee = jiraFeatureChildText_(item, "assignee");
+
+  const workspaceName = jiraFeatureChildText_(item, "project");
+
+  const workspaceKey = jiraFeatureProjectKey_(item, jiraKey);
+
+  const labels = jiraFeatureLabels_(item);
+
+  const programIncrement = String(
+    customFields["Program Increment"] || "",
+  ).trim();
+
+  const piEstimate = String(customFields["PI Estimate"] || "").trim();
+
+  const sprintEstimate = String(customFields["Sprint Estimate"] || "").trim();
+
   /*
    * =====================================================
-   * NORMALIZACIÓN DE LA JERARQUÍA
+   * PLANIFICACIÓN JIRA
+   * =====================================================
+   *
+   * Program Increment / PI Estimate representan
+   * la ventana prevista, no necesariamente la
+   * fecha real de finalización.
+   */
+  const planning = jiraWorkspacePiWindow_(programIncrement, piEstimate);
+
+  const analysisRaw = String(customFields["ID Analysis"] || "").trim();
+
+  const analysisId = jiraFeatureExtractJiraKeys_(analysisRaw).join(" | ");
+
+  const analysisStatus = String(customFields["Analysis Status"] || "").trim();
+
+  const sdaStatus = String(customFields["SDA Status"] || "").trim();
+
+  const sdaLinks = jiraFeatureSdaProjectLinks_(item);
+
+  const country = jiraFeatureCountry_(
+    deliverable,
+    labels,
+    customFields["Team Backlog Geography"],
+    customFields["Workspace Geography"],
+  );
+
+  /*
+   * =====================================================
+   * FECHAS REALES JIRA
    * =====================================================
    */
-  let currentContainer = "";
 
-  const result = [];
+  const createdAt = jiraFeatureJiraDateToIso_(
+    jiraFeatureChildText_(item, "created"),
+  );
 
-  rawRows.slice(1).forEach((row) => {
-    const values = {};
+  const updatedAt = jiraFeatureJiraDateToIso_(
+    jiraFeatureChildText_(item, "updated"),
+  );
 
-    Object.entries(headerByColumn).forEach(([column, header]) => {
-      values[header] = row.cells[column] ?? "";
-    });
+  const resolvedAt = jiraFeatureJiraDateToIso_(
+    jiraFeatureChildText_(item, "resolved"),
+  );
 
-    const summary = String(values.Summary || "").trim();
+  /*
+   * =====================================================
+   * ESTADO TERMINAL
+   * =====================================================
+   *
+   * Si JIRA ya ha cerrado/resuelto la Feature,
+   * su endDate debe ser la fecha real de
+   * resolución.
+   *
+   * El PI se conserva como targetDate.
+   */
+  const normalizedStatus = jiraFeatureNormalizeToken_(statusRaw);
 
-    if (!summary) {
-      return;
-    }
+  const normalizedResolution = jiraFeatureNormalizeToken_(resolution);
 
-    if (row.outlineLevel === 0) {
-      currentContainer = summary;
-    }
+  const isTerminal =
+    ["deployed", "accepted", "done", "closed", "discarded"].includes(
+      normalizedStatus,
+    ) || ["done", "closed", "discarded"].includes(normalizedResolution);
 
-    result.push({
-      outlineLevel: row.outlineLevel,
+  /*
+   * =====================================================
+   * VENTANA TEMPORAL EFECTIVA
+   * =====================================================
+   *
+   * startDate:
+   *   mantenemos la planificación por PI.
+   *
+   * endDate:
+   *   - terminal + resolved → fecha real JIRA
+   *   - resto              → fin del PI
+   *
+   * targetDate:
+   *   siempre conserva el compromiso previsto.
+   */
+  const startDate = planning.startDate;
 
-      containerName: row.outlineLevel === 0 ? summary : currentContainer,
+  const endDate = isTerminal && resolvedAt ? resolvedAt : planning.endDate;
 
-      priority: String(values.Priority || "").trim(),
+  const targetDate = planning.targetDate || planning.endDate;
 
-      status: String(values.Status || "").trim(),
+  const planningDateSource =
+    isTerminal && resolvedAt
+      ? "jira-pi+resolved"
+      : planning.startDate
+        ? "jira-pi"
+        : "jira-without-pi";
+
+  const discarded =
+    normalizedStatus === "discarded" || normalizedResolution === "discarded";
+
+  const sourceUpdatedAt = file.getLastUpdated().toISOString();
+
+  return targetSdaIds.map((sdaId) => {
+    const productConfig = JIRA_FEATURE_XML_CONFIG_.productsBySdaId[sdaId];
+
+    const expectedSdaE2E = String(productConfig.sdaE2E || "")
+      .trim()
+      .toUpperCase();
+
+    const sdaE2E =
+      expectedSdaE2E && sdaLinks.includes(expectedSdaE2E)
+        ? expectedSdaE2E
+        : sdaLinks.join(" | ");
+
+    const mappingMatch = deliverableSdaIds.includes(sdaId)
+      ? "deliverable"
+      : "sda-project";
+
+    const id = ["jira", workspaceKey, jiraKey, productConfig.product, sdaId]
+      .map((value) => String(value || "").trim())
+      .join("::");
+
+    return {
+      programId: JIRA_FEATURE_XML_CONFIG_.programId,
+
+      country,
+
+      product: productConfig.product,
+
+      id,
+
+      type: "feature",
+
+      track: "functional",
+
+      planningSource: "jira",
+
+      jiraKey,
+
+      jiraUrl,
+
+      name: summary,
 
       summary,
 
-      progress: jiraFeatureNumber_(values.Progress),
+      description,
 
-      blockedIssues: jiraFeatureInteger_(values["Blocked issues"]),
+      status: jiraWorkspaceStatusToRoadmap_(statusRaw),
 
-      totalStories: jiraFeatureInteger_(values["Total Stories"]),
+      statusRaw,
 
-      teamBacklog: String(values["Team Backlog Name"] || "").trim(),
-    });
+      resolution,
+
+      priority,
+
+      assignee,
+
+      labels,
+
+      workspaceKey,
+
+      workspaceName,
+
+      workspaceType: sourceConfig.workspaceType,
+
+      teamBacklog: String(customFields["Team Backlog"] || "").trim(),
+
+      teamBacklogGeography: String(
+        customFields["Team Backlog Geography"] || "",
+      ).trim(),
+
+      workspaceGeography: String(
+        customFields["Workspace Geography"] || "",
+      ).trim(),
+
+      deliveryType: String(customFields["Type of Delivery"] || "").trim(),
+
+      commitment: String(customFields["Commitment type"] || "").trim(),
+
+      programIncrement,
+
+      piEstimate,
+
+      sprintEstimate,
+
+      /*
+       * Fechas efectivas de ejecución.
+       */
+      startDate,
+
+      endDate,
+
+      /*
+       * Fecha objetivo de planificación.
+       */
+      targetDate,
+
+      planningDateSource,
+
+      sdaId,
+
+      sdaName: productConfig.sdaName,
+
+      sdaE2E,
+
+      sdaStatus,
+
+      deliverable,
+
+      analysisId,
+
+      analysisStatus,
+
+      createdAt,
+
+      updatedAt,
+
+      resolvedAt,
+
+      lastUpdate: updatedAt || sourceUpdatedAt,
+
+      detailLevel: "feature",
+
+      jiraDiscarded: discarded,
+
+      sourceFile: file.getName(),
+
+      sourceUpdatedAt,
+
+      progress: "",
+
+      blockedIssues: "",
+
+      totalStories: "",
+
+      containerName: workspaceName,
+
+      sourceFeatureKey: jiraKey,
+
+      mappingMatch,
+    };
+  });
+}
+
+function jiraFeatureCustomFields_(item) {
+  const result = {};
+
+  const customFields = item.getChild("customfields");
+
+  if (!customFields) {
+    return result;
+  }
+
+  const allowed = new Set(JIRA_FEATURE_XML_CUSTOM_FIELDS_);
+
+  customFields.getChildren("customfield").forEach((field) => {
+    const name = jiraFeatureChildText_(field, "customfieldname");
+
+    if (!allowed.has(name)) {
+      return;
+    }
+
+    const values = field.getChild("customfieldvalues");
+
+    result[name] = jiraFeatureElementText_(values);
   });
 
   return result;
 }
 
-function jiraFeatureReadSharedStrings_(blob) {
-  if (!blob) {
+function jiraFeatureElementText_(element) {
+  if (!element) {
+    return "";
+  }
+
+  const children = element.getChildren();
+
+  if (!children.length) {
+    return jiraFeatureNormalizeText_(element.getText());
+  }
+
+  const values = children
+    .map((child) => jiraFeatureElementText_(child))
+    .filter(Boolean);
+
+  if (values.length) {
+    return [...new Set(values)].join(" | ");
+  }
+
+  return jiraFeatureNormalizeText_(element.getText());
+}
+
+function jiraFeatureChildText_(element, childName) {
+  if (!element) {
+    return "";
+  }
+
+  return jiraFeatureElementText_(element.getChild(childName));
+}
+
+function jiraFeatureNormalizeText_(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function jiraFeatureStripMarkup_(value) {
+  return String(value || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\s*\n\s*/g, "\n")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
+function jiraFeatureProjectKey_(item, jiraKey) {
+  const project = item.getChild("project");
+
+  if (project) {
+    const keyAttribute = project.getAttribute("key");
+
+    if (keyAttribute) {
+      const value = String(keyAttribute.getValue() || "")
+        .trim()
+        .toUpperCase();
+
+      if (value) {
+        return value;
+      }
+    }
+  }
+
+  return String(jiraKey || "")
+    .split("-")[0]
+    .trim()
+    .toUpperCase();
+}
+
+function jiraFeatureLabels_(item) {
+  const labels = item.getChild("labels");
+
+  if (!labels) {
+    return "";
+  }
+
+  return [
+    ...new Set(
+      labels
+        .getChildren("label")
+        .map((label) => jiraFeatureNormalizeText_(label.getText()))
+        .filter(Boolean),
+    ),
+  ].join(" | ");
+}
+
+function jiraFeatureSdaProjectLinks_(item) {
+  const issueLinks = item.getChild("issuelinks");
+
+  if (!issueLinks) {
     return [];
   }
 
-  const document = XmlService.parse(blob.getDataAsString("UTF-8"));
-  const root = document.getRootElement();
-  const namespace = root.getNamespace();
+  const keys = new Set();
 
-  return root
-    .getChildren("si", namespace)
-    .map((item) => jiraFeatureXmlText_(item, namespace));
-}
+  issueLinks.getChildren("issuelinktype").forEach((linkType) => {
+    const name = jiraFeatureChildText_(linkType, "name");
 
-function jiraFeatureXmlText_(element, namespace) {
-  const direct = element.getChild("t", namespace);
-
-  if (direct) {
-    return direct.getText();
-  }
-
-  return element
-    .getChildren("r", namespace)
-    .map((run) => run.getChild("t", namespace)?.getText() || "")
-    .join("");
-}
-
-function jiraFeatureReadCell_(cell, namespace, sharedStrings) {
-  const type = String(cell.getAttribute("t")?.getValue() || "");
-
-  if (type === "inlineStr") {
-    const inline = cell.getChild("is", namespace);
-    return inline ? jiraFeatureXmlText_(inline, namespace) : "";
-  }
-
-  const value = cell.getChild("v", namespace)?.getText() ?? "";
-
-  if (type === "s") {
-    const index = Number(value);
-    return Number.isInteger(index) ? (sharedStrings[index] ?? "") : "";
-  }
-
-  if (type === "b") {
-    return value === "1";
-  }
-
-  const number = Number(value);
-  return value !== "" && Number.isFinite(number) ? number : value;
-}
-
-function jiraFeatureSelectFeatures_(rows) {
-  const features = (Array.isArray(rows) ? rows : []).filter(
-    (row) => row.outlineLevel === 1 && row.summary,
-  );
-  const selected = new Map();
-
-  features.forEach((feature) => {
-    const key = jiraFeatureNameKey_(feature.summary);
-
-    if (!key) {
+    if (jiraFeatureNormalizeToken_(name) !== "sdaprojectfeature") {
       return;
     }
 
-    const current = selected.get(key);
+    const outwardLinks = linkType.getChild("outwardlinks");
 
-    if (
-      !current ||
-      jiraFeatureCandidateScore_(feature) > jiraFeatureCandidateScore_(current)
-    ) {
-      selected.set(key, feature);
+    if (!outwardLinks) {
+      return;
     }
-  });
 
-  return [...selected.values()].sort((left, right) =>
-    String(left.summary || "").localeCompare(String(right.summary || ""), "es"),
-  );
-}
+    outwardLinks.getChildren("issuelink").forEach((link) => {
+      const key = jiraFeatureChildText_(link, "issuekey").trim().toUpperCase();
 
-function jiraFeatureCandidateScore_(feature) {
-  const container = jiraFeatureComparable_(feature.containerName);
-  const preference = JIRA_FEATURE_XLSX_CONFIG_.containerPreference;
-  let score = 0;
-
-  preference.forEach((token, index) => {
-    if (container.includes(jiraFeatureComparable_(token))) {
-      score = Math.max(score, 1000 - index * 100);
-    }
-  });
-
-  const status = jiraFeatureStatusToken_(feature.status);
-
-  if (!["deployed", "discarded", "closed", "accepted"].includes(status)) {
-    score += 50;
-  }
-
-  score += Math.round((jiraFeatureNumber_(feature.progress) || 0) * 10);
-  score += jiraFeatureInteger_(feature.blockedIssues) > 0 ? 5 : 0;
-
-  return score;
-}
-
-function jiraFeatureLoadMappingIndex_(spreadsheet) {
-  const sheet = spreadsheet.getSheetByName(
-    JIRA_FEATURE_XLSX_CONFIG_.mappingSheetName,
-  );
-  const index = {
-    exact: new Map(),
-    loose: new Map(),
-  };
-
-  if (!sheet || sheet.getLastRow() < 2) {
-    return index;
-  }
-
-  const values = sheet.getDataRange().getValues();
-  const headers = values[0].map((value) => String(value || "").trim());
-
-  values.slice(1).forEach((valuesRow) => {
-    const row = {};
-
-    headers.forEach((header, columnIndex) => {
-      if (header) {
-        row[header] = valuesRow[columnIndex];
+      if (key) {
+        keys.add(key);
       }
     });
-
-    const featureName = String(row.featureName || "").trim();
-    const productId = String(row.productId || "").trim();
-
-    if (!featureName || !productId) {
-      return;
-    }
-
-    const mapping = {
-      workspaceKey: String(row.workspaceKey || "").trim(),
-      jiraKey: String(row.jiraKey || "").trim(),
-      featureName,
-      productId,
-      capabilityIds: String(row.capabilityIds || "").trim(),
-      functionalCaseIds: String(row.functionalCaseIds || "").trim(),
-      track: String(row.track || "").trim(),
-      confidence: String(row.confidence || "").trim(),
-      notes: String(row.notes || "").trim(),
-    };
-
-    jiraFeatureIndexAppend_(
-      index.exact,
-      jiraFeatureNameKey_(featureName),
-      mapping,
-    );
-    jiraFeatureIndexAppend_(
-      index.loose,
-      jiraFeatureLooseNameKey_(featureName),
-      mapping,
-    );
   });
 
-  return index;
+  return [...keys];
 }
 
-function jiraFeatureIndexAppend_(index, key, value) {
-  if (!key) {
-    return;
-  }
+function jiraFeatureTargetSdaIds_(value) {
+  const text = String(value || "");
 
-  if (!index.has(key)) {
-    index.set(key, []);
-  }
-
-  index.get(key).push(value);
+  return Object.keys(JIRA_FEATURE_XML_CONFIG_.productsBySdaId).filter((sdaId) =>
+    new RegExp(`(?:^|[^0-9])${sdaId}(?:[^0-9]|$)`).test(text),
+  );
 }
 
-function jiraFeatureResolveMapping_(summary, mappingIndex) {
-  const exact = mappingIndex.exact.get(jiraFeatureNameKey_(summary)) || [];
+function jiraFeatureExtractJiraKeys_(value) {
+  return [
+    ...new Set(
+      (String(value || "").match(/\b[A-Z][A-Z0-9]+-\d+\b/gi) || []).map((key) =>
+        String(key).trim().toUpperCase(),
+      ),
+    ),
+  ];
+}
 
-  if (exact.length === 1) {
-    return {
-      mapping: exact[0],
-      match: "featureName-exact",
-    };
-  }
+function jiraFeatureCountry_(
+  deliverable,
+  labels,
+  teamBacklogGeography,
+  workspaceGeography,
+) {
+  const sources = [
+    deliverable,
+    labels,
+    teamBacklogGeography,
+    workspaceGeography,
+  ];
 
-  const loose = mappingIndex.loose.get(jiraFeatureLooseNameKey_(summary)) || [];
+  for (let index = 0; index < sources.length; index += 1) {
+    const country = jiraFeatureCountryFromText_(sources[index]);
 
-  if (loose.length === 1) {
-    return {
-      mapping: loose[0],
-      match: "featureName-loose",
-    };
-  }
-
-  if (exact.length > 1) {
-    const preferred = jiraFeaturePreferProductMapping_(summary, exact);
-
-    if (preferred) {
-      return {
-        mapping: preferred,
-        match: "featureName-exact-product",
-      };
+    if (country) {
+      return country;
     }
   }
 
-  if (loose.length > 1) {
-    const preferred = jiraFeaturePreferProductMapping_(summary, loose);
+  return "HL";
+}
 
-    if (preferred) {
-      return {
-        mapping: preferred,
-        match: "featureName-loose-product",
-      };
+function jiraFeatureCountryFromText_(value) {
+  const folded = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim();
+
+  if (!folded) {
+    return "";
+  }
+
+  const tokens = folded.split(/\s+/).filter(Boolean);
+
+  const aliases = {
+    ES: "ES",
+    ESP: "ES",
+    ESPANA: "ES",
+    SPAIN: "ES",
+
+    MX: "MX",
+    MEX: "MX",
+    MEXICO: "MX",
+
+    PE: "PE",
+    PER: "PE",
+    PERU: "PE",
+
+    CO: "CO",
+    COL: "CO",
+    COLOMBIA: "CO",
+
+    HL: "HL",
+    HLD: "HL",
+    HOLDING: "HL",
+    GLOBAL: "HL",
+  };
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const country = aliases[tokens[index]];
+
+    if (country) {
+      return country;
     }
-  }
-
-  return {
-    mapping: null,
-    match: "unmapped",
-  };
-}
-
-function jiraFeaturePreferProductMapping_(summary, candidates) {
-  const product = jiraFeatureInferProduct_(summary, "");
-  const productCandidates = candidates.filter(
-    (row) => jiraFeatureSlug_(row.productId) === product,
-  );
-
-  return productCandidates.length === 1 ? productCandidates[0] : null;
-}
-
-function jiraFeatureBuildExportRow_(feature, sourceFile, mappingIndex) {
-  const resolution = jiraFeatureResolveMapping_(feature.summary, mappingIndex);
-  const mapping = resolution.mapping;
-  const product = jiraFeatureInferProduct_(
-    feature.summary,
-    mapping?.productId || feature.containerName,
-  );
-  const jiraKey = String(mapping?.jiraKey || "").trim();
-  const workspaceKey = String(mapping?.workspaceKey || "XLSX").trim();
-  const sourceFeatureKey = jiraFeatureNameKey_(feature.summary);
-  const syntheticId = `xlsx-${jiraFeatureStableHash_(sourceFeatureKey)}`;
-  const statusRaw = String(feature.status || "").trim();
-  const statusToken = jiraFeatureStatusToken_(statusRaw);
-  const progress = jiraFeatureProgressPercent_(feature.progress);
-  const sourceUpdatedAt = sourceFile.getLastUpdated().toISOString();
-
-  return {
-    programId: JIRA_FEATURE_XLSX_CONFIG_.programId,
-    country: JIRA_FEATURE_XLSX_CONFIG_.defaultCountry,
-    product,
-    id: jiraKey || syntheticId,
-    type: "feature",
-    track: String(mapping?.track || "")
-      .trim()
-      .toLowerCase(),
-    planningSource: "jira",
-    jiraKey,
-    jiraUrl: "",
-    name: feature.summary,
-    summary: feature.summary,
-    description: "",
-    status: jiraFeatureDashboardStatus_(statusRaw),
-    statusRaw,
-    resolution: "",
-    priority: feature.priority,
-    assignee: "",
-    labels: "",
-    workspaceKey,
-    workspaceName: feature.containerName,
-    workspaceType: jiraFeatureWorkspaceType_(workspaceKey),
-    teamBacklog: feature.teamBacklog,
-    teamBacklogGeography: "",
-    workspaceGeography: JIRA_FEATURE_XLSX_CONFIG_.defaultCountry,
-    deliveryType: "",
-    commitment: "",
-    programIncrement: "",
-    piEstimate: "",
-    sprintEstimate: "",
-    startDate: "",
-    endDate: "",
-    targetDate: "",
-    planningDateSource: "xlsx-without-dates",
-    sdaId: "",
-    sdaName: "",
-    sdaE2E: "",
-    sdaStatus: "",
-    deliverable: "",
-    analysisId: "",
-    analysisStatus: "",
-    createdAt: "",
-    updatedAt: sourceUpdatedAt,
-    resolvedAt: "",
-    lastUpdate: sourceUpdatedAt,
-    detailLevel: "feature",
-    jiraDiscarded: statusToken === "discarded",
-    sourceFile: sourceFile.getName(),
-    sourceUpdatedAt,
-    progress,
-    blockedIssues: jiraFeatureInteger_(feature.blockedIssues),
-    totalStories: jiraFeatureInteger_(feature.totalStories),
-    containerName: feature.containerName,
-    sourceFeatureKey,
-    mappingMatch: resolution.match,
-  };
-}
-
-function jiraFeatureReplaceSheet_(spreadsheet, rows) {
-  const sheetName = jiraWorkspaceFeatureSheetName_();
-  const headers = jiraWorkspaceFeatureHeaders_();
-  let sheet = spreadsheet.getSheetByName(sheetName);
-
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(sheetName);
-  }
-
-  sheet.clearContents();
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-
-  if (rows.length) {
-    const values = rows.map((row) =>
-      headers.map((header) => row[header] ?? ""),
-    );
-    sheet.getRange(2, 1, values.length, headers.length).setValues(values);
-  }
-
-  sheet.setFrozenRows(1);
-}
-
-function jiraFeatureInferProduct_(summary, hint) {
-  const comparable = `${summary || ""} ${hint || ""}`.toLowerCase();
-
-  if (comparable.includes("panorama")) {
-    return "panorama";
-  }
-
-  return JIRA_FEATURE_XLSX_CONFIG_.defaultProduct;
-}
-
-function jiraFeatureDashboardStatus_(value) {
-  const status = jiraFeatureStatusToken_(value);
-
-  if (["deployed", "accepted", "done", "closed"].includes(status)) {
-    return "done";
-  }
-
-  if (status === "blocked") {
-    return "blocked";
-  }
-
-  if (
-    ["in progress", "execution", "analysing", "ready to verify"].includes(
-      status,
-    )
-  ) {
-    return "on-track";
-  }
-
-  if (["new", "ready", "backlog", "to do"].includes(status)) {
-    return "planned";
-  }
-
-  if (status === "discarded") {
-    return "discarded";
-  }
-
-  return "pending";
-}
-
-function jiraFeatureWorkspaceType_(workspaceKey) {
-  const value = String(workspaceKey || "").toUpperCase();
-
-  if (value.includes("DATA")) {
-    return "DATA";
-  }
-
-  if (value.includes("ENGINEERING") || value.includes("ENG")) {
-    return "ENGINEERING";
   }
 
   return "";
 }
 
-function jiraFeatureProgressPercent_(value) {
-  const number = jiraFeatureNumber_(value);
+function jiraWorkspacePiWindow_(programIncrement, piEstimate) {
+  function parsePis(value) {
+    const matches = String(value || "").match(/\b(20\d{2})-Q([1-4])\b/gi) || [];
 
-  if (!Number.isFinite(number)) {
-    return 0;
+    return matches.map((match) => {
+      const parts = match.toUpperCase().split("-Q");
+
+      return {
+        year: Number(parts[0]),
+
+        quarter: Number(parts[1]),
+      };
+    });
   }
 
-  const percent = number >= 0 && number <= 1 ? number * 100 : number;
-  return Math.max(0, Math.min(100, Math.round(percent * 100) / 100));
-}
+  let pis = parsePis(programIncrement);
 
-function jiraFeatureNumber_(value) {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : 0;
+  const estimatePis = parsePis(piEstimate);
+
+  if (!pis.length && estimatePis.length) {
+    pis = estimatePis;
   }
 
-  const normalized = String(value || "")
-    .trim()
-    .replace("%", "")
-    .replace(",", ".");
-  const number = Number(normalized);
+  if (!pis.length) {
+    return {
+      startDate: "",
+      endDate: "",
+      targetDate: "",
+    };
+  }
 
-  return Number.isFinite(number) ? number : 0;
+  pis.sort((left, right) =>
+    left.year === right.year
+      ? left.quarter - right.quarter
+      : left.year - right.year,
+  );
+
+  estimatePis.sort((left, right) =>
+    left.year === right.year
+      ? left.quarter - right.quarter
+      : left.year - right.year,
+  );
+
+  const first = pis[0];
+
+  const last = pis[pis.length - 1];
+
+  const target = estimatePis.length
+    ? estimatePis[estimatePis.length - 1]
+    : last;
+
+  function quarterStart(pi) {
+    const month = (pi.quarter - 1) * 3 + 1;
+
+    return [pi.year, String(month).padStart(2, "0"), "01"].join("-");
+  }
+
+  function quarterEnd(pi) {
+    const endMonth = pi.quarter * 3;
+
+    const date = new Date(Date.UTC(pi.year, endMonth, 0));
+
+    return Utilities.formatDate(date, "UTC", "yyyy-MM-dd");
+  }
+
+  return {
+    startDate: quarterStart(first),
+
+    endDate: quarterEnd(last),
+
+    targetDate: quarterEnd(target),
+  };
 }
 
-function jiraFeatureInteger_(value) {
-  return Math.max(0, Math.round(jiraFeatureNumber_(value)));
+function jiraWorkspaceStatusToRoadmap_(value) {
+  const normalized = jiraFeatureNormalizeToken_(value);
+
+  if (["deployed", "accepted", "done", "closed"].includes(normalized)) {
+    return "done";
+  }
+
+  if (normalized === "blocked") {
+    return "blocked";
+  }
+
+  if (["inprogress", "analysing", "readytoverify"].includes(normalized)) {
+    return "on-track";
+  }
+
+  if (["new", "backlog", "todo"].includes(normalized)) {
+    return "planned";
+  }
+
+  if (normalized === "discarded") {
+    return "done";
+  }
+
+  return "pending";
 }
 
-function jiraFeatureStatusToken_(value) {
-  return jiraFeatureComparable_(value)
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function jiraFeatureComparable_(value) {
+function jiraFeatureNormalizeToken_(value) {
   return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function jiraFeatureNameKey_(value) {
-  return jiraFeatureComparable_(value).replace(/\s+/g, " ").trim();
-}
-
-function jiraFeatureLooseNameKey_(value) {
-  return jiraFeatureComparable_(value)
-    .replace(/^\s*(?:\[[^\]]+\]\s*)+/, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
     .trim();
 }
 
-function jiraFeatureSlug_(value) {
-  return jiraFeatureComparable_(value)
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+function jiraFeatureJiraDateToIso_(value) {
+  const text = String(value || "").trim();
 
-function jiraFeatureStableHash_(value) {
-  const bytes = Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256,
-    String(value || ""),
-    Utilities.Charset.UTF_8,
+  if (!text) {
+    return "";
+  }
+
+  const match = text.match(
+    /(?:^[A-Za-z]{3},\s*)?(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/i,
   );
 
-  return bytes
-    .slice(0, 6)
-    .map((byte) => ((byte + 256) % 256).toString(16).padStart(2, "0"))
-    .join("");
+  if (!match) {
+    return "";
+  }
+
+  const months = {
+    jan: 1,
+    feb: 2,
+    mar: 3,
+    apr: 4,
+    may: 5,
+    jun: 6,
+    jul: 7,
+    aug: 8,
+    sep: 9,
+    oct: 10,
+    nov: 11,
+    dec: 12,
+  };
+
+  const month = months[String(match[2]).toLowerCase()];
+
+  if (!month) {
+    return "";
+  }
+
+  return [
+    match[3],
+    String(month).padStart(2, "0"),
+    String(Number(match[1])).padStart(2, "0"),
+  ].join("-");
+}
+
+function jiraFeatureCompareKeys_(left, right) {
+  const leftText = String(left || "")
+    .trim()
+    .toUpperCase();
+
+  const rightText = String(right || "")
+    .trim()
+    .toUpperCase();
+
+  const leftMatch = leftText.match(/^([A-Z0-9]+)-(\d+)$/);
+
+  const rightMatch = rightText.match(/^([A-Z0-9]+)-(\d+)$/);
+
+  if (leftMatch && rightMatch && leftMatch[1] === rightMatch[1]) {
+    return Number(leftMatch[2]) - Number(rightMatch[2]);
+  }
+
+  return leftText.localeCompare(rightText, "es");
+}
+
+function jiraFeatureUniqueRows_(rows) {
+  const result = new Map();
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const key = [row.workspaceKey, row.jiraKey, row.product, row.sdaId]
+      .map((value) =>
+        String(value || "")
+          .trim()
+          .toUpperCase(),
+      )
+      .join("::");
+
+    if (key && !result.has(key)) {
+      result.set(key, row);
+    }
+  });
+
+  return [...result.values()];
+}
+
+function ensureJiraWorkspaceFeatureSheet_(spreadsheet) {
+  let sheet = spreadsheet.getSheetByName(jiraWorkspaceFeatureSheetName_());
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(jiraWorkspaceFeatureSheetName_());
+  }
+
+  return sheet;
+}
+
+function replaceJiraWorkspaceFeatureRows_(sheet, rows) {
+  const headers = jiraWorkspaceFeatureHeaders_();
+
+  const requiredRows = Math.max(2, rows.length + 1);
+
+  const requiredColumns = headers.length;
+
+  if (sheet.getMaxRows() < requiredRows) {
+    sheet.insertRowsAfter(
+      sheet.getMaxRows(),
+      requiredRows - sheet.getMaxRows(),
+    );
+  }
+
+  if (sheet.getMaxColumns() < requiredColumns) {
+    sheet.insertColumnsAfter(
+      sheet.getMaxColumns(),
+      requiredColumns - sheet.getMaxColumns(),
+    );
+  }
+
+  sheet.clearContents();
+
+  sheet.getRange(1, 1, 1, requiredColumns).setValues([headers]);
+
+  sheet.setFrozenRows(1);
+
+  if (!rows.length) {
+    return;
+  }
+
+  const values = rows.map((row) => headers.map((header) => row[header] ?? ""));
+
+  sheet.getRange(2, 1, values.length, requiredColumns).setValues(values);
 }

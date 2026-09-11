@@ -3816,416 +3816,499 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
   `;
 }
 
-function renderAIxBankerHome(programId, requestedProductId = null) {
-  const program = (DATA.programs || []).find(
-    (item) => String(item.id || "").trim() === String(programId || "").trim(),
-  );
-
-  if (!program) {
-    renderLanding();
-    return;
-  }
-
+function renderAIxBankerHome(programId, productId = null) {
   const normalizedProgramId = String(programId || "").trim();
 
-  const normalizedRequestedProductId = String(requestedProductId || "")
-    .trim()
-    .toLowerCase();
+  const requestedProductId = String(productId || "").trim();
 
-  const rawFlights = (DATA.sdaFlights || []).filter(
-    (item) => String(item.programId || "").trim() === normalizedProgramId,
-  );
+  const normalizedProductId =
+    requestedProductId || (normalizedProgramId === "blue" ? "blue" : "");
 
-  const availableYears = rawFlights
-    .map((item) => Number(item.year))
-    .filter(Number.isFinite);
+  const product = normalizedProductId
+    ? getAIxBankerProduct(normalizedProductId)
+    : null;
 
-  const currentYear = availableYears.length
-    ? Math.max(...availableYears)
-    : new Date().getFullYear();
-
-  const flightsByProduct = new Map();
-
-  rawFlights
-    .filter((item) => !item.year || Number(item.year) === currentYear)
-    .forEach((item) => {
-      const productId = String(item.productId || "")
-        .trim()
-        .toLowerCase();
-
-      if (productId) {
-        flightsByProduct.set(productId, item);
-      }
-    });
-
-  let flights = [...flightsByProduct.values()];
-
-  if (!flights.length) {
-    flights = ["blue-buddy", "panorama"].map((productId) => {
-      const product = getAIxBankerProduct(productId);
-
-      return {
-        programId: normalizedProgramId,
-        productId,
-        year: currentYear,
-        sdaCode: "",
-        productName: product?.label || productId,
-        programName: program.name || "AIxBanker",
-        country: "Holding",
-        description: product?.description || "",
-        sponsor: "",
-        productOwner: "",
-        programManager: "",
-        engineeringResponsible: "",
-        startQuarter: `Q1 ${currentYear}`,
-        endQuarter: `Q4 ${currentYear}`,
-      };
-    });
-  }
-
-  const getFlightProductId = (flight) =>
-    String(flight?.productId || "")
-      .trim()
-      .toLowerCase();
-
-  const getFlightProductLabel = (flight) => {
-    const productId = getFlightProductId(flight);
-
-    const product = getAIxBankerProduct(productId);
-
-    return (
-      String(flight?.productName || "").trim() ||
-      product?.label ||
-      productId ||
-      "AIxBanker"
-    );
-  };
-
-  const getFlightSdaCode = (flight) =>
-    String(flight?.sdaCode || "SDA").trim() || "SDA";
-
-  const activeFlight = normalizedRequestedProductId
-    ? flights.find(
-        (flight) => getFlightProductId(flight) === normalizedRequestedProductId,
-      ) || null
+  const program = Array.isArray(DATA?.programs)
+    ? DATA.programs.find(
+        (item) => String(item.id || "").trim() === normalizedProgramId,
+      )
     : null;
 
   /*
    * =====================================================
-   * LANDING · PRODUCTOS
+   * LANDING DE PRODUCTOS
    * =====================================================
    */
-  if (!activeFlight) {
+  if (!product) {
     setHead(
-      `${program.name || "AIxBanker"}`,
-      "Selecciona un producto para acceder a su espacio de gestión",
-      `Retail Client Solutions > ${program.name || "AIxBanker"} > Productos`,
+      "AIxBanker",
+      "Selecciona un producto para acceder a su espacio de planificación, ejecución y gestión.",
+      "Retail Client Solutions > AIxBanker",
     );
 
     view.innerHTML = "";
-
     view.append(tpl("#aixbanker-home-template"));
 
-    const boardGrid = document.querySelector("#flightGateBoardGrid");
+    const board = document.querySelector("#flightGateBoardGrid");
 
-    if (!boardGrid) {
+    if (!board) {
       return;
     }
 
-    boardGrid.innerHTML = flights
-      .map((flight) => {
-        const productId = getFlightProductId(flight);
+    const catalogProducts = (
+      Array.isArray(DATA?.productCatalog) ? DATA.productCatalog : []
+    )
+      .filter((item) => {
+        const itemProgramId = String(
+          item.programId || item.program_id || normalizedProgramId,
+        ).trim();
 
-        const productLabel = getFlightProductLabel(flight);
-
-        const sdaCode = getFlightSdaCode(flight);
-
-        const year = Number(flight.year) || currentYear;
-
-        const startQuarter = String(flight.startQuarter || `Q1 ${year}`).trim();
-
-        const endQuarter = String(flight.endQuarter || `Q4 ${year}`).trim();
-
-        const routeValue =
-          `program/` + `${normalizedProgramId}/` + `${productId}`;
-
-        const deliverableCount = (DATA.sdaDeliverables || []).filter(
-          (item) =>
-            String(item.programId || "").trim() === normalizedProgramId &&
-            String(item.productId || "")
+        const enabled =
+          item.enabled === true ||
+          !["false", "0", "no", "disabled", "inactive", "inactivo"].includes(
+            String(item.enabled ?? "true")
               .trim()
-              .toLowerCase() === productId &&
-            (!item.year || Number(item.year) === year),
-        ).length;
+              .toLowerCase(),
+          );
 
-        const jiraCount = getRoadmapItems(
-          normalizedProgramId,
-          productId,
-          "ALL",
-        ).length;
+        return itemProgramId === normalizedProgramId && enabled;
+      })
+      .sort(
+        (left, right) =>
+          Number(left.sortOrder ?? left.sort_order ?? 999) -
+          Number(right.sortOrder ?? right.sort_order ?? 999),
+      );
+
+    const products = catalogProducts.length
+      ? catalogProducts
+      : [
+          {
+            id: "blue-buddy",
+            productId: "blue-buddy",
+            product_id: "blue-buddy",
+            label: "Blue Buddy",
+            productName: "Blue Buddy",
+            product_name: "Blue Buddy",
+            tagline: "AI Banker para interacción conversacional con clientes.",
+            enabled: true,
+            sortOrder: 1,
+          },
+          {
+            id: "panorama",
+            productId: "panorama",
+            product_id: "panorama",
+            label: "Panorama",
+            productName: "Panorama",
+            product_name: "Panorama",
+            tagline:
+              "Capacidades de conocimiento y visión integral para AIxBanker.",
+            enabled: true,
+            sortOrder: 2,
+          },
+        ];
+
+    const features = Array.isArray(DATA?.productFeatures)
+      ? DATA.productFeatures
+      : [];
+
+    const getProductStats = (productId) => {
+      const normalizedProductId = String(productId || "")
+        .trim()
+        .toLowerCase();
+
+      const productFeatures = features.filter(
+        (feature) =>
+          String(feature.productId || feature.product_id || "")
+            .trim()
+            .toLowerCase() === normalizedProductId,
+      );
+
+      const capabilities = new Set(
+        productFeatures
+          .map((feature) =>
+            String(feature.capabilityId || feature.capability_id || "").trim(),
+          )
+          .filter(Boolean),
+      );
+
+      const countries = new Set();
+
+      productFeatures.forEach((feature) => {
+        String(feature.country || feature.countries || "")
+          .split(/[|,;\n]+/)
+          .map((value) => value.trim().toUpperCase())
+          .filter(Boolean)
+          .forEach((countryId) => countries.add(countryId));
+      });
+
+      return {
+        capabilityCount: capabilities.size,
+
+        featureCount: productFeatures.length,
+
+        countries: [...countries]
+          .map((countryId) =>
+            COUNTRIES.find((country) => country.id === countryId),
+          )
+          .filter(Boolean)
+          .slice(0, 4),
+      };
+    };
+
+    board.innerHTML = products
+      .map((item, index) => {
+        const productId = String(
+          item.productId || item.product_id || item.id || "",
+        ).trim();
+
+        if (!productId) {
+          return "";
+        }
+
+        const productDefinition = getAIxBankerProduct(productId);
+
+        const productName = String(
+          item.productName ||
+            item.product_name ||
+            item.label ||
+            productDefinition?.label ||
+            productId,
+        ).trim();
+
+        const description = String(
+          item.tagline ||
+            item.overview ||
+            productDefinition?.description ||
+            "Producto AIxBanker.",
+        ).trim();
+
+        const stats = getProductStats(productId);
+
+        const normalizedProductId = productId.toLowerCase();
+
+        const isPanorama = normalizedProductId === "panorama";
+
+        const gateCode = isPanorama ? "PNM" : "BBY";
+
+        const productShortName = isPanorama ? "PANORAMA" : "BLUE BUDDY";
+
+        const availability = stats.countries.length
+          ? stats.countries
+              .map(
+                (country) =>
+                  `<span title="${rcsEsc(country.label)}">${rcsEsc(
+                    country.id,
+                  )}</span>`,
+              )
+              .join(" ")
+          : "—";
 
         return `
           <article
-            class="
-              flight-gate-board
-              flight-gate-board-clickable
-              ${productId === "panorama" ? "is-panorama" : ""}
-            "
-            data-route="${rcsEsc(routeValue)}"
-            role="link"
-            tabindex="0"
-            aria-label="${rcsEsc(`Abrir producto ${productLabel}`)}"
-            title="${rcsEsc(`Abrir producto ${productLabel}`)}"
-            style="
-              cursor:pointer;
-            "
+            class="flight-gate-board ${isPanorama ? "is-panorama" : ""}"
           >
-            <div
-              class="flight-gate-sign"
-              aria-label="${rcsEsc(`SDA ${sdaCode}`)}"
-              style="
-                font-size:
-                  clamp(
-                    20px,
-                    2.7vw,
-                    36px
-                  );
-                letter-spacing:
-                  0.015em;
-                min-height:
-                  76px;
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                white-space:nowrap;
-              "
-            >
-              ${rcsEsc(sdaCode)}
+            <div class="flight-gate-sign">
+              ${gateCode}
             </div>
 
-            <div
-              class="
-                flight-gate-monitor-frame
-              "
-            >
-              <div
-                class="
-                  flight-gate-monitor
-                "
-              >
-                <div
-                  class="
-                    flight-gate-monitor-top
-                  "
-                >
-                  <div
-                    class="
-                      flight-gate-airline
-                    "
-                  >
-                    AIxBANKER
+            <div class="flight-gate-monitor-frame">
+              <div class="flight-gate-monitor">
+
+                <div class="flight-gate-monitor-top">
+                  <div class="flight-gate-airline">
+                    AIxBanker
                   </div>
 
-                  <div
-                    class="
-                      flight-gate-flight-meta
-                    "
-                  >
+                  <div class="flight-gate-flight-meta">
                     <strong>
-                      ${rcsEsc(productLabel)}
+                      ${rcsEsc(productName)}
                     </strong>
 
                     <small>
-                      ${rcsEsc(year)}
+                      PRODUCTO GLOBAL
                     </small>
                   </div>
                 </div>
 
-                <div
-                  class="
-                    flight-gate-destination
-                  "
-                >
-                  ${rcsEsc(productLabel)}
+                <div class="flight-gate-destination">
+                  ${rcsEsc(productShortName)}
                 </div>
 
-                <div
-                  class="
-                    flight-gate-info
-                  "
-                >
+                <div class="flight-gate-info">
+
                   <div>
                     <span>
-                      Window
+                      Capacidades
                     </span>
 
                     <strong>
-                      ${rcsEsc(startQuarter)}
-                      →
-                      ${rcsEsc(endQuarter)}
+                      ${stats.capabilityCount}
                     </strong>
                   </div>
 
                   <div>
                     <span>
-                      SDA
+                      Casos funcionales
                     </span>
 
                     <strong>
-                      ${rcsEsc(deliverableCount)}
+                      ${stats.featureCount}
                     </strong>
                   </div>
 
                   <div>
                     <span>
-                      JIRA
+                      Disponible en
                     </span>
 
                     <strong>
-                      ${rcsEsc(jiraCount)}
+                      ${availability}
                     </strong>
                   </div>
+
                 </div>
 
-                <div
-                  class="
-                    flight-gate-status
-                  "
-                >
-                  DISPONIBLE
+                <div class="flight-gate-status">
+                  ${rcsEsc(description)}
                 </div>
 
-                <div
-                  class="
-                    flight-gate-open
-                  "
-                  aria-hidden="true"
+                <button
+                  class="flight-gate-open"
+                  type="button"
+                  data-route="program/${normalizedProgramId}/${productId}"
+                  aria-label="Abrir ${rcsEsc(productName)}"
                 >
-                  Abrir producto
-
-                  <span>
+                  <span aria-hidden="true">
                     →
                   </span>
-                </div>
-              </div>
 
-              <span
-                class="
-                  flight-gate-monitor-brand
-                "
-                aria-hidden="true"
-              >
-                RCS CONTROL DISPLAY
-              </span>
+                  Abrir producto
+                </button>
+
+                <small class="flight-gate-monitor-brand">
+                  RCS · AIxBANKER · GATE ${index + 1}
+                </small>
+
+              </div>
             </div>
           </article>
         `;
       })
+      .filter(Boolean)
       .join("");
-
-    boardGrid
-      .querySelectorAll(".flight-gate-board[data-route]")
-      .forEach((panel) => {
-        panel.addEventListener("keydown", (event) => {
-          if (event.key !== "Enter" && event.key !== " ") {
-            return;
-          }
-
-          event.preventDefault();
-
-          route(panel.dataset.route);
-        });
-      });
 
     return;
   }
 
   /*
    * =====================================================
-   * PRODUCT DETAIL · FLIGHT DECK
+   * DATOS SDA
    * =====================================================
    */
+  const activeProductId = product.id;
 
-  const activeProductId = getFlightProductId(activeFlight);
+  const sdaFlights = Array.isArray(DATA?.sdaFlights)
+    ? DATA.sdaFlights.filter((item) => {
+        const itemProgramId = String(item.programId || "").trim();
 
-  const activeProduct = getAIxBankerProduct(activeProductId);
+        const itemProductId = String(
+          item.productId || item.product || "",
+        ).trim();
 
-  const activeProductLabel = getFlightProductLabel(activeFlight);
+        return (
+          itemProgramId === normalizedProgramId &&
+          itemProductId === activeProductId
+        );
+      })
+    : [];
 
-  const activeSdaCode = getFlightSdaCode(activeFlight);
+  const sdaFlight = sdaFlights[0] || null;
 
-  const activeYear = Number(activeFlight.year) || currentYear;
+  const sdaDeliverables = Array.isArray(DATA?.sdaDeliverables)
+    ? DATA.sdaDeliverables.filter((item) => {
+        const itemProgramId = String(item.programId || "").trim();
 
-  selectedExecutiveProduct = activeProductId;
+        const itemProductId = String(
+          item.productId || item.product || "",
+        ).trim();
 
-  const deliverables = (DATA.sdaDeliverables || []).filter(
+        return (
+          itemProgramId === normalizedProgramId &&
+          itemProductId === activeProductId
+        );
+      })
+    : [];
+
+  /*
+   * =====================================================
+   * ROADMAP
+   * =====================================================
+   */
+  const roadmapItems = Array.isArray(DATA?.roadmapItems)
+    ? DATA.roadmapItems.filter(
+        (item) =>
+          String(item.programId || "").trim() === normalizedProgramId &&
+          normalizeRoadmapProduct(item.product) === activeProductId,
+      )
+    : [];
+
+  const productProjects = roadmapItems.filter(
     (item) =>
-      String(item.programId || "").trim() === normalizedProgramId &&
-      String(item.productId || "")
+      String(item.type || "")
         .trim()
-        .toLowerCase() === activeProductId &&
-      (!item.year || Number(item.year) === activeYear),
+        .toLowerCase() === "project",
   );
 
-  const executionItems = getRoadmapItems(
-    normalizedProgramId,
-    activeProductId,
-    "ALL",
+  const productMsas = roadmapItems.filter(
+    (item) =>
+      String(item.type || "")
+        .trim()
+        .toLowerCase() === "msa",
   );
 
-  const riskCount = executionItems.filter((item) =>
-    ["at-risk", "blocked"].includes(rcsNormalizeStatus(item.status)),
-  ).length;
+  const statusItems = roadmapItems.length ? roadmapItems : sdaDeliverables;
 
-  const doneCount = executionItems.filter(
-    (item) => rcsNormalizeStatus(item.status) === "done",
-  ).length;
+  const riskItems = statusItems.filter((item) => {
+    const status =
+      typeof rcsNormalizeStatus === "function"
+        ? rcsNormalizeStatus(item.status || item.statusKey)
+        : String(item.status || item.statusKey || "")
+            .trim()
+            .toLowerCase();
 
-  const beneficiaryCountries = [
-    ...new Set(
-      deliverables.flatMap((item) =>
-        splitPipeList(item.beneficiaryCountries).map((country) =>
-          String(country || "").trim(),
-        ),
-      ),
-    ),
-  ].filter(Boolean);
+    return ["risk", "at-risk", "blocked"].includes(status);
+  });
 
-  const restrictedAvailable = DATA.restricted?.available === true;
+  const doneItems = statusItems.filter((item) => {
+    const status =
+      typeof rcsNormalizeStatus === "function"
+        ? rcsNormalizeStatus(item.status || item.statusKey)
+        : String(item.status || item.statusKey || "")
+            .trim()
+            .toLowerCase();
 
+    return status === "done";
+  });
+
+  const jiraIndexItems = Array.isArray(DATA?.jiraMsaIndex)
+    ? DATA.jiraMsaIndex.filter((item) => {
+        const itemProgramId = String(
+          item.programId || normalizedProgramId,
+        ).trim();
+
+        const itemProductId = normalizeRoadmapProduct(
+          item.product || item.productId || activeProductId,
+        );
+
+        return (
+          itemProgramId === normalizedProgramId &&
+          itemProductId === activeProductId
+        );
+      })
+    : [];
+
+  const restrictedAvailable = DATA?.restricted?.available === true;
+
+  const programLabel =
+    program?.name ||
+    sdaFlight?.programName ||
+    (normalizedProgramId === "aixbanker" ? "AIxBanker" : product.label);
+
+  const mission =
+    sdaFlight?.description ||
+    product.description ||
+    "Roadmap y ejecución del producto.";
+
+  /*
+   * =====================================================
+   * CABECERA
+   * =====================================================
+   */
   setHead(
-    `${activeProductLabel} · Flight Deck`,
-
-    `${activeSdaCode} · SDA commitment + JIRA execution`,
-
-    `Retail Client Solutions > ${
-      program.name || "AIxBanker"
-    } > ${activeProductLabel} > Flight Deck`,
+    `${product.label} · ${programLabel}`,
+    mission,
+    `Retail Client Solutions > ${programLabel} > ${product.label}`,
   );
 
   view.innerHTML = "";
 
   view.append(tpl("#aixbanker-flight-deck-template"));
 
-  const setText = (selector, value, fallback = "—") => {
-    const element = document.querySelector(selector);
+  /*
+   * =====================================================
+   * NAVEGACION SUPERIOR
+   * =====================================================
+   */
+  const backButton = document.querySelector(".flight-deck-back");
 
-    if (!element) {
-      return;
+  if (backButton) {
+    if (normalizedProgramId === "aixbanker") {
+      backButton.dataset.route = "program/aixbanker";
+
+      backButton.textContent = "← Volver a productos";
+    } else {
+      backButton.dataset.route = "landing";
+
+      backButton.textContent = "← Volver al portfolio";
     }
+  }
 
-    const normalized = String(value ?? "").trim();
+  const functionalButton = document.querySelector(
+    '.flight-deck-overhead-controls [data-route^="functional/"]',
+  );
 
-    element.textContent = normalized || fallback;
-  };
+  const systemsButton = document.querySelector(
+    '.flight-deck-overhead-controls [data-route^="systems/"]',
+  );
+
+  const architectureButton = document.querySelector(
+    '.flight-deck-overhead-controls [data-route^="architecture/"]',
+  );
+
+  if (functionalButton) {
+    functionalButton.dataset.route = `functional/${normalizedProgramId}`;
+  }
+
+  if (systemsButton) {
+    systemsButton.dataset.route = `systems/${normalizedProgramId}`;
+  }
+
+  if (architectureButton) {
+    architectureButton.dataset.route = `architecture/${normalizedProgramId}`;
+  }
 
   /*
    * =====================================================
-   * COPY DE LOS CUATRO BLOQUES
+   * IDENTIDAD
    * =====================================================
    */
+  const centerPost = document.querySelector(".flight-deck-center-post");
 
-  const setInstrumentCopy = (selector, code, metaphor, functionalTitle) => {
+  if (centerPost) {
+    const centerTop = centerPost.querySelector("span");
+
+    const centerBottom = centerPost.querySelector("strong");
+
+    if (normalizedProgramId === "blue") {
+      if (centerTop) {
+        centerTop.textContent = "RCS";
+      }
+
+      if (centerBottom) {
+        centerBottom.textContent = "BLUE";
+      }
+    } else {
+      if (centerTop) {
+        centerTop.textContent = "AIx";
+      }
+
+      if (centerBottom) {
+        centerBottom.textContent = "BANKER";
+      }
+    }
+  }
+
+  const setInstrumentCopy = (selector, code, label, instrumentTitle) => {
     const instrument = document.querySelector(selector);
 
     if (!instrument) {
@@ -4247,11 +4330,11 @@ function renderAIxBankerHome(programId, requestedProductId = null) {
     }
 
     if (labelElement) {
-      labelElement.textContent = metaphor;
+      labelElement.textContent = label;
     }
 
     if (titleElement) {
-      titleElement.textContent = functionalTitle;
+      titleElement.textContent = instrumentTitle;
     }
   };
 
@@ -4262,14 +4345,9 @@ function renderAIxBankerHome(programId, requestedProductId = null) {
     "Project Tracking",
   );
 
-  setInstrumentCopy("#flightDeckTeamPlanning", "TEAM", "CREW", "Staffing");
+  setInstrumentCopy("#flightDeckTrendingTopics", "ND", "RADAR", "Key Issues");
 
-  setInstrumentCopy(
-    "#flightDeckTrendingTopics",
-    "ND",
-    "RADAR",
-    "Trending Topics",
-  );
+  setInstrumentCopy("#flightDeckTeamPlanning", "TEAM", "CREW", "Staffing");
 
   setInstrumentCopy(
     "#flightDeckManagementReports",
@@ -4280,143 +4358,150 @@ function renderAIxBankerHome(programId, requestedProductId = null) {
 
   /*
    * =====================================================
-   * FLIGHT BRIEF · MÁS MARGEN
+   * FLIGHT DECK
    * =====================================================
-   *
-   * La ventana derecha está recortada
-   * mediante un borde inclinado.
-   *
-   * Desplazamos más el contenido hacia
-   * el centro para que ninguna línea quede
-   * pegada visualmente al recorte.
    */
+  const productNameElement = document.querySelector("#flightDeckProductName");
 
-  const flightBriefContent = document.querySelector(
-    ".flight-deck-window-right .flight-deck-window-content",
-  );
-
-  if (flightBriefContent) {
-    flightBriefContent.style.paddingTop = "34px";
-
-    flightBriefContent.style.paddingRight = "44px";
-
-    flightBriefContent.style.paddingBottom = "34px";
-
-    flightBriefContent.style.paddingLeft = "96px";
-
-    flightBriefContent.style.boxSizing = "border-box";
+  if (productNameElement) {
+    productNameElement.textContent = sdaFlight?.productName || product.label;
   }
 
-  const flightBriefGrid = document.querySelector(
-    ".flight-deck-window-right .flight-deck-brief-grid",
+  const programNameElement = document.querySelector("#flightDeckProgramName");
+
+  if (programNameElement) {
+    programNameElement.textContent = programLabel;
+  }
+
+  const gateCodeElement = document.querySelector("#flightDeckGateCode");
+
+  if (gateCodeElement) {
+    gateCodeElement.textContent = `GATE ${activeProductId.toUpperCase()}`;
+  }
+
+  const activeFlightLabel = document.querySelector(
+    "#flightDeckActiveFlightLabel",
   );
 
-  if (flightBriefGrid) {
-    flightBriefGrid.style.paddingLeft = "0";
+  if (activeFlightLabel) {
+    activeFlightLabel.textContent = product.label;
+  }
 
-    flightBriefGrid.style.minWidth = "0";
+  const yearElement = document.querySelector("#flightDeckYear");
 
-    flightBriefGrid.style.columnGap = "48px";
+  if (yearElement) {
+    yearElement.textContent = String(
+      sdaFlight?.year || new Date().getFullYear(),
+    );
+  }
 
-    flightBriefGrid.style.rowGap = "18px";
+  const windowElement = document.querySelector("#flightDeckWindow");
+
+  if (windowElement) {
+    windowElement.textContent = getCurrentQuarter();
+  }
+
+  const destinationElement = document.querySelector("#flightDeckDestination");
+
+  if (destinationElement) {
+    destinationElement.textContent = "Execution";
+  }
+
+  const sdaCodeElement = document.querySelector("#flightDeckSdaCode");
+
+  if (sdaCodeElement) {
+    const legacySdaProject = productProjects.find(
+      (item) => item.sdaCode || item.deliverableId || item.id,
+    );
+
+    sdaCodeElement.textContent =
+      sdaFlight?.sdaCode ||
+      legacySdaProject?.sdaCode ||
+      legacySdaProject?.deliverableId ||
+      legacySdaProject?.id ||
+      "—";
+  }
+
+  const missionElement = document.querySelector("#flightDeckMission");
+
+  if (missionElement) {
+    missionElement.textContent = mission;
+  }
+
+  const countryElement = document.querySelector("#flightDeckCountry");
+
+  if (countryElement) {
+    const country =
+      COUNTRIES.find((item) => item.id === selectedCountry) || null;
+
+    countryElement.textContent =
+      country?.label || sdaFlight?.country || selectedCountry || "Holding";
   }
 
   /*
    * =====================================================
-   * DATOS SDA
+   * RESPONSABLES SDA
    * =====================================================
    */
+  const sponsorElement = document.querySelector("#flightDeckSponsor");
 
-  setText("#flightDeckGateCode", activeSdaCode);
+  if (sponsorElement) {
+    sponsorElement.textContent = sdaFlight?.sponsor || "—";
+  }
 
-  setText("#flightDeckActiveFlightLabel", activeProductLabel);
+  const productOwnerElement = document.querySelector("#flightDeckProductOwner");
 
-  setText("#flightDeckSdaCode", activeSdaCode);
+  if (productOwnerElement) {
+    productOwnerElement.textContent = sdaFlight?.productOwner || "—";
+  }
 
-  setText("#flightDeckYear", activeYear);
-
-  setText(
-    "#flightDeckWindow",
-    [activeFlight.startQuarter, activeFlight.endQuarter]
-      .filter(Boolean)
-      .join(" → "),
+  const programManagerElement = document.querySelector(
+    "#flightDeckProgramManager",
   );
 
-  setText("#flightDeckDestination", activeProductLabel);
+  if (programManagerElement) {
+    programManagerElement.textContent = sdaFlight?.programManager || "—";
+  }
 
-  setText("#flightDeckProductName", activeProductLabel);
+  const engineeringElement = document.querySelector("#flightDeckEngineering");
 
-  setText(
-    "#flightDeckMission",
+  if (engineeringElement) {
+    engineeringElement.textContent = sdaFlight?.engineeringResponsible || "—";
+  }
 
-    activeFlight.description ||
-      activeFlight.rationale ||
-      activeProduct?.description ||
-      "Sin misión SDA informada.",
+  /*
+   * =====================================================
+   * TELEMETRIA
+   * =====================================================
+   */
+  const deliverablesCountElement = document.querySelector(
+    "#flightDeckDeliverablesCount",
   );
 
-  setText(
-    "#flightDeckProgramName",
+  if (deliverablesCountElement) {
+    deliverablesCountElement.textContent = String(
+      sdaDeliverables.length || productProjects.length,
+    );
+  }
 
-    activeFlight.programName || program.name || "AIxBanker",
-  );
+  const jiraCountElement = document.querySelector("#flightDeckJiraCount");
 
-  setText("#flightDeckCountry", activeFlight.country || "Holding");
+  if (jiraCountElement) {
+    jiraCountElement.textContent = String(
+      productMsas.length || jiraIndexItems.length,
+    );
+  }
 
-  setText("#flightDeckSponsor", activeFlight.sponsor);
+  const riskCountElement = document.querySelector("#flightDeckRiskCount");
 
-  setText("#flightDeckProductOwner", activeFlight.productOwner);
+  if (riskCountElement) {
+    riskCountElement.textContent = String(riskItems.length);
+  }
 
-  setText("#flightDeckProgramManager", activeFlight.programManager);
+  const doneCountElement = document.querySelector("#flightDeckDoneCount");
 
-  setText("#flightDeckEngineering", activeFlight.engineeringResponsible);
-
-  setText("#flightDeckDeliverablesCount", deliverables.length, "0");
-
-  setText("#flightDeckJiraCount", executionItems.length, "0");
-
-  setText("#flightDeckRiskCount", riskCount, "0");
-
-  setText("#flightDeckDoneCount", doneCount, "0");
-
-  setText(
-    "#flightDeckProjectTrackingSummary",
-
-    `${deliverables.length} SDA commitments · ${executionItems.length} JIRA items`,
-  );
-
-  setText(
-    "#flightDeckTeamPlanningSummary",
-
-    restrictedAvailable
-      ? "Staffing y capacidad restringida disponibles"
-      : "Scrums y staffing disponibles",
-  );
-
-  setText(
-    "#flightDeckTrendingTopicsSummary",
-
-    riskCount
-      ? `${riskCount} elementos en riesgo o bloqueados`
-      : "Sin riesgos o bloqueos en la selección",
-  );
-
-  setText(
-    "#flightDeckManagementReportsSummary",
-
-    executionItems.length
-      ? `${doneCount} de ${executionItems.length} elementos finalizados`
-      : "Executive summary del programa",
-  );
-
-  const countriesElement = document.querySelector("#flightDeckCountries");
-
-  if (countriesElement) {
-    countriesElement.innerHTML = beneficiaryCountries.length
-      ? beneficiaryCountries
-          .map((country) => `<span>${rcsEsc(country)}</span>`)
-          .join("")
-      : "<span>Holding</span>";
+  if (doneCountElement) {
+    doneCountElement.textContent = String(doneItems.length);
   }
 
   const restrictedLamp = document.querySelector("#flightDeckRestrictedLamp");
@@ -4433,10 +4518,9 @@ function renderAIxBankerHome(programId, requestedProductId = null) {
 
   /*
    * =====================================================
-   * NAVEGACIÓN
+   * INSTRUMENTOS
    * =====================================================
    */
-
   const projectTrackingButton = document.querySelector(
     "#flightDeckProjectTracking",
   );
@@ -4451,6 +4535,11 @@ function renderAIxBankerHome(programId, requestedProductId = null) {
     "#flightDeckManagementReports",
   );
 
+  /*
+   * -----------------------------------------------------
+   * PROJECT TRACKING
+   * -----------------------------------------------------
+   */
   if (projectTrackingButton) {
     const roadmapRoute =
       typeof roadmapWorkspaceRoute === "function"
@@ -4465,23 +4554,61 @@ function renderAIxBankerHome(programId, requestedProductId = null) {
     projectTrackingButton.dataset.route = roadmapRoute;
 
     projectTrackingButton.addEventListener("click", () => {
+      const returnRoute = `program/${normalizedProgramId}/${activeProductId}`;
+
+      sessionStorage.setItem("flightDeckReturnRoute", returnRoute);
+
+      sessionStorage.setItem("productExperienceReturnRoute", returnRoute);
+    });
+  }
+
+  /*
+   * -----------------------------------------------------
+   * KEY ISSUES
+   * -----------------------------------------------------
+   */
+  if (trendingTopicsButton) {
+    trendingTopicsButton.dataset.route = `impediments/${normalizedProgramId}/${activeProductId}`;
+
+    trendingTopicsButton.addEventListener("click", () => {
+      const returnRoute = `program/${normalizedProgramId}/${activeProductId}`;
+
+      sessionStorage.setItem("flightDeckReturnRoute", returnRoute);
+
+      sessionStorage.setItem("programGovernanceReturnRoute", returnRoute);
+    });
+  }
+
+  /*
+   * -----------------------------------------------------
+   * STAFFING
+   * -----------------------------------------------------
+   */
+  if (teamPlanningButton) {
+    teamPlanningButton.dataset.route = `teams/${normalizedProgramId}`;
+
+    teamPlanningButton.addEventListener("click", () => {
       sessionStorage.setItem(
-        "productExperienceReturnRoute",
+        "flightDeckReturnRoute",
         `program/${normalizedProgramId}/${activeProductId}`,
       );
     });
   }
 
-  if (teamPlanningButton) {
-    teamPlanningButton.dataset.route = `teams/${normalizedProgramId}`;
-  }
-
-  if (trendingTopicsButton) {
-    trendingTopicsButton.dataset.route = `impediments/${normalizedProgramId}`;
-  }
-
+  /*
+   * -----------------------------------------------------
+   * MANAGEMENT REPORTS
+   * -----------------------------------------------------
+   */
   if (managementReportsButton) {
     managementReportsButton.dataset.route = `projects/${normalizedProgramId}`;
+
+    managementReportsButton.addEventListener("click", () => {
+      sessionStorage.setItem(
+        "flightDeckReturnRoute",
+        `program/${normalizedProgramId}/${activeProductId}`,
+      );
+    });
   }
 }
 function renderProgram(programId) {
@@ -5299,6 +5426,24 @@ function renderSystems(programId, mode = "systems") {
       )
       .join("");
   }
+}
+function getFlightDeckReturnRoute(programId) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const storedRoute = sessionStorage.getItem("flightDeckReturnRoute");
+
+  if (
+    storedRoute &&
+    storedRoute.startsWith(`program/${normalizedProgramId}/`)
+  ) {
+    return storedRoute;
+  }
+
+  return `program/${normalizedProgramId}`;
+}
+
+function clearFlightDeckReturnRoute() {
+  sessionStorage.removeItem("flightDeckReturnRoute");
 }
 function getCurrentRoute() {
   const hash = location.hash.replace("#", "") || "landing";
@@ -7515,7 +7660,8 @@ function renderProjectsView(programId) {
   const backButton = document.querySelector(".back-to-program-btn");
 
   if (backButton) {
-    backButton.dataset.route = `program/${programId}`;
+    backButton.dataset.route = getFlightDeckReturnRoute(programId);
+
     backButton.textContent = `← Volver a ${program?.name || "programa"}`;
   }
 
@@ -9259,6 +9405,7 @@ function formatDate(value) {
 /* teams */
 function renderTeamsView(programId) {
   const p = DATA.programs.find((x) => x.id === programId);
+
   const country = COUNTRIES.find((c) => c.id === selectedCountry);
 
   view.innerHTML = "";
@@ -9267,20 +9414,26 @@ function renderTeamsView(programId) {
   view.insertAdjacentHTML(
     "afterbegin",
     `
-    ${renderCountrySelector()}
-    ${renderTeamsQuarterSelector()}
-  `,
+      ${renderCountrySelector()}
+      ${renderTeamsQuarterSelector()}
+    `,
   );
+
   setHead(
     `${p?.name || "Programa"} · Teams`,
-    `Scrums y staffing · ${country?.label || selectedCountry} · ${selectedTeamQuarter === "ALL" ? "Todo el año" : selectedTeamQuarter}`,
-    `Retail Client Solutions > ${p?.name || programId} > ${country?.label || selectedCountry} > Teams`,
+    `Scrums y staffing · ${country?.label || selectedCountry} · ${
+      selectedTeamQuarter === "ALL" ? "Todo el año" : selectedTeamQuarter
+    }`,
+    `Retail Client Solutions > ${p?.name || programId} > ${
+      country?.label || selectedCountry
+    } > Teams`,
   );
 
   const backButton = document.querySelector(".back-to-program-btn");
 
   if (backButton) {
-    backButton.dataset.route = `program/${programId}`;
+    backButton.dataset.route = getFlightDeckReturnRoute(programId);
+
     backButton.textContent = `← Volver a ${p?.name || "programa"}`;
   }
 
