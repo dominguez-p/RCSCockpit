@@ -134,8 +134,44 @@ function programGovernanceConfigureBackButton(programId, programName) {
     return;
   }
 
-  backButton.dataset.route = `program/${programId}`;
+  const normalizedProgramId = String(programId || "").trim();
+
+  const storedGovernanceRoute = sessionStorage.getItem(
+    "programGovernanceReturnRoute",
+  );
+
+  const storedFlightDeckRoute = sessionStorage.getItem("flightDeckReturnRoute");
+
+  const validPrefix = `program/${normalizedProgramId}/`;
+
+  let returnRoute = "";
+
+  if (storedGovernanceRoute && storedGovernanceRoute.startsWith(validPrefix)) {
+    returnRoute = storedGovernanceRoute;
+  } else if (
+    storedFlightDeckRoute &&
+    storedFlightDeckRoute.startsWith(validPrefix)
+  ) {
+    returnRoute = storedFlightDeckRoute;
+  } else {
+    returnRoute = `program/${normalizedProgramId}`;
+  }
+
+  backButton.dataset.route = returnRoute;
+
   backButton.textContent = `← Volver a ${programName || "programa"}`;
+
+  backButton.addEventListener(
+    "click",
+    () => {
+      sessionStorage.removeItem("programGovernanceReturnRoute");
+
+      sessionStorage.removeItem("flightDeckReturnRoute");
+    },
+    {
+      once: true,
+    },
+  );
 }
 
 function renderProgramImpedimentCard(item) {
