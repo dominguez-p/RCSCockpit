@@ -926,7 +926,10 @@ function installProductPlanComparison() {
 
   window.__productPlanComparisonInstalled = true;
 
-  const PROGRAM_ID = "aixbanker";
+  const PRODUCT_PLAN_PROGRAM_IDS = new Set(["aixbanker", "blue"]);
+
+  const isProductPlanProgram = (programId) =>
+    PRODUCT_PLAN_PROGRAM_IDS.has(String(programId || "").trim());
 
   const HOLDING_ID = "HL";
 
@@ -3177,7 +3180,11 @@ function installProductPlanComparison() {
      * necesario y evitamos depender de cómo
      * lo devuelva roadmapWorkspaceParseRoute().
      */
-    if (programId !== PROGRAM_ID || !productId || productId === ALL_ID) {
+    if (
+      !isProductPlanProgram(programId) ||
+      !productId ||
+      productId === ALL_ID
+    ) {
       return;
     }
 
@@ -3198,7 +3205,11 @@ function installProductPlanComparison() {
 
     const productId = normalizeProduct(context?.productId);
 
-    if (programId !== PROGRAM_ID || !productId || productId === ALL_ID) {
+    if (
+      !isProductPlanProgram(programId) ||
+      !productId ||
+      productId === ALL_ID
+    ) {
       return;
     }
 
@@ -3289,7 +3300,7 @@ function installProductPlanComparison() {
     const productId = normalizeProduct(context?.productId);
 
     if (
-      programId !== PROGRAM_ID ||
+      !isProductPlanProgram(programId) ||
       !productId ||
       productId === ALL_ID ||
       normalizeCountry(selectedCountry) !== HOLDING_ID
@@ -3490,7 +3501,7 @@ function installProductPlanComparison() {
 
     if (
       String(context?.routeName || "").trim() !== "roadmap" ||
-      programId !== PROGRAM_ID ||
+      !isProductPlanProgram(programId) ||
       !productId ||
       productId === ALL_ID
     ) {
@@ -4273,7 +4284,7 @@ function installProductPlanComparison() {
          * conserva la implementación actual.
          */
         if (
-          normalizedProgramId === PROGRAM_ID &&
+          isProductPlanProgram(normalizedProgramId) &&
           productId &&
           productId !== ALL_ID
         ) {
@@ -4903,7 +4914,11 @@ function installProductPlanComparison() {
 
     const productId = normalizeProduct(context?.productId);
 
-    if (programId !== PROGRAM_ID || !productId || productId === ALL_ID) {
+    if (
+      !isProductPlanProgram(programId) ||
+      !productId ||
+      productId === ALL_ID
+    ) {
       return;
     }
 
@@ -4938,7 +4953,11 @@ function installProductPlanComparison() {
 
     const productId = normalizeProduct(context?.productId);
 
-    if (programId !== PROGRAM_ID || !productId || productId === ALL_ID) {
+    if (
+      !isProductPlanProgram(programId) ||
+      !productId ||
+      productId === ALL_ID
+    ) {
       return;
     }
 
