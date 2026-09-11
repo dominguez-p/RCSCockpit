@@ -162,6 +162,12 @@ function getAIxBankerProduct(productId) {
       label: "Panorama",
       description: "Roadmap, iniciativas y evolución del producto Panorama.",
     },
+
+    blue: {
+      id: "blue",
+      label: "Blue",
+      description: "Solución agentic para cliente.",
+    },
   };
 
   return products[productId] || null;
@@ -6365,19 +6371,18 @@ function renderCurrentRoute(
   itemId = null,
   activityId = null,
 ) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const usesProductFlightDeck = ["aixbanker", "blue"].includes(
+    normalizedProgramId,
+  );
+
   /*
    * =====================================================
    * PROGRAMA
    * =====================================================
    *
-   * AIxBanker necesita conservar productId desde
-   * la primera renderización.
-   *
-   * Esto es especialmente importante porque app.js
-   * ejecuta init() antes de que program-home.js termine
-   * de sustituir la función renderProgram legacy.
-   *
-   * Rutas:
+   * AIxBanker mantiene su selector de productos:
    *
    * program/aixbanker
    *   -> Departures
@@ -6387,13 +6392,18 @@ function renderCurrentRoute(
    *
    * program/aixbanker/panorama
    *   -> Panorama Flight Deck
+   *
+   * Blue utiliza directamente el mismo Flight Deck:
+   *
+   * program/blue
+   *   -> Blue Flight Deck
    */
   if (routeName === "program") {
-    if (
-      String(programId || "").trim() === "aixbanker" &&
-      typeof renderAIxBankerHome === "function"
-    ) {
-      renderAIxBankerHome(programId, productId);
+    if (usesProductFlightDeck && typeof renderAIxBankerHome === "function") {
+      renderAIxBankerHome(
+        normalizedProgramId,
+        normalizedProgramId === "blue" ? productId || "blue" : productId,
+      );
 
       return;
     }
