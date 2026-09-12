@@ -205,7 +205,7 @@
     }
 
     if (programKey.includes("open") || programKey.includes("market")) {
-      return "assets/program-aircraft/bbva-747.png";
+      return "assets/program-aircraft/bbva-787.png";
     }
 
     if (programKey.includes("blue")) {
