@@ -183,25 +183,32 @@
   function getProgramAircraftImage(program) {
     const defaultImage = "assets/program-aircraft/bbva-747-default.png";
 
-    const rawId = String(
-      program?.id || program?.programId || program?.slug || program?.name || "",
-    )
-      .trim()
-      .toLowerCase();
+    const programKey = [
+      program?.id,
+      program?.programId,
+      program?.slug,
+      program?.name,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value).trim().toLowerCase())
+      .join(" ");
 
-    if (rawId.includes("aixbanker")) {
+    if (programKey.includes("aixbanker")) {
       return "assets/program-aircraft/bbva-falcon-8x.png";
     }
 
-    if (rawId.includes("interaction") || rawId.includes("orchestration")) {
+    if (
+      programKey.includes("interaction") ||
+      programKey.includes("orchestration")
+    ) {
       return "assets/program-aircraft/bbva-a350.png";
     }
 
-    if (rawId.includes("open") || rawId.includes("market")) {
+    if (programKey.includes("open") || programKey.includes("market")) {
       return "assets/program-aircraft/bbva-747.png";
     }
 
-    if (rawId.includes("blue")) {
+    if (programKey.includes("blue")) {
       return "assets/program-aircraft/bbva-747.png";
     }
 
