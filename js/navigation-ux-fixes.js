@@ -20,6 +20,7 @@ function navigationUxPageKey(value) {
 
 function navigationUxTargetFromControl(control) {
   const selector = String(control?.dataset?.scrollTarget || "").trim();
+
   return selector || "top";
 }
 
@@ -33,7 +34,11 @@ function navigationUxScroll(target = "top") {
       const element = document.querySelector(target);
 
       if (element) {
-        element.scrollIntoView({ block: "start", behavior: "auto" });
+        element.scrollIntoView({
+          block: "start",
+          behavior: "auto",
+        });
+
         return;
       }
     } catch (error) {
@@ -41,7 +46,11 @@ function navigationUxScroll(target = "top") {
     }
   }
 
-  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  window.scrollTo({
+    top: 0,
+    left: 0,
+    behavior: "auto",
+  });
 }
 
 function navigationUxScheduleScroll() {
@@ -87,13 +96,16 @@ function navigationUxCompactProgramLanding() {
       "program-home-back-button",
       "navigation-back-button",
     );
+
     backButton.textContent = "← Portfolio";
+
     backButton.setAttribute("aria-label", "Volver al portfolio");
   }
 }
 
 function navigationUxProgramLabel(programId) {
   const normalizedProgramId = String(programId || "").trim();
+
   const program = (Array.isArray(DATA?.programs) ? DATA.programs : []).find(
     (item) => String(item.id || "").trim() === normalizedProgramId,
   );
@@ -102,7 +114,9 @@ function navigationUxProgramLabel(programId) {
 }
 
 function navigationUxCompactProgramBackButtons() {
-  const controls = [...view.querySelectorAll('[data-route^="program/"]')].filter(
+  const controls = [
+    ...view.querySelectorAll('[data-route^="program/"]'),
+  ].filter(
     (control) =>
       control.classList.contains("back-to-program-btn") ||
       control.classList.contains("ghost-button") ||
@@ -119,9 +133,50 @@ function navigationUxCompactProgramBackButtons() {
     }
 
     const programLabel = navigationUxProgramLabel(programId);
+
     control.classList.add("navigation-back-button");
+
     control.textContent = `← ${programLabel}`;
+
     control.setAttribute("aria-label", `Volver a ${programLabel}`);
+  });
+}
+
+function navigationUxEnhanceFlightGateBoards() {
+  const boards = [...view.querySelectorAll(".flight-gate-board")];
+
+  boards.forEach((board) => {
+    const openButton = board.querySelector(".flight-gate-open[data-route]");
+
+    if (!openButton) {
+      return;
+    }
+
+    const routeValue = String(openButton.dataset.route || "").trim();
+
+    if (!routeValue) {
+      return;
+    }
+
+    /*
+     * La navegación global de app.js ya procesa
+     * cualquier elemento con data-route.
+     *
+     * Reutilizamos exactamente la misma ruta del
+     * botón "Abrir producto" en toda la tarjeta.
+     *
+     * El botón se conserva para que siga existiendo
+     * un control nativo accesible por teclado.
+     */
+    board.dataset.route = routeValue;
+
+    board.classList.add("flight-gate-board-clickable");
+
+    const productLabel = String(
+      openButton.getAttribute("aria-label") || "Abrir producto",
+    ).trim();
+
+    board.setAttribute("title", productLabel);
   });
 }
 
@@ -129,6 +184,7 @@ const navigationUxBaseRoute = route;
 
 route = function routeWithConsistentScroll(routeValue) {
   const currentKey = navigationUxPageKey(location.hash);
+
   const nextKey = navigationUxPageKey(routeValue);
 
   if (
@@ -154,7 +210,9 @@ document.addEventListener(
 
     const routeValue =
       control.dataset.route || control.dataset.programAdaptiveRoute || "";
+
     const currentKey = navigationUxPageKey(location.hash);
+
     const nextKey = navigationUxPageKey(routeValue);
 
     navigationUxPendingTarget =
@@ -167,6 +225,7 @@ document.addEventListener(
 
 window.addEventListener("hashchange", (event) => {
   const previousKey = navigationUxPageKey(event.oldURL.split("#")[1] || "");
+
   const nextKey = navigationUxPageKey(event.newURL.split("#")[1] || "");
 
   if (
@@ -183,7 +242,11 @@ renderCurrentRoute = function renderRouteWithNavigationUx(...args) {
   const result = navigationUxBaseRenderCurrentRoute(...args);
 
   navigationUxCompactProgramLanding();
+
   navigationUxCompactProgramBackButtons();
+
+  navigationUxEnhanceFlightGateBoards();
+
   navigationUxScheduleScroll();
 
   return result;
@@ -200,5 +263,9 @@ renderLanding = function renderLandingWithNavigationUx(...args) {
 };
 
 navigationUxCompactProgramLanding();
+
 navigationUxCompactProgramBackButtons();
+
+navigationUxEnhanceFlightGateBoards();
+
 navigationUxScheduleScroll();
