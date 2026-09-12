@@ -6105,3 +6105,70 @@ th {
   .portfolio-747 {
   transform: rotate(-18deg) scale(0.72) translateY(-3px);
 }
+/* =========================================================
+   PORTFOLIO PROGRAM CARD · AIRCRAFT IMAGE
+   ========================================================= */
+
+.portfolio-program-card__aircraft-shell--image {
+  position: relative;
+
+  width: 100%;
+  aspect-ratio: 16 / 9;
+
+  margin-top: 14px;
+  padding: 0;
+
+  overflow: hidden;
+
+  border-radius: 16px;
+
+  background: linear-gradient(180deg, #eef5fc 0%, #f8fbff 100%);
+}
+
+.portfolio-program-card__aircraft-image {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+  object-position: center;
+
+  transition:
+    transform 0.3s ease,
+    filter 0.3s ease,
+    opacity 0.3s ease;
+}
+
+.portfolio-program-card--tower.is-navigable:hover
+  .portfolio-program-card__aircraft-image {
+  transform: scale(1.025);
+}
+
+.portfolio-program-card--tower.is-inactive
+  .portfolio-program-card__aircraft-image {
+  opacity: 0.3;
+  filter: grayscale(0.65) saturate(0.55);
+}
+
+/* Airport reutiliza exactamente la misma imagen/card. */
+
+.portfolio-airport-aircraft-slot__card
+  .portfolio-program-card__aircraft-shell--image {
+  aspect-ratio: 16 / 9;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__aircraft-image {
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+
+  transform: none;
+}
+
+.portfolio-airport-aircraft-slot__card
+  .portfolio-program-card--tower.is-navigable:hover
+  .portfolio-program-card__aircraft-image {
+  transform: scale(1.025);
+}
