@@ -8633,10 +8633,34 @@ function showLoadingOverlay(
 ) {
   const overlay = document.querySelector("#loadingOverlay");
 
-  if (!overlay) return;
+  if (!overlay) {
+    return;
+  }
 
+  if (
+    window.RCS_LOADING_EXPERIENCE &&
+    typeof window.RCS_LOADING_EXPERIENCE.start === "function"
+  ) {
+    window.RCS_LOADING_EXPERIENCE.start({
+      overlay,
+      message,
+    });
+
+    return;
+  }
+
+  /*
+   * Fallback de seguridad.
+   *
+   * Si por cualquier motivo loading-experience.js
+   * no estuviera disponible, conservamos exactamente
+   * el comportamiento anterior.
+   */
   const text = overlay.querySelector("p");
-  if (text) text.textContent = message;
+
+  if (text) {
+    text.textContent = message;
+  }
 
   overlay.hidden = false;
 }
@@ -8644,7 +8668,20 @@ function showLoadingOverlay(
 function hideLoadingOverlay() {
   const overlay = document.querySelector("#loadingOverlay");
 
-  if (!overlay) return;
+  if (!overlay) {
+    return;
+  }
+
+  if (
+    window.RCS_LOADING_EXPERIENCE &&
+    typeof window.RCS_LOADING_EXPERIENCE.stop === "function"
+  ) {
+    window.RCS_LOADING_EXPERIENCE.stop({
+      overlay,
+    });
+
+    return;
+  }
 
   overlay.hidden = true;
 }
