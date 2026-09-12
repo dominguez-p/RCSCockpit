@@ -5082,13 +5082,28 @@ function installProductPlanComparison() {
      */
     const expanded = collapseKey ? expandedSet.has(collapseKey) : false;
 
+    const deliverableId =
+      typeof productPlanSdaDeliverableId === "function"
+        ? productPlanSdaDeliverableId(sda)
+        : "";
+
+    const deliverableLabel = deliverableId
+      ? `D${deliverableId}`
+      : sda.sourceKey || "SDA";
+
+    const description = String(
+      sda.subtitle || sda.raw?.goal || sda.raw?.description || "",
+    ).trim();
+
     return `
     <section
       class="
         product-plan-sda-group
         ${expanded ? "is-expanded" : "is-collapsed"}
       "
-      data-sda-deliverable="${escapeHtml(String(sda.raw?.deliverableId || ""))}"
+      data-sda-deliverable="${escapeHtml(
+        String(sda.raw?.deliverableId || deliverableId || ""),
+      )}"
       data-sda-collapse-key="${escapeHtml(collapseKey)}"
     >
       <header
@@ -5096,85 +5111,105 @@ function installProductPlanComparison() {
           product-plan-sda-group-header
         "
       >
-        <span>
-          SDA DELIVERABLE
-        </span>
-
-        <strong
-          title="${escapeHtml(sda.title)}"
+        <div
+          class="
+            product-plan-sda-group-copy
+          "
         >
-          ${escapeHtml(sda.title)}
-        </strong>
+          <div
+            class="
+              product-plan-sda-group-kicker
+            "
+          >
+            <span>
+              SDA DELIVERABLE
+            </span>
+
+            <em>
+              ${escapeHtml(deliverableLabel)}
+            </em>
+          </div>
+
+          <strong
+            title="${escapeHtml(sda.title)}"
+          >
+            ${escapeHtml(sda.title)}
+          </strong>
+
+          ${
+            description
+              ? `
+                <small
+                  title="${escapeHtml(description)}"
+                >
+                  ${escapeHtml(description)}
+                </small>
+              `
+              : ""
+          }
+        </div>
 
         <div
           class="
-            product-plan-sda-group-counts
+            product-plan-sda-group-actions
           "
         >
-          <span>
-            ${msas.length}
-            ${msas.length === 1 ? "MSA" : "MSAs"}
-          </span>
-
-          <span>
-            ${features.length}
-            ${features.length === 1 ? "Feature" : "Features"}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          class="
-            product-plan-sda-expand-button
-          "
-          data-product-plan-sda-toggle="${escapeHtml(collapseKey)}"
-          aria-expanded="${expanded ? "true" : "false"}"
-          aria-label="${escapeHtml(
-            expanded ? `Colapsar ${sda.title}` : `Desplegar ${sda.title}`,
-          )}"
-          title="${expanded ? "Colapsar SDA" : "Desplegar SDA"}"
-        >
-          <span
-            aria-hidden="true"
+          <div
+            class="
+              product-plan-sda-group-counts
+            "
           >
-            ⌄
-          </span>
-        </button>
+            <span>
+              ${msas.length}
+              ${msas.length === 1 ? "MSA" : "MSAs"}
+            </span>
+
+            <span>
+              ${features.length}
+              ${features.length === 1 ? "Feature" : "Features"}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            class="
+              product-plan-sda-expand-button
+            "
+            data-product-plan-sda-toggle="${escapeHtml(collapseKey)}"
+            aria-expanded="${expanded ? "true" : "false"}"
+            aria-label="${escapeHtml(
+              expanded ? `Colapsar ${sda.title}` : `Desplegar ${sda.title}`,
+            )}"
+            title="${expanded ? "Colapsar SDA" : "Desplegar SDA"}"
+          >
+            <span
+              aria-hidden="true"
+            >
+              ⌄
+            </span>
+          </button>
+        </div>
       </header>
 
-      ${
-        /*
-         * La fila SDA nunca desaparece.
-         *
-         * Incluso colapsada mantenemos:
-         *
-         * - nombre
-         * - estado
-         * - países
-         * - barra de planificación
-         */
-        renderProductPlanSdaAnchor(sda, year, state.sources.sda)
-      }
+      ${renderProductPlanSdaAnchor(sda, year, state.sources.sda)}
 
       ${
         expanded && relationshipsReady && hasVisibleChildren
           ? `
-              <div
-                class="
-                  product-plan-linked-rows
-                "
-              >
-                ${visibleMsas
-                  .map((row) => renderProductPlanLinkedRow(row, year, "msa"))
-                  .join("")}
+            <div
+              class="
+                product-plan-linked-rows
+              "
+            >
+              ${visibleMsas
+                .map((row) => renderProductPlanLinkedRow(row, year, "msa"))
+                .join("")}
 
-                ${visibleFeatures
-                  .map((row) =>
-                    renderProductPlanLinkedRow(row, year, "features"),
-                  )
-                  .join("")}
-              </div>
-            `
+              ${visibleFeatures
+                .map((row) => renderProductPlanLinkedRow(row, year, "features"))
+                .join("")}
+            </div>
+          `
           : ""
       }
 
@@ -5184,16 +5219,16 @@ function installProductPlanComparison() {
         !hasVisibleChildren &&
         (state.sources.msa || state.sources.features)
           ? `
-              <div
-                class="
-                  product-plan-no-linked-jira
-                "
-              >
-                Sin elementos JIRA
-                relacionados con este
-                entregable SDA.
-              </div>
-            `
+            <div
+              class="
+                product-plan-no-linked-jira
+              "
+            >
+              Sin elementos JIRA
+              relacionados con este
+              entregable SDA.
+            </div>
+          `
           : ""
       }
     </section>
@@ -5357,183 +5392,510 @@ function installProductPlanRelationStyles() {
 
   style.textContent = `
     .product-plan-sda-group {
-      border-bottom: 1px solid #dbe4f0;
-      background: #ffffff;
+      border-bottom:
+        1px solid #dbe4f0;
+
+      background:
+        #ffffff;
     }
 
     .product-plan-sda-group:last-child {
       border-bottom: 0;
     }
 
+    /* =====================================================
+       SDA · CABECERA PRINCIPAL DEL DELIVERABLE
+       ===================================================== */
+
     .product-plan-sda-group-header {
-      display: flex;
+      display: grid;
+
+      grid-template-columns:
+        minmax(0, 1fr)
+        auto;
+
+      gap: 20px;
+
       align-items: center;
-      gap: 12px;
-      min-height: 42px;
-      padding: 8px 18px 8px 22px;
-      border-left: 5px solid #1464c9;
-      border-bottom: 1px solid #edf1f6;
-      background: #f7faff;
+
+      min-height: 96px;
+
+      padding:
+        16px
+        18px
+        16px
+        22px;
+
+      border-left:
+        5px solid #1464c9;
+
+      border-bottom:
+        1px solid #dce6f2;
+
+      background:
+        linear-gradient(
+          90deg,
+          #edf5ff 0%,
+          #f7faff 58%,
+          #ffffff 100%
+        );
     }
 
-    .product-plan-sda-group-header > span {
-      flex: 0 0 auto;
-      color: #1464c9;
-      font-size: 9px;
-      font-weight: 900;
-      letter-spacing: 0.08em;
-    }
+    .product-plan-sda-group-copy {
+      display: grid;
 
-    .product-plan-sda-group-header > strong {
+      gap: 6px;
+
       min-width: 0;
-      flex: 1;
-      overflow: hidden;
-      color: #142e55;
-      font-size: 12px;
-      text-overflow: ellipsis;
+    }
+
+    .product-plan-sda-group-kicker {
+      display: flex;
+
+      align-items: center;
+
+      gap: 8px;
+
+      min-width: 0;
+    }
+
+    .product-plan-sda-group-kicker
+      > span {
+      color: #1464c9;
+
+      font-size: 10px;
+      font-weight: 900;
+
+      letter-spacing: 0.09em;
+
       white-space: nowrap;
     }
 
-    .product-plan-sda-group-header > div {
+    .product-plan-sda-group-kicker
+      > em {
       display: inline-flex;
-      gap: 6px;
+
+      align-items: center;
+
+      min-height: 22px;
+
+      padding:
+        2px
+        7px;
+
+      border-radius: 999px;
+
+      background: #dfeeff;
+
+      color: #0b4f9c;
+
+      font-size: 10px;
+      font-style: normal;
+      font-weight: 900;
+
+      letter-spacing: 0.04em;
     }
 
-    .product-plan-sda-group-header > div > span {
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: #eaf0f8;
-      color: #58708f;
-      font-size: 9px;
-      font-weight: 800;
+    /*
+     * Nombre del Deliverable.
+     *
+     * Es el elemento principal de toda
+     * la jerarquía SDA → MSA → Feature.
+     */
+    .product-plan-sda-group-copy
+      > strong {
+      display: -webkit-box;
+
+      min-width: 0;
+
+      overflow: hidden;
+
+      color: #071a8c;
+
+      font-family:
+        Georgia,
+        serif;
+
+      font-size: 19px;
+      font-weight: 900;
+
+      line-height: 1.18;
+
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
+
+    /*
+     * Descripción / goal del Deliverable.
+     *
+     * Permitimos varias líneas para que
+     * pueda entenderse el compromiso SDA
+     * antes de desplegar sus hijos.
+     */
+    .product-plan-sda-group-copy
+      > small {
+      display: -webkit-box;
+
+      max-width: 980px;
+
+      overflow: hidden;
+
+      color: #526783;
+
+      font-size: 13px;
+      font-weight: 500;
+
+      line-height: 1.45;
+
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+
+    /* =====================================================
+       SDA · KPIs Y DESPLIEGUE
+       ===================================================== */
+
+    .product-plan-sda-group-actions {
+      display: flex;
+
+      align-items: center;
+
+      gap: 10px;
+
+      flex: 0 0 auto;
+    }
+
+    .product-plan-sda-group-counts {
+      display: inline-flex;
+
+      gap: 6px;
+
+      flex: 0 0 auto;
+    }
+
+    .product-plan-sda-group-counts
+      > span {
+      display: inline-flex;
+
+      align-items: center;
+
+      min-height: 27px;
+
+      padding:
+        4px
+        9px;
+
+      border-radius: 999px;
+
+      background: #eaf0f8;
+
+      color: #58708f;
+
+      font-size: 10px;
+      font-weight: 800;
+
+      white-space: nowrap;
+    }
+
+    /* =====================================================
+       SDA · FILA DE PLANIFICACIÓN
+       ===================================================== */
 
     .product-plan-sda-anchor {
-      min-height: 78px;
+      min-height: 92px;
+
       background: #ffffff;
     }
 
+    /*
+     * Dentro de la propia fila SDA
+     * el nombre también gana jerarquía.
+     */
+    .product-plan-sda-anchor
+      .product-plan-row-info
+      > strong {
+      overflow: visible;
+
+      color: #0b2d61;
+
+      font-size: 15px;
+      font-weight: 900;
+
+      line-height: 1.3;
+
+      text-overflow: clip;
+
+      white-space: normal;
+    }
+
+    .product-plan-sda-anchor
+      .product-plan-row-info
+      > small {
+      display: -webkit-box;
+
+      overflow: hidden;
+
+      color: #657792;
+
+      font-size: 12px;
+
+      line-height: 1.4;
+
+      text-overflow: clip;
+
+      white-space: normal;
+
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .product-plan-sda-anchor
+      .product-plan-row-track {
+      min-height: 92px;
+    }
+
+    /* =====================================================
+       HIJOS JIRA
+       ===================================================== */
+
     .product-plan-linked-rows {
       position: relative;
+
       background: #fbfcfe;
     }
 
     .product-plan-linked-row {
       min-height: 66px;
+
       background: #fbfcfe;
     }
 
     .product-plan-linked-row
       .product-plan-row-info {
       position: relative;
+
       padding-left: 54px;
     }
 
+    /*
+     * Línea visual que deja claro que
+     * MSA / Feature cuelga del SDA.
+     */
     .product-plan-linked-row
       .product-plan-row-info::before {
       content: "";
+
       position: absolute;
+
       left: 29px;
+
       top: 0;
       bottom: 50%;
+
       width: 14px;
-      border-left: 1px solid #bac8da;
-      border-bottom: 1px solid #bac8da;
-      border-bottom-left-radius: 8px;
+
+      border-left:
+        1px solid #bac8da;
+
+      border-bottom:
+        1px solid #bac8da;
+
+      border-bottom-left-radius:
+        8px;
     }
 
     .product-plan-linked-kind {
       flex: 0 0 auto;
-      padding: 2px 6px;
+
+      padding:
+        2px
+        6px;
+
       border-radius: 4px;
+
       font-size: 9px;
       font-weight: 900;
+
       letter-spacing: 0.06em;
     }
 
     .product-plan-linked-msa
       .product-plan-linked-kind {
       background: #eeeafd;
+
       color: #6755c4;
     }
 
     .product-plan-linked-features
       .product-plan-linked-kind {
       background: #e6f7f3;
+
       color: #11856f;
     }
 
     .product-plan-linked-status {
       display: inline-flex;
+
       align-items: center;
+
       min-height: 21px;
-      padding: 2px 7px;
+
+      padding:
+        2px
+        7px;
+
       border: 1px solid;
+
       border-radius: 999px;
+
       font-size: 9px;
       font-weight: 900;
+
       white-space: nowrap;
     }
 
     .product-plan-sda-hidden {
       position: absolute;
+
       top: 50%;
       left: 12px;
-      transform: translateY(-50%);
+
+      transform:
+        translateY(-50%);
+
       color: #8493aa;
+
       font-size: 10px;
       font-style: italic;
     }
 
     .product-plan-no-linked-jira {
-      padding: 8px 22px 10px 54px;
-      border-top: 1px dashed #e3e9f1;
+      padding:
+        10px
+        22px
+        12px
+        54px;
+
+      border-top:
+        1px dashed #e3e9f1;
+
       background: #fbfcfe;
+
       color: #8a98ac;
+
       font-size: 10px;
     }
 
+    /* =====================================================
+       ESTADO DE RELACIONES
+       ===================================================== */
+
     .product-plan-relations-loading,
     .product-plan-relations-error {
-      padding: 12px 22px;
-      border-bottom: 1px solid #dce5f0;
+      padding:
+        12px
+        22px;
+
+      border-bottom:
+        1px solid #dce5f0;
+
       font-size: 12px;
       font-weight: 700;
     }
 
     .product-plan-relations-loading {
       background: #f4f8ff;
+
       color: #42658f;
     }
 
     .product-plan-relations-error {
       background: #fff3f1;
+
       color: #a83b31;
     }
 
+    /* =====================================================
+       JIRA SIN RELACIÓN
+       ===================================================== */
+
     .product-plan-unlinked {
-      border-top: 4px solid #a4afbd;
+      border-top:
+        4px solid #a4afbd;
+
       background: #f7f9fc;
     }
 
-    .product-plan-unlinked > summary {
+    .product-plan-unlinked
+      > summary {
       display: flex;
+
       align-items: center;
-      justify-content: space-between;
+      justify-content:
+        space-between;
+
       gap: 20px;
-      padding: 15px 22px;
+
+      padding:
+        15px
+        22px;
+
       cursor: pointer;
+
       color: #50637e;
     }
 
-    .product-plan-unlinked > summary strong {
+    .product-plan-unlinked
+      > summary
+      strong {
       color: #233c63;
+
       font-size: 13px;
     }
 
-    .product-plan-unlinked > summary span {
+    .product-plan-unlinked
+      > summary
+      span {
       font-size: 11px;
       font-weight: 800;
+    }
+
+    /* =====================================================
+       RESPONSIVE
+       ===================================================== */
+
+    @media (max-width: 900px) {
+      .product-plan-sda-group-header {
+        grid-template-columns:
+          1fr;
+
+        gap: 12px;
+      }
+
+      .product-plan-sda-group-actions {
+        justify-content:
+          space-between;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .product-plan-sda-group-copy
+        > strong {
+        font-size: 17px;
+      }
+
+      .product-plan-sda-group-copy
+        > small {
+        font-size: 12px;
+      }
+
+      .product-plan-sda-group-actions {
+        align-items:
+          flex-start;
+
+        flex-direction:
+          column;
+      }
     }
   `;
 

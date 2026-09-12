@@ -3809,3 +3809,2299 @@ th {
     grid-template-columns: 165px minmax(650px, 1fr);
   }
 }
+.section-overline {
+  display: inline-flex;
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1a39b7;
+}
+
+.portfolio-program-stage {
+  position: relative;
+  margin-top: 1rem;
+  margin-bottom: 2rem;
+  padding: 1.25rem;
+  border: 1px solid #dbe3f4;
+  border-radius: 32px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(246, 249, 255, 0.98)
+  );
+  box-shadow: 0 18px 40px rgba(20, 44, 92, 0.08);
+  overflow: hidden;
+}
+
+.portfolio-program-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.portfolio-program-stage--tower::before {
+  background:
+    linear-gradient(180deg, rgba(49, 78, 140, 0.05), rgba(255, 255, 255, 0)),
+    repeating-linear-gradient(
+      0deg,
+      rgba(33, 61, 118, 0.03) 0,
+      rgba(33, 61, 118, 0.03) 1px,
+      transparent 1px,
+      transparent 64px
+    );
+}
+
+.portfolio-program-stage--airport::before {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(189, 201, 226, 0.22) 0,
+      rgba(189, 201, 226, 0.22) 18%,
+      transparent 18%,
+      transparent 100%
+    ),
+    linear-gradient(180deg, rgba(49, 78, 140, 0.04), rgba(255, 255, 255, 0));
+}
+
+.portfolio-program-stage__header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.portfolio-program-stage__legend {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #435a8b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.portfolio-program-stage__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.portfolio-program-stage__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid #d7e0f2;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #48608f;
+}
+
+.portfolio-program-stage__grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1.2rem;
+}
+
+.portfolio-program-stage__grid--tower {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.portfolio-program-stage__grid--airport {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.portfolio-program-card {
+  position: relative;
+  min-height: 320px;
+  border-radius: 28px;
+  overflow: hidden;
+}
+
+.portfolio-program-card--tower {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  padding: 1rem 1rem 1.05rem;
+  border: 1px solid #d8e1f3;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(246, 249, 255, 0.98)
+  );
+  box-shadow: 0 12px 32px rgba(24, 46, 90, 0.08);
+}
+
+.portfolio-program-card__strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.portfolio-program-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.portfolio-program-card__eyebrow,
+.portfolio-program-card__gate {
+  font-size: 0.76rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: #5a719d;
+}
+
+.portfolio-program-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.72rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.portfolio-program-card__status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: currentColor;
+}
+
+.portfolio-program-card__status.tone-live {
+  background: #e8f7ef;
+  color: #0c8b52;
+  border-color: #cdecd9;
+}
+
+.portfolio-program-card__status.tone-planned {
+  background: #edf2ff;
+  color: #3757c6;
+  border-color: #d4ddfa;
+}
+
+.portfolio-program-card__status.tone-standby,
+.portfolio-program-card__status.tone-inactive {
+  background: #f2f4f8;
+  color: #7483a1;
+  border-color: #dbe1ec;
+}
+
+.portfolio-program-card__runway {
+  height: 18px;
+  margin-top: 0.9rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(32, 55, 92, 0.16), rgba(32, 55, 92, 0.1)),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 18px,
+      rgba(255, 255, 255, 0.76) 18px,
+      rgba(255, 255, 255, 0.76) 28px
+    );
+}
+
+.portfolio-program-card__aircraft-shell {
+  display: grid;
+  place-items: center;
+  padding: 1rem 0 0.75rem;
+}
+
+.portfolio-program-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.portfolio-program-card__title {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 0.98;
+  color: #112b90;
+  font-weight: 700;
+}
+
+.portfolio-program-card__description {
+  margin: 0;
+  font-size: 1.04rem;
+  line-height: 1.45;
+  color: #516a98;
+}
+
+.portfolio-program-card__footer {
+  margin-top: 1rem;
+}
+
+.portfolio-program-card__action,
+.portfolio-program-card__idle {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0.8rem 1rem;
+  border-radius: 16px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.portfolio-program-card__action {
+  border: 1px solid #b7c7ec;
+  background: #ffffff;
+  color: #112b90;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.portfolio-program-card__action:hover {
+  transform: translateY(-1px);
+  border-color: #8ea9e6;
+  box-shadow: 0 10px 18px rgba(21, 45, 92, 0.1);
+}
+
+.portfolio-program-card__idle {
+  border: 1px dashed #d2d9e7;
+  background: #f8fafd;
+  color: #7d8caa;
+}
+
+.portfolio-747 {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  transform: rotate(-18deg);
+}
+
+.portfolio-747__body {
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  width: 24px;
+  height: 92px;
+  border-radius: 14px 14px 18px 18px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #f6f9ff 0%, #dbe6f7 60%, #c8d6ee 100%);
+  box-shadow: inset 0 0 0 1px rgba(43, 77, 142, 0.12);
+}
+
+.portfolio-747__nose {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 42% 42%;
+  transform: translateX(-50%);
+  background: #edf3fc;
+  box-shadow: inset 0 0 0 1px rgba(43, 77, 142, 0.12);
+}
+
+.portfolio-747__tail {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  width: 12px;
+  height: 28px;
+  transform: translateX(-50%);
+  background: #d2def3;
+  clip-path: polygon(0 100%, 100% 100%, 100% 0, 46% 24%, 0 36%);
+}
+
+.portfolio-747__wing {
+  position: absolute;
+  top: 44%;
+  width: 64px;
+  height: 18px;
+  background: #d7e2f4;
+  box-shadow: inset 0 0 0 1px rgba(43, 77, 142, 0.1);
+}
+
+.portfolio-747__wing--left {
+  left: 12px;
+  border-radius: 22px 6px 6px 22px;
+  transform: skewY(10deg);
+}
+
+.portfolio-747__wing--right {
+  right: 12px;
+  border-radius: 6px 22px 22px 6px;
+  transform: skewY(-10deg);
+}
+
+.portfolio-747__stab {
+  position: absolute;
+  bottom: 34px;
+  width: 32px;
+  height: 10px;
+  background: #dbe5f6;
+  box-shadow: inset 0 0 0 1px rgba(43, 77, 142, 0.08);
+}
+
+.portfolio-747__stab--left {
+  left: 24px;
+  border-radius: 14px 4px 4px 14px;
+  transform: skewY(12deg);
+}
+
+.portfolio-747__stab--right {
+  right: 24px;
+  border-radius: 4px 14px 14px 4px;
+  transform: skewY(-12deg);
+}
+
+.portfolio-747__engine {
+  position: absolute;
+  width: 10px;
+  height: 14px;
+  border-radius: 999px;
+  background: #aac0e6;
+}
+
+.portfolio-747__engine--1 {
+  left: 42px;
+  top: 60px;
+}
+
+.portfolio-747__engine--2 {
+  left: 58px;
+  top: 66px;
+}
+
+.portfolio-747__engine--3 {
+  right: 58px;
+  top: 66px;
+}
+
+.portfolio-747__engine--4 {
+  right: 42px;
+  top: 60px;
+}
+
+.portfolio-program-card--airport {
+  min-height: 360px;
+}
+
+.portfolio-airport-stand {
+  position: relative;
+  height: 100%;
+  min-height: 360px;
+  padding: 1rem;
+  border: 1px solid #d7e0f2;
+  border-radius: 30px;
+  background: linear-gradient(180deg, #eef3fb 0%, #f7f9fd 28%, #ffffff 100%);
+  box-shadow: 0 14px 36px rgba(25, 48, 92, 0.08);
+  overflow: hidden;
+}
+
+.portfolio-airport-stand__taxiway {
+  position: absolute;
+  left: 0.9rem;
+  right: 0.9rem;
+  height: 30px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(93, 112, 146, 0.85), rgba(67, 86, 118, 0.85)),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 18px,
+      rgba(255, 255, 255, 0.8) 18px,
+      rgba(255, 255, 255, 0.8) 28px
+    );
+  opacity: 0.2;
+}
+
+.portfolio-airport-stand__taxiway--top {
+  top: 0.9rem;
+}
+
+.portfolio-airport-stand__taxiway--bottom {
+  bottom: 0.9rem;
+}
+
+.portfolio-airport-stand__terminal {
+  position: absolute;
+  left: 1.1rem;
+  top: 3.7rem;
+  bottom: 3.7rem;
+  width: 86px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef3fb 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(150, 168, 205, 0.45),
+    0 12px 30px rgba(28, 50, 94, 0.08);
+}
+
+.portfolio-airport-stand__terminal::before {
+  content: "";
+  position: absolute;
+  left: 32px;
+  top: 22px;
+  bottom: 22px;
+  width: 22px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #cae6ff 0%, #9acbef 100%);
+  opacity: 0.9;
+}
+
+.portfolio-airport-stand__finger {
+  position: absolute;
+  left: 84px;
+  top: 108px;
+  width: 86px;
+  height: 18px;
+  border-radius: 999px;
+  background: #d9e3f3;
+  box-shadow: inset 0 0 0 1px rgba(120, 138, 175, 0.12);
+}
+
+.portfolio-airport-stand__apron {
+  position: absolute;
+  left: 126px;
+  top: 64px;
+  right: 1rem;
+  bottom: 64px;
+  border-radius: 24px;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(129, 154, 203, 0.12),
+      transparent 45%
+    ),
+    linear-gradient(180deg, rgba(240, 245, 252, 0.9), rgba(232, 238, 249, 0.96));
+  box-shadow: inset 0 0 0 1px rgba(164, 180, 213, 0.35);
+}
+
+.portfolio-airport-stand__aircraft {
+  position: absolute;
+  left: 162px;
+  top: 68px;
+  transform: scale(0.82);
+}
+
+.portfolio-program-card__airport-panel {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(211, 220, 239, 0.95);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 14px 30px rgba(25, 48, 92, 0.08);
+}
+
+.portfolio-program-card__airport-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .portfolio-program-stage__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .portfolio-program-card--tower,
+  .portfolio-airport-stand {
+    min-height: auto;
+  }
+
+  .portfolio-airport-stand__terminal {
+    width: 64px;
+  }
+
+  .portfolio-airport-stand__finger {
+    left: 66px;
+    width: 70px;
+  }
+
+  .portfolio-airport-stand__apron {
+    left: 106px;
+  }
+
+  .portfolio-airport-stand__aircraft {
+    left: 122px;
+    top: 74px;
+    transform: scale(0.7);
+  }
+
+  .portfolio-program-card__title {
+    font-size: 1.7rem;
+  }
+
+  .portfolio-program-card__description {
+    font-size: 0.98rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .portfolio-program-stage {
+    padding: 1rem;
+    border-radius: 24px;
+  }
+
+  .portfolio-program-card--tower {
+    padding: 0.9rem;
+  }
+
+  .portfolio-airport-stand {
+    padding: 0.9rem;
+  }
+
+  .portfolio-airport-stand__terminal {
+    left: 0.9rem;
+    width: 56px;
+  }
+
+  .portfolio-airport-stand__terminal::before {
+    left: 20px;
+    width: 16px;
+  }
+
+  .portfolio-airport-stand__finger {
+    left: 58px;
+    width: 54px;
+  }
+
+  .portfolio-airport-stand__apron {
+    left: 92px;
+  }
+
+  .portfolio-airport-stand__aircraft {
+    left: 100px;
+    top: 84px;
+    transform: scale(0.58);
+  }
+
+  .portfolio-program-card__airport-panel {
+    padding: 0.9rem;
+  }
+
+  .portfolio-program-card__airport-topline {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+/* =========================================================
+   PORTFOLIO AVIATION
+   ACTIVE / INACTIVE PROGRAMS
+   ========================================================= */
+
+.portfolio-program-card {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.18s ease,
+    filter 0.18s ease;
+}
+
+/* ---------------------------------------------------------
+   PROGRAMAS OPERATIVOS
+   --------------------------------------------------------- */
+
+.portfolio-program-card.is-operational {
+  opacity: 1;
+}
+
+.portfolio-program-card.is-operational:hover {
+  transform: translateY(-2px);
+}
+
+.portfolio-program-card--tower.is-operational:hover {
+  box-shadow: 0 18px 38px rgba(24, 46, 90, 0.13);
+}
+
+/* ---------------------------------------------------------
+   PROGRAMAS INACTIVOS · TORRE
+   --------------------------------------------------------- */
+
+.portfolio-program-card--tower.is-inactive {
+  background: linear-gradient(
+    180deg,
+    rgba(249, 251, 255, 0.98),
+    rgba(242, 245, 251, 0.98)
+  );
+
+  border-color: #e1e6ef;
+
+  box-shadow: 0 8px 22px rgba(24, 46, 90, 0.04);
+}
+
+.portfolio-program-card--tower.is-inactive
+  .portfolio-program-card__aircraft-shell {
+  opacity: 0.24;
+  filter: grayscale(1);
+}
+
+.portfolio-program-card--tower.is-inactive .portfolio-program-card__runway {
+  opacity: 0.38;
+}
+
+.portfolio-program-card--tower.is-inactive .portfolio-program-card__title {
+  color: #7582a5;
+}
+
+.portfolio-program-card--tower.is-inactive
+  .portfolio-program-card__description {
+  color: #97a2b9;
+}
+
+.portfolio-program-card--tower.is-inactive .portfolio-program-card__eyebrow,
+.portfolio-program-card--tower.is-inactive .portfolio-program-card__gate {
+  color: #9ba6bb;
+}
+
+/* ---------------------------------------------------------
+   NOTA INACTIVA
+   --------------------------------------------------------- */
+
+.portfolio-program-card__inactive-note {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.38rem 0.6rem;
+
+  border: 1px dashed #cbd3e2;
+  border-radius: 999px;
+
+  background: #f6f8fb;
+
+  color: #7c89a3;
+
+  font-size: 0.72rem;
+  font-weight: 700;
+
+  letter-spacing: 0.04em;
+}
+
+/* ---------------------------------------------------------
+   CTA INACTIVO
+   --------------------------------------------------------- */
+
+.portfolio-program-card__idle {
+  color: #8490a7;
+  background: #f4f6f9;
+  border-color: #dde2eb;
+}
+
+/* =========================================================
+   AIRPORT · ACTIVE STAND
+   ========================================================= */
+
+.portfolio-program-card--airport.is-operational
+  .portfolio-airport-stand__finger {
+  opacity: 1;
+}
+
+.portfolio-program-card--airport.is-operational
+  .portfolio-airport-stand__aircraft {
+  opacity: 1;
+}
+
+/* =========================================================
+   AIRPORT · VACANT STAND
+   ========================================================= */
+
+.portfolio-program-card--airport.is-vacant .portfolio-airport-stand {
+  background: linear-gradient(180deg, #f3f6fb 0%, #f8f9fc 30%, #ffffff 100%);
+}
+
+.portfolio-program-card--airport.is-vacant .portfolio-airport-stand__finger {
+  opacity: 0.35;
+}
+
+.portfolio-program-card--airport.is-vacant .portfolio-airport-stand__terminal {
+  opacity: 0.72;
+}
+
+.portfolio-program-card--airport.is-vacant .portfolio-airport-stand__apron {
+  background: linear-gradient(
+    180deg,
+    rgba(245, 247, 251, 0.94),
+    rgba(237, 241, 247, 0.98)
+  );
+
+  box-shadow: inset 0 0 0 1px rgba(170, 180, 200, 0.28);
+}
+
+.portfolio-program-card--airport.is-vacant
+  .portfolio-program-card__airport-panel {
+  background: rgba(250, 251, 253, 0.96);
+}
+
+.portfolio-program-card--airport.is-vacant .portfolio-program-card__title {
+  color: #7783a2;
+}
+
+.portfolio-program-card--airport.is-vacant
+  .portfolio-program-card__description {
+  color: #9aa4b8;
+}
+
+/* ---------------------------------------------------------
+   MARCA DE STAND VACÍO
+   --------------------------------------------------------- */
+
+.portfolio-airport-stand__vacant {
+  position: absolute;
+
+  left: 154px;
+  top: 72px;
+  right: 28px;
+
+  height: 118px;
+
+  display: grid;
+  place-items: center;
+
+  align-content: center;
+  gap: 0.65rem;
+
+  color: #9aa7bd;
+
+  pointer-events: none;
+}
+
+.portfolio-airport-stand__vacant::before {
+  content: "";
+
+  position: absolute;
+
+  width: 76px;
+  height: 100px;
+
+  border: 2px dashed rgba(127, 144, 174, 0.28);
+  border-radius: 50% 50% 30% 30%;
+
+  opacity: 0.8;
+}
+
+.portfolio-airport-stand__vacant span {
+  position: relative;
+  z-index: 1;
+
+  margin-top: 82px;
+
+  font-size: 0.64rem;
+  font-weight: 800;
+
+  letter-spacing: 0.15em;
+
+  color: #a0abc0;
+}
+
+.portfolio-airport-stand__parking-mark {
+  position: relative;
+  z-index: 1;
+
+  display: grid;
+  place-items: center;
+
+  width: 36px;
+  height: 36px;
+
+  border: 1px solid #ccd5e4;
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.82);
+
+  color: #8b98b2;
+
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+/* ---------------------------------------------------------
+   AIRPORT INACTIVO MÁS APAGADO
+   --------------------------------------------------------- */
+
+.portfolio-program-card--airport.is-vacant .portfolio-program-card__status {
+  background: #f1f3f7;
+  border-color: #dde2eb;
+  color: #8995ab;
+}
+
+/* =========================================================
+   RESPONSIVE VACANT STAND
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .portfolio-airport-stand__vacant {
+    left: 116px;
+    right: 18px;
+    top: 72px;
+  }
+}
+
+@media (max-width: 640px) {
+  .portfolio-airport-stand__vacant {
+    left: 94px;
+    right: 14px;
+    top: 78px;
+
+    transform: scale(0.88);
+  }
+}
+
+/* ---------------------------------------------------------
+   AIRCRAFT CARD
+   --------------------------------------------------------- */
+
+.portfolio-aircraft-card {
+  position: relative;
+  width: min(100%, 300px);
+  min-height: 318px;
+  margin-left: 1.65rem;
+  margin-top: 1.6rem;
+}
+
+.portfolio-aircraft-card__shape {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.portfolio-aircraft-card__body {
+  position: relative;
+  z-index: 2;
+  min-height: 318px;
+  padding: 1.05rem 1.05rem 1.15rem;
+  border: 1px solid #d7e1f3;
+  border-radius: 94px 94px 34px 34px / 56px 56px 30px 30px;
+  background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+  box-shadow:
+    0 16px 36px rgba(23, 47, 92, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.82);
+}
+
+.portfolio-aircraft-card__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.2rem;
+}
+
+.portfolio-aircraft-card__wing {
+  position: absolute;
+  top: 144px;
+  width: 108px;
+  height: 34px;
+  z-index: 1;
+  background: linear-gradient(180deg, #edf3fc 0%, #dbe6f6 100%);
+  box-shadow: inset 0 0 0 1px rgba(106, 130, 179, 0.18);
+}
+
+.portfolio-aircraft-card__wing--left {
+  left: -62px;
+  border-radius: 28px 8px 8px 28px;
+  transform: skewY(10deg);
+}
+
+.portfolio-aircraft-card__wing--right {
+  right: -62px;
+  border-radius: 8px 28px 28px 8px;
+  transform: skewY(-10deg);
+}
+
+.portfolio-aircraft-card__tail {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  width: 18px;
+  height: 58px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #dde8f8 0%, #cfdcf0 100%);
+  clip-path: polygon(0 100%, 100% 100%, 100% 0, 52% 20%, 0 34%);
+  z-index: 1;
+}
+
+.portfolio-aircraft-card__nose {
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  width: 34px;
+  height: 34px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffffff 0%, #eef4fd 100%);
+  box-shadow: inset 0 0 0 1px rgba(106, 130, 179, 0.16);
+  z-index: 3;
+}
+
+.portfolio-aircraft-card__engine {
+  position: absolute;
+  width: 12px;
+  height: 18px;
+  border-radius: 999px;
+  background: #acc2e8;
+  z-index: 1;
+}
+
+.portfolio-aircraft-card__engine--1 {
+  left: 34px;
+  top: 136px;
+}
+
+.portfolio-aircraft-card__engine--2 {
+  left: 56px;
+  top: 150px;
+}
+
+.portfolio-aircraft-card__engine--3 {
+  right: 56px;
+  top: 150px;
+}
+
+.portfolio-aircraft-card__engine--4 {
+  right: 34px;
+  top: 136px;
+}
+
+.portfolio-aircraft-card .portfolio-program-card__title {
+  margin: 0 0 0.65rem;
+  text-align: center;
+  font-size: 2.05rem;
+  line-height: 0.96;
+}
+
+.portfolio-aircraft-card .portfolio-program-card__description {
+  margin: 0;
+  text-align: center;
+  font-size: 1rem;
+  line-height: 1.42;
+  color: #546c98;
+}
+
+.portfolio-aircraft-card .portfolio-program-card__footer {
+  margin-top: 1.15rem;
+}
+
+.portfolio-aircraft-card .portfolio-program-card__action {
+  min-height: 46px;
+}
+
+/* ---------------------------------------------------------
+   VACANT STAND
+   --------------------------------------------------------- */
+
+.portfolio-airport-slot__reserved {
+  position: relative;
+  width: min(100%, 320px);
+  min-height: 290px;
+  margin-left: 1.65rem;
+  margin-top: 2.3rem;
+  display: flex;
+  align-items: center;
+}
+
+.portfolio-airport-slot__reserved::before {
+  content: "";
+  position: absolute;
+  inset: 24px 18px 24px 18px;
+  border: 2px dashed rgba(144, 160, 190, 0.28);
+  border-radius: 28px;
+  background: linear-gradient(
+    180deg,
+    rgba(251, 252, 254, 0.8),
+    rgba(244, 247, 251, 0.8)
+  );
+}
+
+.portfolio-airport-slot__reserved-panel {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  margin-left: 26px;
+  padding: 1rem;
+  border: 1px solid #dde4ef;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 28px rgba(23, 47, 92, 0.06);
+}
+
+.portfolio-airport-slot__reserved-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.portfolio-airport-slot__reserved-title {
+  margin: 0 0 0.45rem;
+  color: #7381a2;
+  font-size: 1.65rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.portfolio-airport-slot__reserved-text {
+  margin: 0;
+  color: #97a3ba;
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+/* ---------------------------------------------------------
+   AIRPORT MODE STATUS / TONES
+   --------------------------------------------------------- */
+
+.portfolio-aircraft-card .portfolio-program-card__status.tone-live,
+.portfolio-airport-slot__reserved-panel
+  .portfolio-program-card__status.tone-live {
+  background: #e8f7ef;
+  color: #0c8b52;
+  border-color: #cdecd9;
+}
+
+.portfolio-aircraft-card .portfolio-program-card__status.tone-planned,
+.portfolio-airport-slot__reserved-panel
+  .portfolio-program-card__status.tone-planned {
+  background: #eff3fa;
+  color: #8190aa;
+  border-color: #dde4ef;
+}
+
+.portfolio-aircraft-card .portfolio-program-card__status.tone-standby,
+.portfolio-aircraft-card .portfolio-program-card__status.tone-inactive,
+.portfolio-airport-slot__reserved-panel
+  .portfolio-program-card__status.tone-standby,
+.portfolio-airport-slot__reserved-panel
+  .portfolio-program-card__status.tone-inactive {
+  background: #f2f4f8;
+  color: #8996ad;
+  border-color: #dce2ec;
+}
+
+/* ---------------------------------------------------------
+   RESPONSIVE
+   --------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .portfolio-program-stage__grid--airport {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+
+  .portfolio-airport-slot {
+    padding-left: 4.25rem;
+  }
+
+  .portfolio-aircraft-card {
+    margin-left: 1.25rem;
+  }
+
+  .portfolio-airport-slot__reserved {
+    margin-left: 1.25rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .portfolio-program-stage--airport::before {
+    width: 96px;
+  }
+
+  .portfolio-program-stage--airport::after {
+    left: 44px;
+    width: 28px;
+  }
+
+  .portfolio-airport-slot__finger {
+    left: -8px;
+    width: 88px;
+  }
+
+  .portfolio-aircraft-card {
+    width: min(100%, 270px);
+    min-height: 300px;
+  }
+
+  .portfolio-aircraft-card__body {
+    min-height: 300px;
+  }
+
+  .portfolio-aircraft-card__wing {
+    width: 92px;
+  }
+
+  .portfolio-aircraft-card__wing--left {
+    left: -54px;
+  }
+
+  .portfolio-aircraft-card__wing--right {
+    right: -54px;
+  }
+
+  .portfolio-airport-slot__reserved {
+    width: min(100%, 290px);
+  }
+}
+
+@media (max-width: 640px) {
+  .portfolio-program-stage--airport::before,
+  .portfolio-program-stage--airport::after {
+    display: none;
+  }
+
+  .portfolio-airport-slot {
+    min-height: 330px;
+    padding-left: 0;
+  }
+
+  .portfolio-airport-slot__stand {
+    position: relative;
+    top: 0;
+    left: 0;
+    margin-bottom: 0.8rem;
+  }
+
+  .portfolio-airport-slot__finger {
+    display: none;
+  }
+
+  .portfolio-aircraft-card,
+  .portfolio-airport-slot__reserved {
+    margin-left: 0;
+    margin-top: 0.5rem;
+  }
+
+  .portfolio-aircraft-card {
+    width: 100%;
+  }
+
+  .portfolio-aircraft-card .portfolio-program-card__title {
+    font-size: 1.8rem;
+  }
+
+  .portfolio-airport-slot__reserved-title {
+    font-size: 1.45rem;
+  }
+
+  .portfolio-aircraft-card__topline,
+  .portfolio-airport-slot__reserved-topline {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+/* ---------------------------------------------------------
+   SLOT / GATE
+   --------------------------------------------------------- */
+
+.portfolio-airport-slot {
+  position: relative;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+}
+
+.portfolio-airport-slot--port {
+  justify-content: flex-start;
+  padding-right: 5.8rem;
+}
+
+.portfolio-airport-slot--starboard {
+  justify-content: flex-end;
+  padding-left: 5.8rem;
+}
+
+.portfolio-airport-slot__gate {
+  position: absolute;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  min-height: 36px;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid #d8e1f1;
+  background: rgba(255, 255, 255, 0.97);
+  color: #55709e;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 18px rgba(21, 45, 92, 0.08);
+}
+
+.portfolio-airport-slot--port .portfolio-airport-slot__gate {
+  left: 0;
+}
+
+.portfolio-airport-slot--starboard .portfolio-airport-slot__gate {
+  right: 0;
+}
+
+.portfolio-airport-slot__jetbridge {
+  position: absolute;
+  top: 50%;
+  width: 108px;
+  height: 16px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #dfe6f1 0%, #cfd9e8 100%);
+  box-shadow: inset 0 0 0 1px rgba(135, 151, 182, 0.18);
+}
+
+.portfolio-airport-slot--port .portfolio-airport-slot__jetbridge {
+  right: 2.2rem;
+}
+
+.portfolio-airport-slot--starboard .portfolio-airport-slot__jetbridge {
+  left: 2.2rem;
+}
+
+.portfolio-airport-slot__jetbridge::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  border-radius: 4px;
+  background: #e7ecf3;
+  box-shadow: inset 0 0 0 1px rgba(153, 167, 193, 0.26);
+}
+
+.portfolio-airport-slot--port .portfolio-airport-slot__jetbridge::before {
+  right: -8px;
+}
+
+.portfolio-airport-slot--starboard .portfolio-airport-slot__jetbridge::before {
+  left: -8px;
+}
+
+.portfolio-airport-slot.is-vacant .portfolio-airport-slot__jetbridge {
+  opacity: 0.42;
+}
+
+/* ---------------------------------------------------------
+   AIRCRAFT CARD
+   --------------------------------------------------------- */
+
+.portfolio-aircraft-card {
+  position: relative;
+  width: min(100%, 320px);
+  min-height: 260px;
+  margin-top: 2.2rem;
+}
+
+.portfolio-aircraft-card--port {
+  margin-left: 0.4rem;
+}
+
+.portfolio-aircraft-card--starboard {
+  margin-right: 0.4rem;
+}
+
+.portfolio-aircraft-card__shape {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.portfolio-aircraft-card__fuselage {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 180px;
+  height: 100%;
+  transform: translateX(-50%);
+  border-radius: 90px 90px 34px 34px / 52px 52px 24px 24px;
+  background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+  box-shadow:
+    0 18px 38px rgba(20, 40, 76, 0.08),
+    inset 0 0 0 1px rgba(185, 198, 222, 0.85);
+}
+
+.portfolio-aircraft-card__nose {
+  position: absolute;
+  left: 50%;
+  top: -10px;
+  width: 30px;
+  height: 30px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffffff 0%, #eef4fd 100%);
+  box-shadow: inset 0 0 0 1px rgba(136, 153, 184, 0.22);
+  z-index: 3;
+}
+
+.portfolio-aircraft-card__tail {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  width: 18px;
+  height: 52px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #dfe8f8 0%, #cfdaef 100%);
+  clip-path: polygon(0 100%, 100% 100%, 100% 0, 52% 20%, 0 34%);
+  z-index: 1;
+}
+
+.portfolio-aircraft-card__wing {
+  position: absolute;
+  top: 108px;
+  width: 120px;
+  height: 34px;
+  z-index: 1;
+  background: linear-gradient(180deg, #edf3fc 0%, #dbe6f6 100%);
+  box-shadow: inset 0 0 0 1px rgba(123, 142, 177, 0.16);
+}
+
+.portfolio-aircraft-card__wing--left {
+  left: 4px;
+  border-radius: 26px 8px 8px 26px;
+  transform: skewY(9deg);
+}
+
+.portfolio-aircraft-card__wing--right {
+  right: 4px;
+  border-radius: 8px 26px 26px 8px;
+  transform: skewY(-9deg);
+}
+
+.portfolio-aircraft-card__stabilizer {
+  position: absolute;
+  bottom: 34px;
+  width: 46px;
+  height: 12px;
+  z-index: 1;
+  background: linear-gradient(180deg, #e6edf8 0%, #d9e4f4 100%);
+  box-shadow: inset 0 0 0 1px rgba(123, 142, 177, 0.12);
+}
+
+.portfolio-aircraft-card__stabilizer--left {
+  left: 76px;
+  border-radius: 14px 5px 5px 14px;
+  transform: skewY(11deg);
+}
+
+.portfolio-aircraft-card__stabilizer--right {
+  right: 76px;
+  border-radius: 5px 14px 14px 5px;
+  transform: skewY(-11deg);
+}
+
+.portfolio-aircraft-card__engine {
+  position: absolute;
+  width: 12px;
+  height: 18px;
+  border-radius: 999px;
+  background: #afc4e9;
+  z-index: 1;
+}
+
+.portfolio-aircraft-card__engine--1 {
+  left: 64px;
+  top: 106px;
+}
+
+.portfolio-aircraft-card__engine--2 {
+  left: 90px;
+  top: 122px;
+}
+
+.portfolio-aircraft-card__engine--3 {
+  right: 90px;
+  top: 122px;
+}
+
+.portfolio-aircraft-card__engine--4 {
+  right: 64px;
+  top: 106px;
+}
+
+.portfolio-aircraft-card__content {
+  position: relative;
+  z-index: 2;
+  min-height: 260px;
+  padding: 1rem 1.15rem 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.portfolio-aircraft-card__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+}
+
+.portfolio-aircraft-card .portfolio-program-card__title {
+  margin: 0 0 0.55rem;
+  text-align: center;
+  font-size: 1.95rem;
+  line-height: 0.98;
+  color: #112b90;
+}
+
+.portfolio-aircraft-card .portfolio-program-card__description {
+  margin: 0;
+  text-align: center;
+  font-size: 0.98rem;
+  line-height: 1.42;
+  color: #516a98;
+}
+
+.portfolio-aircraft-card .portfolio-program-card__footer {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+/* ---------------------------------------------------------
+   RESERVED GATE
+   --------------------------------------------------------- */
+
+.portfolio-airport-slot__reserved {
+  position: relative;
+  width: min(100%, 300px);
+  min-height: 228px;
+  margin-top: 2.3rem;
+}
+
+.portfolio-airport-slot--port .portfolio-airport-slot__reserved {
+  margin-left: 0.6rem;
+}
+
+.portfolio-airport-slot--starboard .portfolio-airport-slot__reserved {
+  margin-right: 0.6rem;
+}
+
+.portfolio-airport-slot__reserved-frame {
+  position: absolute;
+  inset: 10px;
+  border: 2px dashed rgba(179, 188, 206, 0.42);
+  border-radius: 26px;
+  background: linear-gradient(
+    180deg,
+    rgba(249, 251, 254, 0.78),
+    rgba(241, 245, 250, 0.82)
+  );
+}
+
+.portfolio-airport-slot__reserved-panel {
+  position: relative;
+  z-index: 2;
+  margin: 28px 18px 18px;
+  padding: 1rem;
+  border: 1px solid #dce4ee;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 28px rgba(22, 44, 86, 0.05);
+}
+
+.portfolio-airport-slot__reserved-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+
+.portfolio-airport-slot__reserved-title {
+  margin: 0 0 0.4rem;
+  color: #7683a3;
+  font-size: 1.55rem;
+  line-height: 1.02;
+  font-weight: 700;
+}
+
+.portfolio-airport-slot__reserved-text {
+  margin: 0;
+  color: #98a4bb;
+  font-size: 0.96rem;
+  line-height: 1.42;
+}
+
+/* ---------------------------------------------------------
+   TONES
+   --------------------------------------------------------- */
+
+.portfolio-aircraft-card .portfolio-program-card__status.tone-live,
+.portfolio-airport-slot__reserved-panel
+  .portfolio-program-card__status.tone-live {
+  background: #e8f7ef;
+  color: #0c8b52;
+  border-color: #cdecd9;
+}
+
+.portfolio-aircraft-card .portfolio-program-card__status.tone-planned,
+.portfolio-airport-slot__reserved-panel
+  .portfolio-program-card__status.tone-planned,
+.portfolio-aircraft-card .portfolio-program-card__status.tone-standby,
+.portfolio-airport-slot__reserved-panel
+  .portfolio-program-card__status.tone-standby,
+.portfolio-aircraft-card .portfolio-program-card__status.tone-inactive,
+.portfolio-airport-slot__reserved-panel
+  .portfolio-program-card__status.tone-inactive {
+  background: #f2f4f8;
+  color: #8895ad;
+  border-color: #dde3ec;
+}
+
+/* ---------------------------------------------------------
+   RESPONSIVE
+   --------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .portfolio-program-stage__grid--airport {
+    gap: 1.8rem 2rem;
+  }
+
+  .portfolio-program-stage--airport::after {
+    left: 18%;
+    width: 64%;
+  }
+}
+
+@media (max-width: 980px) {
+  .portfolio-program-stage__grid--airport {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-program-stage--airport::after {
+    left: 18%;
+    width: 64%;
+    height: 72px;
+  }
+
+  .portfolio-airport-slot--port,
+  .portfolio-airport-slot--starboard {
+    justify-content: flex-start;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .portfolio-airport-slot--port .portfolio-airport-slot__gate,
+  .portfolio-airport-slot--starboard .portfolio-airport-slot__gate {
+    left: 0;
+    right: auto;
+  }
+
+  .portfolio-airport-slot--port .portfolio-airport-slot__jetbridge,
+  .portfolio-airport-slot--starboard .portfolio-airport-slot__jetbridge {
+    left: 110px;
+    right: auto;
+  }
+
+  .portfolio-aircraft-card,
+  .portfolio-aircraft-card--port,
+  .portfolio-aircraft-card--starboard,
+  .portfolio-airport-slot__reserved,
+  .portfolio-airport-slot--port .portfolio-airport-slot__reserved,
+  .portfolio-airport-slot--starboard .portfolio-airport-slot__reserved {
+    margin-left: 1.7rem;
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .portfolio-program-stage--airport::before,
+  .portfolio-program-stage--airport::after {
+    display: none;
+  }
+
+  .portfolio-program-stage__grid--airport {
+    grid-template-columns: 1fr;
+    gap: 1.4rem;
+  }
+
+  .portfolio-airport-slot {
+    min-height: auto;
+    padding: 0;
+  }
+
+  .portfolio-airport-slot__gate {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    margin-bottom: 0.7rem;
+  }
+
+  .portfolio-airport-slot__jetbridge {
+    display: none;
+  }
+
+  .portfolio-aircraft-card,
+  .portfolio-aircraft-card--port,
+  .portfolio-aircraft-card--starboard,
+  .portfolio-airport-slot__reserved,
+  .portfolio-airport-slot--port .portfolio-airport-slot__reserved,
+  .portfolio-airport-slot--starboard .portfolio-airport-slot__reserved {
+    width: 100%;
+    margin: 0;
+  }
+
+  .portfolio-aircraft-card .portfolio-program-card__title {
+    font-size: 1.7rem;
+  }
+
+  .portfolio-aircraft-card__topline,
+  .portfolio-airport-slot__reserved-topline {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+/* =========================================================
+   AIRPORT MODE V3
+   TWO VERTICAL TERMINALS · FOUR AIRCRAFT COLUMNS
+   ========================================================= */
+
+.portfolio-program-stage--airport {
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  background: linear-gradient(180deg, #f8faff 0%, #eef3fa 100%);
+}
+
+/* El modo airport no utiliza los fondos decorativos
+   heredados de las iteraciones anteriores. */
+.portfolio-program-stage--airport::before,
+.portfolio-program-stage--airport::after {
+  content: none;
+  display: none;
+}
+
+/* =========================================================
+   AIRPORT LAYOUT
+   ========================================================= */
+
+.portfolio-airport-layout {
+  position: relative;
+
+  display: grid;
+
+  grid-template-columns:
+    minmax(170px, 1fr)
+    86px
+    minmax(170px, 1fr)
+    minmax(170px, 1fr)
+    86px
+    minmax(170px, 1fr);
+
+  gap: 18px;
+
+  min-width: 1080px;
+
+  padding: 22px 12px 28px;
+
+  border-radius: 26px;
+
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.18) 0,
+      rgba(255, 255, 255, 0.18) 1px,
+      transparent 1px,
+      transparent 92px
+    ),
+    linear-gradient(180deg, #e6ebf2 0%, #dce3ec 100%);
+
+  box-shadow: inset 0 0 0 1px rgba(120, 139, 174, 0.1);
+}
+
+/* pequeñas líneas de plataforma */
+.portfolio-airport-layout::before {
+  content: "";
+
+  position: absolute;
+  inset: 16px;
+
+  pointer-events: none;
+
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0,
+    transparent 91px,
+    rgba(255, 255, 255, 0.48) 91px,
+    rgba(255, 255, 255, 0.48) 93px,
+    transparent 93px,
+    transparent 204px
+  );
+
+  opacity: 0.7;
+}
+
+/* =========================================================
+   AIRCRAFT COLUMNS
+   ========================================================= */
+
+.portfolio-airport-aircraft-column {
+  position: relative;
+  z-index: 2;
+
+  display: grid;
+
+  grid-template-rows: repeat(var(--airport-row-count), 182px);
+
+  gap: 24px;
+
+  align-content: start;
+}
+
+/* =========================================================
+   TERMINALS
+   ========================================================= */
+
+.portfolio-airport-terminal {
+  position: relative;
+  z-index: 3;
+
+  align-self: stretch;
+
+  min-height: 100%;
+
+  border: 1px solid #bcc8da;
+  border-radius: 14px;
+
+  background: linear-gradient(90deg, #f6f8fb 0%, #ffffff 48%, #eef2f7 100%);
+
+  box-shadow:
+    0 10px 28px rgba(32, 52, 87, 0.09),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.75);
+}
+
+.portfolio-airport-terminal::before {
+  content: "";
+
+  position: absolute;
+
+  top: 18px;
+  bottom: 18px;
+  left: 50%;
+
+  width: 22px;
+
+  transform: translateX(-50%);
+
+  border-radius: 10px;
+
+  background: repeating-linear-gradient(
+    180deg,
+    #b9dafa 0,
+    #b9dafa 14px,
+    #d6eafb 14px,
+    #d6eafb 24px
+  );
+
+  opacity: 0.82;
+}
+
+.portfolio-airport-terminal__name {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  z-index: 2;
+
+  transform: translate(-50%, -50%) rotate(-90deg);
+
+  padding: 7px 13px;
+
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.94);
+
+  color: #385583;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  letter-spacing: 0.14em;
+
+  white-space: nowrap;
+
+  box-shadow: 0 5px 14px rgba(28, 48, 82, 0.08);
+}
+
+/* =========================================================
+   TERMINAL GATES
+   ========================================================= */
+
+.portfolio-airport-terminal__gate {
+  position: absolute;
+
+  top: calc(78px + ((var(--gate-row) - 1) * 206px));
+
+  z-index: 4;
+
+  display: grid;
+  place-items: center;
+
+  width: 30px;
+  height: 24px;
+
+  border: 1px solid #c8d3e4;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  color: #49638e;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  box-shadow: 0 4px 10px rgba(28, 48, 82, 0.07);
+}
+
+.portfolio-airport-terminal__gate--left {
+  left: -13px;
+}
+
+.portfolio-airport-terminal__gate--right {
+  right: -13px;
+}
+
+/* =========================================================
+   AIRCRAFT SLOT
+   ========================================================= */
+
+.portfolio-airport-aircraft-slot {
+  position: relative;
+
+  display: grid;
+  place-items: center;
+
+  min-width: 0;
+}
+
+/* finger horizontal hacia la terminal */
+
+.portfolio-airport-aircraft-slot::after {
+  content: "";
+
+  position: absolute;
+
+  top: 50%;
+
+  width: 28px;
+  height: 10px;
+
+  transform: translateY(-50%);
+
+  border-radius: 999px;
+
+  background: linear-gradient(180deg, #d6dde8, #c3cede);
+
+  box-shadow: inset 0 0 0 1px rgba(108, 126, 158, 0.13);
+
+  z-index: 1;
+}
+
+.portfolio-airport-aircraft-slot--right::after {
+  right: -23px;
+}
+
+.portfolio-airport-aircraft-slot--left::after {
+  left: -23px;
+}
+
+.portfolio-airport-aircraft-slot.is-inactive::after {
+  opacity: 0.35;
+}
+
+/* =========================================================
+   747 INSIDE CARD
+   ========================================================= */
+
+.portfolio-airport-aircraft-card__plane {
+  display: grid;
+  place-items: center;
+
+  overflow: hidden;
+}
+
+/* el avión del modo normal ya existe.
+   Aquí sólo lo hacemos pequeño y vertical. */
+
+.portfolio-airport-aircraft-card__plane .portfolio-747 {
+  width: 88px;
+  height: 88px;
+
+  transform: rotate(0deg) scale(0.78);
+}
+
+/* =========================================================
+   AIRCRAFT INFO
+   ========================================================= */
+
+.portfolio-airport-aircraft-card__info {
+  display: grid;
+
+  justify-items: center;
+
+  gap: 3px;
+
+  min-width: 0;
+}
+
+.portfolio-airport-aircraft-card__gate {
+  color: #71809d;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.1em;
+}
+
+.portfolio-airport-aircraft-card__name {
+  display: block;
+
+  width: 100%;
+
+  overflow: hidden;
+
+  color: var(--blue);
+
+  font-family: Georgia, serif;
+
+  font-size: 16px;
+  font-weight: 900;
+
+  line-height: 1.05;
+
+  text-align: center;
+
+  text-overflow: ellipsis;
+}
+
+.portfolio-airport-aircraft-card .portfolio-program-card__status {
+  padding: 3px 7px;
+
+  font-size: 9px;
+}
+
+.portfolio-airport-aircraft-card .portfolio-program-card__status-dot {
+  width: 5px;
+  height: 5px;
+}
+
+/* =========================================================
+   AIRCRAFT ACTION
+   ========================================================= */
+
+.portfolio-airport-aircraft-card__action,
+.portfolio-airport-aircraft-card__unavailable {
+  align-self: end;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 24px;
+
+  border: 0;
+  border-radius: 8px;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.portfolio-airport-aircraft-card__action {
+  background: #edf3ff;
+
+  color: var(--blue);
+
+  cursor: pointer;
+}
+
+.portfolio-airport-aircraft-card__unavailable {
+  background: #f1f3f7;
+
+  color: #8c98ae;
+}
+
+/* =========================================================
+   INACTIVE AIRCRAFT
+   ========================================================= */
+
+.portfolio-airport-aircraft-card.is-inactive {
+  border-color: #dde3ec;
+
+  background: linear-gradient(180deg, #f8f9fb, #f2f4f7);
+
+  box-shadow: 0 6px 16px rgba(27, 47, 83, 0.04);
+}
+
+.portfolio-airport-aircraft-card.is-inactive
+  .portfolio-airport-aircraft-card__plane {
+  opacity: 0.18;
+
+  filter: grayscale(1);
+}
+
+.portfolio-airport-aircraft-card.is-inactive
+  .portfolio-airport-aircraft-card__name {
+  color: #7e8aa3;
+}
+/* =========================================================
+   AIRPORT · REUSE CONTROL TOWER PROGRAM CARDS
+   ========================================================= */
+
+.portfolio-airport-aircraft-slot {
+  overflow: visible;
+}
+
+.portfolio-airport-aircraft-slot__card {
+  position: relative;
+  z-index: 2;
+
+  width: 100%;
+  min-width: 0;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card--tower {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+
+  padding: 13px;
+
+  border-radius: 18px;
+
+  box-shadow: 0 10px 26px rgba(24, 46, 90, 0.1);
+}
+
+/* Reducimos ligeramente algunos espacios sólo dentro
+   del airport para que la misma card encaje en el gate. */
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__strip {
+  gap: 8px;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__eyebrow,
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__gate {
+  font-size: 9px;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__status {
+  padding: 4px 7px;
+
+  font-size: 9px;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__runway {
+  height: 12px;
+
+  margin-top: 8px;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__aircraft-shell {
+  padding: 7px 0 4px;
+}
+
+/* Es el mismo 747 del diseño principal,
+   sólo ligeramente reducido para el apron. */
+
+.portfolio-airport-aircraft-slot__card .portfolio-747 {
+  transform: rotate(-18deg) scale(0.72);
+
+  margin: -18px 0;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__title {
+  font-size: 22px;
+
+  line-height: 1;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__description {
+  display: -webkit-box;
+
+  overflow: hidden;
+
+  font-size: 11px;
+  line-height: 1.3;
+
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__inactive-note {
+  font-size: 8px;
+
+  padding: 3px 6px;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__footer {
+  margin-top: 8px;
+}
+
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__action,
+.portfolio-airport-aircraft-slot__card .portfolio-program-card__idle {
+  min-height: 34px;
+
+  padding: 6px 8px;
+
+  border-radius: 10px;
+
+  font-size: 10px;
+}
+
+/* ---------------------------------------------------------
+   AIRPORT COLUMN WIDTHS
+   La card principal necesita más espacio que la card
+   simplificada anterior.
+   --------------------------------------------------------- */
+
+.portfolio-airport-layout {
+  grid-template-columns:
+    minmax(245px, 1fr)
+    82px
+    minmax(245px, 1fr)
+    minmax(245px, 1fr)
+    82px
+    minmax(245px, 1fr);
+
+  gap: 18px;
+
+  min-width: 1320px;
+}
+
+/* Cada fila crece para alojar la card principal. */
+
+.portfolio-airport-aircraft-column {
+  grid-template-rows: repeat(var(--airport-row-count), 340px);
+
+  gap: 22px;
+}
+
+/* Reposicionamos los números de Gate
+   de las terminales a la nueva altura de fila. */
+
+.portfolio-airport-terminal__gate {
+  top: calc(148px + ((var(--gate-row) - 1) * 362px));
+}
+
+/* Finger entre card y terminal. */
+
+.portfolio-airport-aircraft-slot::after {
+  width: 32px;
+
+  height: 10px;
+}
+
+.portfolio-airport-aircraft-slot--right::after {
+  right: -26px;
+}
+
+.portfolio-airport-aircraft-slot--left::after {
+  left: -26px;
+}
+/* =========================================================
+   AIRPORT RESPONSIVE
+   La vista conserva la composición del aeropuerto y permite
+   scroll horizontal en resoluciones pequeñas.
+   ========================================================= */
+
+@media (max-width: 1180px) {
+  .portfolio-airport-layout {
+    min-width: 1040px;
+  }
+}
+
+@media (max-width: 760px) {
+  .portfolio-program-stage--airport {
+    margin-inline: -8px;
+  }
+
+  .portfolio-airport-layout {
+    min-width: 1020px;
+
+    padding-bottom: 22px;
+  }
+}
+/* =========================================================
+   PORTFOLIO PROGRAM CARD · FULL CARD NAVIGATION
+   ========================================================= */
+
+.portfolio-program-card--tower.is-navigable {
+  cursor: pointer;
+
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.portfolio-program-card--tower.is-navigable:hover {
+  transform: translateY(-3px);
+
+  border-color: #aec3ea;
+
+  box-shadow: 0 18px 38px rgba(24, 46, 90, 0.14);
+}
+
+.portfolio-program-card--tower.is-navigable:hover
+  .portfolio-program-card__runway {
+  opacity: 0.9;
+}
+
+.portfolio-program-card--tower.is-navigable:hover .portfolio-747 {
+  transform: rotate(-18deg) translateY(-3px);
+
+  transition: transform 0.18s ease;
+}
+
+.portfolio-program-card--tower.is-navigable:hover
+  .portfolio-program-card__action {
+  border-color: #8ea9e6;
+
+  background: #f6f9ff;
+}
+
+.portfolio-program-card--tower.is-navigable:active {
+  transform: translateY(-1px);
+}
+
+/*
+ * Los programas no disponibles mantienen
+ * comportamiento completamente pasivo.
+ */
+
+.portfolio-program-card--tower.is-inactive {
+  cursor: default;
+}
+
+/*
+ * En Airport reutilizamos la misma card.
+ * Conservamos el movimiento del avión
+ * adaptado a la escala de ese layout.
+ */
+
+.portfolio-airport-aircraft-slot__card
+  .portfolio-program-card--tower.is-navigable:hover
+  .portfolio-747 {
+  transform: rotate(-18deg) scale(0.72) translateY(-3px);
+}

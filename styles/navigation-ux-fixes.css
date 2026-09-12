@@ -47,6 +47,92 @@
   scroll-margin-top: 24px;
 }
 
+/* =========================================================
+   AIxBANKER · PRODUCT GATES
+   Elimina señal BBY / PNM y estructura metálica.
+   ========================================================= */
+
+.flight-gate-sign {
+  display: none !important;
+}
+
+/*
+ * Postes superiores que sujetaban el cartel verde.
+ */
+.flight-gate-board::before,
+.flight-gate-board::after {
+  display: none !important;
+  content: none !important;
+}
+
+/*
+ * Soportes que conectaban visualmente
+ * el monitor con el cartel superior.
+ */
+.flight-gate-monitor-frame::before,
+.flight-gate-monitor-frame::after {
+  display: none !important;
+  content: none !important;
+}
+
+/*
+ * Eliminamos el hueco reservado entre
+ * cartel y monitor.
+ */
+.flight-gate-monitor-frame {
+  margin-top: 0;
+}
+
+.flight-gate-board {
+  padding-top: 0;
+}
+
+/* =========================================================
+   AIxBANKER · PRODUCT GATES
+   Toda la caja del producto es navegable.
+   ========================================================= */
+
+.flight-gate-board-clickable {
+  cursor: pointer;
+
+  transition:
+    transform 0.18s ease,
+    filter 0.18s ease;
+}
+
+.flight-gate-board-clickable:hover {
+  transform: translateY(-3px);
+}
+
+.flight-gate-board-clickable:hover .flight-gate-monitor-frame {
+  box-shadow:
+    0 20px 34px rgba(39, 49, 57, 0.31),
+    0 0 0 2px rgba(101, 221, 244, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.flight-gate-board-clickable:hover .flight-gate-open {
+  filter: brightness(1.08);
+}
+
+.flight-gate-board-clickable:active {
+  transform: translateY(-1px);
+}
+
+/*
+ * El botón sigue siendo el elemento accesible
+ * por teclado.
+ *
+ * Al recibir foco resaltamos la tarjeta completa.
+ */
+.flight-gate-board-clickable:has(.flight-gate-open:focus-visible) {
+  outline: 3px solid rgba(0, 19, 145, 0.32);
+
+  outline-offset: 8px;
+
+  border-radius: 8px;
+}
+
 @media (max-width: 1050px) {
   .global-context-filters {
     justify-items: center;

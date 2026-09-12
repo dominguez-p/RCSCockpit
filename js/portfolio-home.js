@@ -374,6 +374,19 @@ function renderPortfolioPrograms(programs) {
     `;
   }
 
+  if (
+    window.RCS_PORTFOLIO_LANDING_MODES &&
+    typeof window.RCS_PORTFOLIO_LANDING_MODES.renderProgramsStage === "function"
+  ) {
+    return window.RCS_PORTFOLIO_LANDING_MODES.renderProgramsStage(programs);
+  }
+
+  /*
+   * Fallback.
+   *
+   * Si el módulo visual no estuviera disponible,
+   * se conserva la landing actual.
+   */
   return `
     <section
       class="portfolio-program-grid"
@@ -520,7 +533,11 @@ window.setTimeout(() => {
     .replace(/^#\/?/, "")
     .trim();
 
-  if (!currentRoute || currentRoute === "landing") {
+  if (
+    !currentRoute ||
+    currentRoute === "landing" ||
+    currentRoute.startsWith("landing?")
+  ) {
     renderLanding();
   }
 }, 0);
