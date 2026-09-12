@@ -180,6 +180,34 @@
     `;
   }
 
+  function getProgramAircraftImage(program) {
+    const defaultImage = "assets/program-aircraft/bbva-747-default.png";
+
+    const rawId = String(
+      program?.id || program?.programId || program?.slug || program?.name || "",
+    )
+      .trim()
+      .toLowerCase();
+
+    if (rawId.includes("aixbanker")) {
+      return "assets/program-aircraft/bbva-falcon-8x.png";
+    }
+
+    if (rawId.includes("interaction") || rawId.includes("orchestration")) {
+      return "assets/program-aircraft/bbva-a350.png";
+    }
+
+    if (rawId.includes("open") || rawId.includes("market")) {
+      return "assets/program-aircraft/bbva-747.png";
+    }
+
+    if (rawId.includes("blue")) {
+      return "assets/program-aircraft/bbva-747.png";
+    }
+
+    return defaultImage;
+  }
+
   function renderTowerCard(program, index) {
     const enabled = isProgramEnabled(program);
     const navigable = isProgramNavigable(program);
@@ -188,11 +216,14 @@
     const statusLabel = getProgramStatusLabel(program);
 
     const flightCode = `RCS-${String(index + 1).padStart(2, "0")}`;
+
     const gateCode = `GATE ${String(index + 1).padStart(2, "0")}`;
 
     const routeValue = navigable ? getProgramRoute(program) : "";
 
     const programName = String(program?.name || "Programa").trim();
+
+    const aircraftImage = getProgramAircraftImage(program);
 
     return `
     <article
@@ -265,9 +296,17 @@
       <div
         class="
           portfolio-program-card__aircraft-shell
+          portfolio-program-card__aircraft-shell--image
         "
       >
-        ${renderAircraft747()}
+        <img
+          class="
+            portfolio-program-card__aircraft-image
+          "
+          src="${escapeHtml(aircraftImage)}"
+          alt=""
+          loading="lazy"
+        />
       </div>
 
       <div
@@ -299,7 +338,7 @@
                   portfolio-program-card__inactive-note
                 "
               >
-                Stand reservado · sin operación asignada
+                Gate reservado · sin operación asignada
               </span>
             `
             : ""
