@@ -3961,109 +3961,121 @@ function updateFlightDeckProjectTrackingMetrics({
 function getFlightDeckKeyIssueMetrics(programId) {
   const normalizedProgramId = String(programId || "").trim();
 
+  /*
+   * =====================================================
+   * KEY ISSUES · VISIÓN GLOBAL
+   * =====================================================
+   *
+   * La tarjeta representa siempre todos los países.
+   *
+   * El ámbito geográfico sólo se aplica después,
+   * dentro de la pantalla de Key Issues.
+   */
   const issues = Array.isArray(DATA?.impediments)
     ? DATA.impediments.filter((item) => {
         const itemProgramId = String(
           item.programId || normalizedProgramId,
         ).trim();
 
-        if (itemProgramId !== normalizedProgramId) {
-          return false;
-        }
-
-        const itemCountry = String(
-          item.country || item["RtC Anchor Country"] || "",
-        )
-          .trim()
-          .toUpperCase();
-
-        const currentCountry = String(selectedCountry || "")
-          .trim()
-          .toUpperCase();
-
-        return !itemCountry || itemCountry === currentCountry;
+        return itemProgramId === normalizedProgramId;
       })
     : [];
 
-  const normalizedIssueStatus = (item) => {
-    const rawStatus = item?.status || item?.statusKey || item?.state || "";
-
-    if (typeof rcsNormalizeStatus === "function") {
-      return rcsNormalizeStatus(rawStatus);
-    }
-
-    return String(rawStatus || "")
+  const normalizeText = (value) =>
+    String(value || "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .trim()
       .toLowerCase()
       .replaceAll("_", "-")
-      .replaceAll(" ", "-");
-  };
+      .replace(/\s+/g, "-");
 
-  const normalizedSeverity = (item) =>
-    String(item?.severity || item?.priority || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim()
-      .toLowerCase();
+  const issueStatus = (item) =>
+    normalizeText(item?.status || item?.statusKey || item?.state || "");
 
-  const blocked = issues.filter((item) => {
-    const status = normalizedIssueStatus(item);
+  const issueSeverity = (item) => {
+    const severity = normalizeText(item?.severity || item?.priority || "");
 
-    return ["blocked", "bloqueado", "bloqueada"].includes(status);
-  });
-
-  const atRisk = issues.filter((item) => {
-    const status = normalizedIssueStatus(item);
-
-    const severity = normalizedSeverity(item);
-
-    const isBlocked = ["blocked", "bloqueado", "bloqueada"].includes(status);
-
-    if (isBlocked) {
-      return false;
+    if (
+      ["critical", "critica", "critico", "high", "alta", "alto"].includes(
+        severity,
+      )
+    ) {
+      return "high";
     }
 
-    const riskStatus = ["risk", "at-risk", "atencion", "attention"].includes(
-      status,
-    );
+    if (
+      ["medium", "media", "medio", "moderate", "moderada", "moderado"].includes(
+        severity,
+      )
+    ) {
+      return "medium";
+    }
 
-    const riskSeverity = ["high", "alta", "critical", "critica"].includes(
-      severity,
-    );
+    if (["low", "baja", "bajo"].includes(severity)) {
+      return "low";
+    }
 
-    return riskStatus || riskSeverity;
-  });
+    return "";
+  };
+
+  const isSolved = (item) => {
+    const status = issueStatus(item);
+
+    return [
+      "solved",
+      "resolved",
+      "closed",
+      "done",
+      "completed",
+      "complete",
+      "finalizado",
+      "finalizada",
+      "resuelto",
+      "resuelta",
+      "solucionado",
+      "solucionada",
+    ].includes(status);
+  };
+
+  /*
+   * El radar sólo representa issues activos.
+   *
+   * Los solved permanecen en DATA.impediments
+   * y, por tanto, siguen apareciendo en el
+   * detalle de Key Issues.
+   */
+  const activeIssues = issues.filter((item) => !isSolved(item));
 
   return {
-    total: issues.length,
-    atRisk: atRisk.length,
-    blocked: blocked.length,
+    high: activeIssues.filter((item) => issueSeverity(item) === "high").length,
+
+    medium: activeIssues.filter((item) => issueSeverity(item) === "medium")
+      .length,
+
+    low: activeIssues.filter((item) => issueSeverity(item) === "low").length,
   };
 }
 
 function updateFlightDeckKeyIssueMetrics(programId) {
   const metrics = getFlightDeckKeyIssueMetrics(programId);
 
-  const totalElement = document.querySelector("#flightDeckIssuesCount");
+  const highElement = document.querySelector("#flightDeckHighIssuesCount");
 
-  const riskElement = document.querySelector("#flightDeckAtRiskCount");
+  const mediumElement = document.querySelector("#flightDeckMediumIssuesCount");
 
-  const blockedElement = document.querySelector(
-    "#flightDeckBlockedIssuesCount",
-  );
+  const lowElement = document.querySelector("#flightDeckLowIssuesCount");
 
-  if (totalElement) {
-    totalElement.textContent = String(metrics.total);
+  if (highElement) {
+    highElement.textContent = String(metrics.high);
   }
 
-  if (riskElement) {
-    riskElement.textContent = String(metrics.atRisk);
+  if (mediumElement) {
+    mediumElement.textContent = String(metrics.medium);
   }
 
-  if (blockedElement) {
-    blockedElement.textContent = String(metrics.blocked);
+  if (lowElement) {
+    lowElement.textContent = String(metrics.low);
   }
 
   const radar = document.querySelector("#flightDeckTrendingTopicsSummary");
@@ -4072,9 +4084,18 @@ function updateFlightDeckKeyIssueMetrics(programId) {
     return;
   }
 
-  radar.classList.toggle("has-risk", metrics.atRisk > 0);
+  /*
+   * Reutilizamos los estados visuales
+   * existentes del instrumento:
+   *
+   * has-blocked -> alerta roja
+   * has-risk    -> alerta ámbar
+   *
+   * Sin añadir más CSS.
+   */
+  radar.classList.toggle("has-blocked", metrics.high > 0);
 
-  radar.classList.toggle("has-blocked", metrics.blocked > 0);
+  radar.classList.toggle("has-risk", metrics.high === 0 && metrics.medium > 0);
 }
 function renderAIxBankerHome(programId, productId = null) {
   const normalizedProgramId = String(programId || "").trim();
