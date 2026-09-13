@@ -10068,40 +10068,25 @@ function formatDate(value) {
 
 /* teams */
 function renderTeamsView(programId) {
-  const p = DATA.programs.find((x) => x.id === programId);
-
-  const country = COUNTRIES.find((c) => c.id === selectedCountry);
-
-  view.innerHTML = "";
-  view.append(tpl("#teams-template"));
-
-  view.insertAdjacentHTML(
-    "afterbegin",
-    `
-      ${renderCountrySelector()}
-      ${renderTeamsQuarterSelector()}
-    `,
-  );
-
-  setHead(
-    `${p?.name || "Programa"} · Teams`,
-    `Scrums y staffing · ${country?.label || selectedCountry} · ${
-      selectedTeamQuarter === "ALL" ? "Todo el año" : selectedTeamQuarter
-    }`,
-    `Retail Client Solutions > ${p?.name || programId} > ${
-      country?.label || selectedCountry
-    } > Teams`,
-  );
-
-  const backButton = document.querySelector(".back-to-program-btn");
-
-  if (backButton) {
-    backButton.dataset.route = getFlightDeckReturnRoute(programId);
-
-    backButton.textContent = `← Volver a ${p?.name || "programa"}`;
+  if (
+    !window.RCS_STAFFING_DASHBOARD ||
+    typeof window.RCS_STAFFING_DASHBOARD.render !== "function"
+  ) {
+    throw new Error("Staffing Dashboard no está disponible.");
   }
 
-  renderTeamsDashboard(programId);
+  const routeParts = String(location.hash || "")
+    .replace(/^#\/?/, "")
+    .split("/");
+
+  const routeProgramId = String(routeParts[1] || "").trim();
+
+  const routeProductId =
+    routeProgramId === String(programId || "").trim()
+      ? String(routeParts[2] || "").trim()
+      : "";
+
+  return window.RCS_STAFFING_DASHBOARD.render(programId, routeProductId);
 }
 function getProgramTeamMembers(programId) {
   return (DATA.teams || []).filter((person) => {
@@ -10385,24 +10370,41 @@ function getRoleIcon(role) {
 }
 function renderTeamsQuarterSelector() {
   const quarters = [
-    { id: "ALL", label: "Todo" },
-    { id: "Q1", label: "Q1" },
-    { id: "Q2", label: "Q2" },
-    { id: "Q3", label: "Q3" },
-    { id: "Q4", label: "Q4" },
+    {
+      id: "ALL",
+      label: "Último snapshot",
+    },
+    {
+      id: "Q1",
+      label: "Q1",
+    },
+    {
+      id: "Q2",
+      label: "Q2",
+    },
+    {
+      id: "Q3",
+      label: "Q3",
+    },
+    {
+      id: "Q4",
+      label: "Q4",
+    },
   ];
 
   return `
     <div class="executive-filter-row">
       ${quarters
         .map(
-          (q) => `
+          (quarter) => `
             <button
-              class="quarter-btn ${selectedTeamQuarter === q.id ? "active" : ""}"
+              class="quarter-btn ${
+                selectedTeamQuarter === quarter.id ? "active" : ""
+              }"
               type="button"
-              data-team-quarter="${q.id}"
+              data-team-quarter="${quarter.id}"
             >
-              ${q.label}
+              ${quarter.label}
             </button>
           `,
         )

@@ -1,0 +1,157 @@
+.staffing-dashboard-status {
+  margin: -8px 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.staffing-breakdown-grid {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.staffing-breakdown + .staffing-breakdown {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.staffing-breakdown > strong {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.staffing-breakdown div {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.staffing-breakdown span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staffing-breakdown b {
+  color: var(--blue);
+  font-variant-numeric: tabular-nums;
+}
+
+#teamsProductCountryMatrix th,
+#teamsProductCountryMatrix td {
+  text-align: center;
+}
+
+#teamsProductCountryMatrix th:first-child,
+#teamsProductCountryMatrix td:first-child {
+  text-align: left;
+}
+
+#teamsScrumCards .scrum-card {
+  align-self: start;
+}
+
+#teamsScrumCards .scrum-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+}
+
+#teamsScrumCards .scrum-kpi {
+  min-width: 0;
+  text-align: center;
+}
+
+#teamsScrumCards .scrum-kpi + .scrum-kpi {
+  border-left: 1px solid var(--line);
+}
+
+#teamsScrumCards .scrum-kpi-label {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#teamsScrumCards .scrum-kpi > strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--blue);
+  font-size: 18px;
+}
+
+@media (max-width: 900px) {
+  #teamsScrumCards .scrum-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  #teamsScrumCards .scrum-kpi {
+    padding: 8px;
+  }
+}
+.staffing-filter-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.staffing-filter-toolbar .executive-filter-row {
+  margin: 0;
+}
+
+.staffing-product-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.staffing-product-selector__label {
+  margin-right: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.staffing-product-btn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: #fff;
+  color: var(--blue);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.staffing-product-btn:hover {
+  border-color: #75a7ff;
+}
+
+.staffing-product-btn.active {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #fff;
+}
+
+.staffing-product-btn:disabled {
+  cursor: default;
+  opacity: 1;
+}

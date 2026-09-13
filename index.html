@@ -17,6 +17,7 @@
   <link rel="icon" href="assets/favicon.ico">
   <link rel="stylesheet" href="styles/aixbanker-product-execution.css" />
   <link rel="stylesheet" href="styles/flight-deck.css" />
+  <link rel="stylesheet" href="styles/staffing-dashboard.css" />
 </head>
 
 <body>
@@ -668,20 +669,34 @@
     </button>
 
     <section class="section-title-row">
-      <h2>Teams</h2>
-      <p>Scrums, staffing y distribución por país.</p>
+      <h2>
+        Staffing
+      </h2>
+
+      <p>
+        Capacidad, composición y distribución de los Scrums.
+      </p>
     </section>
+
+    <p id="teamsDashboardStatus" class="staffing-dashboard-status">
+      Cargando Staffing...
+    </p>
 
     <section id="teamsKpis" class="kpi-strip"></section>
 
     <section class="teams-dashboard-grid">
       <article class="panel">
-        <h3>Personas por producto</h3>
+        <h3>
+          FTE por Scrum
+        </h3>
+
         <div id="teamsByProduct"></div>
       </article>
 
       <article class="panel">
-        <h3>Producto × país</h3>
+        <h3>
+          Scrum × país
+        </h3>
 
         <div class="table-wrap">
           <table id="teamsProductCountryMatrix"></table>
@@ -690,8 +705,13 @@
     </section>
 
     <section class="section-title-row">
-      <h2>Scrums</h2>
-      <p>Equipos del país seleccionado.</p>
+      <h2>
+        Scrums
+      </h2>
+
+      <p>
+        Roles, perfiles y empresas del país seleccionado.
+      </p>
     </section>
 
     <section id="teamsScrumCards" class="scrum-grid"></section>
@@ -714,6 +734,7 @@
   <script src="js/sample-data.js"></script>
   <script src="js/drive-json-source.js"></script>
   <script src="js/loading-experience.js"></script>
+  <script src="js/staffing-dashboard.js"></script>
   <script src="js/app.js"></script>
   <script src="js/portfolio-landing-modes.js"></script>
   <script src="js/portfolio-home.js"></script>
