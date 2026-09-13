@@ -978,3 +978,181 @@
     transition: none;
   }
 }
+/* =========================================================
+   FLIGHT DECK · PROJECT TRACKING · PROJECT LOAD
+   ========================================================= */
+
+#flightDeckProjectTracking {
+  min-height: 224px;
+}
+
+.flight-deck-project-load {
+  display: grid;
+  width: 100%;
+  gap: 7px;
+
+  margin-top: 13px;
+  margin-bottom: 26px;
+
+  padding: 9px 10px 10px;
+
+  border: 1px solid rgba(101, 221, 244, 0.18);
+
+  border-radius: 7px;
+
+  background: linear-gradient(
+    180deg,
+    rgba(3, 20, 31, 0.98),
+    rgba(5, 27, 39, 0.92)
+  );
+
+  box-shadow:
+    inset 0 0 18px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.flight-deck-project-load__label {
+  display: block;
+
+  color: rgba(168, 186, 200, 0.72);
+
+  font-family: "Courier New", monospace;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.16em;
+
+  text-align: left;
+}
+
+.flight-deck-project-load__metrics {
+  display: grid;
+
+  grid-template-columns:
+    1.25fr
+    1fr
+    1fr;
+
+  min-width: 0;
+}
+
+.flight-deck-project-load__metric {
+  position: relative;
+
+  display: grid;
+
+  min-width: 0;
+
+  padding: 3px 8px 0 12px;
+
+  border-left: 1px solid rgba(255, 255, 255, 0.09);
+
+  text-align: left;
+}
+
+.flight-deck-project-load__metric:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.flight-deck-project-load__metric i {
+  position: absolute;
+
+  top: 7px;
+  right: 7px;
+
+  width: 5px;
+  height: 5px;
+
+  border-radius: 50%;
+
+  background: var(--fd-green);
+
+  box-shadow: 0 0 7px rgba(102, 239, 172, 0.66);
+}
+
+.flight-deck-project-load__metric > strong {
+  display: block;
+
+  color: var(--fd-white);
+
+  font-family: "Courier New", monospace;
+
+  font-size: 24px;
+  font-weight: 900;
+
+  line-height: 1;
+
+  letter-spacing: -0.04em;
+
+  text-shadow: 0 0 8px rgba(237, 247, 255, 0.08);
+}
+
+.flight-deck-project-load__metric.is-primary > strong {
+  color: var(--fd-cyan);
+
+  font-size: 30px;
+
+  text-shadow: 0 0 10px rgba(101, 221, 244, 0.22);
+}
+
+.flight-deck-project-load__metric > strong.is-loading {
+  animation: flight-deck-project-load-pulse 1.1s ease-in-out infinite;
+}
+
+.flight-deck-project-load__metric > strong.is-unavailable {
+  color: rgba(168, 186, 200, 0.55);
+
+  text-shadow: none;
+}
+
+.flight-deck-project-load__metric > small {
+  display: block;
+
+  min-height: 0;
+
+  margin-top: 5px;
+
+  color: var(--fd-muted);
+
+  font-family: "Courier New", monospace;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  line-height: 1.2;
+
+  letter-spacing: 0.08em;
+
+  white-space: nowrap;
+}
+
+@keyframes flight-deck-project-load-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  #flightDeckProjectTracking {
+    min-height: 220px;
+  }
+
+  .flight-deck-project-load__metric > strong {
+    font-size: 21px;
+  }
+
+  .flight-deck-project-load__metric.is-primary > strong {
+    font-size: 27px;
+  }
+
+  .flight-deck-project-load__metric > small {
+    font-size: 6px;
+  }
+}
