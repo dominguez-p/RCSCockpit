@@ -397,10 +397,6 @@
         </button>
 
         <button class="flight-deck-instrument" id="flightDeckTeamPlanning" type="button">
-          <span class="flight-deck-instrument-code">
-            TEAM
-          </span>
-
           <span class="flight-deck-instrument-label">
             Crew
           </span>
@@ -408,10 +404,45 @@
           <strong>
             Staffing
           </strong>
+          <span class="flight-deck-staffing-panel" id="flightDeckTeamPlanningSummary"
+            aria-label="Composición del staffing">
+            <span class="flight-deck-staffing-panel__label">
+              CREW LOAD
+            </span>
 
-          <small id="flightDeckTeamPlanningSummary">
-            Staffing y capacidad
-          </small>
+            <span class="flight-deck-staffing-panel__hero">
+              <strong id="flightDeckStaffingTotalFte" class="is-loading">
+                …
+              </strong>
+
+              <small>
+                TOTAL FTE
+              </small>
+            </span>
+
+            <span class="flight-deck-staffing-panel__metrics">
+              <span class="flight-deck-staffing-panel__metric">
+                <strong id="flightDeckStaffingScrumCount" class="is-loading">
+                  …
+                </strong>
+                <small>SCRUMS</small>
+              </span>
+
+              <span class="flight-deck-staffing-panel__metric">
+                <strong id="flightDeckStaffingInternalFte" class="is-loading">
+                  …
+                </strong>
+                <small>INTERNAL</small>
+              </span>
+
+              <span class="flight-deck-staffing-panel__metric">
+                <strong id="flightDeckStaffingExternalFte" class="is-loading">
+                  …
+                </strong>
+                <small>EXTERNAL</small>
+              </span>
+            </span>
+          </span>
         </button>
 
         <button class="flight-deck-instrument" id="flightDeckManagementReports" type="button">
