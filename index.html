@@ -267,10 +267,65 @@
 
       <section class="flight-deck-instrument-panel" aria-label="Instrumentos principales">
         <button class="flight-deck-instrument" id="flightDeckProjectTracking" type="button">
-          <span class="flight-deck-instrument-code">PFD</span>
-          <span class="flight-deck-instrument-label">Project Tracking</span>
-          <strong>Flight Plan</strong>
-          <small id="flightDeckProjectTrackingSummary">SDA + JIRA</small>
+          <span class="flight-deck-instrument-code">
+            PFD
+          </span>
+
+          <span class="flight-deck-instrument-label">
+            Project Tracking
+          </span>
+
+          <strong>
+            Flight Plan
+          </strong>
+
+          <span class="flight-deck-project-load" id="flightDeckProjectTrackingSummary" aria-label="Carga del proyecto">
+            <span class="flight-deck-project-load__label">
+              PROJECT LOAD
+            </span>
+
+            <span class="flight-deck-project-load__metrics">
+              <span class="
+            flight-deck-project-load__metric
+            is-primary
+          ">
+                <i aria-hidden="true"></i>
+
+                <strong id="flightDeckProjectSdaCount">
+                  0
+                </strong>
+
+                <small>
+                  SDA DELIV.
+                </small>
+              </span>
+
+              <span class="flight-deck-project-load__metric">
+                <i aria-hidden="true"></i>
+
+                <strong id="flightDeckProjectMsaCount">
+                  0
+                </strong>
+
+                <small>
+                  MSAs
+                </small>
+              </span>
+
+              <span class="flight-deck-project-load__metric">
+                <i aria-hidden="true"></i>
+
+                <strong id="flightDeckProjectFeatureCount" class="is-loading">
+                  …
+                </strong>
+
+                <small>
+                  FEATURES
+                </small>
+              </span>
+            </span>
+          </span>
+
           <span class="flight-deck-instrument-action">
             Open
             <b aria-hidden="true">→</b>
@@ -278,12 +333,22 @@
         </button>
 
         <button class="flight-deck-instrument" id="flightDeckTrendingTopics" type="button">
-          <span class="flight-deck-instrument-code">ND</span>
-          <span class="flight-deck-instrument-label">Trending Topics</span>
-          <strong>Radar</strong>
+          <span class="flight-deck-instrument-code">
+            ND
+          </span>
+
+          <span class="flight-deck-instrument-label">
+            Trending Topics
+          </span>
+
+          <strong>
+            Radar
+          </strong>
+
           <small id="flightDeckTrendingTopicsSummary">
             Riesgos y desviaciones
           </small>
+
           <span class="flight-deck-instrument-action">
             Open
             <b aria-hidden="true">→</b>
@@ -291,12 +356,22 @@
         </button>
 
         <button class="flight-deck-instrument" id="flightDeckTeamPlanning" type="button">
-          <span class="flight-deck-instrument-code">CREW</span>
-          <span class="flight-deck-instrument-label">Team Planning</span>
-          <strong>Crew</strong>
+          <span class="flight-deck-instrument-code">
+            CREW
+          </span>
+
+          <span class="flight-deck-instrument-label">
+            Team Planning
+          </span>
+
+          <strong>
+            Crew
+          </strong>
+
           <small id="flightDeckTeamPlanningSummary">
             Staffing y capacidad
           </small>
+
           <span class="flight-deck-instrument-action">
             Open
             <b aria-hidden="true">→</b>
@@ -304,12 +379,22 @@
         </button>
 
         <button class="flight-deck-instrument" id="flightDeckManagementReports" type="button">
-          <span class="flight-deck-instrument-code">EICAS</span>
-          <span class="flight-deck-instrument-label">Management Reports</span>
-          <strong>Instruments</strong>
+          <span class="flight-deck-instrument-code">
+            EICAS
+          </span>
+
+          <span class="flight-deck-instrument-label">
+            Management Reports
+          </span>
+
+          <strong>
+            Instruments
+          </strong>
+
           <small id="flightDeckManagementReportsSummary">
             Executive summary
           </small>
+
           <span class="flight-deck-instrument-action">
             Open
             <b aria-hidden="true">→</b>

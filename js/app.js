@@ -3821,7 +3821,143 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
     </section>
   `;
 }
+function getFlightDeckProjectFeatureCount(programId, productId) {
+  const normalizedProgramId = String(programId || "").trim();
 
+  const normalizedProductId = normalizeRoadmapProduct(productId);
+
+  const features = Array.isArray(DATA?.jiraWorkspaceFeatures)
+    ? DATA.jiraWorkspaceFeatures
+    : [];
+
+  return features.filter((item) => {
+    const itemProgramId = String(item.programId || normalizedProgramId).trim();
+
+    const itemProductId = normalizeRoadmapProduct(
+      item.product || item.productId || item.product_id || "",
+    );
+
+    return (
+      itemProgramId === normalizedProgramId &&
+      itemProductId === normalizedProductId
+    );
+  }).length;
+}
+
+function updateFlightDeckProjectTrackingMetrics({
+  programId,
+  productId,
+  sdaCount,
+  msaCount,
+}) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const normalizedProductId = normalizeRoadmapProduct(productId);
+
+  const sdaElement = document.querySelector("#flightDeckProjectSdaCount");
+
+  const msaElement = document.querySelector("#flightDeckProjectMsaCount");
+
+  const featureElement = document.querySelector(
+    "#flightDeckProjectFeatureCount",
+  );
+
+  if (sdaElement) {
+    sdaElement.textContent = String(Math.max(0, Number(sdaCount) || 0));
+  }
+
+  if (msaElement) {
+    msaElement.textContent = String(Math.max(0, Number(msaCount) || 0));
+  }
+
+  if (!featureElement) {
+    return;
+  }
+
+  const paintFeatureCount = () => {
+    const currentFeatureElement = document.querySelector(
+      "#flightDeckProjectFeatureCount",
+    );
+
+    if (!currentFeatureElement) {
+      return;
+    }
+
+    const currentRoute = String(location.hash || "");
+
+    const expectedRoutePart = `/${normalizedProgramId}/${normalizedProductId}`;
+
+    if (!currentRoute.includes(expectedRoutePart)) {
+      return;
+    }
+
+    currentFeatureElement.textContent = String(
+      getFlightDeckProjectFeatureCount(
+        normalizedProgramId,
+        normalizedProductId,
+      ),
+    );
+
+    currentFeatureElement.classList.remove("is-loading");
+
+    currentFeatureElement.classList.remove("is-unavailable");
+  };
+
+  const alreadyLoadedFeatures =
+    Array.isArray(DATA?.jiraWorkspaceFeatures) &&
+    DATA.jiraWorkspaceFeatures.some((item) => {
+      const itemProgramId = String(
+        item.programId || normalizedProgramId,
+      ).trim();
+
+      return itemProgramId === normalizedProgramId;
+    });
+
+  if (alreadyLoadedFeatures) {
+    paintFeatureCount();
+    return;
+  }
+
+  featureElement.textContent = "…";
+
+  featureElement.classList.add("is-loading");
+
+  if (typeof loadJiraFeaturesData !== "function") {
+    featureElement.textContent = "—";
+
+    featureElement.classList.remove("is-loading");
+
+    featureElement.classList.add("is-unavailable");
+
+    return;
+  }
+
+  loadJiraFeaturesData(normalizedProgramId)
+    .then((jiraData) => {
+      if (typeof installJiraFeaturesData === "function") {
+        installJiraFeaturesData(normalizedProgramId, jiraData);
+      }
+
+      paintFeatureCount();
+    })
+    .catch((error) => {
+      console.error("[Flight Deck] Error cargando Features JIRA", error);
+
+      const currentFeatureElement = document.querySelector(
+        "#flightDeckProjectFeatureCount",
+      );
+
+      if (!currentFeatureElement) {
+        return;
+      }
+
+      currentFeatureElement.textContent = "—";
+
+      currentFeatureElement.classList.remove("is-loading");
+
+      currentFeatureElement.classList.add("is-unavailable");
+    });
+}
 function renderAIxBankerHome(programId, productId = null) {
   const normalizedProgramId = String(programId || "").trim();
 
@@ -4497,7 +4633,12 @@ function renderAIxBankerHome(programId, productId = null) {
       productMsas.length || jiraIndexItems.length,
     );
   }
-
+  updateFlightDeckProjectTrackingMetrics({
+    programId: normalizedProgramId,
+    productId: activeProductId,
+    sdaCount: sdaDeliverables.length,
+    msaCount: productMsas.length || jiraIndexItems.length,
+  });
   const riskCountElement = document.querySelector("#flightDeckRiskCount");
 
   if (riskCountElement) {
