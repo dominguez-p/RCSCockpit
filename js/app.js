@@ -6791,11 +6791,38 @@ function flightDeckStaffingCurrentContext(programId, productId) {
     .replace(/^#\/?/, "")
     .split("/");
 
-  return (
-    routeParts[0] === "program" &&
-    String(routeParts[1] || "") === String(programId || "") &&
-    String(routeParts[2] || "") === String(productId || "")
-  );
+  const routeName = String(routeParts[0] || "").trim();
+
+  const routeProgramId = String(routeParts[1] || "").trim();
+
+  const routeProductId = String(routeParts[2] || "").trim();
+
+  const normalizedProgramId = String(programId || "").trim();
+
+  const normalizedProductId = String(productId || "").trim();
+
+  if (routeName !== "program" || routeProgramId !== normalizedProgramId) {
+    return false;
+  }
+
+  /*
+   * Programas con producto explícito:
+   *
+   * #program/aixbanker/blue-buddy
+   */
+  if (routeProductId) {
+    return routeProductId === normalizedProductId;
+  }
+
+  /*
+   * Programas con un único producto:
+   *
+   * #program/blue
+   *
+   * En estos casos programId y productId
+   * son el mismo identificador.
+   */
+  return normalizedProgramId === normalizedProductId;
 }
 
 function updateFlightDeckStaffingSummary(programId, productId) {
