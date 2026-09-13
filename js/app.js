@@ -3958,6 +3958,124 @@ function updateFlightDeckProjectTrackingMetrics({
       currentFeatureElement.classList.add("is-unavailable");
     });
 }
+function getFlightDeckKeyIssueMetrics(programId) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const issues = Array.isArray(DATA?.impediments)
+    ? DATA.impediments.filter((item) => {
+        const itemProgramId = String(
+          item.programId || normalizedProgramId,
+        ).trim();
+
+        if (itemProgramId !== normalizedProgramId) {
+          return false;
+        }
+
+        const itemCountry = String(
+          item.country || item["RtC Anchor Country"] || "",
+        )
+          .trim()
+          .toUpperCase();
+
+        const currentCountry = String(selectedCountry || "")
+          .trim()
+          .toUpperCase();
+
+        return !itemCountry || itemCountry === currentCountry;
+      })
+    : [];
+
+  const normalizedIssueStatus = (item) => {
+    const rawStatus = item?.status || item?.statusKey || item?.state || "";
+
+    if (typeof rcsNormalizeStatus === "function") {
+      return rcsNormalizeStatus(rawStatus);
+    }
+
+    return String(rawStatus || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
+      .replaceAll("_", "-")
+      .replaceAll(" ", "-");
+  };
+
+  const normalizedSeverity = (item) =>
+    String(item?.severity || item?.priority || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
+  const blocked = issues.filter((item) => {
+    const status = normalizedIssueStatus(item);
+
+    return ["blocked", "bloqueado", "bloqueada"].includes(status);
+  });
+
+  const atRisk = issues.filter((item) => {
+    const status = normalizedIssueStatus(item);
+
+    const severity = normalizedSeverity(item);
+
+    const isBlocked = ["blocked", "bloqueado", "bloqueada"].includes(status);
+
+    if (isBlocked) {
+      return false;
+    }
+
+    const riskStatus = ["risk", "at-risk", "atencion", "attention"].includes(
+      status,
+    );
+
+    const riskSeverity = ["high", "alta", "critical", "critica"].includes(
+      severity,
+    );
+
+    return riskStatus || riskSeverity;
+  });
+
+  return {
+    total: issues.length,
+    atRisk: atRisk.length,
+    blocked: blocked.length,
+  };
+}
+
+function updateFlightDeckKeyIssueMetrics(programId) {
+  const metrics = getFlightDeckKeyIssueMetrics(programId);
+
+  const totalElement = document.querySelector("#flightDeckIssuesCount");
+
+  const riskElement = document.querySelector("#flightDeckAtRiskCount");
+
+  const blockedElement = document.querySelector(
+    "#flightDeckBlockedIssuesCount",
+  );
+
+  if (totalElement) {
+    totalElement.textContent = String(metrics.total);
+  }
+
+  if (riskElement) {
+    riskElement.textContent = String(metrics.atRisk);
+  }
+
+  if (blockedElement) {
+    blockedElement.textContent = String(metrics.blocked);
+  }
+
+  const radar = document.querySelector("#flightDeckTrendingTopicsSummary");
+
+  if (!radar) {
+    return;
+  }
+
+  radar.classList.toggle("has-risk", metrics.atRisk > 0);
+
+  radar.classList.toggle("has-blocked", metrics.blocked > 0);
+}
 function renderAIxBankerHome(programId, productId = null) {
   const normalizedProgramId = String(programId || "").trim();
 
@@ -4650,7 +4768,7 @@ function renderAIxBankerHome(programId, productId = null) {
   if (doneCountElement) {
     doneCountElement.textContent = String(doneItems.length);
   }
-
+  updateFlightDeckKeyIssueMetrics(normalizedProgramId);
   const restrictedLamp = document.querySelector("#flightDeckRestrictedLamp");
 
   if (restrictedLamp) {

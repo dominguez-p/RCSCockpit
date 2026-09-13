@@ -272,11 +272,11 @@
           </span>
 
           <span class="flight-deck-instrument-label">
-            Project Tracking
+            Flight Plan
           </span>
 
           <strong>
-            Flight Plan
+            Project Tracking
           </strong>
 
           <span class="flight-deck-project-load" id="flightDeckProjectTrackingSummary" aria-label="Carga del proyecto">
@@ -325,11 +325,6 @@
               </span>
             </span>
           </span>
-
-          <span class="flight-deck-instrument-action">
-            Open
-            <b aria-hidden="true">→</b>
-          </span>
         </button>
 
         <button class="flight-deck-instrument" id="flightDeckTrendingTopics" type="button">
@@ -338,44 +333,84 @@
           </span>
 
           <span class="flight-deck-instrument-label">
-            Trending Topics
+            Radar
           </span>
 
           <strong>
-            Radar
+            Key Issues
           </strong>
 
-          <small id="flightDeckTrendingTopicsSummary">
-            Riesgos y desviaciones
-          </small>
+          <span class="flight-deck-radar-status" id="flightDeckTrendingTopicsSummary" aria-label="Estado de Key Issues">
+            <span class="flight-deck-radar-status__label">
+              RADAR STATUS
+            </span>
 
-          <span class="flight-deck-instrument-action">
-            Open
-            <b aria-hidden="true">→</b>
+            <span class="flight-deck-radar-status__content">
+              <span class="flight-deck-radar-status__screen" aria-hidden="true">
+                <span class="flight-deck-radar-status__glow"></span>
+                <span class="flight-deck-radar-status__scope"></span>
+              </span>
+
+              <span class="flight-deck-radar-status__metrics">
+                <span class="
+              flight-deck-radar-status__metric
+              is-total
+            ">
+                  <strong id="flightDeckIssuesCount">
+                    0
+                  </strong>
+
+                  <small>
+                    ISSUES
+                  </small>
+                </span>
+
+                <span class="
+              flight-deck-radar-status__metric
+              is-risk
+            ">
+                  <strong id="flightDeckAtRiskCount">
+                    0
+                  </strong>
+
+                  <small>
+                    AT RISK
+                  </small>
+                </span>
+
+                <span class="
+              flight-deck-radar-status__metric
+              is-blocked
+            ">
+                  <strong id="flightDeckBlockedIssuesCount">
+                    0
+                  </strong>
+
+                  <small>
+                    BLOCKED
+                  </small>
+                </span>
+              </span>
+            </span>
           </span>
         </button>
 
         <button class="flight-deck-instrument" id="flightDeckTeamPlanning" type="button">
           <span class="flight-deck-instrument-code">
-            CREW
+            TEAM
           </span>
 
           <span class="flight-deck-instrument-label">
-            Team Planning
+            Crew
           </span>
 
           <strong>
-            Crew
+            Staffing
           </strong>
 
           <small id="flightDeckTeamPlanningSummary">
             Staffing y capacidad
           </small>
-
-          <span class="flight-deck-instrument-action">
-            Open
-            <b aria-hidden="true">→</b>
-          </span>
         </button>
 
         <button class="flight-deck-instrument" id="flightDeckManagementReports" type="button">
@@ -384,21 +419,16 @@
           </span>
 
           <span class="flight-deck-instrument-label">
-            Management Reports
+            Instruments
           </span>
 
           <strong>
-            Instruments
+            Management Reports
           </strong>
 
           <small id="flightDeckManagementReportsSummary">
             Executive summary
           </small>
-
-          <span class="flight-deck-instrument-action">
-            Open
-            <b aria-hidden="true">→</b>
-          </span>
         </button>
       </section>
 
