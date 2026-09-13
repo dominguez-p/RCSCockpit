@@ -560,7 +560,40 @@
     opacity: 1;
   }
 }
+#flightDeckTeamPlanning {
+  display: flex;
+  flex-direction: column;
+}
 
+#flightDeckTeamPlanning .flight-deck-project-load {
+  margin-top: auto;
+  margin-bottom: 0;
+}
+
+#flightDeckTeamPlanning .flight-deck-project-load__metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+#flightDeckTeamPlanning .flight-deck-project-load__metric {
+  padding-inline: 7px;
+}
+
+#flightDeckTeamPlanning .flight-deck-project-load__metric:first-child {
+  padding-left: 0;
+}
+
+#flightDeckTeamPlanning .flight-deck-project-load__metric > strong {
+  font-size: 18px;
+}
+
+#flightDeckTeamPlanning .flight-deck-project-load__metric.is-primary > strong {
+  font-size: 22px;
+}
+
+#flightDeckTeamPlanning .flight-deck-project-load__metric > small {
+  font-size: 6px;
+  letter-spacing: 0.04em;
+}
 /* =========================================================
    FLIGHT DECK · KEY ISSUES · RADAR STATUS
    ========================================================= */
@@ -901,6 +934,7 @@
     transform: rotate(360deg);
   }
 }
+
 .flight-deck-pedestal {
   border: 1px solid rgba(255, 255, 255, 0.11);
   background: linear-gradient(180deg, #263441, #17212b);
@@ -1243,7 +1277,6 @@
   line-height: 1.45;
 }
 
-#flightDeckTeamPlanning small,
 #flightDeckManagementReports small {
   margin-top: 12px;
 }
@@ -1474,4 +1507,89 @@
   .flight-deck-radar-status__scope::before {
     animation: none;
   }
+}
+#flightDeckTeamPlanning {
+  display: flex;
+  flex-direction: column;
+}
+
+#flightDeckTeamPlanningSummary {
+  margin-top: auto;
+}
+
+.flight-deck-staffing-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: auto;
+  padding: 14px 14px 12px;
+  border: 1px solid rgba(90, 220, 255, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 18, 34, 0.66),
+    rgba(0, 10, 22, 0.82)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(70, 180, 255, 0.05),
+    0 0 18px rgba(0, 180, 255, 0.08);
+}
+
+.flight-deck-staffing-panel__label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: rgba(220, 245, 255, 0.76);
+}
+
+.flight-deck-staffing-panel__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 62px;
+  text-align: center;
+}
+
+.flight-deck-staffing-panel__hero > strong {
+  font-size: 32px;
+  line-height: 1;
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(90, 220, 255, 0.22);
+}
+
+.flight-deck-staffing-panel__hero > small {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #7fe7ff;
+}
+
+.flight-deck-staffing-panel__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid rgba(90, 220, 255, 0.14);
+  padding-top: 10px;
+}
+
+.flight-deck-staffing-panel__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.flight-deck-staffing-panel__metric + .flight-deck-staffing-panel__metric {
+  border-left: 1px solid rgba(90, 220, 255, 0.12);
+}
+
+.flight-deck-staffing-panel__metric > strong {
+  font-size: 20px;
+  line-height: 1;
+  color: #8fe9ff;
+}
+
+.flight-deck-staffing-panel__metric > small {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: rgba(220, 245, 255, 0.72);
 }

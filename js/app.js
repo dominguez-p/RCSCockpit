@@ -4790,6 +4790,7 @@ function renderAIxBankerHome(programId, productId = null) {
     doneCountElement.textContent = String(doneItems.length);
   }
   updateFlightDeckKeyIssueMetrics(normalizedProgramId);
+  updateFlightDeckStaffingSummary(normalizedProgramId, activeProductId);
   const restrictedLamp = document.querySelector("#flightDeckRestrictedLamp");
 
   if (restrictedLamp) {
@@ -6522,6 +6523,8 @@ const JIRA_FEATURES_DATA_REQUESTS = new Map();
 const JIRA_MSA_HISTORY_CACHE = new Map();
 
 const JIRA_MSA_HISTORY_REQUESTS = new Map();
+const STAFFING_DATA_CACHE = new Map();
+const STAFFING_DATA_REQUESTS = new Map();
 
 function buildProgramDatasetUrl(programId, dataset, params = {}) {
   const normalizedProgramId = String(programId || "").trim();
@@ -6581,6 +6584,300 @@ async function loadProgramDataset(programId, dataset, params = {}) {
     timeoutMs: 45000,
     retries: 1,
   });
+}
+function normalizeStaffingProductId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function loadStaffingData(programId, forceRefresh = false) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  if (!normalizedProgramId) {
+    throw new Error("No se ha informado programId para Staffing.");
+  }
+
+  if (!forceRefresh && STAFFING_DATA_CACHE.has(normalizedProgramId)) {
+    return STAFFING_DATA_CACHE.get(normalizedProgramId);
+  }
+
+  if (!forceRefresh && STAFFING_DATA_REQUESTS.has(normalizedProgramId)) {
+    return STAFFING_DATA_REQUESTS.get(normalizedProgramId);
+  }
+
+  const request = loadProgramDataset(normalizedProgramId, "staffing")
+    .then((data) => {
+      if (!data || data.ok === false) {
+        throw new Error(
+          data?.error || "El dataset de Staffing no está disponible.",
+        );
+      }
+
+      const normalized = {
+        generatedAt: data.generatedAt || "",
+
+        source: data.source || {},
+
+        products: Array.isArray(data.products) ? data.products : [],
+      };
+
+      STAFFING_DATA_CACHE.set(normalizedProgramId, normalized);
+
+      return normalized;
+    })
+    .finally(() => {
+      STAFFING_DATA_REQUESTS.delete(normalizedProgramId);
+    });
+
+  STAFFING_DATA_REQUESTS.set(normalizedProgramId, request);
+
+  return request;
+}
+
+function getStaffingProductData(programId, productId) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const normalizedProductId = normalizeStaffingProductId(productId);
+
+  const dataset = STAFFING_DATA_CACHE.get(normalizedProgramId);
+
+  if (!dataset || !Array.isArray(dataset.products)) {
+    return null;
+  }
+
+  return (
+    dataset.products.find(
+      (product) =>
+        normalizeStaffingProductId(product?.productId) === normalizedProductId,
+    ) || null
+  );
+}
+
+function getStaffingLatestPeriod(programId, productId) {
+  const product = getStaffingProductData(programId, productId);
+
+  if (!product || !Array.isArray(product.periods) || !product.periods.length) {
+    return null;
+  }
+
+  const latestPeriod = String(product.latestPeriod || "").trim();
+
+  if (latestPeriod) {
+    const match = product.periods.find(
+      (period) => String(period?.period || "").trim() === latestPeriod,
+    );
+
+    if (match) {
+      return match;
+    }
+  }
+
+  return [...product.periods].sort(
+    (left, right) => Number(right?.period || 0) - Number(left?.period || 0),
+  )[0];
+}
+
+function getFlightDeckStaffingData(programId, productId) {
+  const period = getStaffingLatestPeriod(programId, productId);
+
+  if (!period) {
+    return null;
+  }
+
+  const scrums = Array.isArray(period.scrums) ? period.scrums : [];
+
+  let internalFte = 0;
+  let externalFte = 0;
+
+  scrums.forEach((scrum) => {
+    const companies = Array.isArray(scrum.companies) ? scrum.companies : [];
+
+    companies.forEach((company) => {
+      const name = String(company?.name || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+
+      const fte = Number(company?.fte || 0);
+
+      if (!Number.isFinite(fte) || fte <= 0 || name.startsWith("sin ")) {
+        return;
+      }
+
+      const isInternal =
+        name === "bbva" || name.includes("banco bilbao vizcaya");
+
+      if (isInternal) {
+        internalFte += fte;
+      } else {
+        externalFte += fte;
+      }
+    });
+  });
+
+  const totalFte = Number(period.totalFte || 0);
+
+  internalFte = Math.round(internalFte * 100) / 100;
+
+  externalFte = Math.round(externalFte * 100) / 100;
+
+  const unassignedFte =
+    Math.round(Math.max(0, totalFte - internalFte - externalFte) * 100) / 100;
+
+  return {
+    period: String(period.period || ""),
+
+    year: Number(period.year || 0),
+
+    quarter: String(period.quarter || ""),
+
+    scrumCount: scrums.length,
+
+    totalFte,
+
+    internalFte,
+
+    externalFte,
+
+    unassignedFte,
+
+    scrums,
+  };
+}
+
+async function ensureFlightDeckStaffingData(
+  programId,
+  productId,
+  forceRefresh = false,
+) {
+  await loadStaffingData(programId, forceRefresh);
+
+  return getFlightDeckStaffingData(programId, productId);
+}
+function formatFlightDeckStaffingFte(value) {
+  const number = Number(value || 0);
+
+  if (!Number.isFinite(number)) {
+    return "0";
+  }
+
+  return number.toLocaleString("es-ES", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function flightDeckStaffingCurrentContext(programId, productId) {
+  const routeParts = String(location.hash || "")
+    .replace(/^#\/?/, "")
+    .split("/");
+
+  return (
+    routeParts[0] === "program" &&
+    String(routeParts[1] || "") === String(programId || "") &&
+    String(routeParts[2] || "") === String(productId || "")
+  );
+}
+
+function updateFlightDeckStaffingSummary(programId, productId) {
+  const normalizedProgramId = String(programId || "").trim();
+
+  const normalizedProductId = normalizeStaffingProductId(productId);
+
+  const scrumElement = document.querySelector("#flightDeckStaffingScrumCount");
+
+  const totalElement = document.querySelector("#flightDeckStaffingTotalFte");
+
+  const internalElement = document.querySelector(
+    "#flightDeckStaffingInternalFte",
+  );
+
+  const externalElement = document.querySelector(
+    "#flightDeckStaffingExternalFte",
+  );
+
+  const summary = document.querySelector("#flightDeckTeamPlanningSummary");
+
+  const elements = [
+    scrumElement,
+    totalElement,
+    internalElement,
+    externalElement,
+  ].filter(Boolean);
+
+  if (elements.length !== 4) {
+    return;
+  }
+
+  elements.forEach((element) => {
+    element.textContent = "…";
+    element.classList.add("is-loading");
+    element.classList.remove("is-unavailable");
+  });
+
+  ensureFlightDeckStaffingData(normalizedProgramId, normalizedProductId)
+    .then((staffingData) => {
+      if (
+        !flightDeckStaffingCurrentContext(
+          normalizedProgramId,
+          normalizedProductId,
+        )
+      ) {
+        return;
+      }
+
+      if (!staffingData) {
+        throw new Error("Staffing no disponible.");
+      }
+
+      scrumElement.textContent = String(staffingData.scrumCount);
+
+      totalElement.textContent = formatFlightDeckStaffingFte(
+        staffingData.totalFte,
+      );
+
+      internalElement.textContent = formatFlightDeckStaffingFte(
+        staffingData.internalFte,
+      );
+
+      externalElement.textContent = formatFlightDeckStaffingFte(
+        staffingData.externalFte,
+      );
+
+      elements.forEach((element) => {
+        element.classList.remove("is-loading", "is-unavailable");
+      });
+
+      if (summary) {
+        summary.setAttribute(
+          "aria-label",
+          [
+            `${staffingData.scrumCount} scrums`,
+            `${formatFlightDeckStaffingFte(staffingData.totalFte)} FTE totales`,
+            `${formatFlightDeckStaffingFte(staffingData.internalFte)} internos`,
+            `${formatFlightDeckStaffingFte(staffingData.externalFte)} externos`,
+            `${formatFlightDeckStaffingFte(
+              staffingData.unassignedFte,
+            )} sin asignar`,
+          ].join(" · "),
+        );
+      }
+    })
+    .catch((error) => {
+      console.error("[Flight Deck] Error cargando Staffing", error);
+
+      elements.forEach((element) => {
+        element.textContent = "—";
+        element.classList.remove("is-loading");
+        element.classList.add("is-unavailable");
+      });
+    });
 }
 async function loadProgramData(programId, forceRefresh = false) {
   const normalizedProgramId = String(programId || "").trim();

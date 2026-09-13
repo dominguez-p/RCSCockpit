@@ -71,6 +71,8 @@ function onOpen() {
     .addSeparator()
     .addItem("Actualizar foto JIRA / Features", "refreshJiraWorkspaceFeatures")
     .addItem("Actualizar datos JIRA / MSA", "refreshJiraMsaData")
+    .addSeparator()
+    .addItem("Actualizar Staffing", "refreshStaffingData")
     .addToUi();
 }
 
@@ -1631,6 +1633,11 @@ function doGet(e) {
 
         break;
 
+      case "staffing":
+        data = getStaffingData_();
+
+        break;
+
       case "core":
       default:
         data = getCoreAppData_();
@@ -1648,17 +1655,6 @@ function doGet(e) {
       `${callback}(` + `${JSON.stringify(payload)}` + `);`,
     ).setMimeType(ContentService.MimeType.JAVASCRIPT);
   } catch (error) {
-    /*
-     * Incluso los errores se devuelven
-     * como JSONP válido.
-     *
-     * Esto es importante porque si
-     * Apps Script devuelve una página
-     * HTML de error, el frontend sólo
-     * puede informar:
-     *
-     * "No se pudo cargar el JSON".
-     */
     const parameters = e && e.parameter ? e.parameter : {};
 
     const requestedCallback = String(parameters.callback || "callback").trim();
