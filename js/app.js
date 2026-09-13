@@ -4097,6 +4097,18 @@ function updateFlightDeckKeyIssueMetrics(programId) {
 
   radar.classList.toggle("has-risk", metrics.high === 0 && metrics.medium > 0);
 }
+
+function applyFlightDeckLandscape(programId) {
+  const flightDeck = document.querySelector(".flight-deck");
+
+  if (!flightDeck) {
+    return;
+  }
+
+  flightDeck.dataset.landscapeProgram = String(programId || "")
+    .trim()
+    .toLowerCase();
+}
 function renderAIxBankerHome(programId, productId = null) {
   const normalizedProgramId = String(programId || "").trim();
 
@@ -4515,6 +4527,7 @@ function renderAIxBankerHome(programId, productId = null) {
 
   view.append(tpl("#aixbanker-flight-deck-template"));
 
+  applyFlightDeckLandscape(normalizedProgramId);
   /*
    * =====================================================
    * NAVEGACION SUPERIOR
