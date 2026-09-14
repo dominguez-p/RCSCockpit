@@ -150,6 +150,10 @@ function renderLanding() {
     .join("");
 }
 function getAIxBankerProduct(productId) {
+  const normalizedProductId = String(productId || "")
+    .trim()
+    .toLowerCase();
+
   const products = {
     "blue-buddy": {
       id: "blue-buddy",
@@ -168,9 +172,15 @@ function getAIxBankerProduct(productId) {
       label: "Blue",
       description: "Solución agentic para cliente.",
     },
+
+    nbc: {
+      id: "nbc",
+      label: "NBC",
+      description: "Orquestación inteligente de interacciones y asistencia.",
+    },
   };
 
-  return products[productId] || null;
+  return products[normalizedProductId] || null;
 }
 function getCurrentQuarter() {
   const month = new Date().getMonth();
@@ -4097,7 +4107,6 @@ function updateFlightDeckKeyIssueMetrics(programId) {
 
   radar.classList.toggle("has-risk", metrics.high === 0 && metrics.medium > 0);
 }
-
 function applyFlightDeckLandscape(programId) {
   const flightDeck = document.querySelector(".flight-deck");
 
@@ -4108,6 +4117,41 @@ function applyFlightDeckLandscape(programId) {
   flightDeck.dataset.landscapeProgram = String(programId || "")
     .trim()
     .toLowerCase();
+}
+function applyFlightDeckProgramIdentity(programId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const identities = {
+    rosetta: {
+      top: "RCS",
+      bottom: "ORCH",
+    },
+  };
+
+  const identity = identities[normalizedProgramId];
+
+  if (!identity) {
+    return;
+  }
+
+  const centerPost = document.querySelector(".flight-deck-center-post");
+
+  if (!centerPost) {
+    return;
+  }
+
+  const centerTop = centerPost.querySelector("span");
+  const centerBottom = centerPost.querySelector("strong");
+
+  if (centerTop) {
+    centerTop.textContent = identity.top;
+  }
+
+  if (centerBottom) {
+    centerBottom.textContent = identity.bottom;
+  }
 }
 function renderAIxBankerHome(programId, productId = null) {
   const normalizedProgramId = String(programId || "").trim();
@@ -6988,9 +7032,16 @@ function renderCurrentRoute(
   itemId = null,
   activityId = null,
 ) {
-  const normalizedProgramId = String(programId || "").trim();
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
 
-  const usesProductFlightDeck = ["aixbanker", "blue"].includes(
+  const singleProductFlightDeck = {
+    blue: "blue",
+    rosetta: "nbc",
+  };
+
+  const usesProductFlightDeck = ["aixbanker", "blue", "rosetta"].includes(
     normalizedProgramId,
   );
 
@@ -7010,17 +7061,46 @@ function renderCurrentRoute(
    * program/aixbanker/panorama
    *   -> Panorama Flight Deck
    *
-   * Blue utiliza directamente el mismo Flight Deck:
+   * Programas con producto único:
    *
    * program/blue
    *   -> Blue Flight Deck
+   *
+   * program/rosetta
+   *   -> program/rosetta/nbc
+   *   -> NBC Flight Deck
    */
   if (routeName === "program") {
     if (usesProductFlightDeck && typeof renderAIxBankerHome === "function") {
-      renderAIxBankerHome(
-        normalizedProgramId,
-        normalizedProgramId === "blue" ? productId || "blue" : productId,
-      );
+      const resolvedProductId =
+        String(productId || "").trim() ||
+        singleProductFlightDeck[normalizedProgramId] ||
+        null;
+
+      /*
+       * Rosetta utiliza NBC como producto único.
+       *
+       * Normalizamos la URL para conservar siempre
+       * programId + productId en el contexto.
+       */
+      if (
+        normalizedProgramId === "rosetta" &&
+        !String(productId || "").trim() &&
+        resolvedProductId
+      ) {
+        route(`program/${normalizedProgramId}/${resolvedProductId}`);
+
+        return;
+      }
+
+      renderAIxBankerHome(normalizedProgramId, resolvedProductId);
+
+      if (
+        normalizedProgramId === "rosetta" &&
+        typeof applyFlightDeckProgramIdentity === "function"
+      ) {
+        applyFlightDeckProgramIdentity(normalizedProgramId);
+      }
 
       return;
     }

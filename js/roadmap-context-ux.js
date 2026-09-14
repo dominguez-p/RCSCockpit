@@ -926,7 +926,7 @@ function installProductPlanComparison() {
 
   window.__productPlanComparisonInstalled = true;
 
-  const PRODUCT_PLAN_PROGRAM_IDS = new Set(["aixbanker", "blue"]);
+  const PRODUCT_PLAN_PROGRAM_IDS = new Set(["aixbanker", "blue", "rosetta"]);
 
   const isProductPlanProgram = (programId) =>
     PRODUCT_PLAN_PROGRAM_IDS.has(String(programId || "").trim());
