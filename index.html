@@ -639,13 +639,27 @@
     </button>
 
     <section class="section-title-row" id="backlogHeader">
-      <h2>Executive Summary</h2>
-      <p>Proyectos, iniciativas, avance y detalle.</p>
+      <h2>Management Reports</h2>
+      <p>Acceso a informes ejecutivos, demos y seguimiento resumido.</p>
     </section>
 
-    <section id="projects" class="panel projects-panel"></section>
+    <section id="managementReportsCards" class="management-reports-grid"></section>
+  </template>
 
-    <section id="projectDetail" class="panel project-detail-panel" hidden></section>
+  <template id="management-demos-template">
+    <button class="ghost-button back-to-management-reports-btn" data-route="">
+      ← Volver a Management Reports
+    </button>
+
+    <section class="section-title-row">
+      <h2>Demos</h2>
+
+      <p>
+        Demostraciones ejecutivas de productos y capacidades de AIxBanker.
+      </p>
+    </section>
+
+    <section id="managementDemosBoard" class="management-demos-board"></section>
   </template>
 
   <template id="msas-template">
@@ -716,7 +730,49 @@
 
     <section id="teamsScrumCards" class="scrum-grid"></section>
   </template>
+  <!-- =====================================================
+     MANAGEMENT REPORTS · ROADMAP
+     ===================================================== -->
 
+  <template id="management-roadmap-template">
+    <button class="ghost-button back-to-management-reports-btn" type="button" data-route="">
+      ← Volver a Management Reports
+    </button>
+
+    <section class="section-title-row">
+      <h2>Roadmap ejecutivo</h2>
+
+      <p>
+        Resumen visual por país y entregable, con seguimiento de SDA,
+        Features y MSAs.
+      </p>
+    </section>
+
+    <section id="managementRoadmapFilters" class="management-report-filters"></section>
+
+    <section id="managementRoadmapBoard" class="management-roadmap-board"></section>
+  </template>
+
+
+  <!-- =====================================================
+     MANAGEMENT REPORTS · DEMOS
+     ===================================================== -->
+
+  <template id="management-demos-template">
+    <button class="ghost-button back-to-management-reports-btn" type="button" data-route="">
+      ← Volver a Management Reports
+    </button>
+
+    <section class="section-title-row">
+      <h2>Demos</h2>
+
+      <p>
+        Demostraciones ejecutivas de productos y capacidades de AIxBanker.
+      </p>
+    </section>
+
+    <section id="managementDemosBoard" class="management-demos-board"></section>
+  </template>
   <div id="loadingOverlay" class="loading-overlay" hidden>
     <div class="loading-card">
       <div class="loading-orb">
