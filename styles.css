@@ -6172,3 +6172,991 @@ th {
   .portfolio-program-card__aircraft-image {
   transform: scale(1.025);
 }
+.management-reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.management-report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 240px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f3f8ff 100%);
+  padding: 24px;
+  box-shadow: 0 14px 36px rgba(7, 46, 111, 0.08);
+}
+
+.management-report-card.is-disabled {
+  opacity: 0.78;
+}
+
+.management-report-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.management-report-card h3 {
+  margin: 0;
+  color: var(--blue);
+  font-size: 28px;
+}
+
+.management-report-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.management-report-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 110px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #eaf1ff;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.management-report-badge.is-soon {
+  background: #eef2ff;
+  color: #4c5d95;
+}
+
+.management-report-card-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.management-report-card-kpis span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #dce8ff;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.management-report-card-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.management-report-card-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #d2e1ff;
+  background: #ffffff;
+  color: var(--blue);
+  font-weight: 900;
+}
+
+.management-report-card-link.is-disabled {
+  background: #f6f8fd;
+  color: var(--muted);
+  border-color: #e3e9f6;
+  cursor: default;
+}
+
+.management-report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 18px 0;
+}
+
+.management-report-filters-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.management-report-filters-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.management-report-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.management-report-toggle input {
+  cursor: pointer;
+}
+
+.management-report-caption {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.management-roadmap-board {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.management-roadmap-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.management-roadmap-summary-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #f9fbff;
+  padding: 16px 18px;
+}
+
+.management-roadmap-summary-card strong {
+  display: block;
+  color: var(--blue);
+  font-family: Georgia, serif;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.management-roadmap-summary-card span {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.management-roadmap-country {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.management-roadmap-country-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 20px;
+  background: #f6fbff;
+  border-bottom: 1px solid var(--line);
+}
+
+.management-roadmap-country-header h3 {
+  margin: 0;
+  color: var(--blue);
+  font-size: 28px;
+}
+
+.management-roadmap-country-header p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.management-roadmap-table-wrap {
+  overflow-x: auto;
+}
+
+.management-roadmap-table {
+  min-width: 1240px;
+}
+
+.management-roadmap-table-head,
+.management-roadmap-table-row {
+  display: grid;
+  grid-template-columns:
+    minmax(320px, 2.35fr) repeat(4, 86px) minmax(210px, 1.15fr)
+    minmax(145px, 0.85fr) minmax(280px, 1.65fr);
+}
+
+.management-roadmap-table-head {
+  background: #0a3e98;
+  color: #ffffff;
+}
+
+.management-roadmap-table-head > div {
+  padding: 14px 12px;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.management-roadmap-table-row {
+  background: #ffffff;
+}
+
+.management-roadmap-table-row:nth-child(even) {
+  background: #fbfdff;
+}
+
+.management-roadmap-table-row > div {
+  padding: 14px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.management-roadmap-deliverable-cell strong {
+  display: block;
+  color: var(--blue);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.management-roadmap-deliverable-cell p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.management-roadmap-related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.management-roadmap-related span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.management-roadmap-quarter-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.management-roadmap-quarter-bar {
+  width: 100%;
+  height: 38px;
+  border-radius: 12px;
+  background: #edf4ff;
+  border: 1px solid #dce8ff;
+  position: relative;
+  overflow: hidden;
+}
+
+.management-roadmap-quarter-bar.is-active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(77, 163, 255, 0.25),
+    rgba(10, 62, 152, 0.2)
+  );
+}
+
+.management-roadmap-quarter-bar.is-active::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 8px;
+  right: 8px;
+  border-radius: 999px;
+  background: rgba(10, 62, 152, 0.12);
+}
+
+.management-roadmap-progress-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.management-roadmap-progress-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.management-roadmap-progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: #e8efff;
+  overflow: hidden;
+}
+
+.management-roadmap-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #5ca8ff 0%, #0a3e98 100%);
+}
+
+.management-roadmap-status-cell {
+  display: flex;
+  align-items: center;
+}
+
+.management-roadmap-execution-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.management-roadmap-execution-cell strong {
+  color: var(--blue);
+  font-size: 13px;
+}
+
+.management-roadmap-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #d2e1ff;
+  background: #ffffff;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.management-roadmap-empty {
+  padding: 22px 24px;
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+  color: var(--muted);
+  background: #fbfdff;
+}
+
+.management-roadmap-space-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.management-roadmap-space-title h3 {
+  margin: 0;
+  color: var(--blue);
+}
+
+.management-roadmap-space-title p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  .management-report-filters {
+    align-items: flex-start;
+  }
+
+  .management-report-filters-left,
+  .management-report-filters-right {
+    width: 100%;
+  }
+}
+/* =========================================================
+   MANAGEMENT REPORTS · EXECUTIVE TIMELINE
+   ========================================================= */
+
+.management-timeline-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.management-timeline {
+  min-width: 1180px;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.management-timeline-header {
+  display: grid;
+  grid-template-columns:
+    minmax(320px, 1.35fr)
+    minmax(480px, 2fr)
+    minmax(140px, 0.6fr)
+    minmax(260px, 1.1fr);
+
+  align-items: stretch;
+
+  background: #06449b;
+
+  color: #ffffff;
+}
+
+.management-timeline-header > div {
+  padding: 13px 14px;
+
+  font-size: 12px;
+
+  font-weight: 900;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.04em;
+}
+
+.management-timeline-header-period {
+  display: grid;
+
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+
+  padding: 0 !important;
+}
+
+.management-timeline-header-period > div {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  min-height: 52px;
+
+  border-left: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.management-timeline-header-period strong {
+  font-size: 13px;
+}
+
+.management-timeline-header-period span {
+  margin-top: 2px;
+
+  font-size: 9px;
+
+  font-weight: 600;
+
+  opacity: 0.72;
+
+  text-transform: none;
+}
+
+/* =========================================================
+   ROW
+   ========================================================= */
+
+.management-timeline-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(320px, 1.35fr)
+    minmax(480px, 2fr)
+    minmax(140px, 0.6fr)
+    minmax(260px, 1.1fr);
+
+  min-height: 118px;
+
+  border-bottom: 1px solid var(--line);
+
+  background: #ffffff;
+}
+
+.management-timeline-row:nth-child(odd) {
+  background: #fbfdff;
+}
+
+/* =========================================================
+   DELIVERABLE
+   ========================================================= */
+
+.management-timeline-deliverable {
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  align-items: flex-start;
+
+  gap: 7px;
+
+  padding: 16px 14px;
+}
+
+.management-timeline-category {
+  display: inline-flex;
+
+  align-items: center;
+
+  min-height: 25px;
+
+  padding: 3px 10px;
+
+  border-radius: 999px;
+
+  background: #edf3ff;
+
+  color: var(--blue);
+
+  font-size: 11px;
+
+  font-weight: 900;
+}
+
+.management-timeline-title {
+  color: var(--blue);
+
+  font-size: 16px;
+
+  line-height: 1.25;
+}
+
+.management-timeline-links {
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 6px;
+}
+
+.management-timeline-links span {
+  display: inline-flex;
+
+  align-items: center;
+
+  min-height: 24px;
+
+  padding: 3px 9px;
+
+  border-radius: 999px;
+
+  background: #f0f5ff;
+
+  color: var(--blue);
+
+  font-size: 10px;
+
+  font-weight: 800;
+}
+
+/* =========================================================
+   TIMELINE TRACK
+   ========================================================= */
+
+.management-timeline-track {
+  position: relative;
+
+  min-height: 118px;
+
+  overflow: hidden;
+
+  border-left: 1px solid var(--line);
+
+  border-right: 1px solid var(--line);
+}
+
+.management-timeline-quarter-grid {
+  position: absolute;
+
+  inset: 0;
+
+  display: grid;
+
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.management-timeline-quarter-grid span {
+  border-right: 1px solid #dbe7f8;
+
+  background: rgba(239, 246, 255, 0.34);
+}
+
+.management-timeline-quarter-grid span:nth-child(even) {
+  background: rgba(223, 238, 255, 0.38);
+}
+
+.management-timeline-quarter-grid span:last-child {
+  border-right: 0;
+}
+
+/* =========================================================
+   PLANNED BAR
+   ========================================================= */
+
+.management-timeline-bar {
+  position: absolute;
+
+  top: 35px;
+
+  height: 34px;
+
+  border-radius: 9px;
+
+  overflow: hidden;
+
+  background: #dceafe;
+
+  border: 1px solid #b8d3f5;
+
+  box-shadow: 0 4px 12px rgba(7, 49, 113, 0.08);
+}
+
+/*
+ * La barra exterior representa
+ * el periodo planificado.
+ *
+ * El relleno representa:
+ *
+ * Features deployed
+ * -----------------
+ * Features totales
+ */
+.management-timeline-bar-progress {
+  position: absolute;
+
+  inset: 0 auto 0 0;
+
+  background: linear-gradient(90deg, #2f7fd5, #0754ad);
+
+  border-radius: inherit;
+}
+
+.management-timeline-bar-label {
+  position: absolute;
+
+  inset: 0;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  z-index: 2;
+
+  padding: 0 8px;
+
+  color: #062b72;
+
+  font-size: 11px;
+
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+.management-timeline-bar-progress + .management-timeline-bar-label {
+  color: #062b72;
+}
+
+/* =========================================================
+   STATUS VARIANTS
+   ========================================================= */
+
+.management-timeline-status-at-risk {
+  border-color: #f0c7c7;
+
+  background: #fdeaea;
+}
+
+.management-timeline-status-blocked {
+  border-color: #efbebe;
+
+  background: #fde3e3;
+}
+
+.management-timeline-status-done {
+  border-color: #bee1cd;
+
+  background: #e8f7ee;
+}
+
+.management-timeline-status-planned {
+  border-color: #d6dfef;
+
+  background: #edf2fa;
+}
+
+/* =========================================================
+   FEATURE META
+   ========================================================= */
+
+.management-timeline-feature-meta {
+  position: absolute;
+
+  left: 10px;
+
+  right: 10px;
+
+  bottom: 15px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 8px;
+
+  color: var(--muted);
+
+  font-size: 10px;
+}
+
+.management-timeline-feature-meta strong {
+  color: var(--blue);
+}
+
+/* =========================================================
+   UNPLANNED
+   ========================================================= */
+
+.management-timeline-unplanned {
+  position: absolute;
+
+  top: 35px;
+
+  left: 12px;
+
+  right: 12px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  height: 34px;
+
+  border: 1px dashed #ced9eb;
+
+  border-radius: 9px;
+
+  color: var(--muted);
+
+  font-size: 11px;
+
+  font-weight: 800;
+
+  background: #f7f9fd;
+}
+
+/* =========================================================
+   STATUS
+   ========================================================= */
+
+.management-timeline-status {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding: 14px;
+}
+
+/* =========================================================
+   EXECUTION
+   ========================================================= */
+
+.management-timeline-execution {
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  gap: 7px;
+
+  padding: 14px;
+
+  color: var(--muted);
+
+  font-size: 11px;
+
+  line-height: 1.4;
+}
+
+.management-timeline-execution > strong {
+  color: var(--blue);
+
+  font-size: 11px;
+}
+
+.management-timeline-execution p {
+  margin: 0;
+}
+
+.management-timeline-execution-meta {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 3px;
+
+  margin-top: 3px;
+}
+
+.management-timeline-pending {
+  color: var(--muted);
+
+  font-style: italic;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1100px) {
+  .management-timeline {
+    min-width: 1050px;
+  }
+}
+/* =========================================================
+   MANAGEMENT REPORTS · DEMOS
+   ========================================================= */
+
+.management-demos-board {
+  display: grid;
+
+  grid-template-columns: minmax(0, 1fr);
+
+  gap: 20px;
+
+  margin-top: 18px;
+}
+
+.management-demo-card {
+  overflow: hidden;
+
+  border: 1px solid var(--line);
+
+  border-radius: 24px;
+
+  background: #ffffff;
+
+  box-shadow: 0 14px 36px rgba(7, 46, 111, 0.08);
+}
+
+.management-demo-header {
+  display: flex;
+
+  align-items: flex-start;
+
+  justify-content: space-between;
+
+  gap: 18px;
+
+  padding: 22px 24px;
+}
+
+.management-demo-header h3 {
+  margin: 5px 0 6px;
+
+  color: var(--blue);
+
+  font-size: 28px;
+}
+
+.management-demo-header p {
+  margin: 0;
+
+  color: var(--muted);
+
+  line-height: 1.5;
+}
+
+.management-demo-eyebrow {
+  color: var(--blue);
+
+  font-size: 11px;
+
+  font-weight: 900;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.06em;
+}
+
+.management-demo-video {
+  position: relative;
+
+  width: 100%;
+
+  aspect-ratio: 16 / 9;
+
+  background: #061b45;
+}
+
+.management-demo-video iframe {
+  display: block;
+
+  width: 100%;
+
+  height: 100%;
+
+  border: 0;
+}
+
+.management-demo-footer {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 16px;
+
+  padding: 16px 24px;
+
+  border-top: 1px solid var(--line);
+
+  background: #f8fbff;
+}
+
+@media (max-width: 760px) {
+  .management-demo-header,
+  .management-demo-footer {
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+}
