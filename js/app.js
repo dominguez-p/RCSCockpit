@@ -6263,21 +6263,40 @@ async function loadConfiguredSource(source, options = {}) {
   const url = new URL(source.driveJsonUrl, window.location.href);
 
   /*
-   * El endpoint principal trabaja
-   * por defecto contra el dataset core.
-   *
-   * Los datasets JIRA diferidos utilizan
-   * buildProgramDatasetUrl() y no pasan
-   * por esta función.
+   * El endpoint principal trabaja por defecto
+   * contra el dataset core.
    */
   if (!url.searchParams.has("dataset")) {
     url.searchParams.set("dataset", "core");
   }
 
-  return loadJsonp(url.toString(), options);
+  const payload = await loadJsonp(url.toString(), options);
+
+  /*
+   * Apps Script puede responder correctamente a nivel HTTP
+   * pero devolver:
+   *
+   * {
+   *   ok: false,
+   *   error: "..."
+   * }
+   *
+   * Eso debe considerarse un fallo de datos,
+   * no una respuesta válida vacía.
+   */
+  if (payload?.ok === false) {
+    throw new Error(
+      payload.error ||
+        `El origen ${source?.label || "configurado"} ha devuelto un error.`,
+    );
+  }
+
+  return payload;
 }
 async function loadJiraFeaturesData(programId, forceRefresh = false) {
-  const normalizedProgramId = String(programId || "").trim();
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
 
   if (!normalizedProgramId) {
     throw new Error("No se ha informado programId para cargar Features JIRA.");
@@ -6291,7 +6310,15 @@ async function loadJiraFeaturesData(programId, forceRefresh = false) {
     return JIRA_FEATURES_DATA_REQUESTS.get(normalizedProgramId);
   }
 
-  const request = loadProgramDataset(normalizedProgramId, "jira-features")
+  const request = loadProgramDataset(
+    normalizedProgramId,
+    "jira-features",
+    {},
+    {
+      forceRefresh,
+      persist: true,
+    },
+  )
     .then((rawData) => {
       const features = Array.isArray(rawData?.jiraWorkspaceFeatures)
         ? rawData.jiraWorkspaceFeatures
@@ -6347,7 +6374,9 @@ function jiraMsaCacheKey(programId, itemId) {
 }
 
 async function loadJiraMsaData(programId, forceRefresh = false) {
-  const normalizedProgramId = String(programId || "").trim();
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
 
   if (!normalizedProgramId) {
     throw new Error(
@@ -6355,34 +6384,23 @@ async function loadJiraMsaData(programId, forceRefresh = false) {
     );
   }
 
-  /*
-   * =====================================================
-   * CACHE
-   * =====================================================
-   */
   if (!forceRefresh && JIRA_MSA_HISTORY_CACHE.has(normalizedProgramId)) {
     return JIRA_MSA_HISTORY_CACHE.get(normalizedProgramId);
   }
 
-  /*
-   * Si ya existe una petición en curso,
-   * reutilizamos la misma Promise.
-   */
   if (!forceRefresh && JIRA_MSA_HISTORY_REQUESTS.has(normalizedProgramId)) {
     return JIRA_MSA_HISTORY_REQUESTS.get(normalizedProgramId);
   }
 
-  /*
-   * =====================================================
-   * PRIMERA CARGA
-   * =====================================================
-   *
-   * No enviamos itemId.
-   *
-   * La primera apertura de un MSA
-   * descarga todos los históricos.
-   */
-  const request = loadProgramDataset(normalizedProgramId, "jira-msa")
+  const request = loadProgramDataset(
+    normalizedProgramId,
+    "jira-msa",
+    {},
+    {
+      forceRefresh,
+      persist: true,
+    },
+  )
     .then((rawData) => {
       const result = {
         generatedAt: rawData?.generatedAt || "",
@@ -6470,26 +6488,33 @@ function installJiraMsaData(programId, jiraData) {
   }
 }
 function invalidateProgramDeferredData(programId) {
-  const normalizedProgramId = String(programId || "").trim();
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
 
-  /*
-   * Features.
-   */
   JIRA_FEATURES_DATA_CACHE.delete(normalizedProgramId);
 
   JIRA_FEATURES_DATA_REQUESTS.delete(normalizedProgramId);
 
-  /*
-   * MSAs.
-   *
-   * Invalidamos, pero NO precargamos.
-   *
-   * El siguiente click sobre un MSA
-   * volverá a traer la foto completa.
-   */
   JIRA_MSA_HISTORY_CACHE.delete(normalizedProgramId);
 
   JIRA_MSA_HISTORY_REQUESTS.delete(normalizedProgramId);
+
+  STAFFING_DATA_CACHE.delete(normalizedProgramId);
+
+  STAFFING_DATA_REQUESTS.delete(normalizedProgramId);
+
+  /*
+   * Eliminamos sólo la caché EN MEMORIA.
+   *
+   * La fotografía de sessionStorage se conserva
+   * para poder hacer fallback si la actualización falla.
+   */
+  invalidateProgramDatasetMemoryCache(normalizedProgramId, [
+    "jira-features",
+    "jira-msa",
+    "staffing",
+  ]);
 }
 function navigateBackFromRoadmapDetail(fallbackRoute = "") {
   /*
@@ -6522,6 +6547,258 @@ function navigateBackFromRoadmapDetail(fallbackRoute = "") {
     route(safeFallback);
   }
 }
+function getRcsSessionCacheKey(scope, id = "") {
+  const normalizedScope = String(scope || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedId =
+    String(id || "")
+      .trim()
+      .toLowerCase() || "root";
+
+  return `rcsCockpit:v1:${normalizedScope}:${normalizedId}`;
+}
+
+function readRcsSessionCache(scope, id = "") {
+  try {
+    const key = getRcsSessionCacheKey(scope, id);
+
+    const raw = window.sessionStorage.getItem(key);
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (
+      !parsed ||
+      parsed.version !== 1 ||
+      !parsed.data ||
+      typeof parsed.data !== "object"
+    ) {
+      window.sessionStorage.removeItem(key);
+
+      return null;
+    }
+
+    const savedAt = parsed.savedAt ? new Date(parsed.savedAt) : null;
+
+    return {
+      data: parsed.data,
+
+      savedAt:
+        savedAt instanceof Date && !Number.isNaN(savedAt.getTime())
+          ? savedAt
+          : null,
+    };
+  } catch (error) {
+    console.warn(
+      "[RCS Cockpit] No se ha podido leer la caché de sesión.",
+      error,
+    );
+
+    return null;
+  }
+}
+
+function writeRcsSessionCache(scope, id = "", data, loadedAt = new Date()) {
+  if (!data || typeof data !== "object") {
+    return;
+  }
+
+  try {
+    const key = getRcsSessionCacheKey(scope, id);
+
+    const safeLoadedAt =
+      loadedAt instanceof Date && !Number.isNaN(loadedAt.getTime())
+        ? loadedAt
+        : new Date();
+
+    const payload = {
+      version: 1,
+
+      savedAt: safeLoadedAt.toISOString(),
+
+      data,
+    };
+
+    window.sessionStorage.setItem(key, JSON.stringify(payload));
+  } catch (error) {
+    /*
+     * La caché es una optimización.
+     *
+     * Un navegador con sessionStorage deshabilitado
+     * o sin espacio debe poder seguir usando el cockpit.
+     */
+    console.warn(
+      "[RCS Cockpit] No se ha podido guardar la caché de sesión.",
+      error,
+    );
+  }
+}
+
+function hydratePortfolioFromSessionCache() {
+  const cached = readRcsSessionCache("portfolio");
+
+  if (!cached?.data) {
+    return null;
+  }
+
+  const normalized = normalizePortfolioData(cached.data);
+
+  if (!Array.isArray(normalized.programs) || !normalized.programs.length) {
+    return null;
+  }
+
+  PORTFOLIO_DATA = normalized;
+
+  PORTFOLIO_LAST_LOADED_AT = cached.savedAt;
+
+  buildProgramSources(PORTFOLIO_DATA.programs);
+
+  return PORTFOLIO_DATA;
+}
+
+function hydrateProgramFromSessionCache(programId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedProgramId) {
+    return null;
+  }
+
+  const cached = readRcsSessionCache("program", normalizedProgramId);
+
+  if (!cached?.data) {
+    return null;
+  }
+
+  const programData = normalizeProgramData(normalizedProgramId, cached.data);
+
+  const completeProgramData = {
+    ...programData,
+
+    restricted: getEmptyRestrictedProgramData(),
+  };
+
+  /*
+   * Sólo recuperamos el CORE general.
+   *
+   * Restricted, JIRA diferido y otros datasets sensibles
+   * no se persisten en sessionStorage.
+   */
+  PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
+
+  if (cached.savedAt) {
+    PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, cached.savedAt);
+  }
+
+  return completeProgramData;
+}
+
+function getRcsCoreRequestRegistry() {
+  if (!window.__RCS_CORE_REQUESTS) {
+    window.__RCS_CORE_REQUESTS = {
+      portfolio: null,
+
+      programs: new Map(),
+    };
+  }
+
+  return window.__RCS_CORE_REQUESTS;
+}
+
+async function revalidatePortfolioDataInBackground() {
+  try {
+    await loadPortfolioData(true);
+
+    setRcsDataMode("portfolio", "live");
+
+    const currentContext = getCurrentRoute();
+
+    if (!currentContext.programId || currentContext.routeName === "landing") {
+      DATA = PORTFOLIO_DATA;
+
+      updateDataStatus();
+
+      clearDataFallbackBanner();
+
+      renderLanding();
+    }
+  } catch (error) {
+    console.warn(
+      "[RCS Cockpit] No se ha podido revalidar Portfolio en background.",
+      error,
+    );
+
+    const currentContext = getCurrentRoute();
+
+    if (
+      (!currentContext.programId || currentContext.routeName === "landing") &&
+      Array.isArray(PORTFOLIO_DATA.programs) &&
+      PORTFOLIO_DATA.programs.length
+    ) {
+      showDataFallbackBanner(
+        "No se ha podido actualizar el origen general. " +
+          "Se mantiene la última fotografía válida disponible.",
+      );
+    }
+  }
+}
+
+async function revalidateProgramDataInBackground(programId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedProgramId) {
+    return;
+  }
+
+  try {
+    const programData = await loadProgramData(normalizedProgramId, true);
+
+    setRcsDataMode(normalizedProgramId, "live");
+
+    const currentContext = getCurrentRoute();
+
+    /*
+     * Actualizamos visualmente sólo la Flight Deck principal.
+     *
+     * En vistas profundas dejamos el nuevo CORE en caché
+     * para no destruir datasets on-demand ya instalados.
+     */
+    if (
+      currentContext.programId === normalizedProgramId &&
+      currentContext.routeName === "program"
+    ) {
+      DATA = buildProgramData(programData);
+
+      renderRouteContext(currentContext);
+
+      updateDataStatus(normalizedProgramId);
+
+      clearDataFallbackBanner();
+    }
+  } catch (error) {
+    console.warn(
+      `[RCS Cockpit] No se ha podido revalidar ${normalizedProgramId} en background.`,
+      error,
+    );
+
+    const currentContext = getCurrentRoute();
+
+    if (currentContext.programId === normalizedProgramId) {
+      showDataFallbackBanner(
+        `No se ha podido actualizar ${normalizedProgramId}. ` +
+          "Se mantiene la última fotografía válida disponible.",
+      );
+    }
+  }
+}
 async function loadPortfolioData(forceRefresh = false) {
   if (
     !forceRefresh &&
@@ -6533,56 +6810,192 @@ async function loadPortfolioData(forceRefresh = false) {
     return PORTFOLIO_DATA;
   }
 
-  const source = window.APP_CONFIG.portfolio;
-
   /*
    * =====================================================
-   * PORTFOLIO · CARGA ÚNICA
+   * CACHE DE SESIÓN
    * =====================================================
    *
-   * El Portfolio General es la única carga
-   * obligatoria al arrancar la aplicación.
-   *
-   * Ya no utilizamos esta carga para calcular
-   * contribuciones de cada programa a las
-   * ambiciones RCS.
-   *
-   * Por tanto:
-   *
-   * - una sola petición
-   * - ningún retry
-   * - 25 segundos para permitir que Apps Script
-   *   complete un cold start
-   *
-   * Antes utilizábamos 8 segundos.
-   *
-   * Ese límite era demasiado agresivo y
-   * provocaba que una respuesta lenta pero
-   * válida activase inmediatamente el modo DEMO.
+   * Un F5 debe recuperar inmediatamente la última
+   * fotografía válida de esta sesión.
    */
-  const rawData = await loadConfiguredSource(source, {
-    timeoutMs: 25000,
+  if (!forceRefresh) {
+    const cachedPortfolio = hydratePortfolioFromSessionCache();
 
-    retries: 0,
-  });
+    if (cachedPortfolio) {
+      return cachedPortfolio;
+    }
+  }
 
-  PORTFOLIO_DATA = normalizePortfolioData(rawData);
+  const source = window.APP_CONFIG.portfolio;
 
-  buildProgramSources(PORTFOLIO_DATA.programs);
+  const requestRegistry = getRcsCoreRequestRegistry();
 
-  PORTFOLIO_LAST_LOADED_AT = new Date();
+  /*
+   * Evitamos varias peticiones simultáneas al mismo
+   * Apps Script si coinciden render, hashchange, etc.
+   */
+  if (requestRegistry.portfolio) {
+    return requestRegistry.portfolio;
+  }
 
-  return PORTFOLIO_DATA;
+  requestRegistry.portfolio = (async () => {
+    const rawData = await loadConfiguredSource(source, {
+      /*
+       * Permitimos cold start de Apps Script,
+       * pero no hacemos retries automáticos.
+       *
+       * Una petición puede tardar como máximo 25 s,
+       * no 25 s x varios intentos.
+       */
+      timeoutMs: 25000,
+
+      retries: 0,
+
+      cacheBust: forceRefresh,
+    });
+
+    PORTFOLIO_DATA = normalizePortfolioData(rawData);
+
+    buildProgramSources(PORTFOLIO_DATA.programs);
+
+    PORTFOLIO_LAST_LOADED_AT = new Date();
+
+    writeRcsSessionCache(
+      "portfolio",
+      "",
+      PORTFOLIO_DATA,
+      PORTFOLIO_LAST_LOADED_AT,
+    );
+
+    return PORTFOLIO_DATA;
+  })();
+
+  try {
+    return await requestRegistry.portfolio;
+  } finally {
+    requestRegistry.portfolio = null;
+  }
 }
+const PROGRAM_DATASET_CACHE = new Map();
+const PROGRAM_DATASET_REQUESTS = new Map();
+
 const JIRA_FEATURES_DATA_CACHE = new Map();
 const JIRA_FEATURES_DATA_REQUESTS = new Map();
 
 const JIRA_MSA_HISTORY_CACHE = new Map();
-
 const JIRA_MSA_HISTORY_REQUESTS = new Map();
+
 const STAFFING_DATA_CACHE = new Map();
 const STAFFING_DATA_REQUESTS = new Map();
 
+const PROGRAM_RESTRICTED_DATA_REQUESTS = new Map();
+function getProgramDatasetCacheKey(programId, dataset, params = {}) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedDataset = String(dataset || "core")
+    .trim()
+    .toLowerCase();
+
+  const normalizedParams = Object.entries(params || {})
+    .filter(
+      ([, value]) =>
+        value !== null && value !== undefined && String(value).trim() !== "",
+    )
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(
+          String(value).trim(),
+        )}`,
+    )
+    .join("&");
+
+  return [
+    normalizedProgramId,
+    normalizedDataset,
+    normalizedParams || "default",
+  ].join("::");
+}
+
+function readProgramDatasetSessionCache(programId, dataset, params = {}) {
+  const key = getProgramDatasetCacheKey(programId, dataset, params);
+
+  return readRcsSessionCache("dataset", key);
+}
+
+function writeProgramDatasetSessionCache(
+  programId,
+  dataset,
+  params,
+  data,
+  loadedAt = new Date(),
+) {
+  const normalizedDataset = String(dataset || "")
+    .trim()
+    .toLowerCase();
+
+  /*
+   * Los datasets restringidos nunca
+   * pueden persistirse en navegador.
+   */
+  if (
+    normalizedDataset === "restricted" ||
+    normalizedDataset.startsWith("restricted-")
+  ) {
+    return;
+  }
+
+  const key = getProgramDatasetCacheKey(programId, dataset, params);
+
+  writeRcsSessionCache("dataset", key, data, loadedAt);
+}
+
+function invalidateProgramDatasetMemoryCache(programId, datasets = null) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedDatasets =
+    Array.isArray(datasets) && datasets.length
+      ? new Set(
+          datasets.map((dataset) =>
+            String(dataset || "")
+              .trim()
+              .toLowerCase(),
+          ),
+        )
+      : null;
+
+  for (const key of PROGRAM_DATASET_CACHE.keys()) {
+    const [cachedProgramId, cachedDataset] = String(key).split("::");
+
+    if (cachedProgramId !== normalizedProgramId) {
+      continue;
+    }
+
+    if (normalizedDatasets && !normalizedDatasets.has(cachedDataset)) {
+      continue;
+    }
+
+    PROGRAM_DATASET_CACHE.delete(key);
+  }
+
+  for (const key of PROGRAM_DATASET_REQUESTS.keys()) {
+    const [cachedProgramId, cachedDataset] = String(key).split("::");
+
+    if (cachedProgramId !== normalizedProgramId) {
+      continue;
+    }
+
+    if (normalizedDatasets && !normalizedDatasets.has(cachedDataset)) {
+      continue;
+    }
+
+    PROGRAM_DATASET_REQUESTS.delete(key);
+  }
+}
 function buildProgramDatasetUrl(programId, dataset, params = {}) {
   const normalizedProgramId = String(programId || "").trim();
 
@@ -6630,17 +7043,149 @@ function buildProgramDatasetUrl(programId, dataset, params = {}) {
   return url.toString();
 }
 
-async function loadProgramDataset(programId, dataset, params = {}) {
+async function loadProgramDataset(
+  programId,
+  dataset,
+  params = {},
+  { forceRefresh = false, persist = true } = {},
+) {
   if (typeof loadJsonpOnDemand !== "function") {
     throw new Error("No está disponible la carga JSONP on-demand.");
   }
 
-  const url = buildProgramDatasetUrl(programId, dataset, params);
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
 
-  return loadJsonpOnDemand(url, {
-    timeoutMs: 45000,
-    retries: 1,
-  });
+  const normalizedDataset = String(dataset || "core")
+    .trim()
+    .toLowerCase();
+
+  const cacheKey = getProgramDatasetCacheKey(
+    normalizedProgramId,
+    normalizedDataset,
+    params,
+  );
+
+  /*
+   * =====================================================
+   * MEMORIA
+   * =====================================================
+   */
+  if (!forceRefresh && PROGRAM_DATASET_CACHE.has(cacheKey)) {
+    return PROGRAM_DATASET_CACHE.get(cacheKey);
+  }
+
+  /*
+   * =====================================================
+   * SESSION STORAGE
+   * =====================================================
+   */
+  if (!forceRefresh && persist) {
+    const cached = readProgramDatasetSessionCache(
+      normalizedProgramId,
+      normalizedDataset,
+      params,
+    );
+
+    if (cached?.data) {
+      PROGRAM_DATASET_CACHE.set(cacheKey, cached.data);
+
+      /*
+       * Revalidamos sin bloquear.
+       */
+      if (!PROGRAM_DATASET_REQUESTS.has(cacheKey)) {
+        const backgroundRequest = loadProgramDataset(
+          normalizedProgramId,
+          normalizedDataset,
+          params,
+          {
+            forceRefresh: true,
+            persist,
+          },
+        ).catch((error) => {
+          console.warn(
+            "[RCS Cockpit] " +
+              `No se ha podido revalidar ` +
+              `${normalizedProgramId}/${normalizedDataset}. ` +
+              "Se mantiene la última fotografía válida.",
+            error,
+          );
+
+          return cached.data;
+        });
+
+        /*
+         * loadProgramDataset(forceRefresh)
+         * registra internamente la Promise.
+         *
+         * No esperamos aquí.
+         */
+        void backgroundRequest;
+      }
+
+      return cached.data;
+    }
+  }
+
+  /*
+   * =====================================================
+   * PETICIÓN YA EN CURSO
+   * =====================================================
+   */
+  if (PROGRAM_DATASET_REQUESTS.has(cacheKey)) {
+    return PROGRAM_DATASET_REQUESTS.get(cacheKey);
+  }
+
+  const request = (async () => {
+    const url = buildProgramDatasetUrl(
+      normalizedProgramId,
+      normalizedDataset,
+      params,
+    );
+
+    const payload = await loadJsonpOnDemand(url, {
+      timeoutMs: 45000,
+
+      /*
+       * Una única petición.
+       *
+       * No encadenamos dos timeouts
+       * consecutivos.
+       */
+      retries: 0,
+
+      cacheBust: forceRefresh,
+    });
+
+    if (!payload || payload.ok === false) {
+      throw new Error(
+        payload?.error || `El dataset ${normalizedDataset} no está disponible.`,
+      );
+    }
+
+    PROGRAM_DATASET_CACHE.set(cacheKey, payload);
+
+    if (persist) {
+      writeProgramDatasetSessionCache(
+        normalizedProgramId,
+        normalizedDataset,
+        params,
+        payload,
+        new Date(),
+      );
+    }
+
+    return payload;
+  })();
+
+  PROGRAM_DATASET_REQUESTS.set(cacheKey, request);
+
+  try {
+    return await request;
+  } finally {
+    PROGRAM_DATASET_REQUESTS.delete(cacheKey);
+  }
 }
 function normalizeStaffingProductId(value) {
   return String(value || "")
@@ -6653,7 +7198,9 @@ function normalizeStaffingProductId(value) {
 }
 
 async function loadStaffingData(programId, forceRefresh = false) {
-  const normalizedProgramId = String(programId || "").trim();
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
 
   if (!normalizedProgramId) {
     throw new Error("No se ha informado programId para Staffing.");
@@ -6667,7 +7214,15 @@ async function loadStaffingData(programId, forceRefresh = false) {
     return STAFFING_DATA_REQUESTS.get(normalizedProgramId);
   }
 
-  const request = loadProgramDataset(normalizedProgramId, "staffing")
+  const request = loadProgramDataset(
+    normalizedProgramId,
+    "staffing",
+    {},
+    {
+      forceRefresh,
+      persist: true,
+    },
+  )
     .then((data) => {
       if (!data || data.ok === false) {
         throw new Error(
@@ -6964,10 +7519,25 @@ function updateFlightDeckStaffingSummary(programId, productId) {
     });
 }
 async function loadProgramData(programId, forceRefresh = false) {
-  const normalizedProgramId = String(programId || "").trim();
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
 
   if (!forceRefresh && PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
     return PROGRAM_DATA_CACHE.get(normalizedProgramId);
+  }
+
+  /*
+   * =====================================================
+   * CACHE DE SESIÓN
+   * =====================================================
+   */
+  if (!forceRefresh) {
+    const cachedProgram = hydrateProgramFromSessionCache(normalizedProgramId);
+
+    if (cachedProgram) {
+      return cachedProgram;
+    }
   }
 
   const source = getProgramSource(normalizedProgramId);
@@ -6984,43 +7554,64 @@ async function loadProgramData(programId, forceRefresh = false) {
     );
   }
 
-  /*
-   * =====================================================
-   * CORE
-   * =====================================================
-   *
-   * Únicamente se carga el origen general del programa.
-   *
-   * El origen restricted no se consulta durante la carga
-   * para evitar penalizar el tiempo de entrada al Cockpit.
-   */
-  const rawData = await loadConfiguredSource(source);
+  const requestRegistry = getRcsCoreRequestRegistry();
 
-  const programData = normalizeProgramData(normalizedProgramId, rawData);
+  if (requestRegistry.programs.has(normalizedProgramId)) {
+    return requestRegistry.programs.get(normalizedProgramId);
+  }
 
-  /*
-   * =====================================================
-   * RESTRICTED
-   * =====================================================
-   *
-   * No se realiza ninguna llamada al origen restricted.
-   *
-   * Se mantiene la estructura que espera el frontal con
-   * available = false para que el indicador Restricted
-   * permanezca desactivado.
-   */
-  const restrictedData = getEmptyRestrictedProgramData();
+  const request = (async () => {
+    /*
+     * =====================================================
+     * CORE
+     * =====================================================
+     *
+     * El core sólo realiza un intento.
+     *
+     * Los datasets on-demand mantienen su política
+     * independiente.
+     */
+    const rawData = await loadConfiguredSource(source, {
+      timeoutMs: 25000,
 
-  const completeProgramData = {
-    ...programData,
-    restricted: restrictedData,
-  };
+      retries: 0,
 
-  PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
+      cacheBust: forceRefresh,
+    });
 
-  PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, new Date());
+    const programData = normalizeProgramData(normalizedProgramId, rawData);
 
-  return completeProgramData;
+    const restrictedData = getEmptyRestrictedProgramData();
+
+    const completeProgramData = {
+      ...programData,
+
+      restricted: restrictedData,
+    };
+
+    PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
+
+    const loadedAt = new Date();
+
+    PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, loadedAt);
+
+    /*
+     * Persistimos exclusivamente el CORE general.
+     *
+     * Nunca restricted.
+     */
+    writeRcsSessionCache("program", normalizedProgramId, programData, loadedAt);
+
+    return completeProgramData;
+  })();
+
+  requestRegistry.programs.set(normalizedProgramId, request);
+
+  try {
+    return await request;
+  } finally {
+    requestRegistry.programs.delete(normalizedProgramId);
+  }
 }
 
 function renderCurrentRoute(
@@ -7287,44 +7878,39 @@ function resetRcsProgramDataModes() {
 
   state.programs = {};
 
-  /*
-   * =====================================================
-   * CORE
-   * =====================================================
-   */
   PROGRAM_DATA_CACHE.clear();
 
   PROGRAM_LAST_LOADED_AT.clear();
 
   /*
-   * =====================================================
-   * RESTRICTED
-   * =====================================================
-   *
-   * Los datos restringidos sólo permanecen en memoria.
-   *
-   * Nunca utilizamos localStorage, sessionStorage
-   * ni persistencia del navegador para este dataset.
+   * Restricted:
+   * exclusivamente memoria.
    */
   PROGRAM_RESTRICTED_DATA_CACHE.clear();
 
+  PROGRAM_RESTRICTED_DATA_REQUESTS.clear();
+
   /*
-   * =====================================================
-   * FEATURES JIRA ON-DEMAND
-   * =====================================================
+   * Dataset genérico:
+   * limpiamos memoria y peticiones.
+   *
+   * NO eliminamos sessionStorage.
    */
+  PROGRAM_DATASET_CACHE.clear();
+
+  PROGRAM_DATASET_REQUESTS.clear();
+
   JIRA_FEATURES_DATA_CACHE.clear();
 
   JIRA_FEATURES_DATA_REQUESTS.clear();
 
-  /*
-   * =====================================================
-   * HISTÓRICOS MSA ON-DEMAND
-   * =====================================================
-   */
   JIRA_MSA_HISTORY_CACHE.clear();
 
   JIRA_MSA_HISTORY_REQUESTS.clear();
+
+  STAFFING_DATA_CACHE.clear();
+
+  STAFFING_DATA_REQUESTS.clear();
 }
 
 function getDemoPortfolioData() {
@@ -7665,7 +8251,9 @@ async function ensureJiraMsaDataForRoute(context) {
     return;
   }
 
-  const programId = String(context.programId || "").trim();
+  const programId = String(context.programId || "")
+    .trim()
+    .toLowerCase();
 
   if (!programId) {
     return;
@@ -7676,21 +8264,16 @@ async function ensureJiraMsaDataForRoute(context) {
    * YA CARGADO
    * =====================================================
    *
-   * Después de la primera apertura
-   * de cualquier MSA no existe ninguna
-   * nueva llamada a Apps Script.
+   * Si el histórico existe en memoria pero DATA
+   * se ha reconstruido desde el core del programa,
+   * volvemos a instalarlo sin acceder a red.
    */
   if (hasLoadedJiraMsaHistory(programId)) {
-    /*
-     * Puede existir en cache pero DATA
-     * haberse reconstruido.
-     *
-     * En ese caso reinstalamos sin red.
-     */
-    if (
-      JIRA_MSA_HISTORY_CACHE.has(programId) &&
-      !Array.isArray(DATA?.roadmapItemStatusHistory)
-    ) {
+    const hasInstalledHistory =
+      Array.isArray(DATA?.roadmapItemStatusHistory) &&
+      DATA.roadmapItemStatusHistory.length > 0;
+
+    if (JIRA_MSA_HISTORY_CACHE.has(programId) && !hasInstalledHistory) {
       installJiraMsaData(programId, JIRA_MSA_HISTORY_CACHE.get(programId));
     }
 
@@ -7699,7 +8282,7 @@ async function ensureJiraMsaDataForRoute(context) {
 
   /*
    * =====================================================
-   * PRIMER MSA DE LA SESIÓN
+   * PRIMER MSA
    * =====================================================
    */
   showLoadingOverlay("Cargando históricos JIRA de MSAs...");
@@ -7710,6 +8293,14 @@ async function ensureJiraMsaDataForRoute(context) {
     installJiraMsaData(programId, jiraData);
   } catch (error) {
     console.error("[AIxBanker] Error cargando históricos JIRA de MSAs", error);
+  } finally {
+    /*
+     * Este overlay pertenece a la carga
+     * on-demand del histórico.
+     *
+     * No depende del loader del core del programa.
+     */
+    hideLoadingOverlay();
   }
 }
 async function render() {
@@ -7767,22 +8358,34 @@ async function render() {
     }
   }
 
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  /*
+   * Si tenemos una fotografía en memoria o sessionStorage,
+   * no mostramos un overlay de carga.
+   */
+  const hasMemorySnapshot = PROGRAM_DATA_CACHE.has(normalizedProgramId);
+
+  const hasSessionSnapshot =
+    !hasMemorySnapshot &&
+    Boolean(readRcsSessionCache("program", normalizedProgramId));
+
+  const requiresBlockingLoad = !hasMemorySnapshot && !hasSessionSnapshot;
+
   try {
-    const source = getProgramSource(programId);
+    const source = getProgramSource(normalizedProgramId);
 
-    /*
-     * ===================================================
-     * CORE
-     * ===================================================
-     *
-     * Ésta es la única carga obligatoria
-     * para entrar en el programa.
-     */
-    showLoadingOverlay(`Cargando datos de ${source?.label || programId}...`);
+    if (requiresBlockingLoad) {
+      showLoadingOverlay(
+        `Cargando datos de ${source?.label || normalizedProgramId}...`,
+      );
+    }
 
-    const programData = await loadProgramData(programId);
+    const programData = await loadProgramData(normalizedProgramId);
 
-    setRcsDataMode(programId, "live");
+    setRcsDataMode(normalizedProgramId, "live");
 
     DATA = buildProgramData(programData);
 
@@ -7790,15 +8393,6 @@ async function render() {
      * ===================================================
      * DATASETS ON-DEMAND
      * ===================================================
-     *
-     * MSA:
-     * únicamente cuando la URL solicita
-     * el detalle de un MSA.
-     *
-     * Features:
-     * NO se cargan aquí.
-     * Las carga exclusivamente el click
-     * en "JIRA oficial".
      */
     await ensureJiraMsaDataForRoute(context);
 
@@ -7809,17 +8403,17 @@ async function render() {
      */
     renderRouteContext(context);
 
-    updateDataStatus(programId);
+    updateDataStatus(normalizedProgramId);
 
     clearDataFallbackBanner();
   } catch (error) {
     console.error(error);
 
     const activated = activateDemoProgram(
-      programId,
+      normalizedProgramId,
       context,
       `No se han podido cargar ` +
-        `los datos de ${programId}. ` +
+        `los datos de ${normalizedProgramId}. ` +
         "Se ha activado automáticamente " +
         "el modo demostración con datos " +
         "100% ficticios.",
@@ -7827,7 +8421,7 @@ async function render() {
 
     if (!activated) {
       statusEl.textContent =
-        `⚠ No se pudieron cargar ` + `los datos de ${programId}`;
+        `⚠ No se pudieron cargar ` + `los datos de ${normalizedProgramId}`;
 
       DATA = {
         ...PORTFOLIO_DATA,
@@ -7839,13 +8433,15 @@ async function render() {
 
       showDataFallbackBanner(
         `No se han podido cargar ` +
-          `los datos de ${programId} ` +
+          `los datos de ${normalizedProgramId} ` +
           "y no existe un dataset " +
           "de demostración para este programa.",
       );
     }
   } finally {
-    hideLoadingOverlay();
+    if (requiresBlockingLoad) {
+      hideLoadingOverlay();
+    }
   }
 }
 function renderCountrySelector() {
@@ -8083,19 +8679,60 @@ async function init() {
 
   isLoadingData = true;
 
-  showLoadingOverlay("Cargando datos generales del portfolio...");
+  const initialContext = getCurrentRoute();
+
+  const cachedPortfolio = readRcsSessionCache("portfolio");
+
+  const cachedProgram = initialContext.programId
+    ? readRcsSessionCache("program", initialContext.programId)
+    : null;
+
+  let bootstrappedFromPortfolioCache = false;
 
   try {
-    await loadPortfolioData(true);
+    /*
+     * =====================================================
+     * FAST BOOT
+     * =====================================================
+     *
+     * Si existe una última fotografía válida,
+     * la mostramos inmediatamente.
+     */
+    const restoredPortfolio = hydratePortfolioFromSessionCache();
 
-    setRcsDataMode("portfolio", "live");
+    if (restoredPortfolio) {
+      bootstrappedFromPortfolioCache = true;
 
-    resetRcsProgramDataModes();
+      setRcsDataMode("portfolio", "live");
 
-    DATA = PORTFOLIO_DATA;
+      DATA = PORTFOLIO_DATA;
 
-    updateDataStatus();
-    clearDataFallbackBanner();
+      updateDataStatus();
+
+      clearDataFallbackBanner();
+    } else {
+      /*
+       * ===================================================
+       * COLD BOOT
+       * ===================================================
+       *
+       * Sólo una sesión sin fotografía previa
+       * bloquea esperando al origen.
+       */
+      showLoadingOverlay("Cargando datos generales del portfolio...");
+
+      await loadPortfolioData(true);
+
+      setRcsDataMode("portfolio", "live");
+
+      resetRcsProgramDataModes();
+
+      DATA = PORTFOLIO_DATA;
+
+      updateDataStatus();
+
+      clearDataFallbackBanner();
+    }
   } catch (error) {
     console.error(error);
 
@@ -8115,7 +8752,35 @@ async function init() {
 
   syncDataSourceToggle();
 
+  /*
+   * Pintamos primero.
+   */
   await render();
+
+  /*
+   * =====================================================
+   * STALE-WHILE-REVALIDATE
+   * =====================================================
+   *
+   * Si hemos arrancado desde cache:
+   *
+   * 1. el usuario ya está viendo el cockpit;
+   * 2. Apps Script se consulta después;
+   * 3. un timeout ya no bloquea la experiencia.
+   */
+  if (bootstrappedFromPortfolioCache) {
+    void revalidatePortfolioDataInBackground();
+  }
+
+  if (initialContext.programId && cachedProgram?.data) {
+    void revalidateProgramDataInBackground(initialContext.programId);
+  }
+
+  /*
+   * cachedPortfolio sólo se lee antes del bootstrap
+   * para dejar explícita la intención del flujo.
+   */
+  void cachedPortfolio;
 }
 
 async function refreshCurrentDataSource() {
@@ -8123,27 +8788,44 @@ async function refreshCurrentDataSource() {
 
   const { routeName, programId } = context;
 
-  const source = programId
-    ? getProgramSource(programId)
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const source = normalizedProgramId
+    ? getProgramSource(normalizedProgramId)
     : window.APP_CONFIG.portfolio;
 
   showLoadingOverlay(
-    programId
-      ? `Reintentando datos de ` + `${source?.label || programId}...`
-      : "Reintentando datos generales...",
+    normalizedProgramId
+      ? `Actualizando datos de ${source?.label || normalizedProgramId}...`
+      : "Actualizando datos generales...",
   );
 
   try {
-    if (!programId || routeName === "landing") {
+    /*
+     * =====================================================
+     * PORTFOLIO
+     * =====================================================
+     */
+    if (!normalizedProgramId || routeName === "landing") {
       await loadPortfolioData(true);
 
       setRcsDataMode("portfolio", "live");
 
+      /*
+       * Los orígenes pueden haber cambiado.
+       * Limpiamos únicamente cachés en memoria.
+       *
+       * Las fotografías sessionStorage continúan
+       * disponibles como fallback.
+       */
       resetRcsProgramDataModes();
 
       DATA = PORTFOLIO_DATA;
 
       updateDataStatus();
+
       clearDataFallbackBanner();
 
       await render();
@@ -8151,6 +8833,10 @@ async function refreshCurrentDataSource() {
       return;
     }
 
+    /*
+     * Si Portfolio estaba en DEMO intentamos recuperar
+     * primero el catálogo real de programas.
+     */
     if (getRcsDataMode("portfolio") === "demo") {
       await loadPortfolioData(true);
 
@@ -8158,23 +8844,55 @@ async function refreshCurrentDataSource() {
 
       resetRcsProgramDataModes();
     }
-    invalidateProgramDeferredData(programId);
-    const programData = await loadProgramData(programId, true);
 
-    setRcsDataMode(programId, "live");
+    invalidateProgramDeferredData(normalizedProgramId);
+
+    const programData = await loadProgramData(normalizedProgramId, true);
+
+    setRcsDataMode(normalizedProgramId, "live");
 
     DATA = buildProgramData(programData);
 
-    updateDataStatus(programId);
+    updateDataStatus(normalizedProgramId);
+
     clearDataFallbackBanner();
 
     await render();
   } catch (error) {
     console.error(error);
 
-    if (!programId || routeName === "landing") {
+    /*
+     * =====================================================
+     * PORTFOLIO · FALLBACK A ÚLTIMA FOTO
+     * =====================================================
+     */
+    if (!normalizedProgramId || routeName === "landing") {
+      const cachedPortfolio = hydratePortfolioFromSessionCache();
+
+      if (
+        cachedPortfolio ||
+        (Array.isArray(PORTFOLIO_DATA.programs) &&
+          PORTFOLIO_DATA.programs.length)
+      ) {
+        setRcsDataMode("portfolio", "live");
+
+        DATA = PORTFOLIO_DATA;
+
+        renderLanding();
+
+        updateDataStatus();
+
+        showDataFallbackBanner(
+          "No se ha podido actualizar el origen general. " +
+            "Se mantiene la última fotografía válida disponible.",
+        );
+
+        return;
+      }
+
       activateDemoPortfolio(
-        "El origen general sigue sin responder. " +
+        "El origen general sigue sin responder " +
+          "y no existe una fotografía válida anterior. " +
           "Se mantiene el modo demostración " +
           "con datos ficticios.",
       );
@@ -8184,11 +8902,40 @@ async function refreshCurrentDataSource() {
       return;
     }
 
+    /*
+     * =====================================================
+     * PROGRAMA · FALLBACK A ÚLTIMA FOTO
+     * =====================================================
+     */
+    let fallbackProgram = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
+    if (!fallbackProgram) {
+      fallbackProgram = hydrateProgramFromSessionCache(normalizedProgramId);
+    }
+
+    if (fallbackProgram) {
+      setRcsDataMode(normalizedProgramId, "live");
+
+      DATA = buildProgramData(fallbackProgram);
+
+      renderRouteContext(context);
+
+      updateDataStatus(normalizedProgramId);
+
+      showDataFallbackBanner(
+        `No se ha podido actualizar ${normalizedProgramId}. ` +
+          "Se mantiene la última fotografía válida disponible.",
+      );
+
+      return;
+    }
+
     const activated = activateDemoProgram(
-      programId,
+      normalizedProgramId,
       context,
-      `El origen de ${programId} ` +
-        "sigue sin responder. " +
+      `El origen de ${normalizedProgramId} ` +
+        "sigue sin responder y no existe " +
+        "una fotografía válida anterior. " +
         "Se mantiene el modo demostración " +
         "con datos ficticios.",
     );
