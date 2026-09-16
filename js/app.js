@@ -919,11 +919,20 @@ function groupRoadmapItemActivities(tasks) {
     .sort((a, b) => a.order - b.order);
 }
 function normalizeRoadmapProduct(value) {
-  return String(value || "")
+  const normalized = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase()
     .replaceAll("_", "-")
     .replace(/\s+/g, "-");
+
+  const aliases = {
+    franquicia: "franchise",
+    franchise: "franchise",
+  };
+
+  return aliases[normalized] || normalized;
 }
 
 function normalizeRoadmapProgress(value) {
@@ -14835,13 +14844,41 @@ function getManagementSdaDeliverableLabel(deliverable) {
 
   return deliverableId || name || "Deliverable";
 }
+function getManagementRoadmapSdaSourceProducts(productId) {
+  const normalizedProductId = normalizeRoadmapProduct(productId);
 
+  const mappings = {
+    /*
+     * Management Roadmap:
+     *
+     * Franquicia es la agrupación ejecutiva.
+     *
+     * Sus SDA / Deliverables proceden actualmente
+     * del producto técnico Panorama.
+     */
+    franchise: ["franchise", "panorama"],
+  };
+
+  const sourceProducts = mappings[normalizedProductId] || [normalizedProductId];
+
+  return new Set(
+    sourceProducts
+      .map((value) => normalizeRoadmapProduct(value))
+      .filter(Boolean),
+  );
+}
 function getManagementSdaDisplayLabel(programId, productId, sdaId) {
   const normalizedSdaId = normalizeManagementSdaId(sdaId);
 
   if (!normalizedSdaId) {
     return "SDA";
   }
+
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const allowedProducts = getManagementRoadmapSdaSourceProducts(productId);
 
   const flights = Array.isArray(DATA?.sdaFlights) ? DATA.sdaFlights : [];
 
@@ -14864,14 +14901,10 @@ function getManagementSdaDisplayLabel(programId, productId, sdaId) {
       );
 
       const programMatches =
-        !itemProgramId ||
-        itemProgramId ===
-          String(programId || "")
-            .trim()
-            .toLowerCase();
+        !itemProgramId || itemProgramId === normalizedProgramId;
 
       const productMatches =
-        !itemProductId || itemProductId === normalizeRoadmapProduct(productId);
+        !itemProductId || allowedProducts.has(itemProductId);
 
       return programMatches && productMatches;
     }) || null;
@@ -14897,6 +14930,9 @@ function getManagementRoadmapSdaCatalog(programId, productId) {
 
   const normalizedProductId = normalizeRoadmapProduct(productId);
 
+  const allowedProducts =
+    getManagementRoadmapSdaSourceProducts(normalizedProductId);
+
   const source = Array.isArray(DATA?.sdaDeliverables)
     ? DATA.sdaDeliverables
     : [];
@@ -14912,11 +14948,28 @@ function getManagementRoadmapSdaCatalog(programId, productId) {
       deliverable?.productId || deliverable?.product || "",
     );
 
+    /*
+     * Programa.
+     */
     if (itemProgramId && itemProgramId !== normalizedProgramId) {
       return;
     }
 
-    if (itemProductId && itemProductId !== normalizedProductId) {
+    /*
+     * Producto SDA.
+     *
+     * No exigimos que coincida literalmente
+     * con el producto ejecutivo.
+     *
+     * Ejemplo:
+     *
+     * Management Roadmap:
+     * franchise
+     *
+     * SDA:
+     * panorama
+     */
+    if (itemProductId && !allowedProducts.has(itemProductId)) {
       return;
     }
 
