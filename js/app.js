@@ -8448,7 +8448,9 @@ function routeRequiresJiraFeaturesData(context) {
     .trim()
     .toLowerCase();
 
-  return routeName === "management-roadmap" && programId === "aixbanker";
+  const supportedPrograms = new Set(["aixbanker", "blue", "rosetta"]);
+
+  return routeName === "management-roadmap" && supportedPrograms.has(programId);
 }
 
 function hasInstalledJiraFeaturesForProgram(programId) {
@@ -13401,94 +13403,7 @@ function buildManagementRoadmapLineId(
 
   return candidate;
 }
-const MANAGEMENT_ROADMAP_CATEGORY_OPTIONS = [
-  {
-    category: "",
-    categoryTone: "",
-    label: "Sin categoría",
-  },
-  {
-    category: "Aumento conocimiento",
-    categoryTone: "knowledge",
-    label: "Aumento conocimiento",
-  },
-  {
-    category: "Sales Assistant",
-    categoryTone: "sales",
-    label: "Sales Assistant",
-  },
-  {
-    category: "Agente de venta",
-    categoryTone: "sales-agent",
-    label: "Agente de venta",
-  },
-  {
-    category: "Preparación de visitas",
-    categoryTone: "visits",
-    label: "Preparación de visitas",
-  },
-  {
-    category: "Mejora experiencia",
-    categoryTone: "experience",
-    label: "Mejora experiencia",
-  },
-  {
-    category: "Extensión de público",
-    categoryTone: "audience",
-    label: "Extensión de público",
-  },
-  {
-    category: "Despliegue Blue Buddy",
-    categoryTone: "deployment",
-    label: "Despliegue Blue Buddy",
-  },
-  {
-    category: "Ortodoxia",
-    categoryTone: "deployment",
-    label: "Ortodoxia",
-  },
-  {
-    category: "Llamada 10",
-    categoryTone: "knowledge",
-    label: "Llamada 10",
-  },
-  {
-    category: "Best Practices",
-    categoryTone: "best-practices",
-    label: "Best Practices",
-  },
-  {
-    category: "Panorama",
-    categoryTone: "audience",
-    label: "Panorama",
-  },
-];
 
-function getManagementRoadmapCategoryOptions(
-  currentCategory = "",
-  currentCategoryTone = "",
-) {
-  const options = MANAGEMENT_ROADMAP_CATEGORY_OPTIONS.map((option) => ({
-    ...option,
-  }));
-
-  const normalizedCurrentCategory = String(currentCategory || "").trim();
-
-  if (
-    normalizedCurrentCategory &&
-    !options.some((option) => option.category === normalizedCurrentCategory)
-  ) {
-    options.push({
-      category: normalizedCurrentCategory,
-
-      categoryTone: String(currentCategoryTone || "").trim(),
-
-      label: normalizedCurrentCategory,
-    });
-  }
-
-  return options;
-}
 function buildManagementRoadmapDraftLine(programId, productId, countryId) {
   const rows = getManagementRoadmapRows(programId, productId, countryId);
 
@@ -13536,40 +13451,129 @@ function buildManagementRoadmapDraftLine(programId, productId, countryId) {
   );
 }
 function getManagementRoadmapAvailableProducts(programId) {
-  return [
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  /*
+   * =====================================================
+   * 1. MANAGEMENT ROADMAP YA CONFIGURADO
+   * =====================================================
+   */
+
+  const configuredProducts = [
     ...new Set(
       getEffectiveManagementExecutiveLines()
         .filter(
           (line) =>
             String(line.programId || "")
               .trim()
-              .toLowerCase() ===
-            String(programId || "")
-              .trim()
-              .toLowerCase(),
+              .toLowerCase() === normalizedProgramId,
         )
         .map((line) => normalizeRoadmapProduct(line.productId))
         .filter(Boolean),
     ),
   ];
+
+  if (configuredProducts.length) {
+    return configuredProducts;
+  }
+
+  /*
+   * =====================================================
+   * 2. PRODUCT CATALOG
+   * =====================================================
+   *
+   * Nos permite arrancar un programa que todavía
+   * no tiene Management Roadmap Lines.
+   */
+
+  const catalogProducts = [
+    ...new Set(
+      (Array.isArray(DATA?.productCatalog) ? DATA.productCatalog : [])
+        .filter((product) => {
+          const productProgramId = String(product.programId || "")
+            .trim()
+            .toLowerCase();
+
+          /*
+           * Algunos orígenes antiguos
+           * no informan programId.
+           */
+          return !productProgramId || productProgramId === normalizedProgramId;
+        })
+        .map((product) => normalizeRoadmapProduct(product.productId))
+        .filter(Boolean),
+    ),
+  ];
+
+  if (catalogProducts.length) {
+    return catalogProducts;
+  }
+
+  /*
+   * =====================================================
+   * 3. ROADMAP OPERATIVO
+   * =====================================================
+   */
+
+  const roadmapProducts = [
+    ...new Set(
+      getManagementReportSourceItems(normalizedProgramId)
+        .map((item) => normalizeRoadmapProduct(item.product || item.productId))
+        .filter(Boolean),
+    ),
+  ];
+
+  if (roadmapProducts.length) {
+    return roadmapProducts;
+  }
+
+  /*
+   * =====================================================
+   * 4. BOOTSTRAP
+   * =====================================================
+   *
+   * Último fallback.
+   *
+   * Permite crear el primer deliverable ejecutivo
+   * aunque todavía no exista ninguna configuración.
+   */
+
+  const bootstrapProducts = {
+    aixbanker: ["blue-buddy"],
+
+    blue: ["blue"],
+
+    rosetta: ["interaction-orchestration"],
+  };
+
+  return bootstrapProducts[normalizedProgramId] || [];
 }
 
 function getManagementRoadmapAvailableCountries(programId, productId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
   const normalizedProductId = normalizeRoadmapProduct(productId);
 
-  const preferredOrder = ["ES", "MX", "PE", "CO", "HL"];
+  const preferredOrder = ["ES", "MX", "PE", "CO", "UY", "AR", "TR", "HL"];
 
-  const available = [
+  /*
+   * =====================================================
+   * 1. PAÍSES YA CONFIGURADOS
+   * =====================================================
+   */
+
+  let available = [
     ...new Set(
       getEffectiveManagementExecutiveLines()
         .filter(
           (line) =>
             String(line.programId || "")
               .trim()
-              .toLowerCase() ===
-              String(programId || "")
-                .trim()
-                .toLowerCase() &&
+              .toLowerCase() === normalizedProgramId &&
             normalizeRoadmapProduct(line.productId) === normalizedProductId,
         )
         .map((line) =>
@@ -13580,6 +13584,44 @@ function getManagementRoadmapAvailableCountries(programId, productId) {
         .filter(Boolean),
     ),
   ];
+
+  /*
+   * =====================================================
+   * 2. PAÍSES DEL ROADMAP OPERATIVO
+   * =====================================================
+   */
+
+  if (!available.length) {
+    available = [
+      ...new Set(
+        getManagementReportSourceItems(normalizedProgramId)
+          .filter(
+            (item) =>
+              normalizeRoadmapProduct(item.product || item.productId) ===
+              normalizedProductId,
+          )
+          .map((item) =>
+            String(item.country || "")
+              .trim()
+              .toUpperCase(),
+          )
+          .filter(Boolean),
+      ),
+    ];
+  }
+
+  /*
+   * =====================================================
+   * 3. BOOTSTRAP
+   * =====================================================
+   *
+   * Si no existe absolutamente nada todavía,
+   * ofrecemos las geografías estándar RCS.
+   */
+
+  if (!available.length && ["blue", "rosetta"].includes(normalizedProgramId)) {
+    available = ["ES", "MX", "PE", "CO", "UY", "AR", "TR", "HL"];
+  }
 
   return available.sort((left, right) => {
     const leftIndex = preferredOrder.indexOf(left);
@@ -13594,15 +13636,23 @@ function getManagementRoadmapAvailableCountries(programId, productId) {
 }
 
 function getManagementRoadmapProductLabel(productId) {
+  const normalizedProductId = normalizeRoadmapProduct(productId);
+
   return (
     {
       "blue-buddy": "Blue Buddy",
+
       franchise: "Franquicia",
-    }[normalizeRoadmapProduct(productId)] ||
-    formatManagementReportProductLabel(productId)
+
+      blue: "Blue",
+
+      rosetta: "Interaction Orchestration",
+
+      "interaction-orchestration": "Interaction Orchestration",
+    }[normalizedProductId] ||
+    formatManagementReportProductLabel(normalizedProductId)
   );
 }
-
 function getManagementRoadmapCountrySelectorLabel(countryId) {
   return (
     {
@@ -13610,6 +13660,9 @@ function getManagementRoadmapCountrySelectorLabel(countryId) {
       MX: "México",
       PE: "Perú",
       CO: "Colombia",
+      UY: "Uruguay",
+      AR: "Argentina",
+      TR: "Turquía",
       HL: "Global",
     }[
       String(countryId || "")
@@ -13626,6 +13679,9 @@ function getManagementRoadmapCountrySelectorFlag(countryId) {
       MX: "🇲🇽",
       PE: "🇵🇪",
       CO: "🇨🇴",
+      UY: "🇺🇾",
+      AR: "🇦🇷",
+      TR: "🇹🇷",
       HL: "🌐",
     }[
       String(countryId || "")
@@ -17253,7 +17309,7 @@ function renderManagementRoadmapView(programId) {
     const description = pageSectionTitle.querySelector("p");
 
     if (heading) {
-      heading.textContent = "Global Deliverables que se desarrollan en Q3";
+      heading.textContent = "Global Deliverables";
     }
 
     if (description) {
@@ -19969,10 +20025,9 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
 
   const statusKey = getManagementRoadmapEditableStatusKey(line);
 
-  const categoryOptions = getManagementRoadmapCategoryOptions(
-    line.category,
-    line.categoryTone,
-  );
+  const originalCategory = String(line.category || "").trim();
+
+  const originalCategoryTone = String(line.categoryTone || "").trim();
 
   const overlay = document.createElement("div");
 
@@ -20094,28 +20149,13 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
                 Categoría
               </label>
 
-              <select
+              <input
                 id="managementRoadmapLineCategory"
-                class="management-roadmap-line-select"
-              >
-                ${categoryOptions
-                  .map(
-                    (option) => `
-                      <option
-                        value="${rcsEsc(option.category)}"
-                        data-category-tone="${rcsEsc(option.categoryTone)}"
-                        ${
-                          String(line.category || "").trim() === option.category
-                            ? "selected"
-                            : ""
-                        }
-                      >
-                        ${rcsEsc(option.label)}
-                      </option>
-                    `,
-                  )
-                  .join("")}
-              </select>
+                class="management-roadmap-line-input"
+                type="text"
+                value="${rcsEsc(line.category || "")}"
+                placeholder="Ej. Aumento conocimiento"
+              />
             </div>
 
             <div
@@ -20257,17 +20297,20 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
         return;
       }
 
-      const categorySelect = overlay.querySelector(
-        "#managementRoadmapLineCategory",
-      );
-
-      const category = String(categorySelect?.value || "").trim();
-
-      const selectedCategoryOption = categorySelect?.selectedOptions?.[0];
-
-      const categoryTone = String(
-        selectedCategoryOption?.dataset?.categoryTone || "",
+      const category = String(
+        overlay.querySelector("#managementRoadmapLineCategory")?.value || "",
       ).trim();
+
+      /*
+       * Si no se cambia la categoría,
+       * mantenemos su tono actual.
+       *
+       * Si se escribe una categoría nueva,
+       * dejamos categoryTone vacío para
+       * utilizar el estilo neutro.
+       */
+      const categoryTone =
+        category === originalCategory ? originalCategoryTone : "";
 
       const selectedStatusKey = String(
         overlay.querySelector("#managementRoadmapLineStatus")?.value ||
