@@ -266,7 +266,97 @@ function adaptRoadmapItemStatusHistory(row) {
     source: row,
   };
 }
+const MANAGEMENT_ROADMAP_EDITABLE_STATUSES = {
+  "on-track": {
+    key: "on-track",
 
+    status: "on-track",
+
+    statusLabel: "En curso",
+
+    statusTone: "",
+  },
+
+  "at-risk": {
+    key: "at-risk",
+
+    status: "at-risk",
+
+    statusLabel: "En riesgo",
+
+    statusTone: "",
+  },
+
+  delayed: {
+    key: "delayed",
+
+    status: "at-risk",
+
+    statusLabel: "Retrasado",
+
+    statusTone: "delayed",
+  },
+
+  replanned: {
+    key: "replanned",
+
+    status: "planned",
+
+    statusLabel: "Reprogramado",
+
+    statusTone: "replanned",
+  },
+
+  blocked: {
+    key: "blocked",
+
+    status: "blocked",
+
+    statusLabel: "Bloqueado",
+
+    statusTone: "",
+  },
+
+  done: {
+    key: "done",
+
+    status: "done",
+
+    statusLabel: "Finalizado",
+
+    statusTone: "done",
+  },
+
+  cancelled: {
+    key: "cancelled",
+
+    status: "planned",
+
+    statusLabel: "Cancelado",
+
+    statusTone: "cancelled",
+  },
+};
+
+function getManagementRoadmapEditableStatusKey(line) {
+  const statusTone = String(line?.statusTone || "")
+    .trim()
+    .toLowerCase();
+
+  if (statusTone && MANAGEMENT_ROADMAP_EDITABLE_STATUSES[statusTone]) {
+    return statusTone;
+  }
+
+  const status = String(line?.status || "")
+    .trim()
+    .toLowerCase();
+
+  if (MANAGEMENT_ROADMAP_EDITABLE_STATUSES[status]) {
+    return status;
+  }
+
+  return "on-track";
+}
 function roadmapJiraStatusCountsTowardsEffectiveTime(status) {
   const normalizedStatus = normalizeRoadmapJiraStatus(status);
 
@@ -6243,22 +6333,28 @@ function normalizeProgramData(programId, rawData) {
    * =====================================================
    * MANAGEMENT ROADMAP LINKS
    * =====================================================
-   *
-   * Relación:
-   *
-   * línea ejecutiva
-   *      ↓
-   * SDA
-   *      ↓
-   * Deliverable
-   *
-   * Las Features se resuelven después
-   * automáticamente desde jiraWorkspaceFeatures.
    */
+
   normalized.managementRoadmapLinks = Array.isArray(
     source.managementRoadmapLinks,
   )
     ? source.managementRoadmapLinks.map((row) => ({
+        ...row,
+
+        programId: row.programId || programId,
+      }))
+    : [];
+
+  /*
+   * =====================================================
+   * MANAGEMENT ROADMAP LINES
+   * =====================================================
+   */
+
+  normalized.managementRoadmapLines = Array.isArray(
+    source.managementRoadmapLines,
+  )
+    ? source.managementRoadmapLines.map((row) => ({
         ...row,
 
         programId: row.programId || programId,
@@ -13174,11 +13270,275 @@ function setManagementRoadmapSnapshotCountry(countryId) {
     .trim()
     .toUpperCase();
 }
+function isManagementRoadmapLineActive(line) {
+  if (!line) {
+    return false;
+  }
 
+  if (
+    line.active === true ||
+    line.active === undefined ||
+    line.active === null ||
+    line.active === ""
+  ) {
+    return true;
+  }
+
+  return !["false", "0", "no", "off"].includes(
+    String(line.active).trim().toLowerCase(),
+  );
+}
+
+function normalizeManagementRoadmapLine(line, fallbackOrder = 999) {
+  return {
+    ...line,
+
+    id: String(line?.id || "").trim(),
+
+    programId: String(line?.programId || "")
+      .trim()
+      .toLowerCase(),
+
+    productId: normalizeRoadmapProduct(line?.productId),
+
+    country: String(line?.country || "")
+      .trim()
+      .toUpperCase(),
+
+    year: Number(line?.year) || 2026,
+
+    order: Number(line?.order) || fallbackOrder,
+
+    category: String(line?.category || "").trim(),
+
+    categoryTone: String(line?.categoryTone || "").trim(),
+
+    title: String(line?.title || "").trim(),
+
+    status: String(line?.status || "on-track").trim(),
+
+    statusLabel: String(line?.statusLabel || "En curso").trim(),
+
+    statusTone: String(line?.statusTone || "").trim(),
+
+    comments: String(line?.comments || "").trim(),
+
+    active: isManagementRoadmapLineActive(line),
+  };
+}
+
+function getEffectiveManagementExecutiveLines() {
+  const persistedLines = Array.isArray(DATA?.managementRoadmapLines)
+    ? DATA.managementRoadmapLines
+    : [];
+
+  const source = persistedLines.length
+    ? persistedLines
+    : getManagementExecutiveLines();
+
+  return source
+    .map((line, index) => normalizeManagementRoadmapLine(line, index + 1))
+    .filter((line) => line.id && line.title && line.active);
+}
+function slugifyManagementRoadmapText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .replace(/-+/g, "-");
+}
+
+function getManagementRoadmapNextOrder(programId, productId, countryId) {
+  const rows = getManagementRoadmapRows(programId, productId, countryId);
+
+  const maxOrder = rows.reduce(
+    (currentMax, row) => Math.max(currentMax, Number(row?.order) || 0),
+    0,
+  );
+
+  return maxOrder + 1;
+}
+
+function buildManagementRoadmapLineId(
+  productId,
+  countryId,
+  title,
+  existingLines = [],
+) {
+  const normalizedProductId = normalizeRoadmapProduct(productId);
+
+  const normalizedCountryId = String(countryId || "")
+    .trim()
+    .toLowerCase();
+
+  const slug = slugifyManagementRoadmapText(title) || "nuevo-deliverable";
+
+  const baseId = [normalizedCountryId, normalizedProductId, slug]
+    .filter(Boolean)
+    .join("-");
+
+  const existingIds = new Set(
+    existingLines.map((line) =>
+      String(line?.id || "")
+        .trim()
+        .toLowerCase(),
+    ),
+  );
+
+  if (!existingIds.has(baseId.toLowerCase())) {
+    return baseId;
+  }
+
+  let suffix = 2;
+  let candidate = `${baseId}-${suffix}`;
+
+  while (existingIds.has(candidate.toLowerCase())) {
+    suffix += 1;
+    candidate = `${baseId}-${suffix}`;
+  }
+
+  return candidate;
+}
+const MANAGEMENT_ROADMAP_CATEGORY_OPTIONS = [
+  {
+    category: "",
+    categoryTone: "",
+    label: "Sin categoría",
+  },
+  {
+    category: "Aumento conocimiento",
+    categoryTone: "knowledge",
+    label: "Aumento conocimiento",
+  },
+  {
+    category: "Sales Assistant",
+    categoryTone: "sales",
+    label: "Sales Assistant",
+  },
+  {
+    category: "Agente de venta",
+    categoryTone: "sales-agent",
+    label: "Agente de venta",
+  },
+  {
+    category: "Preparación de visitas",
+    categoryTone: "visits",
+    label: "Preparación de visitas",
+  },
+  {
+    category: "Mejora experiencia",
+    categoryTone: "experience",
+    label: "Mejora experiencia",
+  },
+  {
+    category: "Extensión de público",
+    categoryTone: "audience",
+    label: "Extensión de público",
+  },
+  {
+    category: "Despliegue Blue Buddy",
+    categoryTone: "deployment",
+    label: "Despliegue Blue Buddy",
+  },
+  {
+    category: "Ortodoxia",
+    categoryTone: "deployment",
+    label: "Ortodoxia",
+  },
+  {
+    category: "Llamada 10",
+    categoryTone: "knowledge",
+    label: "Llamada 10",
+  },
+  {
+    category: "Best Practices",
+    categoryTone: "best-practices",
+    label: "Best Practices",
+  },
+  {
+    category: "Panorama",
+    categoryTone: "audience",
+    label: "Panorama",
+  },
+];
+
+function getManagementRoadmapCategoryOptions(
+  currentCategory = "",
+  currentCategoryTone = "",
+) {
+  const options = MANAGEMENT_ROADMAP_CATEGORY_OPTIONS.map((option) => ({
+    ...option,
+  }));
+
+  const normalizedCurrentCategory = String(currentCategory || "").trim();
+
+  if (
+    normalizedCurrentCategory &&
+    !options.some((option) => option.category === normalizedCurrentCategory)
+  ) {
+    options.push({
+      category: normalizedCurrentCategory,
+
+      categoryTone: String(currentCategoryTone || "").trim(),
+
+      label: normalizedCurrentCategory,
+    });
+  }
+
+  return options;
+}
+function buildManagementRoadmapDraftLine(programId, productId, countryId) {
+  const rows = getManagementRoadmapRows(programId, productId, countryId);
+
+  const sampleRow = rows[0] || {};
+
+  const nextOrder = getManagementRoadmapNextOrder(
+    programId,
+    productId,
+    countryId,
+  );
+
+  return normalizeManagementRoadmapLine(
+    {
+      id: "",
+
+      programId,
+
+      productId: normalizeRoadmapProduct(productId),
+
+      country: String(countryId || "")
+        .trim()
+        .toUpperCase(),
+
+      year: Number(sampleRow?.year) || 2026,
+
+      order: nextOrder,
+
+      category: "",
+
+      categoryTone: "",
+
+      title: "",
+
+      status: "on-track",
+
+      statusLabel: "En curso",
+
+      statusTone: "",
+
+      comments: "",
+
+      active: true,
+    },
+    nextOrder,
+  );
+}
 function getManagementRoadmapAvailableProducts(programId) {
   return [
     ...new Set(
-      getManagementExecutiveLines()
+      getEffectiveManagementExecutiveLines()
         .filter(
           (line) =>
             String(line.programId || "")
@@ -13201,7 +13561,7 @@ function getManagementRoadmapAvailableCountries(programId, productId) {
 
   const available = [
     ...new Set(
-      getManagementExecutiveLines()
+      getEffectiveManagementExecutiveLines()
         .filter(
           (line) =>
             String(line.programId || "")
@@ -13223,6 +13583,7 @@ function getManagementRoadmapAvailableCountries(programId, productId) {
 
   return available.sort((left, right) => {
     const leftIndex = preferredOrder.indexOf(left);
+
     const rightIndex = preferredOrder.indexOf(right);
 
     return (
@@ -13285,7 +13646,7 @@ function getManagementRoadmapRows(programId, productId, countryId) {
     .trim()
     .toUpperCase();
 
-  return getManagementExecutiveLines()
+  return getEffectiveManagementExecutiveLines()
     .filter(
       (line) =>
         String(line.programId || "")
@@ -13954,7 +14315,7 @@ function getManagementRoadmapLineById(lineId) {
   }
 
   return (
-    getManagementExecutiveLines().find(
+    getEffectiveManagementExecutiveLines().find(
       (line) =>
         String(line.id || "")
           .trim()
@@ -16241,17 +16602,58 @@ function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
 
   if (!rows.length) {
     return `
-      <div class="management-deliverables-empty">
-        No hay deliverables configurados para
-        ${rcsEsc(getManagementRoadmapProductLabel(productId))}
-        en
-        ${rcsEsc(getManagementRoadmapCountrySelectorLabel(countryId))}.
+      <div
+        class="management-deliverables-table-wrap"
+      >
+        ${
+          mappingState.enabled
+            ? `
+              <div
+                class="management-roadmap-table-actions"
+              >
+                <button
+                  class="management-roadmap-line-create-button"
+                  type="button"
+                  data-management-roadmap-create-line
+                >
+                  + Nuevo deliverable
+                </button>
+              </div>
+            `
+            : ""
+        }
+
+        <div class="management-deliverables-empty">
+          No hay deliverables configurados para
+          ${rcsEsc(getManagementRoadmapProductLabel(productId))}
+          en
+          ${rcsEsc(getManagementRoadmapCountrySelectorLabel(countryId))}.
+        </div>
       </div>
     `;
   }
 
   return `
-    <div class="management-deliverables-table-wrap">
+    <div
+      class="management-deliverables-table-wrap"
+    >
+      ${
+        mappingState.enabled
+          ? `
+            <div
+              class="management-roadmap-table-actions"
+            >
+              <button
+                class="management-roadmap-line-create-button"
+                type="button"
+                data-management-roadmap-create-line
+              >
+                + Nuevo deliverable
+              </button>
+            </div>
+          `
+          : ""
+      }
 
       <table
         class="
@@ -16261,54 +16663,38 @@ function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
       >
         <colgroup>
           <col
-            class="
-              management-deliverables-col-name
-            "
+            class="management-deliverables-col-name"
           >
 
           <col
-            class="
-              management-deliverables-col-quarter
-            "
+            class="management-deliverables-col-quarter"
           >
 
           <col
-            class="
-              management-deliverables-col-quarter
-            "
+            class="management-deliverables-col-quarter"
           >
 
           <col
-            class="
-              management-deliverables-col-quarter
-            "
+            class="management-deliverables-col-quarter"
           >
 
           <col
-            class="
-              management-deliverables-col-progress
-            "
+            class="management-deliverables-col-progress"
           >
 
           <col
-            class="
-              management-deliverables-col-status
-            "
+            class="management-deliverables-col-status"
           >
 
           <col
-            class="
-              management-deliverables-col-comments
-            "
+            class="management-deliverables-col-comments"
           >
 
           ${
             mappingState.enabled
               ? `
                 <col
-                  class="
-                    management-deliverables-col-mapping
-                  "
+                  class="management-deliverables-col-mapping"
                 >
               `
               : ""
@@ -16364,21 +16750,38 @@ function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
                 <tr
                   data-management-roadmap-line="${rcsEsc(row.id)}"
                 >
+
                   <td>
                     <div
-                      class="
-                        management-deliverables-name
-                      "
+                      class="management-deliverables-name"
                     >
                       ${renderManagementRoadmapCategory(row)}
 
-                      <span
-                        class="
-                          management-deliverables-title
-                        "
+                      <div
+                        class="management-deliverables-title-wrapper"
                       >
-                        ${rcsEsc(row.title)}
-                      </span>
+                        <span
+                          class="management-deliverables-title"
+                        >
+                          ${rcsEsc(row.title)}
+                        </span>
+
+                        ${
+                          mappingState.enabled
+                            ? `
+                              <button
+                                class="management-roadmap-line-edit-button"
+                                type="button"
+                                data-management-roadmap-edit-line="${rcsEsc(
+                                  row.id,
+                                )}"
+                              >
+                                Editar
+                              </button>
+                            `
+                            : ""
+                        }
+                      </div>
                     </div>
                   </td>
 
@@ -16402,9 +16805,7 @@ function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
                   </td>
 
                   <td
-                    class="
-                      management-deliverables-comments
-                    "
+                    class="management-deliverables-comments"
                   >
                     ${rcsEsc(row.comments || "")}
                   </td>
@@ -16418,13 +16819,14 @@ function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
                       `
                       : ""
                   }
+
                 </tr>
               `,
             )
             .join("")}
         </tbody>
-      </table>
 
+      </table>
     </div>
   `;
 }
@@ -16765,11 +17167,52 @@ function ensureManagementRoadmapSnapshotStyles() {
 
   document.head.appendChild(style);
 }
+function bindManagementRoadmapLineEditors(programId) {
+  ensureManagementRoadmapLineEditorStyles();
+
+  document
+    .querySelectorAll("[data-management-roadmap-edit-line]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const lineId = String(
+          button.dataset.managementRoadmapEditLine || "",
+        ).trim();
+
+        if (!lineId) {
+          return;
+        }
+
+        renderManagementRoadmapLineEditorPanel(programId, lineId);
+      });
+    });
+}
+
+function bindManagementRoadmapLineCreateButton(
+  programId,
+  productId,
+  countryId,
+) {
+  ensureManagementRoadmapLineEditorStyles();
+
+  const button = document.querySelector(
+    "[data-management-roadmap-create-line]",
+  );
+
+  if (!button) {
+    return;
+  }
+
+  button.addEventListener("click", () => {
+    renderManagementRoadmapNewLineEditorPanel(programId, productId, countryId);
+  });
+}
 function renderManagementRoadmapView(programId) {
   ensureManagementRoadmapSnapshotStyles();
   ensureManagementRoadmapMappingStyles();
+  ensureManagementRoadmapLineEditorStyles();
 
   closeManagementRoadmapMappingPanel();
+  closeManagementRoadmapLineEditorPanel();
 
   const normalizedProgramId = String(programId || "")
     .trim()
@@ -16942,7 +17385,9 @@ function renderManagementRoadmapView(programId) {
                   type="button"
                   data-management-roadmap-country="${rcsEsc(countryId)}"
                 >
-                  <span aria-hidden="true">
+                  <span
+                    aria-hidden="true"
+                  >
                     ${getManagementRoadmapCountrySelectorFlag(countryId)}
                   </span>
 
@@ -16964,7 +17409,7 @@ function renderManagementRoadmapView(programId) {
             management-deliverables-filter-label
           "
         >
-          Relaciones
+          Configuración
         </span>
 
         <button
@@ -16975,14 +17420,16 @@ function renderManagementRoadmapView(programId) {
           type="button"
           data-management-roadmap-config-toggle
         >
-          <span aria-hidden="true">
+          <span
+            aria-hidden="true"
+          >
             ⚙
           </span>
 
           ${
             mappingState.enabled
               ? "Salir de configuración"
-              : "Configurar relaciones"
+              : "Configurar roadmap"
           }
         </button>
       </div>
@@ -17017,7 +17464,9 @@ function renderManagementRoadmapView(programId) {
               management-deliverables-country-strip
             "
           >
-            <span aria-hidden="true">
+            <span
+              aria-hidden="true"
+            >
               ${getManagementRoadmapCountrySelectorFlag(state.countryId)}
             </span>
 
@@ -17088,6 +17537,31 @@ function renderManagementRoadmapView(programId) {
         );
       });
     });
+
+  bindManagementRoadmapLineEditors(normalizedProgramId);
+
+  bindManagementRoadmapLineCreateButton(
+    normalizedProgramId,
+    state.productId,
+    state.countryId,
+  );
+}
+function bindManagementRoadmapLineCreateButton(
+  programId,
+  productId,
+  countryId,
+) {
+  const button = document.querySelector(
+    "[data-management-roadmap-create-line]",
+  );
+
+  if (!button) {
+    return;
+  }
+
+  button.addEventListener("click", () => {
+    renderManagementRoadmapNewLineEditorPanel(programId, productId, countryId);
+  });
 }
 function renderRoadmapTrackingGroup(group, programId, productId) {
   const groupStatus = getRoadmapGroupStatus(group);
@@ -19242,6 +19716,984 @@ function renderProductPill(product) {
       ${rcsEsc(product || "Sin producto")}
     </span>
   `;
+}
+function closeManagementRoadmapLineEditorPanel() {
+  const overlay = document.querySelector("#managementRoadmapLineEditorOverlay");
+
+  if (overlay) {
+    overlay.remove();
+  }
+}
+
+function ensureManagementRoadmapLineEditorStyles() {
+  if (document.querySelector("#managementRoadmapLineEditorStyles")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+
+  style.id = "managementRoadmapLineEditorStyles";
+
+  style.textContent = `
+    .management-roadmap-table-actions {
+      display: flex;
+      justify-content: flex-end;
+      padding: 0 14px 12px;
+    }
+
+    .management-roadmap-line-edit-button,
+    .management-roadmap-line-create-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #cdd9eb;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #003b8f;
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+      transition:
+        background 0.18s ease,
+        border-color 0.18s ease,
+        transform 0.18s ease;
+    }
+
+    .management-roadmap-line-edit-button {
+      flex: 0 0 auto;
+      min-height: 28px;
+      padding: 0 10px;
+      font-size: 9px;
+    }
+
+    .management-roadmap-line-create-button {
+      min-height: 36px;
+      padding: 0 16px;
+      font-size: 11px;
+    }
+
+    .management-roadmap-line-edit-button:hover,
+    .management-roadmap-line-create-button:hover {
+      transform: translateY(-1px);
+      border-color: #003b8f;
+      background: #f3f7ff;
+    }
+
+    .management-roadmap-line-delete-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 0 16px;
+      border: 1px solid #efc1c7;
+      border-radius: 999px;
+      background: #fff7f8;
+      color: #b42318;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .management-roadmap-line-delete-button:hover {
+      border-color: #d92d20;
+      background: #fff0f1;
+    }
+
+    .management-roadmap-mapping-save {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 92px;
+      min-height: 40px;
+      padding: 0 18px;
+      border: 1px solid var(--blue);
+      border-radius: 999px;
+      background: var(--blue);
+      color: #ffffff;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+      transition:
+        background 0.18s ease,
+        opacity 0.18s ease,
+        transform 0.18s ease;
+    }
+
+    .management-roadmap-mapping-save:hover:not(:disabled) {
+      transform: translateY(-1px);
+      filter: brightness(0.95);
+    }
+
+    .management-roadmap-mapping-save:disabled {
+      border-color: #cbd5e4;
+      background: #cbd5e4;
+      color: #ffffff;
+      cursor: default;
+      opacity: 0.8;
+    }
+
+    .management-roadmap-mapping-footer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .management-deliverables-title-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+      width: 100%;
+    }
+
+    .management-deliverables-title-wrapper
+      .management-deliverables-title {
+      min-width: 0;
+    }
+
+    .management-roadmap-line-form {
+      display: grid;
+      gap: 18px;
+      padding: 6px 0;
+    }
+
+    .management-roadmap-line-field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .management-roadmap-line-field label {
+      color: #526b94;
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .management-roadmap-line-input,
+    .management-roadmap-line-select,
+    .management-roadmap-line-textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #ccd9eb;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #173d76;
+      font: inherit;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .management-roadmap-line-input,
+    .management-roadmap-line-select {
+      min-height: 44px;
+      padding: 0 12px;
+    }
+
+    .management-roadmap-line-textarea {
+      min-height: 150px;
+      padding: 12px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    .management-roadmap-line-input:focus,
+    .management-roadmap-line-select:focus,
+    .management-roadmap-line-textarea:focus {
+      border-color: #477cc8;
+      box-shadow:
+        0 0 0 3px
+        rgba(71, 124, 200, 0.1);
+    }
+
+    .management-roadmap-line-meta {
+      display: grid;
+      grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    .management-roadmap-line-meta article {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f3f6fb;
+    }
+
+    .management-roadmap-line-meta span {
+      display: block;
+      color: #7a8ba8;
+      font-size: 9px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .management-roadmap-line-meta strong {
+      display: block;
+      margin-top: 3px;
+      color: #173d76;
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 760px) {
+      .management-roadmap-line-meta {
+        grid-template-columns: 1fr;
+      }
+
+      .management-roadmap-mapping-footer-actions {
+        width: 100%;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+function renderManagementRoadmapLineEditorPanelFromRecord(
+  programId,
+  line,
+  { isCreate = false } = {},
+) {
+  ensureManagementRoadmapLineEditorStyles();
+
+  closeManagementRoadmapLineEditorPanel();
+  closeManagementRoadmapMappingPanel();
+
+  if (!line) {
+    return;
+  }
+
+  const statusKey = getManagementRoadmapEditableStatusKey(line);
+
+  const categoryOptions = getManagementRoadmapCategoryOptions(
+    line.category,
+    line.categoryTone,
+  );
+
+  const overlay = document.createElement("div");
+
+  overlay.id = "managementRoadmapLineEditorOverlay";
+
+  overlay.className = "management-roadmap-mapping-overlay";
+
+  overlay.innerHTML = `
+    <aside
+      class="management-roadmap-mapping-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="managementRoadmapLineEditorTitle"
+    >
+
+      <header
+        class="management-roadmap-mapping-header"
+      >
+        <div>
+          <span
+            class="management-roadmap-mapping-eyebrow"
+          >
+            ${isCreate ? "Nuevo deliverable" : "Configurar deliverable"}
+          </span>
+
+          <h2
+            id="managementRoadmapLineEditorTitle"
+          >
+            ${isCreate ? "Crear deliverable" : rcsEsc(line.title)}
+          </h2>
+
+          <p>
+            ${rcsEsc(getManagementRoadmapProductLabel(line.productId))}
+            ·
+            ${rcsEsc(getManagementRoadmapCountrySelectorLabel(line.country))}
+          </p>
+        </div>
+
+        <button
+          class="management-roadmap-mapping-close"
+          type="button"
+          data-management-roadmap-line-editor-close
+          aria-label="Cerrar"
+        >
+          ×
+        </button>
+      </header>
+
+      <div
+        class="management-roadmap-mapping-body"
+      >
+        <section
+          class="management-roadmap-mapping-section"
+        >
+
+          <div
+            class="management-roadmap-line-meta"
+          >
+            <article>
+              <span>
+                ID
+              </span>
+
+              <strong>
+                ${line.id ? rcsEsc(line.id) : "Se generará al guardar"}
+              </strong>
+            </article>
+
+            <article>
+              <span>
+                Producto
+              </span>
+
+              <strong>
+                ${rcsEsc(getManagementRoadmapProductLabel(line.productId))}
+              </strong>
+            </article>
+
+            <article>
+              <span>
+                País
+              </span>
+
+              <strong>
+                ${rcsEsc(
+                  getManagementRoadmapCountrySelectorLabel(line.country),
+                )}
+              </strong>
+            </article>
+          </div>
+
+          <div
+            class="management-roadmap-line-form"
+          >
+
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementRoadmapLineTitle"
+              >
+                Deliverable
+              </label>
+
+              <input
+                id="managementRoadmapLineTitle"
+                class="management-roadmap-line-input"
+                type="text"
+                value="${rcsEsc(line.title || "")}"
+              />
+            </div>
+
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementRoadmapLineCategory"
+              >
+                Categoría
+              </label>
+
+              <select
+                id="managementRoadmapLineCategory"
+                class="management-roadmap-line-select"
+              >
+                ${categoryOptions
+                  .map(
+                    (option) => `
+                      <option
+                        value="${rcsEsc(option.category)}"
+                        data-category-tone="${rcsEsc(option.categoryTone)}"
+                        ${
+                          String(line.category || "").trim() === option.category
+                            ? "selected"
+                            : ""
+                        }
+                      >
+                        ${rcsEsc(option.label)}
+                      </option>
+                    `,
+                  )
+                  .join("")}
+              </select>
+            </div>
+
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementRoadmapLineStatus"
+              >
+                Estado
+              </label>
+
+              <select
+                id="managementRoadmapLineStatus"
+                class="management-roadmap-line-select"
+              >
+                ${Object.values(MANAGEMENT_ROADMAP_EDITABLE_STATUSES)
+                  .map(
+                    (option) => `
+                      <option
+                        value="${rcsEsc(option.key)}"
+                        ${statusKey === option.key ? "selected" : ""}
+                      >
+                        ${rcsEsc(option.statusLabel)}
+                      </option>
+                    `,
+                  )
+                  .join("")}
+              </select>
+            </div>
+
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementRoadmapLineComments"
+              >
+                Comentarios
+              </label>
+
+              <textarea
+                id="managementRoadmapLineComments"
+                class="management-roadmap-line-textarea"
+              >${rcsEsc(line.comments || "")}</textarea>
+            </div>
+
+          </div>
+
+        </section>
+      </div>
+
+      <footer
+        class="management-roadmap-mapping-footer"
+      >
+        <div>
+          <strong>
+            Management Roadmap Lines
+          </strong>
+
+          <span>
+            Los cambios se guardarán en el origen del Cockpit.
+          </span>
+        </div>
+
+        <div
+          class="management-roadmap-mapping-footer-actions"
+        >
+          ${
+            isCreate
+              ? ""
+              : `
+                <button
+                  class="management-roadmap-line-delete-button"
+                  type="button"
+                  data-management-roadmap-line-editor-delete
+                >
+                  Eliminar
+                </button>
+              `
+          }
+
+          <button
+            class="ghost-button"
+            type="button"
+            data-management-roadmap-line-editor-close
+          >
+            Cancelar
+          </button>
+
+          <button
+            class="management-roadmap-mapping-save"
+            type="button"
+            data-management-roadmap-line-editor-save
+          >
+            ${isCreate ? "Crear" : "Guardar"}
+          </button>
+        </div>
+      </footer>
+
+    </aside>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay
+    .querySelectorAll("[data-management-roadmap-line-editor-close]")
+    .forEach((button) => {
+      button.addEventListener("click", closeManagementRoadmapLineEditorPanel);
+    });
+
+  const deleteButton = overlay.querySelector(
+    "[data-management-roadmap-line-editor-delete]",
+  );
+
+  if (deleteButton) {
+    deleteButton.addEventListener("click", async () => {
+      const confirmed = window.confirm(`¿Quieres eliminar "${line.title}"?`);
+
+      if (!confirmed) {
+        return;
+      }
+
+      await deleteManagementRoadmapLine(programId, line.id);
+    });
+  }
+
+  const saveButton = overlay.querySelector(
+    "[data-management-roadmap-line-editor-save]",
+  );
+
+  if (saveButton) {
+    saveButton.addEventListener("click", async () => {
+      const title = String(
+        overlay.querySelector("#managementRoadmapLineTitle")?.value || "",
+      ).trim();
+
+      if (!title) {
+        window.alert("El deliverable necesita un nombre.");
+
+        return;
+      }
+
+      const categorySelect = overlay.querySelector(
+        "#managementRoadmapLineCategory",
+      );
+
+      const category = String(categorySelect?.value || "").trim();
+
+      const selectedCategoryOption = categorySelect?.selectedOptions?.[0];
+
+      const categoryTone = String(
+        selectedCategoryOption?.dataset?.categoryTone || "",
+      ).trim();
+
+      const selectedStatusKey = String(
+        overlay.querySelector("#managementRoadmapLineStatus")?.value ||
+          "on-track",
+      ).trim();
+
+      const statusConfig =
+        MANAGEMENT_ROADMAP_EDITABLE_STATUSES[selectedStatusKey] ||
+        MANAGEMENT_ROADMAP_EDITABLE_STATUSES["on-track"];
+
+      const comments = String(
+        overlay.querySelector("#managementRoadmapLineComments")?.value || "",
+      ).trim();
+
+      const updatedLine = {
+        ...line,
+
+        title,
+
+        category,
+
+        categoryTone,
+
+        status: statusConfig.status,
+
+        statusLabel: statusConfig.statusLabel,
+
+        statusTone: statusConfig.statusTone,
+
+        comments,
+
+        active: true,
+      };
+
+      await saveManagementRoadmapLine(programId, updatedLine);
+    });
+  }
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      closeManagementRoadmapLineEditorPanel();
+    }
+  });
+}
+
+function renderManagementRoadmapNewLineEditorPanel(
+  programId,
+  productId,
+  countryId,
+) {
+  const draftLine = buildManagementRoadmapDraftLine(
+    programId,
+    productId,
+    countryId,
+  );
+
+  renderManagementRoadmapLineEditorPanelFromRecord(programId, draftLine, {
+    isCreate: true,
+  });
+}
+function renderManagementRoadmapLineEditorPanel(programId, lineId) {
+  const line = getManagementRoadmapLineById(lineId);
+
+  if (!line) {
+    return;
+  }
+
+  renderManagementRoadmapLineEditorPanelFromRecord(programId, line, {
+    isCreate: false,
+  });
+}
+function buildManagementRoadmapPersistableLines(lines) {
+  const result = new Map();
+
+  (Array.isArray(lines) ? lines : []).forEach((line, index) => {
+    const normalized = normalizeManagementRoadmapLine(line, index + 1);
+
+    if (!normalized.id || !normalized.title) {
+      return;
+    }
+
+    result.set(normalized.id.toLowerCase(), {
+      id: normalized.id,
+
+      programId: normalized.programId,
+
+      productId: normalized.productId,
+
+      country: normalized.country,
+
+      year: normalized.year,
+
+      order: normalized.order,
+
+      category: normalized.category,
+
+      categoryTone: normalized.categoryTone,
+
+      title: normalized.title,
+
+      status: normalized.status,
+
+      statusLabel: normalized.statusLabel,
+
+      statusTone: normalized.statusTone,
+
+      comments: normalized.comments,
+
+      active: normalized.active,
+    });
+  });
+
+  return [...result.values()];
+}
+
+function getManagementRoadmapLinesPersistenceSignature(lines) {
+  return buildManagementRoadmapPersistableLines(lines)
+    .map((line) =>
+      JSON.stringify({
+        id: line.id,
+
+        title: line.title,
+
+        status: line.status,
+
+        statusLabel: line.statusLabel,
+
+        statusTone: line.statusTone,
+
+        comments: line.comments,
+
+        active: line.active,
+      }),
+    )
+    .sort()
+    .join("|");
+}
+
+async function saveManagementRoadmapLine(programId, updatedLine) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const source = getProgramSource(normalizedProgramId);
+
+  if (!source || !source.driveJsonUrl) {
+    window.alert("No existe un Web App configurado para guardar el Roadmap.");
+
+    return;
+  }
+
+  const saveButton = document.querySelector(
+    "[data-management-roadmap-line-editor-save]",
+  );
+
+  if (saveButton) {
+    saveButton.disabled = true;
+
+    saveButton.textContent = "Guardando...";
+  }
+
+  try {
+    const currentLines = getEffectiveManagementExecutiveLines();
+
+    const normalizedUpdatedLine = normalizeManagementRoadmapLine(
+      updatedLine,
+      updatedLine?.order,
+    );
+
+    const resolvedId =
+      normalizedUpdatedLine.id ||
+      buildManagementRoadmapLineId(
+        normalizedUpdatedLine.productId,
+        normalizedUpdatedLine.country,
+        normalizedUpdatedLine.title,
+        currentLines,
+      );
+
+    const lineToPersist = {
+      ...normalizedUpdatedLine,
+
+      id: resolvedId,
+    };
+
+    const nextLines = buildManagementRoadmapPersistableLines([
+      ...currentLines.filter(
+        (line) =>
+          String(line?.id || "")
+            .trim()
+            .toLowerCase() !== resolvedId.toLowerCase(),
+      ),
+
+      lineToPersist,
+    ]);
+
+    const endpoint = new URL(source.driveJsonUrl, window.location.href);
+
+    endpoint.searchParams.delete("callback");
+
+    endpoint.searchParams.delete("_");
+
+    endpoint.searchParams.delete("dataset");
+
+    await fetch(endpoint.toString(), {
+      method: "POST",
+
+      mode: "no-cors",
+
+      credentials: "include",
+
+      cache: "no-store",
+
+      headers: {
+        "Content-Type": "text/plain;charset=UTF-8",
+      },
+
+      body: JSON.stringify({
+        action: "save-management-roadmap-lines",
+
+        lines: nextLines,
+      }),
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 900));
+
+    const rawData = await loadConfiguredSource(source, {
+      timeoutMs: 25000,
+
+      retries: 0,
+
+      cacheBust: true,
+    });
+
+    const normalizedData = normalizeProgramData(normalizedProgramId, rawData);
+
+    const persistedLines = buildManagementRoadmapPersistableLines(
+      normalizedData?.managementRoadmapLines,
+    );
+
+    const expectedSignature =
+      getManagementRoadmapLinesPersistenceSignature(nextLines);
+
+    const persistedSignature =
+      getManagementRoadmapLinesPersistenceSignature(persistedLines);
+
+    if (expectedSignature !== persistedSignature) {
+      throw new Error(
+        "La Spreadsheet no devuelve la configuración que se acaba de guardar.",
+      );
+    }
+
+    DATA.managementRoadmapLines = persistedLines;
+
+    if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+      const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
+      PROGRAM_DATA_CACHE.set(normalizedProgramId, {
+        ...cached,
+
+        managementRoadmapLines: persistedLines,
+      });
+    }
+
+    closeManagementRoadmapLineEditorPanel();
+
+    renderManagementRoadmapView(normalizedProgramId);
+  } catch (error) {
+    console.error("[Management Roadmap] Error guardando deliverable", error);
+
+    if (saveButton) {
+      saveButton.disabled = false;
+
+      saveButton.textContent = "Guardar";
+    }
+
+    window.alert(error?.message || "No se han podido guardar los cambios.");
+  }
+}
+async function deleteManagementRoadmapLine(programId, lineId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedLineId = String(lineId || "").trim();
+
+  if (!normalizedLineId) {
+    return;
+  }
+
+  const source = getProgramSource(normalizedProgramId);
+
+  if (!source || !source.driveJsonUrl) {
+    window.alert(
+      "No existe un Web App configurado para eliminar el deliverable.",
+    );
+
+    return;
+  }
+
+  const deleteButton = document.querySelector(
+    "[data-management-roadmap-line-editor-delete]",
+  );
+
+  if (deleteButton) {
+    deleteButton.disabled = true;
+
+    deleteButton.textContent = "Eliminando...";
+  }
+
+  try {
+    const endpoint = new URL(source.driveJsonUrl, window.location.href);
+
+    endpoint.searchParams.delete("callback");
+
+    endpoint.searchParams.delete("_");
+
+    endpoint.searchParams.delete("dataset");
+
+    await fetch(endpoint.toString(), {
+      method: "POST",
+
+      mode: "no-cors",
+
+      credentials: "include",
+
+      cache: "no-store",
+
+      headers: {
+        "Content-Type": "text/plain;charset=UTF-8",
+      },
+
+      body: JSON.stringify({
+        action: "delete-management-roadmap-line",
+
+        lineId: normalizedLineId,
+      }),
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 900));
+
+    /*
+     * =====================================================
+     * VERIFICACIÓN
+     * =====================================================
+     */
+
+    const rawData = await loadConfiguredSource(source, {
+      timeoutMs: 25000,
+
+      retries: 0,
+
+      cacheBust: true,
+    });
+
+    const normalizedData = normalizeProgramData(normalizedProgramId, rawData);
+
+    const persistedLines = buildManagementRoadmapPersistableLines(
+      normalizedData?.managementRoadmapLines,
+    );
+
+    const stillExists = persistedLines.some(
+      (line) =>
+        String(line.id || "")
+          .trim()
+          .toLowerCase() === normalizedLineId.toLowerCase(),
+    );
+
+    if (stillExists) {
+      throw new Error(
+        "El deliverable sigue apareciendo en Management Roadmap Lines.",
+      );
+    }
+
+    const persistedLinks = buildManagementRoadmapPersistableLinks(
+      normalizedData?.managementRoadmapLinks,
+    );
+
+    const orphanLinks = persistedLinks.filter(
+      (link) =>
+        String(link.executiveLineId || "")
+          .trim()
+          .toLowerCase() === normalizedLineId.toLowerCase(),
+    );
+
+    if (orphanLinks.length) {
+      throw new Error(
+        "El deliverable se ha eliminado, pero todavía existen relaciones SDA asociadas.",
+      );
+    }
+
+    /*
+     * =====================================================
+     * ACTUALIZACIÓN LOCAL
+     * =====================================================
+     */
+
+    DATA.managementRoadmapLines = persistedLines;
+
+    DATA.managementRoadmapLinks = persistedLinks;
+
+    if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+      const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
+      PROGRAM_DATA_CACHE.set(normalizedProgramId, {
+        ...cached,
+
+        managementRoadmapLines: persistedLines,
+
+        managementRoadmapLinks: persistedLinks,
+      });
+    }
+
+    closeManagementRoadmapLineEditorPanel();
+
+    renderManagementRoadmapView(normalizedProgramId);
+  } catch (error) {
+    console.error("[Management Roadmap] Error eliminando deliverable", error);
+
+    if (deleteButton) {
+      deleteButton.disabled = false;
+
+      deleteButton.textContent = "Eliminar deliverable";
+    }
+
+    window.alert(error?.message || "No se ha podido eliminar el deliverable.");
+  }
 }
 /* teams */
 document.addEventListener("click", (event) => {
