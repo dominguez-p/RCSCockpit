@@ -7683,6 +7683,7 @@ function renderCurrentRoute(
         resolvedProductId
       ) {
         route(`program/${normalizedProgramId}/${resolvedProductId}`);
+
         return;
       }
 
@@ -7699,6 +7700,7 @@ function renderCurrentRoute(
     }
 
     renderProgram(programId, productId);
+
     return;
   }
 
@@ -7709,6 +7711,7 @@ function renderCurrentRoute(
    */
   if (routeName === "roadmap" && programId === "aixbanker") {
     renderAIxBankerRoadmap(programId, productId, quarter);
+
     return;
   }
 
@@ -7725,6 +7728,7 @@ function renderCurrentRoute(
       itemType,
       itemId,
     );
+
     return;
   }
 
@@ -7742,6 +7746,7 @@ function renderCurrentRoute(
       itemId,
       activityId,
     );
+
     return;
   }
 
@@ -7752,6 +7757,7 @@ function renderCurrentRoute(
    */
   if (routeName === "functional") {
     renderFunctional(programId);
+
     return;
   }
 
@@ -7762,6 +7768,7 @@ function renderCurrentRoute(
    */
   if (routeName === "systems") {
     renderSystems(programId, "systems");
+
     return;
   }
 
@@ -7772,6 +7779,7 @@ function renderCurrentRoute(
    */
   if (routeName === "architecture") {
     renderSystems(programId, "architecture");
+
     return;
   }
 
@@ -7782,6 +7790,7 @@ function renderCurrentRoute(
    */
   if (routeName === "impediments") {
     renderImpediments(programId);
+
     return;
   }
 
@@ -7792,6 +7801,7 @@ function renderCurrentRoute(
    */
   if (routeName === "decisions") {
     renderDecisions(programId);
+
     return;
   }
 
@@ -7802,8 +7812,21 @@ function renderCurrentRoute(
    */
   if (routeName === "projects") {
     renderProjectsView(programId);
+
     return;
   }
+
+  /*
+   * =====================================================
+   * MANAGEMENT REPORTS · CONTRASTE Y VALIDACIÓN
+   * =====================================================
+   */
+  if (routeName === "management-contrast") {
+    renderManagementContrastValidationView(programId);
+
+    return;
+  }
+
   /*
    * =====================================================
    * MANAGEMENT REPORTS · DEMOS
@@ -7811,8 +7834,10 @@ function renderCurrentRoute(
    */
   if (routeName === "management-demos") {
     renderManagementDemosView(programId);
+
     return;
   }
+
   /*
    * =====================================================
    * MANAGEMENT REPORTS · ROADMAP
@@ -7820,6 +7845,7 @@ function renderCurrentRoute(
    */
   if (routeName === "management-roadmap") {
     renderManagementRoadmapView(programId);
+
     return;
   }
 
@@ -7830,6 +7856,7 @@ function renderCurrentRoute(
    */
   if (routeName === "msas") {
     route(`projects/${programId}`);
+
     return;
   }
 
@@ -7840,6 +7867,7 @@ function renderCurrentRoute(
    */
   if (routeName === "teams") {
     renderTeamsView(programId);
+
     return;
   }
 
@@ -9155,6 +9183,14 @@ function rcsStatusLabel(status) {
 function renderProjectsView(programId) {
   const program = (DATA.programs || []).find((item) => item.id === programId);
 
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const contrastPrograms = new Set(["blue", "aixbanker", "rosetta"]);
+
+  const hasContrastValidation = contrastPrograms.has(normalizedProgramId);
+
   view.innerHTML = "";
   view.append(tpl("#projects-template"));
 
@@ -9203,40 +9239,63 @@ function renderProjectsView(programId) {
   ];
 
   cardsContainer.innerHTML = `
-    <article class="management-report-card">
+    <article class="management-report-card ${
+      hasContrastValidation ? "" : "is-disabled"
+    }">
       <div class="management-report-card-top">
         <div>
           <h3>Contraste y Validación RCS</h3>
 
           <p>
-            Vista ejecutiva de contraste y validación
-            para seguimiento trimestral y estratégico.
+            Seguimiento ejecutivo del contraste y validación
+            por prioridad RCS, entregable y país.
           </p>
         </div>
 
-        <span class="management-report-badge">
-          2Q26
+        <span class="management-report-badge ${
+          hasContrastValidation ? "" : "is-soon"
+        }">
+          ${hasContrastValidation ? "4Q26" : "Próximamente"}
         </span>
       </div>
 
       <div class="management-report-card-kpis">
-        <span>Strategic cycle</span>
-        <span>Peso RCS</span>
-        <span>Países</span>
+        <span>Strategic Cycle</span>
+        <span>RCS Priorities</span>
+        <span>FIG Invoice</span>
       </div>
 
       <div class="management-report-card-footer">
         <span class="management-report-caption">
-          Vista inicial basada en el reporting de contraste y validación.
+          ${
+            hasContrastValidation
+              ? "Contraste trimestral por programa y geografías."
+              : "Vista todavía no disponible para este programa."
+          }
         </span>
 
-        <button
-          class="management-report-card-link"
-          type="button"
-          onclick="renderManagementContrastValidationView('${programId}')"
-        >
-          Abrir vista →
-        </button>
+        ${
+          hasContrastValidation
+            ? `
+              <button
+                class="management-report-card-link"
+                type="button"
+                data-route="management-contrast/${rcsEsc(programId)}"
+              >
+                Abrir contraste →
+              </button>
+            `
+            : `
+              <button
+                class="management-report-card-link is-disabled"
+                type="button"
+                disabled
+                aria-disabled="true"
+              >
+                Próximamente
+              </button>
+            `
+        }
       </div>
     </article>
 
@@ -9332,19 +9391,19 @@ function renderProjectsView(programId) {
 
           <p>
             Demostraciones ejecutivas de productos
-            y capacidades de AIxBanker.
+            y capacidades.
           </p>
         </div>
 
         <span class="management-report-badge">
-          2 demos
+          Demos
         </span>
       </div>
 
       <div class="management-report-card-kpis">
-        <span>Sales Assistant</span>
-        <span>Blue Buddy</span>
         <span>Vídeo</span>
+        <span>Experiencias</span>
+        <span>Capacidades</span>
       </div>
 
       <div class="management-report-card-footer">
@@ -9363,258 +9422,1683 @@ function renderProjectsView(programId) {
     </article>
   `;
 }
-function renderManagementContrastValidationView(programId) {
-  const program = (DATA.programs || []).find((item) => item.id === programId);
-
-  view.innerHTML = "";
-  view.append(tpl("#management-contrast-validation-template"));
-
-  setHead(
-    `${program?.name || "Programa"} · Contraste y Validación RCS`,
-    "Vista ejecutiva de contraste y validación.",
-    `Retail Client Solutions > ${
-      program?.name || programId
-    } > Management Reports > Contraste y Validación RCS`,
-  );
-
-  const backButton = document.querySelector("#managementContrastBackBtn");
-
-  if (backButton) {
-    backButton.addEventListener("click", () => {
-      renderProjectsView(programId);
-    });
-  }
-
-  const board = document.querySelector("#managementContrastValidationBoard");
-
-  if (!board) {
-    return;
-  }
-
-  const sections = [
+function getManagementContrastData() {
+  const countries = [
     {
-      title: "Blue Buddy",
-      rows: [
-        {
-          initiative:
-            "Despliegue Blue Buddy (knowledge assistant) <strong>(Exp. 5)</strong>",
-          target: "2025 ✅",
-          window: "1Q26-\n4Q26",
-          checkpoint: "4Q25 ✅",
-          quarter: "2Q26",
-        },
-        {
-          initiative:
-            "Blue Buddy: nuevos formatos en bases de conocimiento <strong>(Exp. 5)</strong>",
-          target: "1Q26",
-          window: "",
-          checkpoint: "2Q26",
-          quarter: "",
-        },
-        {
-          initiative:
-            "Blue Buddy: conexión ecosistema agentes <strong>(Exp. 5)</strong>",
-          target: "2Q26-\n3Q26",
-          window: "",
-          checkpoint: "",
-          quarter: "",
-        },
-        {
-          initiative: "Integración BlueBuddy frontal <strong>(Exp. 5)</strong>",
-          target: "2Q26\nDespliegue\na CC en\n2Q26",
-          window: "2Q26",
-          checkpoint: "2026",
-          quarter: "",
-          highlightWindow: true,
-        },
-        {
-          initiative:
-            "Inclusión información comercial genérico <strong>(Exp. 5)</strong>",
-          target: "1Q26",
-          window: "",
-          checkpoint: "3Q26",
-          quarter: "",
-        },
-        {
-          initiative:
-            "Inclusión información comercial personalizado <strong>(Exp. 5)</strong>",
-          target: "2026",
-          window: "2026",
-          checkpoint: "",
-          quarter: "",
-        },
-      ],
+      id: "ES",
+      label: "España",
+      flag: "🇪🇸",
     },
     {
-      title: "Franchise",
-      rows: [
-        {
-          initiative: "Ortodoxia (Mala Praxis) <strong>(Exp. 5 y 6)</strong>",
-          target: "1Q26 ✅\n2Q26",
-          window: "",
-          checkpoint: "",
-          quarter: "",
-        },
-        {
-          initiative: "Llamada 10 (Buena Praxis) <strong>(Exp. 5 y 6)</strong>",
-          target: "2Q26",
-          window: "",
-          checkpoint: "",
-          quarter: "",
-        },
-        {
-          initiative: "Vista Manager/Banker <strong>(Exp. 5 y 6)</strong>",
-          target: "4Q26",
-          window: "",
-          checkpoint: "",
-          quarter: "",
-        },
-      ],
+      id: "MX",
+      label: "México",
+      flag: "🇲🇽",
     },
     {
-      title: "Task Automation",
-      rows: [
-        {
-          initiative:
-            "Levantamiento y primeros casos de uso <strong>(Exp. 7)</strong>",
-          target: "2Q26",
-          window: "",
-          checkpoint: "",
-          quarter: "",
-        },
-      ],
+      id: "PE",
+      label: "Perú",
+      flag: "🇵🇪",
+    },
+    {
+      id: "CO",
+      label: "Colombia",
+      flag: "🇨🇴",
+    },
+    {
+      id: "UY",
+      label: "Uruguay",
+      flag: "🇺🇾",
+    },
+    {
+      id: "AR",
+      label: "Argentina",
+      flag: "🇦🇷",
+    },
+    {
+      id: "TR",
+      label: "Turquía",
+      flag: "🇹🇷",
     },
   ];
 
-  const sectionRows = sections
-    .map((section) => {
-      const rowsHtml = section.rows
+  return {
+    blue: {
+      programId: "blue",
+
+      snapshots: {
+        Q4: {
+          quarter: "Q4",
+          quarterLabel: "4Q26",
+
+          title: "R1 Blue",
+
+          cycle: "2025-2029 Strategic Cycle",
+
+          cashoutReference: "3Q26",
+
+          rcp: 75,
+
+          priorities: [
+            {
+              id: "innovation",
+              label: "Unlock the potential of AI & Innovation",
+              value: 100,
+              color: "#ffe35e",
+            },
+          ],
+
+          countries: countries.map((country) => ({
+            ...country,
+
+            invoice:
+              {
+                ES: "1,93",
+                MX: "6,28",
+                PE: "0,75",
+                CO: "0,54",
+                UY: "0,05",
+                AR: "0,54",
+                TR: "0,29",
+              }[country.id] || "",
+          })),
+
+          headline: "",
+
+          groups: [
+            {
+              title: "Elevar la experiencia de cliente Blue",
+
+              rows: [
+                {
+                  title: "Experiencias avanzadas: movimientos",
+                  experience: "Exp. 2",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "1Q26 ✅",
+                    MX: "2Q26 ✅",
+                    PE: "NA",
+                    CO: "NA",
+                    UY: "NA",
+                    AR: "NA",
+                    TR: "NA",
+                  },
+                },
+
+                {
+                  title: "Experiencia generativa con multiagentes",
+                  experience: "Exp. 3",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "3Q26 ✅",
+                    MX: "3Q26 ✅",
+                    PE: "NA",
+                    CO: "NA",
+                    UY: "NA",
+                    AR: "NA",
+                    TR: "NA",
+                  },
+                },
+
+                {
+                  title: "Implementación AdS",
+                  experience: "",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "NA",
+                    MX: "NA",
+                    PE: "4Q26",
+                    CO: "NA",
+                    UY: "NA",
+                    AR: "4Q26",
+                    TR: "NA",
+                  },
+                },
+              ],
+            },
+
+            {
+              title: "Blue como First Contact Resolution (FCR)",
+
+              rows: [
+                {
+                  title:
+                    "Blue proactivo: primeros casos de venta y asesoramiento",
+                  experience: "Exp. 10",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "3Q26 ✅",
+                    MX: "3Q26 ✅\n4Q26",
+                    PE: "NA",
+                    CO: "NA",
+                    UY: "NA",
+                    AR: "NA",
+                    TR: "NA",
+                  },
+                },
+
+                {
+                  title: "Blue como FCR en Mis Conversaciones",
+                  experience: "Exp. 1",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "1Q26 ✅",
+                    MX: "1Q26 ✅\n4Q26",
+                    PE: "NA",
+                    CO: "NA",
+                    UY: "NA",
+                    AR: "NA",
+                    TR: "NA",
+                  },
+                },
+              ],
+            },
+
+            {
+              title: "Killing the Contact Center",
+              experience: "Exp. 1",
+
+              rows: [
+                {
+                  title: "Voz inbound informacional",
+                  experience: "",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "NA",
+                    MX: "3Q26 ✅\n4Q26",
+                    PE: "NA",
+                    CO: "NA",
+                    UY: "NA",
+                    AR: "NA",
+                    TR: "NA",
+                  },
+                },
+
+                {
+                  title: "Voz inbound operacional",
+                  experience: "",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "NA",
+                    MX: "3Q26 ✅\n4Q26",
+                    PE: "NA",
+                    CO: "NA",
+                    UY: "NA",
+                    AR: "NA",
+                    TR: "NA",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+
+    rosetta: {
+      programId: "rosetta",
+
+      snapshots: {
+        Q4: {
+          quarter: "Q4",
+          quarterLabel: "4Q26",
+
+          title: "R1 Rosetta (Interaction Orchestration)",
+
+          cycle: "2025-2029 Strategic Cycle",
+
+          cashoutReference: "3Q26",
+
+          rcp: 51,
+
+          priorities: [
+            {
+              id: "client",
+              label: "Embed a Radical Client Perspective in all we do",
+              value: 7.4,
+              color: "#81d9e5",
+            },
+
+            {
+              id: "scalability",
+              label: "Evolve Scalability of our Relationship Model",
+              value: 47.1,
+              color: "#8985f3",
+            },
+
+            {
+              id: "innovation",
+              label: "Unlock the potential of AI & Innovation",
+              value: 45.5,
+              color: "#ffe35e",
+            },
+          ],
+
+          countries: countries.map((country) => ({
+            ...country,
+
+            invoice:
+              {
+                ES: "0,68",
+                MX: "2,14",
+                PE: "0,26",
+                CO: "0,19",
+                UY: "0,02",
+                AR: "0,20",
+                TR: "0,10",
+              }[country.id] || "",
+          })),
+
+          headline:
+            "Orchestration as the mechanism to guarantee that Human Bankers only intervene when adding value",
+
+          groups: [
+            {
+              title: "Filtrado y Enrutado",
+
+              rows: [
+                {
+                  title: "Experiencia Blue First Mis Conversaciones",
+                  experience: "Exp. 1 y 10",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "4Q25 ✅\n2026\next DTs",
+                    MX: "4Q26",
+                    PE: "",
+                    CO: "",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+
+                {
+                  title: "Experiencia Blue First Voz",
+                  experience: "Exp. 1 y 10",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "",
+                    MX: "3Q2026\nOrc F3",
+                    PE: "",
+                    CO: "",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+
+                {
+                  title: "Orquestación en canal Blue",
+                  experience: "Exp. 2 y 3",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "TBD",
+                    MX: "Fallbacks\n26 Full",
+                    PE: "",
+                    CO: "",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+
+                {
+                  title: "Orquestación en canal remoto masivo",
+                  experience: "",
+                  global: true,
+                  status: "amber",
+
+                  countries: {
+                    ES: "✅\nGenesys",
+                    MX: "3Q26",
+                    PE: "",
+                    CO: "3Q26\non-hold",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+              ],
+            },
+
+            {
+              title: "Asistencia Proactiva",
+
+              rows: [
+                {
+                  title: "Asistencia proactiva en Contratación",
+                  experience: "Exp. 7",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "2Q25 ✅\n2026",
+                    MX: "3Q26",
+                    PE: "3Q26",
+                    CO: "1Q26 ✅\n(31/03)",
+                    UY: "",
+                    AR: "",
+                    TR: "1Q26 ✅\n(31/03)",
+                  },
+                },
+
+                {
+                  title: "Asistencia proactiva en Servicing",
+                  experience: "Exp. 7",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "3Q25 ✅\n2026",
+                    MX: "",
+                    PE: "",
+                    CO: "",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+              ],
+            },
+
+            {
+              title: "Foresight Interaction",
+
+              rows: [
+                {
+                  title: "Foresight Interaction: Primeros casos de uso",
+                  experience: "Exp. 8",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "(MSA)\n2Q26 ✅\n3Q26",
+                    MX: "TBD",
+                    PE: "",
+                    CO: "",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+              ],
+            },
+
+            {
+              title: "Capacidades y AI Routing Rules",
+
+              rows: [
+                {
+                  title: "Pieza enrutamiento y pase de contexto",
+                  experience: "Exp. 3, 7",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "1Q25 ✅",
+                    MX: "3Q25 ✅",
+                    PE: "3Q26",
+                    CO: "1Q26 ✅\n(31/03)",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+
+    aixbanker: {
+      programId: "aixbanker",
+
+      snapshots: {
+        Q4: {
+          quarter: "Q4",
+          quarterLabel: "4Q26",
+
+          title: "R2 AI Banker for Retail",
+
+          cycle: "2025-2029 Strategic Cycle",
+
+          cashoutReference: "3Q26",
+
+          rcp: 11,
+
+          priorities: [
+            {
+              id: "client",
+              label: "Embed a Radical Client Perspective in all we do",
+              value: 11.3,
+              color: "#81d9e5",
+            },
+
+            {
+              id: "scalability",
+              label: "Evolve Scalability of our Relationship Model",
+              value: 52.7,
+              color: "#8985f3",
+            },
+
+            {
+              id: "innovation",
+              label: "Unlock the potential of AI & Innovation",
+              value: 36,
+              color: "#ffe35e",
+            },
+          ],
+
+          countries: countries.map((country) => ({
+            ...country,
+
+            invoice:
+              {
+                ES: "1,09",
+                MX: "2,31",
+                PE: "0,28",
+                CO: "0,22",
+                UY: "0,02",
+                AR: "0,22",
+                TR: "0,12",
+              }[country.id] || "",
+          })),
+
+          headline: "Create a real Bionic RM (AI x Banker)",
+
+          groups: [
+            {
+              title: "Blue Buddy",
+
+              rows: [
+                {
+                  title: "Despliegue Blue Buddy (knowledge assistant)",
+                  experience: "Exp. 5",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "2Q25 ✅",
+                    MX: "4Q26",
+                    PE: "4Q25 ✅",
+                    CO: "2Q26 ✅",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+
+                {
+                  title: "Blue Buddy: incremento de conocimiento",
+                  experience: "Exp. 5",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "POC y evoluciona\n2Q26 ✅",
+                    MX: "CUC\n4Q26",
+                    PE: "CUC\n2Q26 ✅",
+                    CO: "2027",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+
+                {
+                  title: "Blue Buddy: integración en frontal",
+                  experience: "Exp. 5",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "Salesforce\n2Q26 ✅",
+                    MX: "Salesforce\n4Q26",
+                    PE: "Salesforce\n4Q26",
+                    CO: "AUG\n3Q26",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+
+                {
+                  title: "Blue Buddy: conexión ecosistema agentes",
+                  experience: "Exp. 5",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "Supervisor\n2Q26 ✅\nMarzo\n3Q26",
+                    MX: "Supervisor\n4Q26",
+                    PE: "Supervisor\n2027",
+                    CO: "",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+
+                {
+                  title: "Sales Assistant: competidores",
+                  experience: "Exp. 3 y 5",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "2027",
+                    MX: "4Q26",
+                    PE: "2027",
+                    CO: "TBD",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+
+                {
+                  title: "Sales Assistant: agente de venta",
+                  experience: "Exp. 3 y 5",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "4Q26",
+                    MX: "2027",
+                    PE: "2027",
+                    CO: "TBD",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+              ],
+            },
+
+            {
+              title: "Franchise",
+
+              rows: [
+                {
+                  title: "Ortodoxia (Mala Praxis)",
+                  experience: "Exp. 6",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "POC\n1Q26 ✅\nProducción\n2Q26 ✅",
+                    MX: "TBD",
+                    PE: "TBD",
+                    CO: "",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+
+                {
+                  title: "Llamada 10 (Buena Praxis)",
+                  experience: "Exp. 6",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "3Q26\n4Q26",
+                    MX: "TBD",
+                    PE: "TBD",
+                    CO: "",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+
+                {
+                  title: "Best Practices",
+                  experience: "Exp. 6",
+                  global: true,
+                  status: "green",
+
+                  countries: {
+                    ES: "4Q26",
+                    MX: "TBD",
+                    PE: "TBD",
+                    CO: "",
+                    UY: "",
+                    AR: "",
+                    TR: "",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  };
+}
+
+function getManagementContrastSelectedQuarter(programId) {
+  if (!window.RCS_MANAGEMENT_CONTRAST_QUARTERS) {
+    window.RCS_MANAGEMENT_CONTRAST_QUARTERS = {};
+  }
+
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  return window.RCS_MANAGEMENT_CONTRAST_QUARTERS[normalizedProgramId] || "Q4";
+}
+
+function setManagementContrastSelectedQuarter(programId, quarter) {
+  if (!window.RCS_MANAGEMENT_CONTRAST_QUARTERS) {
+    window.RCS_MANAGEMENT_CONTRAST_QUARTERS = {};
+  }
+
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedQuarter = ["Q1", "Q2", "Q3", "Q4"].includes(quarter)
+    ? quarter
+    : "Q4";
+
+  window.RCS_MANAGEMENT_CONTRAST_QUARTERS[normalizedProgramId] =
+    normalizedQuarter;
+}
+
+function buildManagementContrastPriorityGradient(priorities) {
+  const items = Array.isArray(priorities) ? priorities : [];
+
+  if (!items.length) {
+    return "#eef2f7 0deg 360deg";
+  }
+
+  let current = 0;
+
+  return items
+    .map((priority) => {
+      const value = Math.max(0, Number(priority.value || 0));
+
+      const start = current;
+
+      current += value;
+
+      return `${priority.color} ${start}% ${current}%`;
+    })
+    .join(", ");
+}
+
+function getManagementContrastCellClass(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase();
+
+  if (!normalized) {
+    return "is-empty";
+  }
+
+  if (normalized === "NA") {
+    return "is-na";
+  }
+
+  if (normalized.includes("TBD")) {
+    return "is-tbd";
+  }
+
+  if (normalized.includes("ON-HOLD")) {
+    return "is-risk";
+  }
+
+  if (normalized.includes("2027")) {
+    return "is-future";
+  }
+
+  return "";
+}
+
+function renderManagementContrastCell(value) {
+  const text = String(value || "");
+
+  if (!text) {
+    return "";
+  }
+
+  return rcsEsc(text).replaceAll("\n", "<br>");
+}
+
+function ensureManagementContrastStyles() {
+  if (document.querySelector("#managementContrastStyles")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+
+  style.id = "managementContrastStyles";
+
+  style.textContent = `
+    .management-contrast-view {
+      display: grid;
+      gap: 20px;
+      margin-top: 18px;
+    }
+
+    .management-contrast-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .management-contrast-quarter-selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #ffffff;
+      box-shadow: 0 8px 20px rgba(7, 46, 111, 0.06);
+    }
+
+    .management-contrast-quarter-btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 9px 16px;
+      background: transparent;
+      color: var(--blue);
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .management-contrast-quarter-btn:hover {
+      background: #eef4ff;
+    }
+
+    .management-contrast-quarter-btn.is-active {
+      background: var(--blue);
+      color: #ffffff;
+    }
+
+    .management-contrast-snapshot {
+      display: grid;
+      gap: 20px;
+    }
+
+    .management-contrast-hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      padding: 22px 26px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background:
+        linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 1) 0%,
+          rgba(247, 250, 255, 1) 100%
+        );
+      box-shadow: var(--shadow);
+    }
+
+    .management-contrast-quarter-label {
+      display: inline-block;
+      margin-right: 10px;
+      color: var(--blue);
+      font-family: Georgia, serif;
+      font-size: 34px;
+      font-weight: 400;
+    }
+
+    .management-contrast-hero h2 {
+      display: inline;
+      margin: 0;
+      color: var(--blue);
+      font-size: 38px;
+      line-height: 1.05;
+    }
+
+    .management-contrast-cycle {
+      margin-top: 10px;
+      color: #49aef3;
+      font-family: Georgia, serif;
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .management-contrast-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid #d8e2f2;
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .management-contrast-main {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) minmax(760px, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .management-contrast-side,
+    .management-contrast-table-panel {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: #ffffff;
+      box-shadow: var(--shadow);
+    }
+
+    .management-contrast-side {
+      padding: 22px;
+    }
+
+    .management-contrast-side h3 {
+      margin: 0;
+      color: var(--blue);
+      font-size: 17px;
+      line-height: 1.35;
+    }
+
+    .management-contrast-side-subtitle {
+      margin: 6px 0 0;
+      color: var(--blue);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .management-contrast-donut-shell {
+      display: grid;
+      place-items: center;
+      margin: 28px 0 22px;
+    }
+
+    .management-contrast-donut {
+      position: relative;
+      width: 285px;
+      height: 285px;
+      border-radius: 50%;
+      background: var(--management-priority-gradient);
+      display: grid;
+      place-items: center;
+    }
+
+    .management-contrast-donut::before {
+      content: "";
+      position: absolute;
+      inset: 30px;
+      border-radius: 50%;
+      background: #ffffff;
+    }
+
+    .management-contrast-donut-inner-ring {
+      position: absolute;
+      inset: 42px;
+      border-radius: 50%;
+      background:
+        conic-gradient(
+          #7ad9e5 0 calc(var(--management-rcp) * 1%),
+          #eef1f5 calc(var(--management-rcp) * 1%) 100%
+        );
+      z-index: 1;
+    }
+
+    .management-contrast-donut-inner-ring::before {
+      content: "";
+      position: absolute;
+      inset: 18px;
+      border-radius: 50%;
+      background: #ffffff;
+    }
+
+    .management-contrast-donut-center {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      text-align: center;
+    }
+
+    .management-contrast-donut-center strong {
+      color: #75dbe6;
+      font-size: 30px;
+      line-height: 1;
+    }
+
+    .management-contrast-donut-center span {
+      margin-top: 2px;
+      color: #243da8;
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    .management-contrast-legend {
+      display: grid;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .management-contrast-legend-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .management-contrast-legend-dot {
+      flex: 0 0 auto;
+      width: 11px;
+      height: 11px;
+      margin-top: 2px;
+      border-radius: 50%;
+    }
+
+    .management-contrast-legend-value {
+      margin-left: auto;
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    .management-contrast-note {
+      display: flex;
+      gap: 10px;
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: #55709e;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .management-contrast-footnote {
+      margin-top: 14px;
+      color: #49aef3;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .management-contrast-table-panel {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .management-contrast-table-top {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto;
+      align-items: end;
+      gap: 18px;
+      padding: 18px 20px 12px;
+      border-bottom: 3px solid var(--blue);
+    }
+
+    .management-contrast-table-top h3 {
+      margin: 0;
+      color: #4fb2f4;
+      font-size: 24px;
+    }
+
+    .management-contrast-invoice-label {
+      margin-top: 6px;
+      color: #4fb2f4;
+      font-family: Georgia, serif;
+      font-size: 20px;
+      font-weight: 900;
+      text-align: right;
+    }
+
+    .management-contrast-country-head {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(78px, 1fr));
+      min-width: 620px;
+    }
+
+    .management-contrast-country {
+      display: grid;
+      place-items: center;
+      gap: 4px;
+      min-height: 74px;
+      padding: 6px;
+      border-left: 1px solid #e4e9f2;
+    }
+
+    .management-contrast-country-flag {
+      font-size: 30px;
+      line-height: 1;
+    }
+
+    .management-contrast-country strong {
+      color: var(--blue);
+      font-family: Georgia, serif;
+      font-size: 17px;
+    }
+
+    .management-contrast-table-scroll {
+      overflow-x: auto;
+    }
+
+    .management-contrast-table {
+      width: 100%;
+      min-width: 990px;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .management-contrast-table col.management-contrast-name-col {
+      width: 38%;
+    }
+
+    .management-contrast-table col.management-contrast-icon-col {
+      width: 48px;
+    }
+
+    .management-contrast-table col.management-contrast-status-col {
+      width: 48px;
+    }
+
+    .management-contrast-table th,
+    .management-contrast-table td {
+      border-bottom: 1px solid #e8edf5;
+      border-right: 1px solid #e8edf5;
+      padding: 10px 9px;
+      vertical-align: middle;
+      text-align: center;
+    }
+
+    .management-contrast-table td:first-child {
+      text-align: left;
+    }
+
+    .management-contrast-headline-row th {
+      padding: 9px 16px;
+      background: #f1f2f4;
+      color: #092d68;
+      font-family: Georgia, serif;
+      font-size: 16px;
+      text-align: left;
+    }
+
+    .management-contrast-group-row th {
+      padding: 9px 16px;
+      background: #f5f5f5;
+      color: #183d72;
+      font-family: Georgia, serif;
+      font-size: 16px;
+      text-align: left;
+    }
+
+    .management-contrast-group-experience {
+      color: #756af0;
+      font-weight: 900;
+    }
+
+    .management-contrast-deliverable {
+      color: #52729f;
+      font-family: Georgia, serif;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .management-contrast-experience {
+      color: #766bf2;
+      font-weight: 900;
+    }
+
+    .management-contrast-global {
+      font-size: 23px;
+    }
+
+    .management-contrast-status {
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+    }
+
+    .management-contrast-status.is-green {
+      background:
+        radial-gradient(
+          circle at 35% 30%,
+          #a9efbd 0%,
+          #53cc7c 58%,
+          #2ea85a 100%
+        );
+    }
+
+    .management-contrast-status.is-amber {
+      background:
+        radial-gradient(
+          circle at 35% 30%,
+          #ffe897 0%,
+          #eab844 58%,
+          #cf9321 100%
+        );
+    }
+
+    .management-contrast-country-cell {
+      color: #3c659b;
+      font-family: Georgia, serif;
+      font-size: 12px;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+
+    .management-contrast-country-cell.is-na,
+    .management-contrast-country-cell.is-tbd,
+    .management-contrast-country-cell.is-future {
+      color: #8a94a8;
+      font-style: italic;
+    }
+
+    .management-contrast-country-cell.is-risk {
+      color: #a47b28;
+    }
+
+    .management-contrast-empty {
+      display: grid;
+      place-items: center;
+      min-height: 390px;
+      padding: 40px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: #ffffff;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .management-contrast-empty strong {
+      display: block;
+      color: var(--blue);
+      font-family: Georgia, serif;
+      font-size: 28px;
+    }
+
+    .management-contrast-empty p {
+      max-width: 520px;
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 1300px) {
+      .management-contrast-main {
+        grid-template-columns: 1fr;
+      }
+
+      .management-contrast-side {
+        display: grid;
+        grid-template-columns: minmax(240px, 0.7fr) minmax(300px, 1fr);
+        column-gap: 28px;
+      }
+
+      .management-contrast-side-copy {
+        grid-column: 1;
+      }
+
+      .management-contrast-donut-shell {
+        grid-column: 2;
+        grid-row: 1 / span 3;
+        margin: 0;
+      }
+    }
+
+    @media (max-width: 850px) {
+      .management-contrast-hero,
+      .management-contrast-toolbar,
+      .management-contrast-table-top {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .management-contrast-side {
+        display: block;
+      }
+
+      .management-contrast-donut {
+        width: 240px;
+        height: 240px;
+      }
+
+      .management-contrast-invoice-label {
+        text-align: left;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function renderManagementContrastPriorityLegend(snapshot) {
+  return (snapshot.priorities || [])
+    .map(
+      (priority) => `
+        <div class="management-contrast-legend-item">
+          <span
+            class="management-contrast-legend-dot"
+            style="background:${rcsEsc(priority.color)}"
+            aria-hidden="true"
+          ></span>
+
+          <span>
+            ${rcsEsc(priority.label)}
+          </span>
+
+          <span class="management-contrast-legend-value">
+            ${rcsEsc(
+              Number(priority.value || 0).toLocaleString("es-ES", {
+                maximumFractionDigits: 1,
+              }),
+            )}%
+          </span>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function renderManagementContrastCountryHeader(snapshot) {
+  return `
+    <div class="management-contrast-country-head">
+      ${(snapshot.countries || [])
+        .map(
+          (country) => `
+            <div
+              class="management-contrast-country"
+              title="${rcsEsc(country.label)}"
+            >
+              <span class="management-contrast-country-flag">
+                ${rcsEsc(country.flag)}
+              </span>
+
+              <strong>
+                ${rcsEsc(country.invoice)}
+              </strong>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderManagementContrastTable(snapshot) {
+  const countryIds = (snapshot.countries || []).map((country) => country.id);
+
+  const countryColumns = countryIds.map(() => "<col>").join("");
+
+  const headline = snapshot.headline
+    ? `
+      <tr class="management-contrast-headline-row">
+        <th colspan="${3 + countryIds.length}">
+          ${rcsEsc(snapshot.headline)}
+        </th>
+      </tr>
+    `
+    : "";
+
+  const groups = (snapshot.groups || [])
+    .map((group) => {
+      const groupExperience = group.experience
+        ? `
+          <span class="management-contrast-group-experience">
+            (${rcsEsc(group.experience)})
+          </span>
+        `
+        : "";
+
+      const rows = (group.rows || [])
         .map((row) => {
+          const experience = row.experience
+            ? `
+              <span class="management-contrast-experience">
+                (${rcsEsc(row.experience)})
+              </span>
+            `
+            : "";
+
           return `
             <tr>
-              <td class="management-cv-bullet">•</td>
-              <td class="management-cv-initiative">${row.initiative}</td>
-              <td class="management-cv-icon-cell">🌍</td>
-              <td class="management-cv-icon-cell">
-                <span class="management-cv-status-dot"></span>
+              <td>
+                <span class="management-contrast-deliverable">
+                  ${rcsEsc(row.title)}
+                  ${experience}
+                </span>
               </td>
-              <td class="management-cv-time">${row.target || ""}</td>
-              <td class="management-cv-time ${row.highlightWindow ? "is-highlight" : ""}">${row.window || ""}</td>
-              <td class="management-cv-time">${row.checkpoint || ""}</td>
-              <td class="management-cv-time">${row.quarter || ""}</td>
+
+              <td>
+                ${
+                  row.global
+                    ? `
+                      <span
+                        class="management-contrast-global"
+                        title="Desarrollo global"
+                      >
+                        🌍
+                      </span>
+                    `
+                    : ""
+                }
+              </td>
+
+              <td>
+                <span
+                  class="
+                    management-contrast-status
+                    ${row.status === "amber" ? "is-amber" : "is-green"}
+                  "
+                  aria-label="${
+                    row.status === "amber" ? "Atención" : "En curso"
+                  }"
+                ></span>
+              </td>
+
+              ${countryIds
+                .map((countryId) => {
+                  const value = row.countries?.[countryId] || "";
+
+                  return `
+                    <td
+                      class="
+                        management-contrast-country-cell
+                        ${getManagementContrastCellClass(value)}
+                      "
+                    >
+                      ${renderManagementContrastCell(value)}
+                    </td>
+                  `;
+                })
+                .join("")}
             </tr>
           `;
         })
         .join("");
 
       return `
-        <tr class="management-cv-section-row">
-          <td colspan="8">${section.title}</td>
+        <tr class="management-contrast-group-row">
+          <th colspan="${3 + countryIds.length}">
+            ${rcsEsc(group.title)}
+            ${groupExperience}
+          </th>
         </tr>
-        ${rowsHtml}
+
+        ${rows}
       `;
     })
     .join("");
 
-  board.innerHTML = `
-    <section class="management-cv-hero">
-      <div>
-        <p class="management-cv-hero-kicker">2Q26</p>
-        <h2 class="management-cv-hero-title">R2 AI Banker for Retail</h2>
-      </div>
+  return `
+    <div class="management-contrast-table-scroll">
+      <table class="management-contrast-table">
+        <colgroup>
+          <col class="management-contrast-name-col">
+          <col class="management-contrast-icon-col">
+          <col class="management-contrast-status-col">
+          ${countryColumns}
+        </colgroup>
 
-      <span class="management-cv-hero-tag">
-        RCS | C&V 2Q26
-      </span>
-    </section>
+        <tbody>
+          ${headline}
+          ${groups}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
 
-    <section class="management-cv-layout">
-      <article class="management-cv-panel">
-        <h3>
-          Peso (%) Entregables asociados a las prioridades RCS
-        </h3>
+function renderManagementContrastSnapshot(snapshot) {
+  const gradient = buildManagementContrastPriorityGradient(snapshot.priorities);
 
-        <p>
-          (ponderado por Cashout solicitado 2Q26 del proyecto/entregables)
-        </p>
+  return `
+    <section class="management-contrast-snapshot">
 
-        <div class="management-cv-donut-wrap">
-          <div class="management-cv-donut">
-            <div class="management-cv-donut-center">
-              <strong>6%</strong>
-              <span>RCP</span>
+      <header class="management-contrast-hero">
+        <div>
+          <div>
+            <span class="management-contrast-quarter-label">
+              ${rcsEsc(snapshot.quarterLabel)}
+            </span>
+
+            <h2>
+              ${rcsEsc(snapshot.title)}
+            </h2>
+          </div>
+
+          <div class="management-contrast-cycle">
+            ${rcsEsc(snapshot.cycle)}
+          </div>
+        </div>
+
+        <div class="management-contrast-brand">
+          📊 RCS | C&V ${rcsEsc(snapshot.quarterLabel)}
+        </div>
+      </header>
+
+      <section class="management-contrast-main">
+
+        <aside class="management-contrast-side">
+
+          <div class="management-contrast-side-copy">
+            <h3>
+              Peso (%) Entregables asociados a las prioridades RCS
+            </h3>
+
+            <p class="management-contrast-side-subtitle">
+              (ponderado por Cashout solicitado
+              ${rcsEsc(snapshot.cashoutReference)}
+              del proyecto/entregables)
+            </p>
+
+            <div class="management-contrast-legend">
+              ${renderManagementContrastPriorityLegend(snapshot)}
+            </div>
+
+            <div class="management-contrast-note">
+              <span aria-hidden="true">
+                🌍
+              </span>
+
+              <span>
+                Desarrollo SW, no incluye acompañamientos
+                a países, planes estratégicos,
+                definiciones, etc.
+              </span>
+            </div>
+
+            <div class="management-contrast-footnote">
+              (*) no incluye mark-up ni impuestos locales
             </div>
           </div>
-        </div>
 
-        <div class="management-cv-legend">
-          <div class="management-cv-legend-item">
-            <span class="management-cv-legend-dot" style="background:#87d7e3;"></span>
-            <span>Embed a Radical Client Perspective in all we do</span>
+          <div class="management-contrast-donut-shell">
+            <div
+              class="management-contrast-donut"
+              style="
+                --management-priority-gradient:
+                  conic-gradient(${gradient});
+                --management-rcp:${Number(snapshot.rcp || 0)};
+              "
+            >
+              <div class="management-contrast-donut-inner-ring"></div>
+
+              <div class="management-contrast-donut-center">
+                <strong>
+                  ${rcsEsc(snapshot.rcp)}%
+                </strong>
+
+                <span>
+                  RCP
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div class="management-cv-legend-item">
-            <span class="management-cv-legend-dot" style="background:#8a88f1;"></span>
-            <span>Evolve Scalability of our Relationship Model</span>
+        </aside>
+
+        <section class="management-contrast-table-panel">
+
+          <div class="management-contrast-table-top">
+            <div>
+              <h3>
+                ${rcsEsc(snapshot.cycle)}
+              </h3>
+
+              <div class="management-contrast-invoice-label">
+                FIG Invoice M€*
+              </div>
+            </div>
+
+            ${renderManagementContrastCountryHeader(snapshot)}
           </div>
 
-          <div class="management-cv-legend-item">
-            <span class="management-cv-legend-dot" style="background:#f0d94f;"></span>
-            <span>Unlock the potential of AI & Innovation</span>
-          </div>
-        </div>
+          ${renderManagementContrastTable(snapshot)}
 
-        <div class="management-cv-note">
-          <div class="management-cv-note-icon">🌍</div>
-          <div>
-            Desarrollo SW, no incluye acompañamientos a países, planes estratégicos,
-            definiciones, etc.
-          </div>
-        </div>
-      </article>
+        </section>
 
-      <article class="management-cv-panel management-cv-table-panel">
-        <div class="management-cv-table-header">
-          <h3 class="management-cv-table-title">2025-2029 Strategic Cycle</h3>
+      </section>
 
-          <div class="management-cv-flags">
-            <span class="management-cv-flag">🇪🇸</span>
-            <span class="management-cv-flag">🇲🇽</span>
-            <span class="management-cv-flag">🇵🇪</span>
-            <span class="management-cv-flag">🇨🇴</span>
-            <span class="management-cv-flag">🇺🇾</span>
-            <span class="management-cv-flag">🇦🇷</span>
-            <span class="management-cv-flag">🇹🇷</span>
-          </div>
-        </div>
-
-        <table class="management-cv-table">
-          <thead>
-            <tr>
-              <th style="width: 34px;"></th>
-              <th>Create a real Bionic RM (AI x Banker)</th>
-              <th style="width: 70px;">Ámbito</th>
-              <th style="width: 70px;">Estado</th>
-              <th style="width: 110px;">Target</th>
-              <th style="width: 110px;">Ventana</th>
-              <th style="width: 110px;">Checkpoint</th>
-              <th style="width: 90px;">Quarter</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            ${sectionRows}
-          </tbody>
-        </table>
-
-        <p class="management-cv-caption">
-          Primera versión estática para replicar la vista de Contraste y Validación RCS.
-          El siguiente paso será sustituir estos datos fijos por origen real.
-        </p>
-      </article>
     </section>
   `;
 }
+
+function renderManagementContrastValidationView(programId) {
+  ensureManagementContrastStyles();
+
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const program = (DATA.programs || []).find(
+    (item) =>
+      String(item.id || "")
+        .trim()
+        .toLowerCase() === normalizedProgramId,
+  );
+
+  const contrastData = getManagementContrastData();
+
+  const programContrast = contrastData[normalizedProgramId];
+
+  const selectedQuarter =
+    getManagementContrastSelectedQuarter(normalizedProgramId);
+
+  const snapshot = programContrast?.snapshots?.[selectedQuarter] || null;
+
+  setHead(
+    `${program?.name || "Programa"} · Contraste y Validación RCS`,
+    "Seguimiento ejecutivo trimestral de contraste y validación.",
+    `Retail Client Solutions > ${
+      program?.name || programId
+    } > Management Reports > Contraste y Validación RCS`,
+  );
+
+  view.innerHTML = `
+    <section class="management-contrast-view">
+
+      <div class="management-contrast-toolbar">
+
+        <button
+          class="ghost-button"
+          type="button"
+          data-route="projects/${rcsEsc(programId)}"
+        >
+          ← Volver a Management Reports
+        </button>
+
+        <div
+          class="management-contrast-quarter-selector"
+          aria-label="Seleccionar trimestre"
+        >
+          ${["Q1", "Q2", "Q3", "Q4"]
+            .map(
+              (quarter) => `
+                <button
+                  class="
+                    management-contrast-quarter-btn
+                    ${selectedQuarter === quarter ? "is-active" : ""}
+                  "
+                  type="button"
+                  data-management-contrast-quarter="${quarter}"
+                >
+                  ${quarter.replace("Q", "")}Q26
+                </button>
+              `,
+            )
+            .join("")}
+        </div>
+
+      </div>
+
+      <div id="managementContrastContent">
+        ${
+          snapshot
+            ? renderManagementContrastSnapshot(snapshot)
+            : `
+              <section class="management-contrast-empty">
+                <div>
+                  <strong>
+                    ${rcsEsc(selectedQuarter.replace("Q", "") + "Q26")}
+                  </strong>
+
+                  <p>
+                    Todavía no hay un snapshot de
+                    Contraste y Validación RCS
+                    cargado para este trimestre.
+                  </p>
+                </div>
+              </section>
+            `
+        }
+      </div>
+
+    </section>
+  `;
+
+  document
+    .querySelectorAll("[data-management-contrast-quarter]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const quarter = String(
+          button.dataset.managementContrastQuarter || "",
+        ).trim();
+
+        setManagementContrastSelectedQuarter(normalizedProgramId, quarter);
+
+        renderManagementContrastValidationView(normalizedProgramId);
+      });
+    });
+}
+
 function renderManagementDemosView(programId) {
   const program = (DATA.programs || []).find((item) => item.id === programId);
 
