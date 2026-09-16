@@ -9206,36 +9206,36 @@ function renderProjectsView(programId) {
     <article class="management-report-card">
       <div class="management-report-card-top">
         <div>
-          <h3>Demos</h3>
+          <h3>Contraste y Validación RCS</h3>
 
           <p>
-            Demostraciones ejecutivas de productos
-            y capacidades de AIxBanker.
+            Vista ejecutiva de contraste y validación
+            para seguimiento trimestral y estratégico.
           </p>
         </div>
 
         <span class="management-report-badge">
-          2 demos
+          2Q26
         </span>
       </div>
 
       <div class="management-report-card-kpis">
-        <span>Sales Assistant</span>
-        <span>Blue Buddy</span>
-        <span>Vídeo</span>
+        <span>Strategic cycle</span>
+        <span>Peso RCS</span>
+        <span>Países</span>
       </div>
 
       <div class="management-report-card-footer">
         <span class="management-report-caption">
-          Material de demostración disponible.
+          Vista inicial basada en el reporting de contraste y validación.
         </span>
 
         <button
           class="management-report-card-link"
           type="button"
-          data-route="management-demos/${rcsEsc(programId)}"
+          onclick="renderManagementContrastValidationView('${programId}')"
         >
-          Ver demos →
+          Abrir vista →
         </button>
       </div>
     </article>
@@ -9286,6 +9286,333 @@ function renderProjectsView(programId) {
         </button>
       </div>
     </article>
+
+    <article class="management-report-card is-disabled">
+      <div class="management-report-card-top">
+        <div>
+          <h3>Space</h3>
+
+          <p>
+            Visión ejecutiva SPACE para seguimiento
+            de experiencias y evolución de producto.
+          </p>
+        </div>
+
+        <span class="management-report-badge is-soon">
+          Próximamente
+        </span>
+      </div>
+
+      <div class="management-report-card-kpis">
+        <span>Experiencias</span>
+        <span>Visión SPACE</span>
+        <span>Seguimiento</span>
+      </div>
+
+      <div class="management-report-card-footer">
+        <span class="management-report-caption">
+          Módulo pendiente de activación.
+        </span>
+
+        <button
+          class="management-report-card-link is-disabled"
+          type="button"
+          disabled
+          aria-disabled="true"
+        >
+          Próximamente
+        </button>
+      </div>
+    </article>
+
+    <article class="management-report-card">
+      <div class="management-report-card-top">
+        <div>
+          <h3>Demos</h3>
+
+          <p>
+            Demostraciones ejecutivas de productos
+            y capacidades de AIxBanker.
+          </p>
+        </div>
+
+        <span class="management-report-badge">
+          2 demos
+        </span>
+      </div>
+
+      <div class="management-report-card-kpis">
+        <span>Sales Assistant</span>
+        <span>Blue Buddy</span>
+        <span>Vídeo</span>
+      </div>
+
+      <div class="management-report-card-footer">
+        <span class="management-report-caption">
+          Material de demostración disponible.
+        </span>
+
+        <button
+          class="management-report-card-link"
+          type="button"
+          data-route="management-demos/${rcsEsc(programId)}"
+        >
+          Ver demos →
+        </button>
+      </div>
+    </article>
+  `;
+}
+function renderManagementContrastValidationView(programId) {
+  const program = (DATA.programs || []).find((item) => item.id === programId);
+
+  view.innerHTML = "";
+  view.append(tpl("#management-contrast-validation-template"));
+
+  setHead(
+    `${program?.name || "Programa"} · Contraste y Validación RCS`,
+    "Vista ejecutiva de contraste y validación.",
+    `Retail Client Solutions > ${
+      program?.name || programId
+    } > Management Reports > Contraste y Validación RCS`,
+  );
+
+  const backButton = document.querySelector("#managementContrastBackBtn");
+
+  if (backButton) {
+    backButton.addEventListener("click", () => {
+      renderProjectsView(programId);
+    });
+  }
+
+  const board = document.querySelector("#managementContrastValidationBoard");
+
+  if (!board) {
+    return;
+  }
+
+  const sections = [
+    {
+      title: "Blue Buddy",
+      rows: [
+        {
+          initiative:
+            "Despliegue Blue Buddy (knowledge assistant) <strong>(Exp. 5)</strong>",
+          target: "2025 ✅",
+          window: "1Q26-\n4Q26",
+          checkpoint: "4Q25 ✅",
+          quarter: "2Q26",
+        },
+        {
+          initiative:
+            "Blue Buddy: nuevos formatos en bases de conocimiento <strong>(Exp. 5)</strong>",
+          target: "1Q26",
+          window: "",
+          checkpoint: "2Q26",
+          quarter: "",
+        },
+        {
+          initiative:
+            "Blue Buddy: conexión ecosistema agentes <strong>(Exp. 5)</strong>",
+          target: "2Q26-\n3Q26",
+          window: "",
+          checkpoint: "",
+          quarter: "",
+        },
+        {
+          initiative: "Integración BlueBuddy frontal <strong>(Exp. 5)</strong>",
+          target: "2Q26\nDespliegue\na CC en\n2Q26",
+          window: "2Q26",
+          checkpoint: "2026",
+          quarter: "",
+          highlightWindow: true,
+        },
+        {
+          initiative:
+            "Inclusión información comercial genérico <strong>(Exp. 5)</strong>",
+          target: "1Q26",
+          window: "",
+          checkpoint: "3Q26",
+          quarter: "",
+        },
+        {
+          initiative:
+            "Inclusión información comercial personalizado <strong>(Exp. 5)</strong>",
+          target: "2026",
+          window: "2026",
+          checkpoint: "",
+          quarter: "",
+        },
+      ],
+    },
+    {
+      title: "Franchise",
+      rows: [
+        {
+          initiative: "Ortodoxia (Mala Praxis) <strong>(Exp. 5 y 6)</strong>",
+          target: "1Q26 ✅\n2Q26",
+          window: "",
+          checkpoint: "",
+          quarter: "",
+        },
+        {
+          initiative: "Llamada 10 (Buena Praxis) <strong>(Exp. 5 y 6)</strong>",
+          target: "2Q26",
+          window: "",
+          checkpoint: "",
+          quarter: "",
+        },
+        {
+          initiative: "Vista Manager/Banker <strong>(Exp. 5 y 6)</strong>",
+          target: "4Q26",
+          window: "",
+          checkpoint: "",
+          quarter: "",
+        },
+      ],
+    },
+    {
+      title: "Task Automation",
+      rows: [
+        {
+          initiative:
+            "Levantamiento y primeros casos de uso <strong>(Exp. 7)</strong>",
+          target: "2Q26",
+          window: "",
+          checkpoint: "",
+          quarter: "",
+        },
+      ],
+    },
+  ];
+
+  const sectionRows = sections
+    .map((section) => {
+      const rowsHtml = section.rows
+        .map((row) => {
+          return `
+            <tr>
+              <td class="management-cv-bullet">•</td>
+              <td class="management-cv-initiative">${row.initiative}</td>
+              <td class="management-cv-icon-cell">🌍</td>
+              <td class="management-cv-icon-cell">
+                <span class="management-cv-status-dot"></span>
+              </td>
+              <td class="management-cv-time">${row.target || ""}</td>
+              <td class="management-cv-time ${row.highlightWindow ? "is-highlight" : ""}">${row.window || ""}</td>
+              <td class="management-cv-time">${row.checkpoint || ""}</td>
+              <td class="management-cv-time">${row.quarter || ""}</td>
+            </tr>
+          `;
+        })
+        .join("");
+
+      return `
+        <tr class="management-cv-section-row">
+          <td colspan="8">${section.title}</td>
+        </tr>
+        ${rowsHtml}
+      `;
+    })
+    .join("");
+
+  board.innerHTML = `
+    <section class="management-cv-hero">
+      <div>
+        <p class="management-cv-hero-kicker">2Q26</p>
+        <h2 class="management-cv-hero-title">R2 AI Banker for Retail</h2>
+      </div>
+
+      <span class="management-cv-hero-tag">
+        RCS | C&V 2Q26
+      </span>
+    </section>
+
+    <section class="management-cv-layout">
+      <article class="management-cv-panel">
+        <h3>
+          Peso (%) Entregables asociados a las prioridades RCS
+        </h3>
+
+        <p>
+          (ponderado por Cashout solicitado 2Q26 del proyecto/entregables)
+        </p>
+
+        <div class="management-cv-donut-wrap">
+          <div class="management-cv-donut">
+            <div class="management-cv-donut-center">
+              <strong>6%</strong>
+              <span>RCP</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="management-cv-legend">
+          <div class="management-cv-legend-item">
+            <span class="management-cv-legend-dot" style="background:#87d7e3;"></span>
+            <span>Embed a Radical Client Perspective in all we do</span>
+          </div>
+
+          <div class="management-cv-legend-item">
+            <span class="management-cv-legend-dot" style="background:#8a88f1;"></span>
+            <span>Evolve Scalability of our Relationship Model</span>
+          </div>
+
+          <div class="management-cv-legend-item">
+            <span class="management-cv-legend-dot" style="background:#f0d94f;"></span>
+            <span>Unlock the potential of AI & Innovation</span>
+          </div>
+        </div>
+
+        <div class="management-cv-note">
+          <div class="management-cv-note-icon">🌍</div>
+          <div>
+            Desarrollo SW, no incluye acompañamientos a países, planes estratégicos,
+            definiciones, etc.
+          </div>
+        </div>
+      </article>
+
+      <article class="management-cv-panel management-cv-table-panel">
+        <div class="management-cv-table-header">
+          <h3 class="management-cv-table-title">2025-2029 Strategic Cycle</h3>
+
+          <div class="management-cv-flags">
+            <span class="management-cv-flag">🇪🇸</span>
+            <span class="management-cv-flag">🇲🇽</span>
+            <span class="management-cv-flag">🇵🇪</span>
+            <span class="management-cv-flag">🇨🇴</span>
+            <span class="management-cv-flag">🇺🇾</span>
+            <span class="management-cv-flag">🇦🇷</span>
+            <span class="management-cv-flag">🇹🇷</span>
+          </div>
+        </div>
+
+        <table class="management-cv-table">
+          <thead>
+            <tr>
+              <th style="width: 34px;"></th>
+              <th>Create a real Bionic RM (AI x Banker)</th>
+              <th style="width: 70px;">Ámbito</th>
+              <th style="width: 70px;">Estado</th>
+              <th style="width: 110px;">Target</th>
+              <th style="width: 110px;">Ventana</th>
+              <th style="width: 110px;">Checkpoint</th>
+              <th style="width: 90px;">Quarter</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${sectionRows}
+          </tbody>
+        </table>
+
+        <p class="management-cv-caption">
+          Primera versión estática para replicar la vista de Contraste y Validación RCS.
+          El siguiente paso será sustituir estos datos fijos por origen real.
+        </p>
+      </article>
+    </section>
   `;
 }
 function renderManagementDemosView(programId) {
