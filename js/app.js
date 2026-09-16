@@ -13300,49 +13300,589 @@ function getManagementRoadmapRows(programId, productId, countryId) {
       (left, right) => Number(left.order || 999) - Number(right.order || 999),
     );
 }
+function getManagementRoadmapQuarterIndex(quarter) {
+  return (
+    {
+      Q1: 0,
+      Q2: 1,
+      Q3: 2,
+      Q4: 3,
+    }[
+      String(quarter || "")
+        .trim()
+        .toUpperCase()
+    ] ?? -1
+  );
+}
 
-function renderManagementRoadmapQuarterCell(row, quarter) {
-  const active = row?.quarterCoverage?.[quarter] === true;
+function getManagementRoadmapQuarterBounds(year, quarter) {
+  const normalizedYear = Number(year);
 
-  const signal = String(row?.quarterSignals?.[quarter] || "")
+  const quarterIndex = getManagementRoadmapQuarterIndex(quarter);
+
+  if (!Number.isFinite(normalizedYear) || quarterIndex < 0) {
+    return null;
+  }
+
+  const start = new Date(
+    Date.UTC(normalizedYear, quarterIndex * 3, 1, 0, 0, 0, 0),
+  );
+
+  const end = new Date(
+    Date.UTC(normalizedYear, quarterIndex * 3 + 3, 0, 23, 59, 59, 999),
+  );
+
+  return {
+    start,
+    end,
+  };
+}
+
+function parseManagementRoadmapDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value;
+  }
+
+  const timestamp = Date.parse(String(value).trim());
+
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+
+  return new Date(timestamp);
+}
+
+function getManagementRoadmapQuarterFromText(value) {
+  const text = String(value || "")
     .trim()
-    .toLowerCase();
+    .toUpperCase();
 
-  const classes = [
-    "management-deliverables-quarter",
-    active ? "is-active" : "",
-    signal ? `is-${signal}` : "",
-  ]
+  if (!text) {
+    return "";
+  }
+
+  const qFirst = text.match(/\bQ\s*([1-4])\b/i);
+
+  if (qFirst) {
+    return `Q${qFirst[1]}`;
+  }
+
+  const numberFirst = text.match(/\b([1-4])\s*Q\b/i);
+
+  if (numberFirst) {
+    return `Q${numberFirst[1]}`;
+  }
+
+  /*
+   * También cubrimos formatos:
+   *
+   * 2Q26
+   * 3Q2026
+   */
+  const compact = text.match(/(?:^|[^0-9])([1-4])Q(?:20)?\d{2}(?:[^0-9]|$)/i);
+
+  if (compact) {
+    return `Q${compact[1]}`;
+  }
+
+  return "";
+}
+
+function getManagementRoadmapFeaturePlanningRange(feature, year) {
+  if (!feature) {
+    return null;
+  }
+
+  let start = parseManagementRoadmapDate(feature.startDate);
+
+  let end = parseManagementRoadmapDate(feature.targetDate || feature.endDate);
+
+  /*
+   * El importador JIRA ya convierte
+   * Program Increment / PI Estimate
+   * en fechas cuando puede.
+   *
+   * Este fallback cubre Features
+   * antiguas que todavía no tengan
+   * esas fechas normalizadas.
+   */
+  if (!start && !end) {
+    const planningQuarter = getManagementRoadmapQuarterFromText(
+      [feature.programIncrement, feature.piEstimate].filter(Boolean).join(" "),
+    );
+
+    if (planningQuarter) {
+      return getManagementRoadmapQuarterBounds(year, planningQuarter);
+    }
+
+    return null;
+  }
+
+  /*
+   * Si sólo conocemos uno de los extremos,
+   * utilizamos ese punto como planificación
+   * del Feature.
+   */
+  if (!start) {
+    start = end;
+  }
+
+  if (!end) {
+    end = start;
+  }
+
+  if (!start || !end) {
+    return null;
+  }
+
+  /*
+   * Protección ante datos intercambiados.
+   */
+  if (start.getTime() > end.getTime()) {
+    return {
+      start: end,
+      end: start,
+    };
+  }
+
+  return {
+    start,
+    end,
+  };
+}
+
+function managementRoadmapFeatureIsInQuarter(feature, year, quarter) {
+  const quarterBounds = getManagementRoadmapQuarterBounds(year, quarter);
+
+  const planningRange = getManagementRoadmapFeaturePlanningRange(feature, year);
+
+  if (!quarterBounds || !planningRange) {
+    return false;
+  }
+
+  /*
+   * Hay planificación en el trimestre
+   * cuando ambas ventanas se solapan.
+   */
+  return (
+    planningRange.start.getTime() <= quarterBounds.end.getTime() &&
+    planningRange.end.getTime() >= quarterBounds.start.getTime()
+  );
+}
+
+function managementRoadmapSdaDeliverableIsInQuarter(
+  deliverable,
+  year,
+  quarter,
+) {
+  if (!deliverable) {
+    return false;
+  }
+
+  const targetQuarterIndex = getManagementRoadmapQuarterIndex(quarter);
+
+  if (targetQuarterIndex < 0) {
+    return false;
+  }
+
+  const startQuarter = getManagementRoadmapQuarterFromText(
+    deliverable.startQuarter,
+  );
+
+  const endQuarter = getManagementRoadmapQuarterFromText(
+    deliverable.endQuarter,
+  );
+
+  const startIndex = getManagementRoadmapQuarterIndex(startQuarter);
+
+  const endIndex = getManagementRoadmapQuarterIndex(endQuarter);
+
+  /*
+   * Caso normal:
+   *
+   * SDA informa trimestre inicial
+   * y trimestre final.
+   */
+  if (startIndex >= 0 && endIndex >= 0) {
+    return (
+      targetQuarterIndex >= Math.min(startIndex, endIndex) &&
+      targetQuarterIndex <= Math.max(startIndex, endIndex)
+    );
+  }
+
+  if (startIndex >= 0) {
+    return targetQuarterIndex === startIndex;
+  }
+
+  if (endIndex >= 0) {
+    return targetQuarterIndex === endIndex;
+  }
+
+  /*
+   * Fallback a las fechas SDA.
+   *
+   * Preferimos clientDate,
+   * después productionDate
+   * y finalmente developmentEndDate.
+   */
+  const date = parseManagementRoadmapDate(
+    deliverable.clientDate ||
+      deliverable.productionDate ||
+      deliverable.developmentEndDate,
+  );
+
+  if (!date) {
+    return false;
+  }
+
+  const quarterBounds = getManagementRoadmapQuarterBounds(year, quarter);
+
+  if (!quarterBounds) {
+    return false;
+  }
+
+  return (
+    date.getTime() >= quarterBounds.start.getTime() &&
+    date.getTime() <= quarterBounds.end.getTime()
+  );
+}
+
+function getManagementRoadmapQuarterData(row, quarter) {
+  const year = Number(row?.year) || new Date().getFullYear();
+
+  const links = getManagementRoadmapLinksForLine(row?.id);
+
+  if (!links.length) {
+    return {
+      hasAssociation: false,
+
+      totalFeatures: 0,
+
+      deployedFeatures: 0,
+
+      progress: null,
+
+      sdaPlanned: false,
+
+      status: "unmapped",
+    };
+  }
+
+  const allFeatures = getManagementFeaturesForLine(row.id);
+
+  const quarterFeatures = allFeatures.filter((feature) =>
+    managementRoadmapFeatureIsInQuarter(feature, year, quarter),
+  );
+
+  const deployedFeatures = quarterFeatures.filter(isManagementFeatureDeployed);
+
+  const totalFeatures = quarterFeatures.length;
+
+  const deployedCount = deployedFeatures.length;
+
+  const progress =
+    totalFeatures > 0
+      ? Math.round((deployedCount / totalFeatures) * 100)
+      : null;
+
+  const sdaPlanned = links.some((link) => {
+    const deliverable = getManagementSdaDeliverable(link);
+
+    return managementRoadmapSdaDeliverableIsInQuarter(
+      deliverable,
+      year,
+      quarter,
+    );
+  });
+
+  let status = "empty";
+
+  if (totalFeatures > 0 && deployedCount === totalFeatures) {
+    status = "complete";
+  } else if (deployedCount > 0) {
+    status = "progress";
+  } else if (totalFeatures > 0) {
+    status = "planned";
+  } else if (sdaPlanned) {
+    status = "sda";
+  }
+
+  return {
+    hasAssociation: true,
+
+    totalFeatures,
+
+    deployedFeatures: deployedCount,
+
+    progress,
+
+    sdaPlanned,
+
+    status,
+  };
+}
+
+function ensureManagementRoadmapFeatureQuarterStyles() {
+  if (document.querySelector("#managementRoadmapFeatureQuarterStyles")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+
+  style.id = "managementRoadmapFeatureQuarterStyles";
+
+  style.textContent = `
+    /*
+     * =====================================================
+     * MANAGEMENT ROADMAP · QUARTERS DESDE SDA + FEATURES
+     * =====================================================
+     */
+
+    .management-deliverables-col-quarter {
+      width: 7.5%;
+    }
+
+    .management-deliverables-quarter {
+      height: 54px;
+      padding: 6px !important;
+      background: #ffffff;
+      text-align: center;
+    }
+
+    .management-deliverables-quarter.is-complete {
+      background: #e8f7ee;
+    }
+
+    .management-deliverables-quarter.is-progress {
+      background: #e8f2fc;
+    }
+
+    .management-deliverables-quarter.is-planned {
+      background: #f0f5fb;
+    }
+
+    .management-deliverables-quarter.is-sda {
+      background: #f6f8fb;
+    }
+
+    .management-deliverables-quarter.is-empty,
+    .management-deliverables-quarter.is-unmapped {
+      background: #ffffff;
+    }
+
+    .management-deliverables-quarter-content {
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      min-height: 40px;
+    }
+
+    .management-deliverables-quarter-value {
+      color: #053f93;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .management-deliverables-quarter-label {
+      color: #6f83a5;
+      font-size: 8px;
+      font-weight: 900;
+      line-height: 1;
+      text-transform: uppercase;
+      letter-spacing: 0.045em;
+    }
+
+    .management-deliverables-quarter-progress {
+      width: 34px;
+      height: 4px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #d7e2ef;
+    }
+
+    .management-deliverables-quarter-progress span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: #2fc274;
+    }
+
+    .management-deliverables-quarter.is-planned
+      .management-deliverables-quarter-progress span {
+      background: #8aa7ce;
+    }
+
+    .management-deliverables-quarter-sda {
+      color: #60789d;
+      font-size: 9px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .management-deliverables-quarter-empty {
+      color: #b1bccb;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    /*
+     * Dejamos fuera de uso los markers
+     * antiguos de riesgo / atención.
+     *
+     * No se representan iconos ni emojis
+     * en las columnas trimestrales.
+     */
+    .management-deliverables-quarter-marker {
+      display: none !important;
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+function renderManagementRoadmapQuarterCell(row, quarter) {
+  ensureManagementRoadmapFeatureQuarterStyles();
+
+  const data = getManagementRoadmapQuarterData(row, quarter);
+
+  const classes = ["management-deliverables-quarter", `is-${data.status}`]
     .filter(Boolean)
     .join(" ");
 
-  let marker = "";
+  /*
+   * =====================================================
+   * SIN ASOCIACIÓN
+   * =====================================================
+   */
 
-  if (signal === "risk") {
-    marker = `
-      <span
-        class="management-deliverables-quarter-marker is-risk"
-        title="Atención"
-      >
-        ⚠
-      </span>
+  if (!data.hasAssociation) {
+    return `
+      <td class="${classes}">
+        <div
+          class="
+            management-deliverables-quarter-content
+          "
+        >
+          <span
+            class="
+              management-deliverables-quarter-empty
+            "
+          >
+            —
+          </span>
+        </div>
+      </td>
     `;
   }
 
-  if (signal === "attention") {
-    marker = `
-      <span
-        class="management-deliverables-quarter-marker is-attention"
-        title="Atención"
-      >
-        😫
-      </span>
+  /*
+   * =====================================================
+   * FEATURES PLANIFICADAS EN EL TRIMESTRE
+   * =====================================================
+   */
+
+  if (data.totalFeatures > 0) {
+    return `
+      <td class="${classes}">
+        <div
+          class="
+            management-deliverables-quarter-content
+          "
+          title="${data.deployedFeatures} de ${
+            data.totalFeatures
+          } Features desplegadas"
+        >
+          <strong
+            class="
+              management-deliverables-quarter-value
+            "
+          >
+            ${data.deployedFeatures}/${data.totalFeatures}
+          </strong>
+
+          <div
+            class="
+              management-deliverables-quarter-progress
+            "
+            aria-label="${data.progress}% desplegado"
+          >
+            <span
+              style="
+                width:${Math.max(
+                  0,
+                  Math.min(100, Number(data.progress || 0)),
+                )}%;
+              "
+            ></span>
+          </div>
+
+          <span
+            class="
+              management-deliverables-quarter-label
+            "
+          >
+            deployed
+          </span>
+        </div>
+      </td>
     `;
   }
+
+  /*
+   * =====================================================
+   * HAY PLAN SDA PERO NO FEATURES CON FECHA EN ESTE Q
+   * =====================================================
+   */
+
+  if (data.sdaPlanned) {
+    return `
+      <td class="${classes}">
+        <div
+          class="
+            management-deliverables-quarter-content
+          "
+          title="El Deliverable SDA tiene planificación en ${rcsEsc(
+            quarter,
+          )}, pero no hay Features con planificación temporal en este trimestre."
+        >
+          <span
+            class="
+              management-deliverables-quarter-sda
+            "
+          >
+            Plan SDA
+          </span>
+        </div>
+      </td>
+    `;
+  }
+
+  /*
+   * =====================================================
+   * SIN ACTIVIDAD PARA EL TRIMESTRE
+   * =====================================================
+   */
 
   return `
     <td class="${classes}">
-      ${marker}
+      <div
+        class="
+          management-deliverables-quarter-content
+        "
+      >
+        <span
+          class="
+            management-deliverables-quarter-empty
+          "
+        >
+          —
+        </span>
+      </div>
     </td>
   `;
 }
