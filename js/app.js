@@ -21670,36 +21670,54 @@ function renderRcsAccessScreen(access) {
 
   const denied = access?.code === "ACCESS_DENIED";
 
+  const validationRequired = access?.code === "ACCESS_CHECK_FAILED";
+
   const screen = document.createElement("section");
 
   screen.id = "rcsAccessScreen";
 
   screen.className = "rcs-access-screen";
 
+  const title = denied
+    ? "Acceso no autorizado"
+    : validationRequired
+      ? "Valida tu acceso"
+      : "No se puede validar el acceso";
+
+  const message = denied
+    ? "Tu cuenta no dispone de acceso al RCS Cockpit. Solicita acceso de lectura o edición a la Spreadsheet correspondiente."
+    : validationRequired
+      ? "Necesitamos validar tu cuenta de Google Workspace antes de acceder al RCS Cockpit. Esta validación sólo es necesaria la primera vez."
+      : "No se ha podido comprobar tu acceso al RCS Cockpit. Por seguridad no se mostrará información hasta completar la validación.";
+
+  const buttonLabel = validationRequired ? "Validar acceso" : "Reintentar";
+
   screen.innerHTML = `
-    <article class="rcs-access-card">
-      <span class="rcs-access-brand">
+    <article
+      class="rcs-access-card"
+    >
+
+      <span
+        class="rcs-access-brand"
+      >
         BBVA
       </span>
 
       <h1>
-        ${denied ? "Acceso no autorizado" : "No se puede validar el acceso"}
+        ${title}
       </h1>
 
       <p>
-        ${
-          denied
-            ? "Tu cuenta no dispone de acceso al RCS Cockpit. Solicita acceso a la Spreadsheet correspondiente para poder utilizarlo."
-            : "No se ha podido comprobar tu acceso al RCS Cockpit. Por seguridad no se mostrarán datos almacenados ni información de demostración."
-        }
+        ${message}
       </p>
 
       <button
         type="button"
-        id="rcsAccessRetry"
+        id="rcsAccessAction"
       >
-        Reintentar
+        ${buttonLabel}
       </button>
+
     </article>
   `;
 
@@ -21711,7 +21729,13 @@ function renderRcsAccessScreen(access) {
 
   document.body.appendChild(screen);
 
-  screen.querySelector("#rcsAccessRetry")?.addEventListener("click", () => {
+  screen.querySelector("#rcsAccessAction")?.addEventListener("click", () => {
+    if (validationRequired) {
+      openRcsAccessAuthorization();
+
+      return;
+    }
+
     window.location.reload();
   });
 }
@@ -21906,6 +21930,62 @@ function installRcsAccessRoleTracking() {
   });
 
   syncRcsAccessRoleBadge();
+}
+function openRcsAccessAuthorization() {
+  const config = window.APP_CONFIG?.accessControl;
+
+  const spreadsheetId = window.APP_CONFIG?.portfolio?.spreadsheetId;
+
+  if (!config?.driveJsonUrl || !spreadsheetId) {
+    window.alert("El control de acceso no está configurado correctamente.");
+
+    return;
+  }
+
+  const authorizationUrl = new URL(config.driveJsonUrl, window.location.href);
+
+  authorizationUrl.searchParams.set("mode", "authorize");
+
+  authorizationUrl.searchParams.set("spreadsheetId", spreadsheetId);
+
+  const popup = window.open(
+    authorizationUrl.toString(),
+    "rcsCockpitAuthorization",
+    ["width=620", "height=720", "resizable=yes", "scrollbars=yes"].join(","),
+  );
+
+  if (!popup) {
+    window.alert(
+      "El navegador ha bloqueado la ventana de validación. Permite las ventanas emergentes para RCS Cockpit y vuelve a intentarlo.",
+    );
+
+    return;
+  }
+
+  const startedAt = Date.now();
+
+  const monitor = window.setInterval(() => {
+    /*
+     * Dejamos de esperar después
+     * de dos minutos.
+     */
+    if (Date.now() - startedAt > 120000) {
+      window.clearInterval(monitor);
+
+      return;
+    }
+
+    /*
+     * La página de Apps Script
+     * se cierra automáticamente
+     * tras validar correctamente.
+     */
+    if (popup.closed) {
+      window.clearInterval(monitor);
+
+      window.location.reload();
+    }
+  }, 400);
 }
 /* teams */
 document.addEventListener("click", (event) => {
