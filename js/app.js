@@ -9294,6 +9294,18 @@ function renderProjectsView(programId) {
     .trim()
     .toLowerCase();
 
+  const routeContext = getCurrentRoute();
+
+  const categoryId = String(routeContext.productId || "")
+    .trim()
+    .toLowerCase();
+
+  if (["static", "live", "ai"].includes(categoryId)) {
+    renderManagementReportsCategoryView(programId, categoryId);
+
+    return;
+  }
+
   const contrastPrograms = new Set(["blue", "aixbanker", "rosetta"]);
 
   const hasContrastValidation = contrastPrograms.has(normalizedProgramId);
@@ -9303,7 +9315,7 @@ function renderProjectsView(programId) {
 
   setHead(
     `${program?.name || "Programa"} · Management Reports`,
-    "Informes ejecutivos, demos y roadmap resumido.",
+    "Informes ejecutivos, seguimiento dinámico e inteligencia generada con IA.",
     `Retail Client Solutions > ${
       program?.name || programId
     } > Management Reports`,
@@ -9323,64 +9335,43 @@ function renderProjectsView(programId) {
     return;
   }
 
-  const roadmapItems = getManagementReportSourceItems(programId);
-
-  const products = [
-    ...new Set(
-      roadmapItems
-        .map((item) => normalizeRoadmapProduct(item.product))
-        .filter(Boolean),
-    ),
-  ];
-
-  const availableCountries = [
-    ...new Set(
-      roadmapItems
-        .map((item) =>
-          String(item.country || "")
-            .trim()
-            .toUpperCase(),
-        )
-        .filter(Boolean),
-    ),
-  ];
+  const primaryReportButtonStyle = `
+    min-height: 46px;
+    padding: 0 18px;
+    background: var(--blue);
+    color: #ffffff;
+    border-color: var(--blue);
+    box-shadow: 0 8px 18px rgba(0, 19, 145, 0.18);
+    text-decoration: none;
+  `;
 
   cardsContainer.innerHTML = `
-    <article class="management-report-card ${
-      hasContrastValidation ? "" : "is-disabled"
-    }">
+    <article class="management-report-card">
       <div class="management-report-card-top">
         <div>
-          <h3>Contraste y Validación RCS</h3>
+          <h3>Static Reports</h3>
 
           <p>
-            Seguimiento ejecutivo del contraste y validación
-            por prioridad RCS, entregable y país.
+            Informes cerrados, snapshots ejecutivos
+            y material preparado para reporting.
           </p>
         </div>
-
-        <span class="management-report-badge ${
-          hasContrastValidation ? "" : "is-soon"
-        }">
-          ${hasContrastValidation ? "4Q26" : "Próximamente"}
-        </span>
       </div>
 
       <div class="management-report-card-kpis">
-        <span>Strategic Cycle</span>
-        <span>RCS Priorities</span>
-        <span>FIG Invoice</span>
+        <span>Snapshots</span>
+        <span>Reporting ejecutivo</span>
+        <span>Material de referencia</span>
       </div>
 
-      <div class="management-report-card-footer">
-        <span class="management-report-caption">
-          ${
-            hasContrastValidation
-              ? "Contraste trimestral por programa y geografías."
-              : "Vista todavía no disponible para este programa."
-          }
-        </span>
-
+      <div
+        style="
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 4px;
+        "
+      >
         ${
           hasContrastValidation
             ? `
@@ -9388,8 +9379,9 @@ function renderProjectsView(programId) {
                 class="management-report-card-link"
                 type="button"
                 data-route="management-contrast/${rcsEsc(programId)}"
+                style="${primaryReportButtonStyle}"
               >
-                Abrir contraste →
+                Contraste y Validación RCS →
               </button>
             `
             : `
@@ -9399,68 +9391,105 @@ function renderProjectsView(programId) {
                 disabled
                 aria-disabled="true"
               >
-                Próximamente
+                Contraste y Validación RCS
               </button>
             `
         }
+
+        <button
+          class="management-report-card-link"
+          type="button"
+          data-route="management-demos/${rcsEsc(programId)}"
+          style="${primaryReportButtonStyle}"
+        >
+          Demos →
+        </button>
+      </div>
+
+      <div class="management-report-card-footer">
+        <span class="management-report-caption">
+          Informes ejecutivos consolidados.
+        </span>
+
+        <button
+          class="management-report-card-link"
+          type="button"
+          data-route="projects/${rcsEsc(programId)}/static"
+        >
+          Ver todos →
+        </button>
       </div>
     </article>
 
     <article class="management-report-card">
       <div class="management-report-card-top">
         <div>
-          <h3>Roadmap</h3>
+          <h3>Live Reports</h3>
 
           <p>
-            Cronograma ejecutivo con seguimiento
-            por país, entregable SDA y Features.
+            Seguimiento del roadmap y del rendimiento
+            de KPIs por programa y geografía.
           </p>
         </div>
-
-        <span class="management-report-badge">
-          Activo
-        </span>
       </div>
 
       <div class="management-report-card-kpis">
-        <span>
-          ${products.length}
-          producto${products.length === 1 ? "" : "s"}
-        </span>
+        <span>Roadmap</span>
+        <span>KPI Performance</span>
+        <span>Geografías</span>
+      </div>
 
-        <span>
-          ${availableCountries.length}
-          país${availableCountries.length === 1 ? "" : "es"}
-        </span>
+      <div
+        style="
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 4px;
+        "
+      >
+        <button
+          class="management-report-card-link"
+          type="button"
+          data-route="management-roadmap/${rcsEsc(programId)}"
+          style="${primaryReportButtonStyle}"
+        >
+          Roadmap →
+        </button>
 
-        <span>
-          Features vs deployed
-        </span>
+        <a
+          class="management-report-card-link"
+          href="https://script.google.com/a/macros/bbva.com/s/AKfycbwB4Pe197DmvUW8j1x_YTA_j96CDkeKp3hH5GCSJGYNnlEinJbCS8Awm8RfJgy30BLj/exec"
+          target="_blank"
+          rel="noopener noreferrer"
+          style="${primaryReportButtonStyle}"
+        >
+          RCS KPIs Heatmap ↗
+        </a>
       </div>
 
       <div class="management-report-card-footer">
         <span class="management-report-caption">
-          Vista global de ejecución y resumen ejecutivo.
+          Planificación, ejecución y performance ejecutiva.
         </span>
 
         <button
           class="management-report-card-link"
           type="button"
-          data-route="management-roadmap/${rcsEsc(programId)}"
+          data-route="projects/${rcsEsc(programId)}/live"
         >
-          Abrir roadmap →
+          Ver todos →
         </button>
       </div>
     </article>
 
-    <article class="management-report-card is-disabled">
+    <article class="management-report-card">
       <div class="management-report-card-top">
         <div>
-          <h3>Space</h3>
+          <h3>AI Reports</h3>
 
           <p>
-            Visión ejecutiva SPACE para seguimiento
-            de experiencias y evolución de producto.
+            Reporting generado a partir de los datos
+            y el contexto disponible en el Cockpit.
           </p>
         </div>
 
@@ -9470,14 +9499,340 @@ function renderProjectsView(programId) {
       </div>
 
       <div class="management-report-card-kpis">
-        <span>Experiencias</span>
-        <span>Visión SPACE</span>
-        <span>Seguimiento</span>
+        <span>Executive Summary</span>
+        <span>Risks & Attention</span>
+        <span>What's Changed</span>
       </div>
 
       <div class="management-report-card-footer">
         <span class="management-report-caption">
-          Módulo pendiente de activación.
+          Nueva capa de inteligencia ejecutiva.
+        </span>
+
+        <button
+          class="management-report-card-link"
+          type="button"
+          data-route="projects/${rcsEsc(programId)}/ai"
+        >
+          Ver área →
+        </button>
+      </div>
+    </article>
+  `;
+}
+function renderManagementReportsCategoryView(programId, categoryId) {
+  const program = (DATA.programs || []).find((item) => item.id === programId);
+
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedCategoryId = String(categoryId || "")
+    .trim()
+    .toLowerCase();
+
+  const categories = {
+    static: {
+      label: "Static Reports",
+      subtitle:
+        "Informes consolidados, snapshots ejecutivos y material preparado para reporting.",
+    },
+
+    live: {
+      label: "Live Reports",
+      subtitle:
+        "Seguimiento ejecutivo de planificación, ejecución y rendimiento de KPIs.",
+    },
+
+    ai: {
+      label: "AI Reports",
+      subtitle:
+        "Inteligencia ejecutiva generada a partir de los datos y contexto del Cockpit.",
+    },
+  };
+
+  const category = categories[normalizedCategoryId];
+
+  if (!category) {
+    route(`projects/${programId}`);
+
+    return;
+  }
+
+  view.innerHTML = "";
+  view.append(tpl("#projects-template"));
+
+  setHead(
+    `${program?.name || "Programa"} · ${category.label}`,
+    category.subtitle,
+    `Retail Client Solutions > ${
+      program?.name || programId
+    } > Management Reports > ${category.label}`,
+  );
+
+  const backButton = document.querySelector(".back-to-program-btn");
+
+  if (backButton) {
+    backButton.dataset.route = `projects/${programId}`;
+
+    backButton.textContent = "← Volver a Management Reports";
+  }
+
+  const cardsContainer = document.querySelector("#managementReportsCards");
+
+  if (!cardsContainer) {
+    return;
+  }
+
+  if (normalizedCategoryId === "static") {
+    const contrastPrograms = new Set(["blue", "aixbanker", "rosetta"]);
+
+    const hasContrastValidation = contrastPrograms.has(normalizedProgramId);
+
+    cardsContainer.innerHTML = `
+      <article class="management-report-card ${
+        hasContrastValidation ? "" : "is-disabled"
+      }">
+        <div class="management-report-card-top">
+          <div>
+            <h3>Contraste y Validación RCS</h3>
+
+            <p>
+              Seguimiento ejecutivo del contraste y validación
+              por prioridad RCS, entregable y país.
+            </p>
+          </div>
+
+          <span class="management-report-badge ${
+            hasContrastValidation ? "" : "is-soon"
+          }">
+            ${hasContrastValidation ? "4Q26" : "Próximamente"}
+          </span>
+        </div>
+
+        <div class="management-report-card-kpis">
+          <span>Strategic Cycle</span>
+          <span>RCS Priorities</span>
+          <span>FIG Invoice</span>
+        </div>
+
+        <div class="management-report-card-footer">
+          <span class="management-report-caption">
+            ${
+              hasContrastValidation
+                ? "Contraste trimestral por programa y geografías."
+                : "Vista todavía no disponible para este programa."
+            }
+          </span>
+
+          ${
+            hasContrastValidation
+              ? `
+                <button
+                  class="management-report-card-link"
+                  type="button"
+                  data-route="management-contrast/${rcsEsc(programId)}"
+                >
+                  Abrir contraste →
+                </button>
+              `
+              : `
+                <button
+                  class="management-report-card-link is-disabled"
+                  type="button"
+                  disabled
+                  aria-disabled="true"
+                >
+                  Próximamente
+                </button>
+              `
+          }
+        </div>
+      </article>
+
+      <article class="management-report-card">
+        <div class="management-report-card-top">
+          <div>
+            <h3>Demos</h3>
+
+            <p>
+              Demostraciones ejecutivas de productos
+              y capacidades.
+            </p>
+          </div>
+
+          <span class="management-report-badge">
+            Demos
+          </span>
+        </div>
+
+        <div class="management-report-card-kpis">
+          <span>Vídeo</span>
+          <span>Experiencias</span>
+          <span>Capacidades</span>
+        </div>
+
+        <div class="management-report-card-footer">
+          <span class="management-report-caption">
+            Material de demostración disponible.
+          </span>
+
+          <button
+            class="management-report-card-link"
+            type="button"
+            data-route="management-demos/${rcsEsc(programId)}"
+          >
+            Ver demos →
+          </button>
+        </div>
+      </article>
+    `;
+
+    return;
+  }
+
+  if (normalizedCategoryId === "live") {
+    const roadmapItems = getManagementReportSourceItems(programId);
+
+    const products = [
+      ...new Set(
+        roadmapItems
+          .map((item) => normalizeRoadmapProduct(item.product))
+          .filter(Boolean),
+      ),
+    ];
+
+    const availableCountries = [
+      ...new Set(
+        roadmapItems
+          .map((item) =>
+            String(item.country || "")
+              .trim()
+              .toUpperCase(),
+          )
+          .filter(Boolean),
+      ),
+    ];
+
+    cardsContainer.innerHTML = `
+      <article class="management-report-card">
+        <div class="management-report-card-top">
+          <div>
+            <h3>Roadmap</h3>
+
+            <p>
+              Cronograma ejecutivo de planificación
+              y ejecución por producto, país, SDA y Features JIRA.
+            </p>
+          </div>
+
+          <span class="management-report-badge">
+            Live
+          </span>
+        </div>
+
+        <div class="management-report-card-kpis">
+          <span>
+            ${products.length}
+            producto${products.length === 1 ? "" : "s"}
+          </span>
+
+          <span>
+            ${availableCountries.length}
+            país${availableCountries.length === 1 ? "" : "es"}
+          </span>
+
+          <span>
+            Features vs deployed
+          </span>
+        </div>
+
+        <div class="management-report-card-footer">
+          <span class="management-report-caption">
+            Vista global de planificación, ejecución y avance.
+          </span>
+
+          <button
+            class="management-report-card-link"
+            type="button"
+            data-route="management-roadmap/${rcsEsc(programId)}"
+          >
+            Abrir roadmap →
+          </button>
+        </div>
+      </article>
+
+      <article class="management-report-card">
+        <div class="management-report-card-top">
+          <div>
+            <h3>RCS KPIs Heatmap</h3>
+
+            <p>
+              Executive Performance Dashboard para el seguimiento
+              de KPIs estratégicos y de programa por dominio
+              y geografía.
+            </p>
+          </div>
+
+          <span class="management-report-badge">
+            KPI Performance
+          </span>
+        </div>
+
+        <div class="management-report-card-kpis">
+          <span>Strategic KPIs</span>
+          <span>Program KPIs</span>
+          <span>Geographies</span>
+        </div>
+
+        <div class="management-report-card-footer">
+          <span class="management-report-caption">
+            Heatmap comparativo de cumplimiento de objetivos
+            y performance por país.
+          </span>
+
+          <a
+            class="management-report-card-link"
+            href="https://script.google.com/a/macros/bbva.com/s/AKfycbwB4Pe197DmvUW8j1x_YTA_j96CDkeKp3hH5GCSJGYNnlEinJbCS8Awm8RfJgy30BLj/exec"
+            target="_blank"
+            rel="noopener noreferrer"
+            style="text-decoration: none;"
+          >
+            Abrir KPI Heatmap ↗
+          </a>
+        </div>
+      </article>
+    `;
+
+    return;
+  }
+
+  cardsContainer.innerHTML = `
+    <article class="management-report-card is-disabled">
+      <div class="management-report-card-top">
+        <div>
+          <h3>Executive Summary</h3>
+
+          <p>
+            Resumen ejecutivo generado automáticamente
+            a partir del estado actual del programa.
+          </p>
+        </div>
+
+        <span class="management-report-badge is-soon">
+          Próximamente
+        </span>
+      </div>
+
+      <div class="management-report-card-kpis">
+        <span>Roadmap</span>
+        <span>Ejecución</span>
+        <span>Highlights</span>
+      </div>
+
+      <div class="management-report-card-footer">
+        <span class="management-report-caption">
+          Síntesis ejecutiva generada con IA.
         </span>
 
         <button
@@ -9491,39 +9846,78 @@ function renderProjectsView(programId) {
       </div>
     </article>
 
-    <article class="management-report-card">
+    <article class="management-report-card is-disabled">
       <div class="management-report-card-top">
         <div>
-          <h3>Demos</h3>
+          <h3>Risks & Attention</h3>
 
           <p>
-            Demostraciones ejecutivas de productos
-            y capacidades.
+            Identificación de riesgos, desviaciones
+            y elementos que requieren atención.
           </p>
         </div>
 
-        <span class="management-report-badge">
-          Demos
+        <span class="management-report-badge is-soon">
+          Próximamente
         </span>
       </div>
 
       <div class="management-report-card-kpis">
-        <span>Vídeo</span>
-        <span>Experiencias</span>
-        <span>Capacidades</span>
+        <span>Riesgos</span>
+        <span>Bloqueos</span>
+        <span>Atención</span>
       </div>
 
       <div class="management-report-card-footer">
         <span class="management-report-caption">
-          Material de demostración disponible.
+          Foco automático sobre excepciones relevantes.
         </span>
 
         <button
-          class="management-report-card-link"
+          class="management-report-card-link is-disabled"
           type="button"
-          data-route="management-demos/${rcsEsc(programId)}"
+          disabled
+          aria-disabled="true"
         >
-          Ver demos →
+          Próximamente
+        </button>
+      </div>
+    </article>
+
+    <article class="management-report-card is-disabled">
+      <div class="management-report-card-top">
+        <div>
+          <h3>What's Changed</h3>
+
+          <p>
+            Resumen de los cambios más relevantes
+            desde el último periodo de reporting.
+          </p>
+        </div>
+
+        <span class="management-report-badge is-soon">
+          Próximamente
+        </span>
+      </div>
+
+      <div class="management-report-card-kpis">
+        <span>Cambios</span>
+        <span>Variaciones</span>
+        <span>Impacto</span>
+      </div>
+
+      <div class="management-report-card-footer">
+        <span class="management-report-caption">
+          Comparativa automática entre periodos.
+        </span>
+
+        <button
+          class="management-report-card-link is-disabled"
+          type="button"
+          disabled
+          aria-disabled="true"
+        >
+          Próximamente
         </button>
       </div>
     </article>
