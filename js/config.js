@@ -1,9 +1,32 @@
 window.APP_CONFIG = {
   runtime: "drive-json",
 
-  // Spreadsheet general del Portfolio.
+  /*
+   * =======================================================
+   * ACCESS CONTROL
+   * =======================================================
+   *
+   * Web App dedicado exclusivamente
+   * a validar permisos de Drive.
+   */
+  accessControl: {
+    id: "rcs-access-control",
+
+    label: "RCS Cockpit Access Control",
+
+    driveJsonUrl:
+      "https://script.google.com/a/macros/bbva.com/s/AKfycby6tdGdXMzBd8rh0tuIBCQMMk0xPPwJZan_FOG4QbMV3JwqlW9MQuJJGVe4kDucJ3Lg/exec",
+  },
+
+  /*
+   * =======================================================
+   * PORTFOLIO
+   * =======================================================
+   */
+
   portfolio: {
     id: "portfolio",
+
     label: "Portfolio general",
 
     driveJsonUrl:
@@ -12,17 +35,17 @@ window.APP_CONFIG = {
     spreadsheetId: "19LTFh3GBHjSGnXfmjJNnK6vln_haAMFj91DtZwdn2W4",
   },
 
-  // Fuentes complementarias de programa.
-  //
-  // El origen GENERAL de cada programa sigue llegando
-  // dinámicamente desde la Spreadsheet de Portfolio.
-  //
-  // Aquí declaramos únicamente fuentes adicionales
-  // que no forman parte de ese catálogo general.
+  /*
+   * =======================================================
+   * PROGRAMAS · FUENTES COMPLEMENTARIAS
+   * =======================================================
+   */
+
   programs: {
     aixbanker: {
       restricted: {
         id: "aixbanker-restricted",
+
         label: "AIxBanker Restricted",
 
         driveJsonUrl:

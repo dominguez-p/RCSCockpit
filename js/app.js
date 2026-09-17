@@ -6876,8 +6876,9 @@ async function revalidatePortfolioDataInBackground() {
       PORTFOLIO_DATA.programs.length
     ) {
       showDataFallbackBanner(
-        "No se ha podido actualizar el origen general. " +
-          "Se mantiene la última fotografía válida disponible.",
+        "No se han podido actualizar los datos generales. " +
+          "Se mantiene la última fotografía real disponible. " +
+          "Pulsa “Actualizar datos” para volver a intentarlo.",
       );
     }
   }
@@ -6900,10 +6901,13 @@ async function revalidateProgramDataInBackground(programId) {
     const currentContext = getCurrentRoute();
 
     /*
-     * Actualizamos visualmente sólo la Flight Deck principal.
+     * Actualizamos visualmente sólo
+     * la Flight Deck principal.
      *
-     * En vistas profundas dejamos el nuevo CORE en caché
-     * para no destruir datasets on-demand ya instalados.
+     * En vistas profundas dejamos el
+     * nuevo CORE en caché para no
+     * destruir datasets on-demand
+     * ya instalados.
      */
     if (
       currentContext.programId === normalizedProgramId &&
@@ -6927,8 +6931,11 @@ async function revalidateProgramDataInBackground(programId) {
 
     if (currentContext.programId === normalizedProgramId) {
       showDataFallbackBanner(
-        `No se ha podido actualizar ${normalizedProgramId}. ` +
-          "Se mantiene la última fotografía válida disponible.",
+        `No se han podido actualizar los datos de ${
+          getProgramSource(normalizedProgramId)?.label || normalizedProgramId
+        }. ` +
+          "Se mantiene la última fotografía real disponible. " +
+          "Pulsa “Actualizar datos” para volver a intentarlo.",
       );
     }
   }
@@ -7657,15 +7664,46 @@ async function loadProgramData(programId, forceRefresh = false) {
     .trim()
     .toLowerCase();
 
+  /*
+   * =======================================================
+   * ACCESS CONTROL
+   * =======================================================
+   *
+   * Se valida ANTES de:
+   *
+   * - memoria;
+   * - sessionStorage;
+   * - datos del programa.
+   *
+   * De esta forma retirar permisos
+   * impide recuperar una fotografía anterior.
+   */
+
+  const access = await ensureRcsProgramAccess(
+    normalizedProgramId,
+    forceRefresh,
+  );
+
+  if (!access.granted) {
+    blockRcsCockpitAccess(access);
+
+    const error = new Error("ACCESS_DENIED");
+
+    error.code = access.code || "ACCESS_DENIED";
+
+    throw error;
+  }
+
   if (!forceRefresh && PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
     return PROGRAM_DATA_CACHE.get(normalizedProgramId);
   }
 
   /*
-   * =====================================================
+   * =======================================================
    * CACHE DE SESIÓN
-   * =====================================================
+   * =======================================================
    */
+
   if (!forceRefresh) {
     const cachedProgram = hydrateProgramFromSessionCache(normalizedProgramId);
 
@@ -7695,16 +7733,6 @@ async function loadProgramData(programId, forceRefresh = false) {
   }
 
   const request = (async () => {
-    /*
-     * =====================================================
-     * CORE
-     * =====================================================
-     *
-     * El core sólo realiza un intento.
-     *
-     * Los datasets on-demand mantienen su política
-     * independiente.
-     */
     const rawData = await loadConfiguredSource(source, {
       timeoutMs: 25000,
 
@@ -7730,10 +7758,12 @@ async function loadProgramData(programId, forceRefresh = false) {
     PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, loadedAt);
 
     /*
-     * Persistimos exclusivamente el CORE general.
+     * Persistimos exclusivamente
+     * el CORE general.
      *
      * Nunca restricted.
      */
+
     writeRcsSessionCache("program", normalizedProgramId, programData, loadedAt);
 
     return completeProgramData;
@@ -8166,13 +8196,6 @@ function formatLastLoadedDate(date) {
 
 function updateDataStatus(programId = null) {
   if (!programId) {
-    if (getRcsDataMode("portfolio") === "demo") {
-      statusEl.textContent =
-        "Modo demostración · " + "Portfolio General · " + "datos ficticios";
-
-      return;
-    }
-
     statusEl.textContent =
       `Últimos datos cargados: ` +
       `Portfolio General ` +
@@ -8181,20 +8204,17 @@ function updateDataStatus(programId = null) {
     return;
   }
 
-  if (getRcsDataMode(programId) === "demo") {
-    statusEl.textContent =
-      `Modo demostración · ` + `${programId} · ` + `datos ficticios`;
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
 
-    return;
-  }
+  const source = getProgramSource(normalizedProgramId);
 
-  const source = getProgramSource(programId);
-
-  const lastLoadedAt = PROGRAM_LAST_LOADED_AT.get(programId);
+  const lastLoadedAt = PROGRAM_LAST_LOADED_AT.get(normalizedProgramId);
 
   statusEl.textContent =
     `Últimos datos cargados: ` +
-    `${source?.label || programId} ` +
+    `${source?.label || normalizedProgramId} ` +
     `(${formatLastLoadedDate(lastLoadedAt)})`;
 }
 function routeRequiresJiraMsaData(context) {
@@ -8525,42 +8545,11 @@ async function render() {
 
     updateDataStatus();
 
-    if (getRcsDataMode("portfolio") === "demo") {
-      showDataFallbackBanner(
-        "Modo demostración activo: " +
-          "el origen general no está disponible. " +
-          "Todos los datos mostrados son ficticios " +
-          "y sirven únicamente para demostrar " +
-          "la funcionalidad del cockpit.",
-      );
-    } else {
-      clearDataFallbackBanner();
-    }
+    clearDataFallbackBanner();
+
+    syncRcsAccessRoleBadge();
 
     return;
-  }
-
-  /*
-   * =====================================================
-   * DEMO
-   * =====================================================
-   */
-  if (
-    getRcsDataMode("portfolio") === "demo" ||
-    getRcsDataMode(programId) === "demo"
-  ) {
-    const activated = activateDemoProgram(
-      programId,
-      context,
-      "Modo demostración activo: " +
-        "no se están utilizando datos operativos reales. " +
-        "Pulsa “Actualizar datos” para volver a intentar " +
-        "la conexión con el origen corporativo.",
-    );
-
-    if (activated) {
-      return;
-    }
   }
 
   const normalizedProgramId = String(programId || "")
@@ -8595,7 +8584,9 @@ async function render() {
      * DATASETS ON-DEMAND
      * ===================================================
      */
+
     await ensureJiraMsaDataForRoute(context);
+
     await ensureJiraFeaturesDataForRoute(context);
 
     /*
@@ -8603,42 +8594,82 @@ async function render() {
      * RENDER
      * ===================================================
      */
+
     renderRouteContext(context);
 
     updateDataStatus(normalizedProgramId);
 
     clearDataFallbackBanner();
+
+    syncRcsAccessRoleBadge();
   } catch (error) {
-    console.error(error);
+    console.error(`[RCS] Error cargando ${normalizedProgramId}`, error);
 
-    const activated = activateDemoProgram(
-      normalizedProgramId,
-      context,
-      `No se han podido cargar ` +
-        `los datos de ${normalizedProgramId}. ` +
-        "Se ha activado automáticamente " +
-        "el modo demostración con datos " +
-        "100% ficticios.",
-    );
+    /*
+     * ===================================================
+     * TIMEOUT / ERROR
+     * ===================================================
+     *
+     * No existe modo demo.
+     *
+     * Primero intentamos conservar una
+     * fotografía real anterior.
+     */
 
-    if (!activated) {
-      statusEl.textContent =
-        `⚠ No se pudieron cargar ` + `los datos de ${normalizedProgramId}`;
+    let fallbackProgram = PROGRAM_DATA_CACHE.get(normalizedProgramId);
 
-      DATA = {
-        ...PORTFOLIO_DATA,
-        ...getEmptyProgramData(),
-      };
+    if (!fallbackProgram) {
+      fallbackProgram = hydrateProgramFromSessionCache(normalizedProgramId);
+    }
+
+    if (fallbackProgram) {
+      DATA = buildProgramData(fallbackProgram);
 
       renderRouteContext(context);
 
+      updateDataStatus(normalizedProgramId);
+
       showDataFallbackBanner(
-        `No se han podido cargar ` +
-          `los datos de ${normalizedProgramId} ` +
-          "y no existe un dataset " +
-          "de demostración para este programa.",
+        `No se han podido actualizar los datos de ${
+          getProgramSource(normalizedProgramId)?.label || normalizedProgramId
+        }. ` +
+          `Se mantiene la última fotografía real disponible. ` +
+          `Pulsa “Actualizar datos” para reintentar la conexión.`,
       );
+
+      syncRcsAccessRoleBadge();
+
+      return;
     }
+
+    /*
+     * ===================================================
+     * SIN FOTOGRAFÍA PREVIA
+     * ===================================================
+     *
+     * Mostramos la estructura de la pantalla,
+     * pero nunca datos ficticios.
+     */
+
+    DATA = {
+      ...PORTFOLIO_DATA,
+      ...getEmptyProgramData(),
+    };
+
+    renderRouteContext(context);
+
+    statusEl.textContent = `No se han podido cargar los datos de ${
+      getProgramSource(normalizedProgramId)?.label || normalizedProgramId
+    }`;
+
+    showDataFallbackBanner(
+      `El origen de ${
+        getProgramSource(normalizedProgramId)?.label || normalizedProgramId
+      } no ha respondido a tiempo. ` +
+        `Pulsa “Actualizar datos” para volver a intentarlo.`,
+    );
+
+    syncRcsAccessRoleBadge();
   } finally {
     if (requiresBlockingLoad) {
       hideLoadingOverlay();
@@ -8882,23 +8913,58 @@ async function init() {
 
   const initialContext = getCurrentRoute();
 
-  const cachedPortfolio = readRcsSessionCache("portfolio");
+  let cachedPortfolio = null;
 
-  const cachedProgram = initialContext.programId
-    ? readRcsSessionCache("program", initialContext.programId)
-    : null;
+  let cachedProgram = null;
 
   let bootstrappedFromPortfolioCache = false;
 
   try {
     /*
      * =====================================================
-     * FAST BOOT
+     * ACCESS CONTROL
      * =====================================================
      *
-     * Si existe una última fotografía válida,
-     * la mostramos inmediatamente.
+     * SIEMPRE antes de leer:
+     *
+     * - memoria;
+     * - sessionStorage;
+     * - Portfolio;
+     * - programa.
      */
+
+    showLoadingOverlay("Validando acceso al cockpit...");
+
+    const portfolioAccess = await ensureRcsPortfolioAccess(true);
+
+    if (!portfolioAccess.granted) {
+      blockRcsCockpitAccess(portfolioAccess);
+
+      return;
+    }
+
+    restoreRcsCockpitAccess();
+
+    applyRcsEditPermissions();
+    installRcsAccessRoleTracking();
+    /*
+     * Sólo después de validar permisos
+     * podemos consultar fotografías
+     * anteriores de esta sesión.
+     */
+
+    cachedPortfolio = readRcsSessionCache("portfolio");
+
+    cachedProgram = initialContext.programId
+      ? readRcsSessionCache("program", initialContext.programId)
+      : null;
+
+    /*
+     * =====================================================
+     * FAST BOOT
+     * =====================================================
+     */
+
     const restoredPortfolio = hydratePortfolioFromSessionCache();
 
     if (restoredPortfolio) {
@@ -8916,10 +8982,8 @@ async function init() {
        * ===================================================
        * COLD BOOT
        * ===================================================
-       *
-       * Sólo una sesión sin fotografía previa
-       * bloquea esperando al origen.
        */
+
       showLoadingOverlay("Cargando datos generales del portfolio...");
 
       await loadPortfolioData(true);
@@ -8936,6 +9000,15 @@ async function init() {
     }
   } catch (error) {
     console.error(error);
+
+    /*
+     * Este fallback sólo aplica a problemas
+     * técnicos posteriores a una validación
+     * de acceso satisfactoria.
+     *
+     * ACCESS_DENIED nunca llega aquí porque
+     * se corta antes de leer cualquier dato.
+     */
 
     activateDemoPortfolio(
       "No se puede acceder temporalmente " +
@@ -8954,21 +9027,23 @@ async function init() {
   syncDataSourceToggle();
 
   /*
-   * Pintamos primero.
+   * Si el acceso quedó bloqueado,
+   * no renderizamos absolutamente nada
+   * del cockpit.
    */
+
+  if (getRcsAccessState().blocked) {
+    return;
+  }
+
   await render();
 
   /*
-   * =====================================================
+   * =======================================================
    * STALE-WHILE-REVALIDATE
-   * =====================================================
-   *
-   * Si hemos arrancado desde cache:
-   *
-   * 1. el usuario ya está viendo el cockpit;
-   * 2. Apps Script se consulta después;
-   * 3. un timeout ya no bloquea la experiencia.
+   * =======================================================
    */
+
   if (bootstrappedFromPortfolioCache) {
     void revalidatePortfolioDataInBackground();
   }
@@ -8977,10 +9052,6 @@ async function init() {
     void revalidateProgramDataInBackground(initialContext.programId);
   }
 
-  /*
-   * cachedPortfolio sólo se lee antes del bootstrap
-   * para dejar explícita la intención del flujo.
-   */
   void cachedPortfolio;
 }
 
@@ -9005,22 +9076,16 @@ async function refreshCurrentDataSource() {
 
   try {
     /*
-     * =====================================================
+     * ===================================================
      * PORTFOLIO
-     * =====================================================
+     * ===================================================
      */
+
     if (!normalizedProgramId || routeName === "landing") {
       await loadPortfolioData(true);
 
       setRcsDataMode("portfolio", "live");
 
-      /*
-       * Los orígenes pueden haber cambiado.
-       * Limpiamos únicamente cachés en memoria.
-       *
-       * Las fotografías sessionStorage continúan
-       * disponibles como fallback.
-       */
       resetRcsProgramDataModes();
 
       DATA = PORTFOLIO_DATA;
@@ -9035,16 +9100,10 @@ async function refreshCurrentDataSource() {
     }
 
     /*
-     * Si Portfolio estaba en DEMO intentamos recuperar
-     * primero el catálogo real de programas.
+     * ===================================================
+     * PROGRAMA
+     * ===================================================
      */
-    if (getRcsDataMode("portfolio") === "demo") {
-      await loadPortfolioData(true);
-
-      setRcsDataMode("portfolio", "live");
-
-      resetRcsProgramDataModes();
-    }
 
     invalidateProgramDeferredData(normalizedProgramId);
 
@@ -9060,13 +9119,14 @@ async function refreshCurrentDataSource() {
 
     await render();
   } catch (error) {
-    console.error(error);
+    console.error("[RCS] Error actualizando datos", error);
 
     /*
-     * =====================================================
-     * PORTFOLIO · FALLBACK A ÚLTIMA FOTO
-     * =====================================================
+     * ===================================================
+     * PORTFOLIO · ÚLTIMA FOTO REAL
+     * ===================================================
      */
+
     if (!normalizedProgramId || routeName === "landing") {
       const cachedPortfolio = hydratePortfolioFromSessionCache();
 
@@ -9075,8 +9135,6 @@ async function refreshCurrentDataSource() {
         (Array.isArray(PORTFOLIO_DATA.programs) &&
           PORTFOLIO_DATA.programs.length)
       ) {
-        setRcsDataMode("portfolio", "live");
-
         DATA = PORTFOLIO_DATA;
 
         renderLanding();
@@ -9084,30 +9142,34 @@ async function refreshCurrentDataSource() {
         updateDataStatus();
 
         showDataFallbackBanner(
-          "No se ha podido actualizar el origen general. " +
-            "Se mantiene la última fotografía válida disponible.",
+          "No se han podido actualizar los datos generales. " +
+            "Se mantiene la última fotografía real disponible. " +
+            "Pulsa “Actualizar datos” para volver a intentarlo.",
         );
 
         return;
       }
 
-      activateDemoPortfolio(
-        "El origen general sigue sin responder " +
-          "y no existe una fotografía válida anterior. " +
-          "Se mantiene el modo demostración " +
-          "con datos ficticios.",
-      );
+      DATA = PORTFOLIO_DATA;
 
       renderLanding();
+
+      statusEl.textContent = "No se han podido cargar los datos generales";
+
+      showDataFallbackBanner(
+        "El origen general no ha respondido a tiempo. " +
+          "Pulsa “Actualizar datos” para volver a intentarlo.",
+      );
 
       return;
     }
 
     /*
-     * =====================================================
-     * PROGRAMA · FALLBACK A ÚLTIMA FOTO
-     * =====================================================
+     * ===================================================
+     * PROGRAMA · ÚLTIMA FOTO REAL
+     * ===================================================
      */
+
     let fallbackProgram = PROGRAM_DATA_CACHE.get(normalizedProgramId);
 
     if (!fallbackProgram) {
@@ -9115,8 +9177,6 @@ async function refreshCurrentDataSource() {
     }
 
     if (fallbackProgram) {
-      setRcsDataMode(normalizedProgramId, "live");
-
       DATA = buildProgramData(fallbackProgram);
 
       renderRouteContext(context);
@@ -9124,26 +9184,39 @@ async function refreshCurrentDataSource() {
       updateDataStatus(normalizedProgramId);
 
       showDataFallbackBanner(
-        `No se ha podido actualizar ${normalizedProgramId}. ` +
-          "Se mantiene la última fotografía válida disponible.",
+        `No se han podido actualizar los datos de ${
+          source?.label || normalizedProgramId
+        }. ` +
+          "Se mantiene la última fotografía real disponible. " +
+          "Pulsa “Actualizar datos” para volver a intentarlo.",
       );
 
       return;
     }
 
-    const activated = activateDemoProgram(
-      normalizedProgramId,
-      context,
-      `El origen de ${normalizedProgramId} ` +
-        "sigue sin responder y no existe " +
-        "una fotografía válida anterior. " +
-        "Se mantiene el modo demostración " +
-        "con datos ficticios.",
-    );
+    /*
+     * ===================================================
+     * PROGRAMA · SIN FOTO PREVIA
+     * ===================================================
+     */
 
-    if (!activated) {
-      throw error;
-    }
+    DATA = {
+      ...PORTFOLIO_DATA,
+      ...getEmptyProgramData(),
+    };
+
+    renderRouteContext(context);
+
+    statusEl.textContent = `No se han podido cargar los datos de ${
+      source?.label || normalizedProgramId
+    }`;
+
+    showDataFallbackBanner(
+      `El origen de ${
+        source?.label || normalizedProgramId
+      } no ha respondido a tiempo. ` +
+        `Pulsa “Actualizar datos” para volver a intentarlo.`,
+    );
   } finally {
     hideLoadingOverlay();
   }
@@ -21184,6 +21257,655 @@ async function deleteManagementRoadmapLine(programId, lineId) {
 
     window.alert(error?.message || "No se ha podido eliminar el deliverable.");
   }
+}
+
+function getRcsAccessState() {
+  if (!window.RCS_ACCESS_STATE) {
+    window.RCS_ACCESS_STATE = {
+      blocked: false,
+
+      portfolio: null,
+
+      programs: {},
+
+      spreadsheets: {},
+    };
+  }
+
+  return window.RCS_ACCESS_STATE;
+}
+
+function normalizeRcsAccessResult(payload, spreadsheetId) {
+  const access =
+    payload && payload.access && typeof payload.access === "object"
+      ? payload.access
+      : {};
+
+  return {
+    spreadsheetId,
+
+    granted: payload?.ok === true && access.granted === true,
+
+    role:
+      access.role === "editor"
+        ? "editor"
+        : access.role === "viewer"
+          ? "viewer"
+          : "none",
+
+    canEdit: payload?.ok === true && access.canEdit === true,
+
+    code: String(payload?.code || "").trim(),
+
+    checkedAt: Date.now(),
+  };
+}
+
+async function loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh = false) {
+  const normalizedSpreadsheetId = String(spreadsheetId || "").trim();
+
+  if (!normalizedSpreadsheetId) {
+    return {
+      spreadsheetId: "",
+
+      granted: false,
+
+      role: "none",
+
+      canEdit: false,
+
+      code: "SPREADSHEET_ID_MISSING",
+
+      checkedAt: Date.now(),
+    };
+  }
+
+  const config = window.APP_CONFIG?.accessControl;
+
+  if (!config?.driveJsonUrl || config.driveJsonUrl.includes("PEGA_AQUI")) {
+    return {
+      spreadsheetId: normalizedSpreadsheetId,
+
+      granted: false,
+
+      role: "none",
+
+      canEdit: false,
+
+      code: "ACCESS_CONTROL_NOT_CONFIGURED",
+
+      checkedAt: Date.now(),
+    };
+  }
+
+  const state = getRcsAccessState();
+
+  const cached = state.spreadsheets[normalizedSpreadsheetId];
+
+  const cacheTtlMs = 5 * 60 * 1000;
+
+  if (!forceRefresh && cached && Date.now() - cached.checkedAt < cacheTtlMs) {
+    return cached;
+  }
+
+  try {
+    const url = new URL(config.driveJsonUrl, window.location.href);
+
+    url.searchParams.set("spreadsheetId", normalizedSpreadsheetId);
+
+    const payload = await loadJsonp(url.toString(), {
+      timeoutMs: 15000,
+
+      retries: 0,
+
+      cacheBust: true,
+    });
+
+    const access = normalizeRcsAccessResult(payload, normalizedSpreadsheetId);
+
+    /*
+     * Cacheamos respuestas válidas,
+     * incluido ACCESS_DENIED.
+     *
+     * Un F5 siempre fuerza comprobación
+     * de Portfolio de nuevo.
+     */
+    if (access.granted || access.code === "ACCESS_DENIED") {
+      state.spreadsheets[normalizedSpreadsheetId] = access;
+    }
+
+    return access;
+  } catch (error) {
+    console.error("[RCS Access] No se pudo validar la Spreadsheet.", error);
+
+    return {
+      spreadsheetId: normalizedSpreadsheetId,
+
+      granted: false,
+
+      role: "none",
+
+      canEdit: false,
+
+      code: "ACCESS_CHECK_FAILED",
+
+      checkedAt: Date.now(),
+    };
+  }
+}
+
+async function ensureRcsPortfolioAccess(forceRefresh = false) {
+  const state = getRcsAccessState();
+
+  const spreadsheetId = window.APP_CONFIG?.portfolio?.spreadsheetId;
+
+  const access = await loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh);
+
+  state.portfolio = access;
+
+  return access;
+}
+
+async function ensureRcsProgramAccess(programId, forceRefresh = false) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedProgramId) {
+    return {
+      granted: false,
+
+      role: "none",
+
+      canEdit: false,
+
+      code: "PROGRAM_ID_MISSING",
+
+      checkedAt: Date.now(),
+    };
+  }
+
+  const source = getProgramSource(normalizedProgramId);
+
+  if (!source?.spreadsheetId) {
+    return {
+      granted: false,
+
+      role: "none",
+
+      canEdit: false,
+
+      code: "PROGRAM_SPREADSHEET_ID_MISSING",
+
+      checkedAt: Date.now(),
+    };
+  }
+
+  const access = await loadRcsSpreadsheetAccess(
+    source.spreadsheetId,
+    forceRefresh,
+  );
+
+  const state = getRcsAccessState();
+
+  state.programs[normalizedProgramId] = access;
+
+  applyRcsEditPermissions(normalizedProgramId);
+
+  return access;
+}
+
+function rcsCanEdit(programId = null) {
+  const state = getRcsAccessState();
+
+  if (!programId) {
+    return state.portfolio?.canEdit === true;
+  }
+
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  return state.programs[normalizedProgramId]?.canEdit === true;
+}
+
+function applyRcsEditPermissions(programId = null) {
+  const canEdit = rcsCanEdit(programId);
+
+  document.documentElement.dataset.rcsCanEdit = canEdit ? "true" : "false";
+
+  ensureRcsAccessStyles();
+
+  renderRcsAccessRoleBadge(programId);
+
+  if (!canEdit && typeof setManagementRoadmapMappingMode === "function") {
+    setManagementRoadmapMappingMode(false);
+  }
+}
+
+function ensureRcsAccessStyles() {
+  if (document.getElementById("rcsAccessStyles")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+
+  style.id = "rcsAccessStyles";
+
+  style.textContent = `
+    .rcs-access-role {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      padding: 0 11px;
+      border: 1px solid #b7cbea;
+      border-radius: 999px;
+      background: #eef4ff;
+      color: #174a8b;
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+
+    .rcs-access-role[data-role="editor"] {
+      border-color: #a6ddc0;
+      background: #edf9f2;
+      color: #157a47;
+    }
+
+    .rcs-access-role[data-role="viewer"] {
+      border-color: #c5d5ec;
+      background: #f1f5fb;
+      color: #526b8d;
+    }
+
+    .rcs-access-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 20000;
+      display: grid;
+      place-items: center;
+      padding: 32px;
+      background:
+        linear-gradient(
+          135deg,
+          #041e42 0%,
+          #072f78 55%,
+          #004481 100%
+        );
+    }
+
+    .rcs-access-card {
+      width: min(560px, 100%);
+      padding: 42px;
+      border-radius: 24px;
+      background: #ffffff;
+      box-shadow:
+        0 28px 70px
+        rgba(0, 0, 0, 0.28);
+      text-align: center;
+    }
+
+    .rcs-access-brand {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 82px;
+      height: 36px;
+      margin-bottom: 26px;
+      padding: 0 18px;
+      border-radius: 6px;
+      background: #072f78;
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+    }
+
+    .rcs-access-card h1 {
+      margin: 0;
+      color: #072f78;
+      font-family: Georgia, serif;
+      font-size: 34px;
+      line-height: 1.1;
+    }
+
+    .rcs-access-card p {
+      margin: 18px auto 0;
+      max-width: 440px;
+      color: #526b8d;
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .rcs-access-card button {
+      min-height: 44px;
+      margin-top: 28px;
+      padding: 0 24px;
+      border: 0;
+      border-radius: 999px;
+      background: #0067b1;
+      color: #ffffff;
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    /*
+     * =====================================================
+     * READ ONLY MODE
+     * =====================================================
+     *
+     * Los lectores:
+     *
+     * - no pueden abrir el origen;
+     * - no pueden configurar el roadmap;
+     * - no pueden crear deliverables;
+     * - no pueden editar deliverables;
+     * - no pueden modificar relaciones SDA;
+     * - no pueden guardar ni eliminar.
+     */
+
+    html[data-rcs-can-edit="false"]
+      #openDataSourceBtn,
+
+    html[data-rcs-can-edit="false"]
+      [data-management-roadmap-config-toggle],
+
+    html[data-rcs-can-edit="false"]
+      [data-management-roadmap-create-line],
+
+    html[data-rcs-can-edit="false"]
+      [data-management-roadmap-edit-line],
+
+    html[data-rcs-can-edit="false"]
+      [data-management-roadmap-map-line],
+
+    html[data-rcs-can-edit="false"]
+      [data-management-roadmap-mapping-save],
+
+    html[data-rcs-can-edit="false"]
+      [data-management-roadmap-line-editor-save],
+
+    html[data-rcs-can-edit="false"]
+      [data-management-roadmap-line-editor-delete] {
+      display: none !important;
+    }
+
+    html[data-rcs-can-edit="false"]
+      .management-deliverables-filter-group:has(
+        [data-management-roadmap-config-toggle]
+      ) {
+      display: none !important;
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function clearRcsSessionCache() {
+  try {
+    for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
+      const key = window.sessionStorage.key(index);
+
+      if (key && key.startsWith("rcsCockpit:")) {
+        window.sessionStorage.removeItem(key);
+      }
+    }
+  } catch (error) {
+    console.warn("[RCS Access] No se pudo limpiar sessionStorage.", error);
+  }
+}
+
+function renderRcsAccessScreen(access) {
+  ensureRcsAccessStyles();
+
+  const current = document.getElementById("rcsAccessScreen");
+
+  if (current) {
+    current.remove();
+  }
+
+  const denied = access?.code === "ACCESS_DENIED";
+
+  const screen = document.createElement("section");
+
+  screen.id = "rcsAccessScreen";
+
+  screen.className = "rcs-access-screen";
+
+  screen.innerHTML = `
+    <article class="rcs-access-card">
+      <span class="rcs-access-brand">
+        BBVA
+      </span>
+
+      <h1>
+        ${denied ? "Acceso no autorizado" : "No se puede validar el acceso"}
+      </h1>
+
+      <p>
+        ${
+          denied
+            ? "Tu cuenta no dispone de acceso al RCS Cockpit. Solicita acceso a la Spreadsheet correspondiente para poder utilizarlo."
+            : "No se ha podido comprobar tu acceso al RCS Cockpit. Por seguridad no se mostrarán datos almacenados ni información de demostración."
+        }
+      </p>
+
+      <button
+        type="button"
+        id="rcsAccessRetry"
+      >
+        Reintentar
+      </button>
+    </article>
+  `;
+
+  const app = document.getElementById("app");
+
+  if (app) {
+    app.hidden = true;
+  }
+
+  document.body.appendChild(screen);
+
+  screen.querySelector("#rcsAccessRetry")?.addEventListener("click", () => {
+    window.location.reload();
+  });
+}
+
+function blockRcsCockpitAccess(access) {
+  const state = getRcsAccessState();
+
+  state.blocked = true;
+
+  clearRcsSessionCache();
+
+  renderRcsAccessScreen(access);
+}
+
+function restoreRcsCockpitAccess() {
+  const state = getRcsAccessState();
+
+  state.blocked = false;
+
+  const screen = document.getElementById("rcsAccessScreen");
+
+  if (screen) {
+    screen.remove();
+  }
+
+  const app = document.getElementById("app");
+
+  if (app) {
+    app.hidden = false;
+  }
+}
+function getRcsCurrentProgramId() {
+  const hash = String(window.location.hash || "")
+    .replace(/^#\/?/, "")
+    .trim();
+
+  if (!hash || hash === "landing") {
+    return null;
+  }
+
+  const routeParts = hash
+    .split("/")
+    .map((part) => decodeURIComponent(part).trim().toLowerCase())
+    .filter(Boolean);
+
+  const programId = routeParts.find((part) => PROGRAM_SOURCES.has(part));
+
+  return programId || null;
+}
+
+function getRcsEffectiveAccess(programId = null) {
+  const state = getRcsAccessState();
+
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  if (normalizedProgramId) {
+    return (
+      state.programs[normalizedProgramId] || {
+        granted: false,
+        role: "none",
+        canEdit: false,
+      }
+    );
+  }
+
+  return (
+    state.portfolio || {
+      granted: false,
+      role: "none",
+      canEdit: false,
+    }
+  );
+}
+
+function getRcsAccessRoleLabel(access) {
+  if (!access?.granted) {
+    return "";
+  }
+
+  if (access.role === "editor") {
+    return "Editor";
+  }
+
+  if (access.role === "viewer") {
+    return "Lector";
+  }
+
+  return "";
+}
+
+function getRcsAccessScopeLabel(programId = null) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedProgramId) {
+    return "Portfolio";
+  }
+
+  const program = (PORTFOLIO_DATA?.programs || []).find(
+    (item) =>
+      String(item?.id || "")
+        .trim()
+        .toLowerCase() === normalizedProgramId,
+  );
+
+  if (program?.name) {
+    return program.name;
+  }
+
+  return normalizedProgramId;
+}
+
+function renderRcsAccessRoleBadge(programId = null) {
+  let badge = document.querySelector("#rcsAccessRoleBadge");
+
+  const container = document.querySelector(".data-status-main");
+
+  if (!container) {
+    return;
+  }
+
+  if (!badge) {
+    badge = document.createElement("span");
+
+    badge.id = "rcsAccessRoleBadge";
+
+    badge.className = "rcs-access-role";
+
+    container.prepend(badge);
+  }
+
+  const access = getRcsEffectiveAccess(programId);
+
+  const roleLabel = getRcsAccessRoleLabel(access);
+
+  if (!access.granted || !roleLabel) {
+    badge.hidden = true;
+
+    badge.textContent = "";
+
+    badge.removeAttribute("data-role");
+
+    return;
+  }
+
+  const scopeLabel = getRcsAccessScopeLabel(programId);
+
+  badge.hidden = false;
+
+  badge.dataset.role = access.role;
+
+  badge.textContent = `${scopeLabel} · ${roleLabel}`;
+
+  badge.title = access.canEdit
+    ? `Acceso como Editor de ${scopeLabel}. Puedes modificar el Cockpit.`
+    : `Acceso como Lector de ${scopeLabel}. El Cockpit está en modo solo lectura.`;
+
+  badge.setAttribute(
+    "aria-label",
+    access.canEdit
+      ? `${scopeLabel}. Rol Editor.`
+      : `${scopeLabel}. Rol Lector.`,
+  );
+}
+
+function syncRcsAccessRoleBadge() {
+  const programId = getRcsCurrentProgramId();
+
+  renderRcsAccessRoleBadge(programId);
+
+  const canEdit = rcsCanEdit(programId);
+
+  document.documentElement.dataset.rcsCanEdit = canEdit ? "true" : "false";
+}
+
+function installRcsAccessRoleTracking() {
+  if (window.RCS_ACCESS_ROLE_TRACKING_INSTALLED) {
+    syncRcsAccessRoleBadge();
+
+    return;
+  }
+
+  window.RCS_ACCESS_ROLE_TRACKING_INSTALLED = true;
+
+  window.addEventListener("hashchange", () => {
+    window.setTimeout(() => {
+      syncRcsAccessRoleBadge();
+    }, 0);
+  });
+
+  syncRcsAccessRoleBadge();
 }
 /* teams */
 document.addEventListener("click", (event) => {
