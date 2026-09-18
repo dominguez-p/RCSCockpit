@@ -6949,8 +6949,22 @@ async function fetchPortfolioSourceData(forceRefresh = false) {
     return requestRegistry.portfolio;
   }
 
+  /*
+   * =====================================================
+   * APPS SCRIPT · CORE TIMEOUT
+   * =====================================================
+   *
+   * La primera ejecución de Apps Script puede ser
+   * sensiblemente más lenta por cold start y por la
+   * generación completa del dataset.
+   *
+   * Con fotografía previa esta petición trabaja en
+   * background, por lo que aumentar el timeout no
+   * penaliza la navegación habitual.
+   */
+
   const request = loadConfiguredSource(source, {
-    timeoutMs: 25000,
+    timeoutMs: 90000,
 
     retries: 0,
 
@@ -7011,7 +7025,7 @@ async function fetchProgramSourceData(programId, forceRefresh = false) {
   }
 
   const request = loadConfiguredSource(source, {
-    timeoutMs: 25000,
+    timeoutMs: 90000,
 
     retries: 0,
 
@@ -9234,7 +9248,11 @@ async function init() {
        * que empezó el Access Control.
        */
 
-      showLoadingOverlay("Cargando datos generales del portfolio...");
+      showLoadingOverlay(
+        "Acceso validado. Cargando datos generales del portfolio... " +
+          "La primera carga puede tardar hasta uno o dos minutos. " +
+          "No cierres esta ventana.",
+      );
 
       const rawData = await dataPromise;
 
