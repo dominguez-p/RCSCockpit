@@ -12,10 +12,49 @@ window.APP_CONFIG = {
   accessControl: {
     id: "rcs-access-control",
 
-    label: "RCS Cockpit Access Control",
+    label: "RCSE Cockpit Access Control",
 
     driveJsonUrl:
       "https://script.google.com/a/macros/bbva.com/s/AKfycby6tdGdXMzBd8rh0tuIBCQMMk0xPPwJZan_FOG4QbMV3JwqlW9MQuJJGVe4kDucJ3Lg/exec",
+
+    /*
+     * =====================================================
+     * TEMPORAL · ACCESS PROFILE TEST
+     * =====================================================
+     *
+     * El contenido de estas Spreadsheets es irrelevante.
+     * Sólo se utilizan sus permisos de Drive.
+     *
+     * Para retirar el test:
+     *
+     * enabled: false
+     */
+
+    /*     testMode: {
+      enabled: true,
+
+      defaultProfile: "editor",
+
+      profiles: {
+        editor: {
+          label: "Editor",
+
+          spreadsheetId: "19LTFh3GBHjSGnXfmjJNnK6vln_haAMFj91DtZwdn2W4",
+        },
+
+        viewer: {
+          label: "Lector",
+
+          spreadsheetId: "1v5u5vIB4ykyhUC8nPzmilGaUl7l_BN1-ByT06-aANLw",
+        },
+
+        denied: {
+          label: "Sin acceso",
+
+          spreadsheetId: "13GKerdAevB08WbXNbMriqhpTlSgg5oi1iK_NP8TqErs",
+        },
+      },
+    }, */
   },
 
   /*
