@@ -21451,62 +21451,6 @@ async function deleteManagementRoadmapLine(programId, lineId) {
   }
 }
 
-/* function getRcsAccessTestConfig() {
-  const config = window.APP_CONFIG?.accessControl?.testMode;
-
-  if (!config || config.enabled !== true || !config.profiles) {
-    return null;
-  }
-
-  return config;
-}
-
-function getRcsAccessTestProfile() {
-  const config = getRcsAccessTestConfig();
-
-  if (!config) {
-    return null;
-  }
-
-  const parameters = new URLSearchParams(window.location.search);
-
-  const requestedProfile = String(parameters.get("acl") || "")
-    .trim()
-    .toLowerCase();
-
-  const defaultProfile = String(config.defaultProfile || "editor")
-    .trim()
-    .toLowerCase();
-
-  const profileId = config.profiles[requestedProfile]
-    ? requestedProfile
-    : defaultProfile;
-
-  const profile = config.profiles[profileId];
-
-  if (!profile || !profile.spreadsheetId) {
-    return null;
-  }
-
-  return {
-    id: profileId,
-
-    label: profile.label || profileId,
-
-    spreadsheetId: String(profile.spreadsheetId).trim(),
-  };
-}
-
-function resolveRcsAccessSpreadsheetId(realSpreadsheetId) {
-  const testProfile = getRcsAccessTestProfile();
-
-  if (testProfile?.spreadsheetId) {
-    return testProfile.spreadsheetId;
-  }
-
-  return String(realSpreadsheetId || "").trim();
-} */
-
 function getRcsAccessState() {
   if (!window.RCS_ACCESS_STATE) {
     window.RCS_ACCESS_STATE = {
@@ -21661,9 +21605,9 @@ async function loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh = false) {
 async function ensureRcsPortfolioAccess(forceRefresh = false) {
   const state = getRcsAccessState();
 
-  const realSpreadsheetId = window.APP_CONFIG?.portfolio?.spreadsheetId;
-
-  const spreadsheetId = resolveRcsAccessSpreadsheetId(realSpreadsheetId);
+  const spreadsheetId = String(
+    window.APP_CONFIG?.portfolio?.spreadsheetId || "",
+  ).trim();
 
   const access = await loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh);
 
@@ -21680,13 +21624,9 @@ async function ensureRcsProgramAccess(programId, forceRefresh = false) {
   if (!normalizedProgramId) {
     return {
       granted: false,
-
       role: "none",
-
       canEdit: false,
-
       code: "PROGRAM_ID_MISSING",
-
       checkedAt: Date.now(),
     };
   }
@@ -21696,18 +21636,14 @@ async function ensureRcsProgramAccess(programId, forceRefresh = false) {
   if (!source?.spreadsheetId) {
     return {
       granted: false,
-
       role: "none",
-
       canEdit: false,
-
       code: "PROGRAM_SPREADSHEET_ID_MISSING",
-
       checkedAt: Date.now(),
     };
   }
 
-  const spreadsheetId = resolveRcsAccessSpreadsheetId(source.spreadsheetId);
+  const spreadsheetId = String(source.spreadsheetId || "").trim();
 
   const access = await loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh);
 
@@ -22250,15 +22186,11 @@ function renderRcsAccessRoleBadge(programId = null) {
 
   const scopeLabel = getRcsAccessScopeLabel(programId);
 
-  const testProfile = getRcsAccessTestProfile();
-
   badge.hidden = false;
 
   badge.dataset.role = access.role;
 
-  badge.textContent = testProfile
-    ? `TEST ${testProfile.label} · ${scopeLabel} · ${roleLabel}`
-    : `${scopeLabel} · ${roleLabel}`;
+  badge.textContent = `${scopeLabel} · ${roleLabel}`;
 
   badge.title = access.canEdit
     ? `Acceso como Editor de ${scopeLabel}. Puedes modificar el Cockpit.`
@@ -22304,9 +22236,9 @@ function installRcsAccessRoleTracking() {
 function openRcsAccessAuthorization() {
   const config = window.APP_CONFIG?.accessControl;
 
-  const realSpreadsheetId = window.APP_CONFIG?.portfolio?.spreadsheetId;
-
-  const spreadsheetId = resolveRcsAccessSpreadsheetId(realSpreadsheetId);
+  const spreadsheetId = String(
+    window.APP_CONFIG?.portfolio?.spreadsheetId || "",
+  ).trim();
 
   if (!config?.driveJsonUrl || !spreadsheetId) {
     window.alert("El control de acceso no está configurado correctamente.");
@@ -22367,14 +22299,6 @@ function openRcsAccessAuthorization() {
     try {
       const access = await loadRcsSpreadsheetAccess(spreadsheetId, true);
 
-      /*
-       * ===============================================
-       * ACCESO CONCEDIDO
-       * ===============================================
-       *
-       * Puede ser Editor o Lector.
-       */
-
       if (access.granted) {
         finish(monitor);
 
@@ -22383,16 +22307,6 @@ function openRcsAccessAuthorization() {
         return;
       }
 
-      /*
-       * ===============================================
-       * ACCESO DENEGADO
-       * ===============================================
-       *
-       * La autenticación ha terminado correctamente,
-       * pero el usuario no dispone de permisos
-       * sobre la Spreadsheet.
-       */
-
       if (access.code === "ACCESS_DENIED") {
         finish(monitor);
 
@@ -22400,15 +22314,6 @@ function openRcsAccessAuthorization() {
 
         return;
       }
-
-      /*
-       * ACCESS_CHECK_FAILED:
-       *
-       * todavía puede estar abierta
-       * la autorización de Google.
-       *
-       * Seguimos esperando.
-       */
     } catch (error) {
       console.debug("[RCS Access] Validación todavía pendiente.", error);
     } finally {
@@ -22417,31 +22322,18 @@ function openRcsAccessAuthorization() {
   };
 
   const monitor = window.setInterval(async () => {
-    /*
-     * Máximo dos minutos.
-     */
-
     if (Date.now() - startedAt > 120000) {
       finish(monitor);
 
       renderRcsAccessScreen({
         granted: false,
-
         role: "none",
-
         canEdit: false,
-
         code: "ACCESS_CHECK_FAILED",
       });
 
       return;
     }
-
-    /*
-     * Si el usuario cierra manualmente
-     * el popup hacemos una última
-     * comprobación antes de abandonar.
-     */
 
     if (popup.closed) {
       window.clearInterval(monitor);
@@ -22467,18 +22359,8 @@ function openRcsAccessAuthorization() {
       return;
     }
 
-    /*
-     * Mientras el popup permanece abierto,
-     * el Cockpit comprueba si Google ya ha
-     * resuelto la autorización.
-     */
-
     await checkAccess(monitor);
   }, 1000);
-
-  /*
-   * Primera comprobación rápida.
-   */
 
   window.setTimeout(() => {
     void checkAccess(monitor);
