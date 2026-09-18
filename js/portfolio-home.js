@@ -88,7 +88,7 @@ const PORTFOLIO_AMBITIONS = [
     axis: "delivery-value",
     title: "Productividad",
     ambition:
-      "Convertir a SRCS en una referencia de productividad para Retail, generando ahorros reales, credibilidad y aprendizajes que trasciendan al equipo.",
+      "Convertir a RCSE en una referencia de productividad para Retail, generando ahorros reales, credibilidad y aprendizajes que trasciendan al equipo.",
     actions: [
       "Gestionar la productividad de forma proactiva y probar las medidas antes de escalarlas.",
       "Explotar reutilización, vendor management, sinergias de roles, optimización de scrums, offshoring e IA.",
@@ -409,7 +409,7 @@ function renderPortfolioAmbitionAxisTags() {
 
 renderLanding = function renderPortfolioLanding() {
   setHead(
-    "RCS Portfolio Cockpit",
+    "RCSE Portfolio Cockpit",
     "Programas y ambiciones estratégicas de Retail Client Solutions",
   );
 
@@ -453,7 +453,7 @@ renderLanding = function renderPortfolioLanding() {
               </span>
 
               <span class="portfolio-ambitions-summary-title">
-                Ambición RCS 2026
+                Ambición RCSE 2026
               </span>
 
               <span class="portfolio-ambitions-summary-description">

@@ -6940,6 +6940,118 @@ async function revalidateProgramDataInBackground(programId) {
     }
   }
 }
+async function fetchPortfolioSourceData(forceRefresh = false) {
+  const source = window.APP_CONFIG.portfolio;
+
+  const requestRegistry = getRcsCoreRequestRegistry();
+
+  if (requestRegistry.portfolio) {
+    return requestRegistry.portfolio;
+  }
+
+  const request = loadConfiguredSource(source, {
+    timeoutMs: 25000,
+
+    retries: 0,
+
+    cacheBust: forceRefresh,
+  });
+
+  requestRegistry.portfolio = request;
+
+  try {
+    return await request;
+  } finally {
+    if (requestRegistry.portfolio === request) {
+      requestRegistry.portfolio = null;
+    }
+  }
+}
+
+function installPortfolioSourceData(rawData) {
+  PORTFOLIO_DATA = normalizePortfolioData(rawData);
+
+  buildProgramSources(PORTFOLIO_DATA.programs);
+
+  PORTFOLIO_LAST_LOADED_AT = new Date();
+
+  writeRcsSessionCache(
+    "portfolio",
+    "",
+    PORTFOLIO_DATA,
+    PORTFOLIO_LAST_LOADED_AT,
+  );
+
+  return PORTFOLIO_DATA;
+}
+
+async function fetchProgramSourceData(programId, forceRefresh = false) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const source = getProgramSource(normalizedProgramId);
+
+  if (!source) {
+    throw new Error(
+      `No existe un origen configurado para el programa ${normalizedProgramId}`,
+    );
+  }
+
+  if (!source.driveJsonUrl) {
+    throw new Error(
+      `El programa ${normalizedProgramId} no tiene driveJsonUrl configurado`,
+    );
+  }
+
+  const requestRegistry = getRcsCoreRequestRegistry();
+
+  if (requestRegistry.programs.has(normalizedProgramId)) {
+    return requestRegistry.programs.get(normalizedProgramId);
+  }
+
+  const request = loadConfiguredSource(source, {
+    timeoutMs: 25000,
+
+    retries: 0,
+
+    cacheBust: forceRefresh,
+  });
+
+  requestRegistry.programs.set(normalizedProgramId, request);
+
+  try {
+    return await request;
+  } finally {
+    if (requestRegistry.programs.get(normalizedProgramId) === request) {
+      requestRegistry.programs.delete(normalizedProgramId);
+    }
+  }
+}
+
+function installProgramSourceData(programId, rawData) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const programData = normalizeProgramData(normalizedProgramId, rawData);
+
+  const completeProgramData = {
+    ...programData,
+
+    restricted: getEmptyRestrictedProgramData(),
+  };
+
+  PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
+
+  const loadedAt = new Date();
+
+  PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, loadedAt);
+
+  writeRcsSessionCache("program", normalizedProgramId, programData, loadedAt);
+
+  return completeProgramData;
+}
 async function loadPortfolioData(forceRefresh = false) {
   if (
     !forceRefresh &&
@@ -6951,14 +7063,6 @@ async function loadPortfolioData(forceRefresh = false) {
     return PORTFOLIO_DATA;
   }
 
-  /*
-   * =====================================================
-   * CACHE DE SESIÓN
-   * =====================================================
-   *
-   * Un F5 debe recuperar inmediatamente la última
-   * fotografía válida de esta sesión.
-   */
   if (!forceRefresh) {
     const cachedPortfolio = hydratePortfolioFromSessionCache();
 
@@ -6967,55 +7071,9 @@ async function loadPortfolioData(forceRefresh = false) {
     }
   }
 
-  const source = window.APP_CONFIG.portfolio;
+  const rawData = await fetchPortfolioSourceData(forceRefresh);
 
-  const requestRegistry = getRcsCoreRequestRegistry();
-
-  /*
-   * Evitamos varias peticiones simultáneas al mismo
-   * Apps Script si coinciden render, hashchange, etc.
-   */
-  if (requestRegistry.portfolio) {
-    return requestRegistry.portfolio;
-  }
-
-  requestRegistry.portfolio = (async () => {
-    const rawData = await loadConfiguredSource(source, {
-      /*
-       * Permitimos cold start de Apps Script,
-       * pero no hacemos retries automáticos.
-       *
-       * Una petición puede tardar como máximo 25 s,
-       * no 25 s x varios intentos.
-       */
-      timeoutMs: 25000,
-
-      retries: 0,
-
-      cacheBust: forceRefresh,
-    });
-
-    PORTFOLIO_DATA = normalizePortfolioData(rawData);
-
-    buildProgramSources(PORTFOLIO_DATA.programs);
-
-    PORTFOLIO_LAST_LOADED_AT = new Date();
-
-    writeRcsSessionCache(
-      "portfolio",
-      "",
-      PORTFOLIO_DATA,
-      PORTFOLIO_LAST_LOADED_AT,
-    );
-
-    return PORTFOLIO_DATA;
-  })();
-
-  try {
-    return await requestRegistry.portfolio;
-  } finally {
-    requestRegistry.portfolio = null;
-  }
+  return installPortfolioSourceData(rawData);
 }
 const PROGRAM_DATASET_CACHE = new Map();
 const PROGRAM_DATASET_REQUESTS = new Map();
@@ -7184,149 +7242,132 @@ function buildProgramDatasetUrl(programId, dataset, params = {}) {
   return url.toString();
 }
 
-async function loadProgramDataset(
-  programId,
-  dataset,
-  params = {},
-  { forceRefresh = false, persist = true } = {},
-) {
-  if (typeof loadJsonpOnDemand !== "function") {
-    throw new Error("No está disponible la carga JSONP on-demand.");
-  }
-
+async function loadProgramData(programId, forceRefresh = false) {
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
 
-  const normalizedDataset = String(dataset || "core")
-    .trim()
-    .toLowerCase();
+  const source = getProgramSource(normalizedProgramId);
 
-  const cacheKey = getProgramDatasetCacheKey(
+  if (!source) {
+    throw new Error(
+      `No existe un origen configurado para el programa ${normalizedProgramId}`,
+    );
+  }
+
+  /*
+   * =======================================================
+   * PARALELIZACIÓN
+   * =======================================================
+   *
+   * Arrancamos simultáneamente:
+   *
+   * 1. validación de permisos;
+   * 2. lectura del origen.
+   *
+   * Los datos NO se instalan ni se escriben
+   * en sessionStorage hasta que el usuario
+   * haya superado el control de acceso.
+   */
+
+  const accessPromise = ensureRcsProgramAccess(
     normalizedProgramId,
-    normalizedDataset,
-    params,
+    forceRefresh,
   );
 
-  /*
-   * =====================================================
-   * MEMORIA
-   * =====================================================
-   */
-  if (!forceRefresh && PROGRAM_DATASET_CACHE.has(cacheKey)) {
-    return PROGRAM_DATASET_CACHE.get(cacheKey);
+  const dataPromise = fetchProgramSourceData(normalizedProgramId, forceRefresh);
+
+  const access = await accessPromise;
+
+  if (!access.granted) {
+    /*
+     * La petición de datos puede seguir
+     * ejecutándose en Apps Script.
+     *
+     * Absorbemos un posible rechazo para
+     * evitar una Promise sin gestionar.
+     *
+     * No se instala ningún dato.
+     */
+    void dataPromise.catch(() => {});
+
+    blockRcsCockpitAccess(access);
+
+    const error = new Error("ACCESS_DENIED");
+
+    error.code = access.code || "ACCESS_DENIED";
+
+    throw error;
   }
 
   /*
-   * =====================================================
-   * SESSION STORAGE
-   * =====================================================
+   * =======================================================
+   * MEMORIA
+   * =======================================================
    */
-  if (!forceRefresh && persist) {
-    const cached = readProgramDatasetSessionCache(
-      normalizedProgramId,
-      normalizedDataset,
-      params,
-    );
 
-    if (cached?.data) {
-      PROGRAM_DATASET_CACHE.set(cacheKey, cached.data);
+  if (!forceRefresh && PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+    const cachedProgram = PROGRAM_DATA_CACHE.get(normalizedProgramId);
 
-      /*
-       * Revalidamos sin bloquear.
-       */
-      if (!PROGRAM_DATASET_REQUESTS.has(cacheKey)) {
-        const backgroundRequest = loadProgramDataset(
-          normalizedProgramId,
-          normalizedDataset,
-          params,
-          {
-            forceRefresh: true,
-            persist,
-          },
-        ).catch((error) => {
+    /*
+     * Ya tenemos una fotografía real.
+     *
+     * No esperamos a la petición live.
+     * La dejamos actualizar la caché
+     * en background.
+     */
+
+    void dataPromise
+      .then((rawData) => {
+        installProgramSourceData(normalizedProgramId, rawData);
+      })
+      .catch((error) => {
+        console.warn(
+          `[RCS Cockpit] No se ha podido actualizar ${normalizedProgramId} en background.`,
+          error,
+        );
+      });
+
+    return cachedProgram;
+  }
+
+  /*
+   * =======================================================
+   * SESSION CACHE
+   * =======================================================
+   */
+
+  if (!forceRefresh) {
+    const cachedProgram = hydrateProgramFromSessionCache(normalizedProgramId);
+
+    if (cachedProgram) {
+      void dataPromise
+        .then((rawData) => {
+          installProgramSourceData(normalizedProgramId, rawData);
+        })
+        .catch((error) => {
           console.warn(
-            "[RCS Cockpit] " +
-              `No se ha podido revalidar ` +
-              `${normalizedProgramId}/${normalizedDataset}. ` +
-              "Se mantiene la última fotografía válida.",
+            `[RCS Cockpit] No se ha podido actualizar ${normalizedProgramId} en background.`,
             error,
           );
-
-          return cached.data;
         });
 
-        /*
-         * loadProgramDataset(forceRefresh)
-         * registra internamente la Promise.
-         *
-         * No esperamos aquí.
-         */
-        void backgroundRequest;
-      }
-
-      return cached.data;
+      return cachedProgram;
     }
   }
 
   /*
-   * =====================================================
-   * PETICIÓN YA EN CURSO
-   * =====================================================
+   * =======================================================
+   * SIN CACHE
+   * =======================================================
+   *
+   * La petición ya lleva ejecutándose
+   * mientras validábamos permisos.
    */
-  if (PROGRAM_DATASET_REQUESTS.has(cacheKey)) {
-    return PROGRAM_DATASET_REQUESTS.get(cacheKey);
-  }
 
-  const request = (async () => {
-    const url = buildProgramDatasetUrl(
-      normalizedProgramId,
-      normalizedDataset,
-      params,
-    );
+  const rawData = await dataPromise;
 
-    const payload = await loadJsonpOnDemand(url, {
-      timeoutMs: 45000,
-
-      /*
-       * Una única petición.
-       *
-       * No encadenamos dos timeouts
-       * consecutivos.
-       */
-      retries: 0,
-
-      cacheBust: forceRefresh,
-    });
-
-    if (!payload || payload.ok === false) {
-      throw new Error(
-        payload?.error || `El dataset ${normalizedDataset} no está disponible.`,
-      );
-    }
-
-    PROGRAM_DATASET_CACHE.set(cacheKey, payload);
-
-    if (persist) {
-      writeProgramDatasetSessionCache(
-        normalizedProgramId,
-        normalizedDataset,
-        params,
-        payload,
-        new Date(),
-      );
-    }
-
-    return payload;
-  })();
-
-  PROGRAM_DATASET_REQUESTS.set(cacheKey, request);
-
-  try {
-    return await request;
-  } finally {
-    PROGRAM_DATASET_REQUESTS.delete(cacheKey);
-  }
+  return installProgramSourceData(normalizedProgramId, rawData);
 }
 function normalizeStaffingProductId(value) {
   return String(value || "")
@@ -8913,51 +8954,76 @@ async function init() {
 
   const initialContext = getCurrentRoute();
 
-  let cachedPortfolio = null;
-
   let cachedProgram = null;
 
-  let bootstrappedFromPortfolioCache = false;
+  let portfolioBackgroundRequest = null;
 
   try {
-    /*
-     * =====================================================
-     * ACCESS CONTROL
-     * =====================================================
-     *
-     * SIEMPRE antes de leer:
-     *
-     * - memoria;
-     * - sessionStorage;
-     * - Portfolio;
-     * - programa.
-     */
-
     showLoadingOverlay("Validando acceso al cockpit...");
 
-    const portfolioAccess = await ensureRcsPortfolioAccess(true);
+    /*
+     * =====================================================
+     * ARRANQUE EN PARALELO
+     * =====================================================
+     *
+     * Access Control y Portfolio arrancan
+     * en el mismo instante.
+     *
+     * La respuesta de Portfolio todavía
+     * NO modifica el estado de la aplicación.
+     */
+
+    const accessPromise = ensureRcsPortfolioAccess(true);
+
+    const dataPromise = fetchPortfolioSourceData(true);
+
+    const portfolioAccess = await accessPromise;
+
+    /*
+     * =====================================================
+     * ACCESO DENEGADO
+     * =====================================================
+     */
 
     if (!portfolioAccess.granted) {
+      /*
+       * Puede quedar una petición de datos
+       * ejecutándose.
+       *
+       * Nunca instalamos su respuesta.
+       */
+
+      void dataPromise.catch(() => {});
+
       blockRcsCockpitAccess(portfolioAccess);
 
       return;
     }
 
+    /*
+     * =====================================================
+     * ACCESO CONCEDIDO
+     * =====================================================
+     */
+
     restoreRcsCockpitAccess();
 
     applyRcsEditPermissions();
+
     installRcsAccessRoleTracking();
+
     /*
-     * Sólo después de validar permisos
-     * podemos consultar fotografías
-     * anteriores de esta sesión.
+     * Sólo AHORA podemos tocar
+     * fotografías de sesión.
      */
 
-    cachedPortfolio = readRcsSessionCache("portfolio");
+    const cachedPortfolio = readRcsSessionCache("portfolio");
 
     cachedProgram = initialContext.programId
       ? readRcsSessionCache("program", initialContext.programId)
       : null;
+
+    const restoredPortfolio = hydratePortfolioFromSessionCache();
 
     /*
      * =====================================================
@@ -8965,11 +9031,7 @@ async function init() {
      * =====================================================
      */
 
-    const restoredPortfolio = hydratePortfolioFromSessionCache();
-
     if (restoredPortfolio) {
-      bootstrappedFromPortfolioCache = true;
-
       setRcsDataMode("portfolio", "live");
 
       DATA = PORTFOLIO_DATA;
@@ -8977,16 +9039,33 @@ async function init() {
       updateDataStatus();
 
       clearDataFallbackBanner();
+
+      /*
+       * La petición live ya está funcionando
+       * desde el inicio.
+       *
+       * No esperamos por ella para pintar.
+       */
+
+      portfolioBackgroundRequest = dataPromise;
     } else {
       /*
        * ===================================================
        * COLD BOOT
        * ===================================================
+       *
+       * No existe fotografía previa.
+       *
+       * Esperamos la petición de datos,
+       * pero ésta lleva ejecutándose desde
+       * que empezó el Access Control.
        */
 
       showLoadingOverlay("Cargando datos generales del portfolio...");
 
-      await loadPortfolioData(true);
+      const rawData = await dataPromise;
+
+      installPortfolioSourceData(rawData);
 
       setRcsDataMode("portfolio", "live");
 
@@ -8999,25 +9078,74 @@ async function init() {
       clearDataFallbackBanner();
     }
   } catch (error) {
-    console.error(error);
+    console.error("[RCS Cockpit] Error durante el arranque.", error);
+
+    const accessState = getRcsAccessState();
 
     /*
-     * Este fallback sólo aplica a problemas
-     * técnicos posteriores a una validación
-     * de acceso satisfactoria.
-     *
-     * ACCESS_DENIED nunca llega aquí porque
-     * se corta antes de leer cualquier dato.
+     * =====================================================
+     * ACCESS
+     * =====================================================
      */
 
-    activateDemoPortfolio(
-      "No se puede acceder temporalmente " +
-        "al origen general. " +
-        "Se ha activado el modo demostración " +
-        "con datos 100% ficticios. " +
-        "Pulsa “Actualizar datos” para " +
-        "reintentar la conexión.",
-    );
+    if (!accessState.portfolio?.granted) {
+      blockRcsCockpitAccess({
+        granted: false,
+
+        role: "none",
+
+        canEdit: false,
+
+        code: error?.code || "ACCESS_CHECK_FAILED",
+      });
+
+      return;
+    }
+
+    /*
+     * =====================================================
+     * DATA
+     * =====================================================
+     *
+     * El usuario está autorizado,
+     * pero el origen ha fallado.
+     *
+     * Nunca activamos DEMO.
+     */
+
+    const restoredPortfolio = hydratePortfolioFromSessionCache();
+
+    if (restoredPortfolio) {
+      DATA = PORTFOLIO_DATA;
+
+      setRcsDataMode("portfolio", "live");
+
+      updateDataStatus();
+
+      showDataFallbackBanner(
+        "No se han podido actualizar los datos generales. " +
+          "Se mantiene la última fotografía real disponible. " +
+          "Pulsa “Actualizar datos” para volver a intentarlo.",
+      );
+    } else {
+      PORTFOLIO_DATA = {
+        portfolioKpis: [],
+        programs: [],
+      };
+
+      DATA = PORTFOLIO_DATA;
+
+      buildProgramSources([]);
+
+      setRcsDataMode("portfolio", "live");
+
+      statusEl.textContent = "No se han podido cargar los datos generales";
+
+      showDataFallbackBanner(
+        "El origen general no ha respondido a tiempo. " +
+          "Pulsa “Actualizar datos” para volver a intentarlo.",
+      );
+    }
   } finally {
     isLoadingData = false;
 
@@ -9025,12 +9153,6 @@ async function init() {
   }
 
   syncDataSourceToggle();
-
-  /*
-   * Si el acceso quedó bloqueado,
-   * no renderizamos absolutamente nada
-   * del cockpit.
-   */
 
   if (getRcsAccessState().blocked) {
     return;
@@ -9040,21 +9162,65 @@ async function init() {
 
   /*
    * =======================================================
-   * STALE-WHILE-REVALIDATE
+   * PORTFOLIO BACKGROUND REFRESH
    * =======================================================
+   *
+   * Si arrancamos desde cache,
+   * completamos ahora la petición live
+   * que ya estaba ejecutándose.
    */
 
-  if (bootstrappedFromPortfolioCache) {
-    void revalidatePortfolioDataInBackground();
+  if (portfolioBackgroundRequest) {
+    void portfolioBackgroundRequest
+      .then((rawData) => {
+        installPortfolioSourceData(rawData);
+
+        const currentContext = getCurrentRoute();
+
+        if (
+          !currentContext.programId ||
+          currentContext.routeName === "landing"
+        ) {
+          DATA = PORTFOLIO_DATA;
+
+          updateDataStatus();
+
+          clearDataFallbackBanner();
+
+          renderLanding();
+
+          syncRcsAccessRoleBadge();
+        }
+      })
+      .catch((error) => {
+        console.warn(
+          "[RCS Cockpit] No se ha podido actualizar Portfolio en background.",
+          error,
+        );
+
+        const currentContext = getCurrentRoute();
+
+        if (
+          !currentContext.programId ||
+          currentContext.routeName === "landing"
+        ) {
+          showDataFallbackBanner(
+            "No se han podido actualizar los datos generales. " +
+              "Se mantiene la última fotografía real disponible. " +
+              "Pulsa “Actualizar datos” para volver a intentarlo.",
+          );
+        }
+      });
   }
 
-  if (initialContext.programId && cachedProgram?.data) {
-    void revalidateProgramDataInBackground(initialContext.programId);
-  }
+  /*
+   * loadProgramData ya realiza su propia
+   * revalidación concurrente cuando existe
+   * una fotografía cacheada.
+   */
 
-  void cachedPortfolio;
+  void cachedProgram;
 }
-
 async function refreshCurrentDataSource() {
   const context = getCurrentRoute();
 
@@ -9223,6 +9389,32 @@ async function refreshCurrentDataSource() {
 }
 
 function openDataSource() {
+  const programId = getRcsCurrentProgramId();
+
+  const canEdit = rcsCanEdit(programId);
+
+  /*
+   * =======================================================
+   * ACCESS CONTROL
+   * =======================================================
+   *
+   * El origen sólo puede abrirse desde el Cockpit
+   * para perfiles Editor.
+   *
+   * El botón también está oculto por CSS para lectores,
+   * pero mantenemos esta comprobación para impedir
+   * aperturas manuales desde consola o llamadas directas
+   * a esta función.
+   */
+
+  if (!canEdit) {
+    console.warn(
+      "[RCS Access] Apertura de origen bloqueada para perfil de solo lectura.",
+    );
+
+    return;
+  }
+
   const source = getActiveDataSource();
 
   if (
@@ -21259,6 +21451,62 @@ async function deleteManagementRoadmapLine(programId, lineId) {
   }
 }
 
+/* function getRcsAccessTestConfig() {
+  const config = window.APP_CONFIG?.accessControl?.testMode;
+
+  if (!config || config.enabled !== true || !config.profiles) {
+    return null;
+  }
+
+  return config;
+}
+
+function getRcsAccessTestProfile() {
+  const config = getRcsAccessTestConfig();
+
+  if (!config) {
+    return null;
+  }
+
+  const parameters = new URLSearchParams(window.location.search);
+
+  const requestedProfile = String(parameters.get("acl") || "")
+    .trim()
+    .toLowerCase();
+
+  const defaultProfile = String(config.defaultProfile || "editor")
+    .trim()
+    .toLowerCase();
+
+  const profileId = config.profiles[requestedProfile]
+    ? requestedProfile
+    : defaultProfile;
+
+  const profile = config.profiles[profileId];
+
+  if (!profile || !profile.spreadsheetId) {
+    return null;
+  }
+
+  return {
+    id: profileId,
+
+    label: profile.label || profileId,
+
+    spreadsheetId: String(profile.spreadsheetId).trim(),
+  };
+}
+
+function resolveRcsAccessSpreadsheetId(realSpreadsheetId) {
+  const testProfile = getRcsAccessTestProfile();
+
+  if (testProfile?.spreadsheetId) {
+    return testProfile.spreadsheetId;
+  }
+
+  return String(realSpreadsheetId || "").trim();
+} */
+
 function getRcsAccessState() {
   if (!window.RCS_ACCESS_STATE) {
     window.RCS_ACCESS_STATE = {
@@ -21274,12 +21522,14 @@ function getRcsAccessState() {
 
   return window.RCS_ACCESS_STATE;
 }
-
 function normalizeRcsAccessResult(payload, spreadsheetId) {
   const access =
     payload && payload.access && typeof payload.access === "object"
       ? payload.access
       : {};
+
+  const user =
+    access.user && typeof access.user === "object" ? access.user : {};
 
   return {
     spreadsheetId,
@@ -21295,6 +21545,12 @@ function normalizeRcsAccessResult(payload, spreadsheetId) {
 
     canEdit: payload?.ok === true && access.canEdit === true,
 
+    user: {
+      name: String(user.name || "").trim(),
+
+      email: String(user.email || "").trim(),
+    },
+
     code: String(payload?.code || "").trim(),
 
     checkedAt: Date.now(),
@@ -21307,15 +21563,10 @@ async function loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh = false) {
   if (!normalizedSpreadsheetId) {
     return {
       spreadsheetId: "",
-
       granted: false,
-
       role: "none",
-
       canEdit: false,
-
       code: "SPREADSHEET_ID_MISSING",
-
       checkedAt: Date.now(),
     };
   }
@@ -21325,15 +21576,10 @@ async function loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh = false) {
   if (!config?.driveJsonUrl || config.driveJsonUrl.includes("PEGA_AQUI")) {
     return {
       spreadsheetId: normalizedSpreadsheetId,
-
       granted: false,
-
       role: "none",
-
       canEdit: false,
-
       code: "ACCESS_CONTROL_NOT_CONFIGURED",
-
       checkedAt: Date.now(),
     };
   }
@@ -21354,7 +21600,15 @@ async function loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh = false) {
     url.searchParams.set("spreadsheetId", normalizedSpreadsheetId);
 
     const payload = await loadJsonp(url.toString(), {
-      timeoutMs: 15000,
+      /*
+       * No esperamos 15 + 25 segundos
+       * en cadena.
+       *
+       * Si el Access Control no
+       * responde en 10 segundos,
+       * fallamos de forma explícita.
+       */
+      timeoutMs: 10000,
 
       retries: 0,
 
@@ -21364,11 +21618,8 @@ async function loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh = false) {
     const access = normalizeRcsAccessResult(payload, normalizedSpreadsheetId);
 
     /*
-     * Cacheamos respuestas válidas,
-     * incluido ACCESS_DENIED.
-     *
-     * Un F5 siempre fuerza comprobación
-     * de Portfolio de nuevo.
+     * Sólo cacheamos respuestas
+     * concluyentes.
      */
     if (access.granted || access.code === "ACCESS_DENIED") {
       state.spreadsheets[normalizedSpreadsheetId] = access;
@@ -21377,6 +21628,13 @@ async function loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh = false) {
     return access;
   } catch (error) {
     console.error("[RCS Access] No se pudo validar la Spreadsheet.", error);
+
+    const message = String(error?.message || error || "")
+      .trim()
+      .toLowerCase();
+
+    const timeout =
+      message.includes("tiempo de espera") || message.includes("timeout");
 
     return {
       spreadsheetId: normalizedSpreadsheetId,
@@ -21387,7 +21645,13 @@ async function loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh = false) {
 
       canEdit: false,
 
-      code: "ACCESS_CHECK_FAILED",
+      /*
+       * IMPORTANTE:
+       *
+       * Un timeout NO significa que
+       * falte autorización OAuth.
+       */
+      code: timeout ? "ACCESS_TIMEOUT" : "ACCESS_CHECK_FAILED",
 
       checkedAt: Date.now(),
     };
@@ -21397,7 +21661,9 @@ async function loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh = false) {
 async function ensureRcsPortfolioAccess(forceRefresh = false) {
   const state = getRcsAccessState();
 
-  const spreadsheetId = window.APP_CONFIG?.portfolio?.spreadsheetId;
+  const realSpreadsheetId = window.APP_CONFIG?.portfolio?.spreadsheetId;
+
+  const spreadsheetId = resolveRcsAccessSpreadsheetId(realSpreadsheetId);
 
   const access = await loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh);
 
@@ -21441,10 +21707,9 @@ async function ensureRcsProgramAccess(programId, forceRefresh = false) {
     };
   }
 
-  const access = await loadRcsSpreadsheetAccess(
-    source.spreadsheetId,
-    forceRefresh,
-  );
+  const spreadsheetId = resolveRcsAccessSpreadsheetId(source.spreadsheetId);
+
+  const access = await loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh);
 
   const state = getRcsAccessState();
 
@@ -21668,9 +21933,13 @@ function renderRcsAccessScreen(access) {
     current.remove();
   }
 
-  const denied = access?.code === "ACCESS_DENIED";
+  const code = String(access?.code || "").trim();
 
-  const validationRequired = access?.code === "ACCESS_CHECK_FAILED";
+  const denied = code === "ACCESS_DENIED";
+
+  const authorizationRequired = code === "AUTHORIZATION_REQUIRED";
+
+  const timeout = code === "ACCESS_TIMEOUT";
 
   const screen = document.createElement("section");
 
@@ -21678,19 +21947,31 @@ function renderRcsAccessScreen(access) {
 
   screen.className = "rcs-access-screen";
 
-  const title = denied
-    ? "Acceso no autorizado"
-    : validationRequired
-      ? "Valida tu acceso"
-      : "No se puede validar el acceso";
+  let title = "No se puede validar el acceso";
 
-  const message = denied
-    ? "Tu cuenta no dispone de acceso al RCS Cockpit. Solicita acceso de lectura o edición a la Spreadsheet correspondiente."
-    : validationRequired
-      ? "Necesitamos validar tu cuenta de Google Workspace antes de acceder al RCS Cockpit. Esta validación sólo es necesaria la primera vez."
-      : "No se ha podido comprobar tu acceso al RCS Cockpit. Por seguridad no se mostrará información hasta completar la validación.";
+  let message =
+    "No se ha podido comprobar tu acceso al RCS Cockpit. Por seguridad no se mostrará información hasta completar la validación.";
 
-  const buttonLabel = validationRequired ? "Validar acceso" : "Reintentar";
+  let buttonLabel = "Reintentar";
+
+  if (denied) {
+    title = "Acceso no autorizado";
+
+    message =
+      "Tu cuenta no dispone de acceso al RCS Cockpit. Solicita acceso de lectura o edición a la Spreadsheet correspondiente.";
+  } else if (authorizationRequired) {
+    title = "Valida tu acceso";
+
+    message =
+      "Necesitamos validar tu cuenta de Google Workspace antes de acceder al RCS Cockpit. Esta validación sólo es necesaria la primera vez.";
+
+    buttonLabel = "Validar acceso";
+  } else if (timeout) {
+    title = "No se puede validar el acceso";
+
+    message =
+      "El servicio de validación está tardando más de lo esperado. Pulsa “Reintentar” para comprobar de nuevo tu acceso.";
+  }
 
   screen.innerHTML = `
     <article
@@ -21730,7 +22011,7 @@ function renderRcsAccessScreen(access) {
   document.body.appendChild(screen);
 
   screen.querySelector("#rcsAccessAction")?.addEventListener("click", () => {
-    if (validationRequired) {
+    if (authorizationRequired) {
       openRcsAccessAuthorization();
 
       return;
@@ -21850,7 +22131,90 @@ function getRcsAccessScopeLabel(programId = null) {
 
   return normalizedProgramId;
 }
+function ensureRcsConnectedUserStyles() {
+  if (document.getElementById("rcsConnectedUserStyles")) {
+    return;
+  }
 
+  const style = document.createElement("style");
+
+  style.id = "rcsConnectedUserStyles";
+
+  style.textContent = `
+    .rcs-connected-user {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-right: 1px solid #d8e2ef;
+      color: #526b8d;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .rcs-connected-user::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      margin-right: 7px;
+      border-radius: 50%;
+      background: #1973b8;
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function renderRcsConnectedUser(programId = null) {
+  ensureRcsConnectedUserStyles();
+
+  const container = document.querySelector(".data-status-main");
+
+  if (!container) {
+    return;
+  }
+
+  let element = document.querySelector("#rcsConnectedUser");
+
+  if (!element) {
+    element = document.createElement("span");
+
+    element.id = "rcsConnectedUser";
+
+    element.className = "rcs-connected-user";
+
+    container.prepend(element);
+  }
+
+  const access = getRcsEffectiveAccess(programId);
+
+  const user = access?.user || {};
+
+  const name = String(user.name || "").trim();
+
+  const email = String(user.email || "").trim();
+
+  if (!access?.granted || (!name && !email)) {
+    element.hidden = true;
+
+    element.textContent = "";
+
+    element.removeAttribute("title");
+
+    return;
+  }
+
+  element.hidden = false;
+
+  element.textContent = name || email;
+
+  if (email) {
+    element.title = email;
+  } else {
+    element.removeAttribute("title");
+  }
+}
 function renderRcsAccessRoleBadge(programId = null) {
   let badge = document.querySelector("#rcsAccessRoleBadge");
 
@@ -21886,11 +22250,15 @@ function renderRcsAccessRoleBadge(programId = null) {
 
   const scopeLabel = getRcsAccessScopeLabel(programId);
 
+  const testProfile = getRcsAccessTestProfile();
+
   badge.hidden = false;
 
   badge.dataset.role = access.role;
 
-  badge.textContent = `${scopeLabel} · ${roleLabel}`;
+  badge.textContent = testProfile
+    ? `TEST ${testProfile.label} · ${scopeLabel} · ${roleLabel}`
+    : `${scopeLabel} · ${roleLabel}`;
 
   badge.title = access.canEdit
     ? `Acceso como Editor de ${scopeLabel}. Puedes modificar el Cockpit.`
@@ -21906,6 +22274,8 @@ function renderRcsAccessRoleBadge(programId = null) {
 
 function syncRcsAccessRoleBadge() {
   const programId = getRcsCurrentProgramId();
+
+  renderRcsConnectedUser(programId);
 
   renderRcsAccessRoleBadge(programId);
 
@@ -21934,7 +22304,9 @@ function installRcsAccessRoleTracking() {
 function openRcsAccessAuthorization() {
   const config = window.APP_CONFIG?.accessControl;
 
-  const spreadsheetId = window.APP_CONFIG?.portfolio?.spreadsheetId;
+  const realSpreadsheetId = window.APP_CONFIG?.portfolio?.spreadsheetId;
+
+  const spreadsheetId = resolveRcsAccessSpreadsheetId(realSpreadsheetId);
 
   if (!config?.driveJsonUrl || !spreadsheetId) {
     window.alert("El control de acceso no está configurado correctamente.");
@@ -21964,28 +22336,153 @@ function openRcsAccessAuthorization() {
 
   const startedAt = Date.now();
 
-  const monitor = window.setInterval(() => {
+  let checking = false;
+
+  const closePopup = () => {
+    try {
+      if (popup && !popup.closed) {
+        popup.close();
+      }
+    } catch (error) {
+      console.debug(
+        "[RCS Access] No se pudo cerrar la ventana de autorización.",
+        error,
+      );
+    }
+  };
+
+  const finish = (monitor) => {
+    window.clearInterval(monitor);
+
+    closePopup();
+  };
+
+  const checkAccess = async (monitor) => {
+    if (checking) {
+      return;
+    }
+
+    checking = true;
+
+    try {
+      const access = await loadRcsSpreadsheetAccess(spreadsheetId, true);
+
+      /*
+       * ===============================================
+       * ACCESO CONCEDIDO
+       * ===============================================
+       *
+       * Puede ser Editor o Lector.
+       */
+
+      if (access.granted) {
+        finish(monitor);
+
+        window.location.reload();
+
+        return;
+      }
+
+      /*
+       * ===============================================
+       * ACCESO DENEGADO
+       * ===============================================
+       *
+       * La autenticación ha terminado correctamente,
+       * pero el usuario no dispone de permisos
+       * sobre la Spreadsheet.
+       */
+
+      if (access.code === "ACCESS_DENIED") {
+        finish(monitor);
+
+        blockRcsCockpitAccess(access);
+
+        return;
+      }
+
+      /*
+       * ACCESS_CHECK_FAILED:
+       *
+       * todavía puede estar abierta
+       * la autorización de Google.
+       *
+       * Seguimos esperando.
+       */
+    } catch (error) {
+      console.debug("[RCS Access] Validación todavía pendiente.", error);
+    } finally {
+      checking = false;
+    }
+  };
+
+  const monitor = window.setInterval(async () => {
     /*
-     * Dejamos de esperar después
-     * de dos minutos.
+     * Máximo dos minutos.
      */
+
     if (Date.now() - startedAt > 120000) {
-      window.clearInterval(monitor);
+      finish(monitor);
+
+      renderRcsAccessScreen({
+        granted: false,
+
+        role: "none",
+
+        canEdit: false,
+
+        code: "ACCESS_CHECK_FAILED",
+      });
 
       return;
     }
 
     /*
-     * La página de Apps Script
-     * se cierra automáticamente
-     * tras validar correctamente.
+     * Si el usuario cierra manualmente
+     * el popup hacemos una última
+     * comprobación antes de abandonar.
      */
+
     if (popup.closed) {
       window.clearInterval(monitor);
 
-      window.location.reload();
+      try {
+        const access = await loadRcsSpreadsheetAccess(spreadsheetId, true);
+
+        if (access.granted) {
+          window.location.reload();
+
+          return;
+        }
+
+        if (access.code === "ACCESS_DENIED") {
+          blockRcsCockpitAccess(access);
+
+          return;
+        }
+      } catch (error) {
+        console.debug("[RCS Access] La autorización no se completó.", error);
+      }
+
+      return;
     }
-  }, 400);
+
+    /*
+     * Mientras el popup permanece abierto,
+     * el Cockpit comprueba si Google ya ha
+     * resuelto la autorización.
+     */
+
+    await checkAccess(monitor);
+  }, 1000);
+
+  /*
+   * Primera comprobación rápida.
+   */
+
+  window.setTimeout(() => {
+    void checkAccess(monitor);
+  }, 700);
 }
 /* teams */
 document.addEventListener("click", (event) => {
