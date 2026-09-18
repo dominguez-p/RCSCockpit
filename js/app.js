@@ -7369,6 +7369,179 @@ async function loadProgramData(programId, forceRefresh = false) {
 
   return installProgramSourceData(normalizedProgramId, rawData);
 }
+async function loadProgramDataset(
+  programId,
+  dataset,
+  params = {},
+  { forceRefresh = false, persist = true } = {},
+) {
+  if (typeof loadJsonpOnDemand !== "function") {
+    throw new Error("No está disponible la carga JSONP on-demand.");
+  }
+
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedDataset = String(dataset || "core")
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedProgramId) {
+    throw new Error("No se ha informado programId para cargar el dataset.");
+  }
+
+  /*
+   * =====================================================
+   * ACCESS CONTROL
+   * =====================================================
+   *
+   * Los datasets diferidos sólo se pueden consultar
+   * después de haber validado el acceso al programa.
+   *
+   * No hacemos una nueva llamada al Access Control:
+   * reutilizamos el permiso ya validado al entrar
+   * en el programa para no añadir latencia.
+   */
+
+  const accessState = getRcsAccessState();
+
+  const programAccess = accessState.programs[normalizedProgramId];
+
+  if (!programAccess || programAccess.granted !== true) {
+    const error = new Error("ACCESS_DENIED");
+
+    error.code = "ACCESS_DENIED";
+
+    throw error;
+  }
+
+  const cacheKey = getProgramDatasetCacheKey(
+    normalizedProgramId,
+    normalizedDataset,
+    params,
+  );
+
+  /*
+   * =====================================================
+   * MEMORIA
+   * =====================================================
+   */
+
+  if (!forceRefresh && PROGRAM_DATASET_CACHE.has(cacheKey)) {
+    return PROGRAM_DATASET_CACHE.get(cacheKey);
+  }
+
+  /*
+   * =====================================================
+   * SESSION STORAGE
+   * =====================================================
+   */
+
+  if (!forceRefresh && persist) {
+    const cached = readProgramDatasetSessionCache(
+      normalizedProgramId,
+      normalizedDataset,
+      params,
+    );
+
+    if (cached?.data) {
+      PROGRAM_DATASET_CACHE.set(cacheKey, cached.data);
+
+      /*
+       * Revalidación silenciosa.
+       *
+       * Entregamos inmediatamente la fotografía
+       * existente y actualizamos en background.
+       */
+      if (!PROGRAM_DATASET_REQUESTS.has(cacheKey)) {
+        const backgroundRequest = loadProgramDataset(
+          normalizedProgramId,
+          normalizedDataset,
+          params,
+          {
+            forceRefresh: true,
+            persist,
+          },
+        ).catch((error) => {
+          console.warn(
+            "[RCS Cockpit] " +
+              `No se ha podido revalidar ` +
+              `${normalizedProgramId}/${normalizedDataset}. ` +
+              "Se mantiene la última fotografía válida.",
+            error,
+          );
+
+          return cached.data;
+        });
+
+        void backgroundRequest;
+      }
+
+      return cached.data;
+    }
+  }
+
+  /*
+   * =====================================================
+   * PETICIÓN YA EN CURSO
+   * =====================================================
+   */
+
+  if (PROGRAM_DATASET_REQUESTS.has(cacheKey)) {
+    return PROGRAM_DATASET_REQUESTS.get(cacheKey);
+  }
+
+  /*
+   * =====================================================
+   * LIVE REQUEST
+   * =====================================================
+   */
+
+  const request = (async () => {
+    const url = buildProgramDatasetUrl(
+      normalizedProgramId,
+      normalizedDataset,
+      params,
+    );
+
+    const payload = await loadJsonpOnDemand(url, {
+      timeoutMs: 45000,
+
+      retries: 0,
+
+      cacheBust: forceRefresh,
+    });
+
+    if (!payload || payload.ok === false) {
+      throw new Error(
+        payload?.error || `El dataset ${normalizedDataset} no está disponible.`,
+      );
+    }
+
+    PROGRAM_DATASET_CACHE.set(cacheKey, payload);
+
+    if (persist) {
+      writeProgramDatasetSessionCache(
+        normalizedProgramId,
+        normalizedDataset,
+        params,
+        payload,
+        new Date(),
+      );
+    }
+
+    return payload;
+  })();
+
+  PROGRAM_DATASET_REQUESTS.set(cacheKey, request);
+
+  try {
+    return await request;
+  } finally {
+    PROGRAM_DATASET_REQUESTS.delete(cacheKey);
+  }
+}
 function normalizeStaffingProductId(value) {
   return String(value || "")
     .trim()
@@ -21781,6 +21954,83 @@ function ensureRcsAccessStyles() {
       line-height: 1.55;
     }
 
+    .rcs-access-info {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-top: 24px;
+      padding: 16px 18px;
+      border: 1px solid #c9d8ef;
+      border-radius: 14px;
+      background: #f4f7fb;
+      text-align: left;
+    }
+
+    .rcs-access-info-icon {
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #e1edff;
+      color: #0067b1;
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .rcs-access-info-content {
+      min-width: 0;
+    }
+
+    .rcs-access-info-title {
+      display: block;
+      margin: 0;
+      color: #072f78;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.4;
+    }
+
+    .rcs-access-info-text {
+      display: block;
+      margin-top: 3px;
+      color: #526b8d;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .rcs-access-progress {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 26px;
+      color: #174a8b;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .rcs-access-progress.is-visible {
+      display: flex;
+    }
+
+    .rcs-access-spinner {
+      width: 18px;
+      height: 18px;
+      border: 3px solid #d9e7f7;
+      border-top-color: #0067b1;
+      border-radius: 50%;
+      animation:
+        rcsAccessSpin 0.9s linear infinite;
+    }
+
+    @keyframes rcsAccessSpin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     .rcs-access-card button {
       min-height: 44px;
       margin-top: 28px;
@@ -21794,20 +22044,10 @@ function ensureRcsAccessStyles() {
       cursor: pointer;
     }
 
-    /*
-     * =====================================================
-     * READ ONLY MODE
-     * =====================================================
-     *
-     * Los lectores:
-     *
-     * - no pueden abrir el origen;
-     * - no pueden configurar el roadmap;
-     * - no pueden crear deliverables;
-     * - no pueden editar deliverables;
-     * - no pueden modificar relaciones SDA;
-     * - no pueden guardar ni eliminar.
-     */
+    .rcs-access-card button:disabled {
+      cursor: default;
+      opacity: 0.55;
+    }
 
     html[data-rcs-can-edit="false"]
       #openDataSourceBtn,
@@ -21890,30 +22130,72 @@ function renderRcsAccessScreen(access) {
 
   let buttonLabel = "Reintentar";
 
+  let infoHtml = "";
+
   if (denied) {
     title = "Acceso no autorizado";
 
     message =
       "Tu cuenta no dispone de acceso al RCS Cockpit. Solicita acceso de lectura o edición a la Spreadsheet correspondiente.";
   } else if (authorizationRequired) {
-    title = "Valida tu acceso";
+    title = "Primera validación de acceso";
 
     message =
-      "Necesitamos validar tu cuenta de Google Workspace antes de acceder al RCS Cockpit. Esta validación sólo es necesaria la primera vez.";
+      "Necesitamos validar tu cuenta de Google Workspace antes de acceder al RCS Cockpit.";
 
     buttonLabel = "Validar acceso";
+
+    infoHtml = `
+      <div class="rcs-access-info">
+        <span class="rcs-access-info-icon">
+          i
+        </span>
+
+        <div class="rcs-access-info-content">
+          <strong class="rcs-access-info-title">
+            Normalmente sólo tendrás que hacer esto una vez
+          </strong>
+
+          <span class="rcs-access-info-text">
+            La validación puede tardar unos minutos.
+            Cuando pulses “Validar acceso”, mantén abiertas
+            tanto esta ventana como la ventana de Google
+            hasta que el proceso termine.
+          </span>
+        </div>
+      </div>
+    `;
   } else if (timeout) {
-    title = "No se puede validar el acceso";
+    title = "La validación está tardando";
 
     message =
-      "El servicio de validación está tardando más de lo esperado. Pulsa “Reintentar” para comprobar de nuevo tu acceso.";
+      "Google Workspace todavía no ha podido completar la comprobación de acceso.";
+
+    infoHtml = `
+      <div class="rcs-access-info">
+        <span class="rcs-access-info-icon">
+          i
+        </span>
+
+        <div class="rcs-access-info-content">
+          <strong class="rcs-access-info-title">
+            No cierres la ventana
+          </strong>
+
+          <span class="rcs-access-info-text">
+            En algunos casos la primera validación puede tardar
+            varios minutos. Puedes pulsar “Reintentar” para
+            continuar la comprobación.
+          </span>
+        </div>
+      </div>
+    `;
   }
 
   screen.innerHTML = `
     <article
       class="rcs-access-card"
     >
-
       <span
         class="rcs-access-brand"
       >
@@ -21924,9 +22206,27 @@ function renderRcsAccessScreen(access) {
         ${title}
       </h1>
 
-      <p>
+      <p id="rcsAccessMainMessage">
         ${message}
       </p>
+
+      ${infoHtml}
+
+      <div
+        id="rcsAccessProgress"
+        class="rcs-access-progress"
+        role="status"
+        aria-live="polite"
+      >
+        <span
+          class="rcs-access-spinner"
+          aria-hidden="true"
+        ></span>
+
+        <span>
+          Validando identidad y permisos. No cierres esta ventana.
+        </span>
+      </div>
 
       <button
         type="button"
@@ -21934,7 +22234,6 @@ function renderRcsAccessScreen(access) {
       >
         ${buttonLabel}
       </button>
-
     </article>
   `;
 
@@ -21948,6 +22247,8 @@ function renderRcsAccessScreen(access) {
 
   screen.querySelector("#rcsAccessAction")?.addEventListener("click", () => {
     if (authorizationRequired) {
+      setRcsAccessValidationProgress(true);
+
       openRcsAccessAuthorization();
 
       return;
@@ -22241,6 +22542,8 @@ function openRcsAccessAuthorization() {
   ).trim();
 
   if (!config?.driveJsonUrl || !spreadsheetId) {
+    setRcsAccessValidationProgress(false);
+
     window.alert("El control de acceso no está configurado correctamente.");
 
     return;
@@ -22259,6 +22562,8 @@ function openRcsAccessAuthorization() {
   );
 
   if (!popup) {
+    setRcsAccessValidationProgress(false);
+
     window.alert(
       "El navegador ha bloqueado la ventana de validación. Permite las ventanas emergentes para RCS Cockpit y vuelve a intentarlo.",
     );
@@ -22267,6 +22572,8 @@ function openRcsAccessAuthorization() {
   }
 
   const startedAt = Date.now();
+
+  const maxValidationMs = 5 * 60 * 1000;
 
   let checking = false;
 
@@ -22322,14 +22629,17 @@ function openRcsAccessAuthorization() {
   };
 
   const monitor = window.setInterval(async () => {
-    if (Date.now() - startedAt > 120000) {
+    if (Date.now() - startedAt > maxValidationMs) {
       finish(monitor);
 
       renderRcsAccessScreen({
         granted: false,
+
         role: "none",
+
         canEdit: false,
-        code: "ACCESS_CHECK_FAILED",
+
+        code: "ACCESS_TIMEOUT",
       });
 
       return;
@@ -22356,15 +22666,59 @@ function openRcsAccessAuthorization() {
         console.debug("[RCS Access] La autorización no se completó.", error);
       }
 
+      setRcsAccessValidationProgress(false);
+
       return;
     }
 
     await checkAccess(monitor);
-  }, 1000);
+  }, 5000);
 
   window.setTimeout(() => {
     void checkAccess(monitor);
-  }, 700);
+  }, 2000);
+}
+function setRcsAccessValidationProgress(active) {
+  const screen = document.getElementById("rcsAccessScreen");
+
+  if (!screen) {
+    return;
+  }
+
+  const button = screen.querySelector("#rcsAccessAction");
+
+  const progress = screen.querySelector("#rcsAccessProgress");
+
+  const message = screen.querySelector("#rcsAccessMainMessage");
+
+  if (active) {
+    if (button) {
+      button.disabled = true;
+
+      button.textContent = "Validando acceso...";
+    }
+
+    if (progress) {
+      progress.classList.add("is-visible");
+    }
+
+    if (message) {
+      message.textContent =
+        "Google Workspace está comprobando tu identidad y tus permisos. Este proceso puede tardar unos minutos.";
+    }
+
+    return;
+  }
+
+  if (button) {
+    button.disabled = false;
+
+    button.textContent = "Validar acceso";
+  }
+
+  if (progress) {
+    progress.classList.remove("is-visible");
+  }
 }
 /* teams */
 document.addEventListener("click", (event) => {
