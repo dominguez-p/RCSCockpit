@@ -1,20 +1,16 @@
 (function productExperienceFeature() {
   const PROGRAM_ID = "aixbanker";
   const HOLDING_COUNTRY_ID = "HL";
-
   const PRODUCT_RETURN_ROUTE_KEY = "productExperienceReturnRoute";
-
   function pxClean(value) {
     return String(value ?? "")
       .replace(/\\</g, "<")
       .trim();
   }
-
   function pxEsc(value) {
     if (typeof rcsEsc === "function") {
       return rcsEsc(pxClean(value));
     }
-
     return pxClean(value)
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
@@ -22,7 +18,6 @@
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
   }
-
   function pxNormalizeId(value) {
     return String(value || "")
       .trim()
@@ -30,70 +25,53 @@
       .replaceAll("_", "-")
       .replace(/\s+/g, "-");
   }
-
   function pxBoolean(value) {
     if (typeof value === "boolean") {
       return value;
     }
-
     return !["false", "0", "no", "off", "disabled", "inactivo"].includes(
       String(value || "")
         .trim()
         .toLowerCase(),
     );
   }
-
   function pxRows(collectionName) {
     return Array.isArray(DATA?.[collectionName]) ? DATA[collectionName] : [];
   }
-
   function pxList(value) {
     if (Array.isArray(value)) {
       return value.map(pxClean).filter(Boolean);
     }
-
     return String(value || "")
       .split(/\r?\n|\|/)
       .map((item) => pxClean(item).replace(/^\s*[-•–—*]\s*/, ""))
       .filter(Boolean);
   }
-
   function pxExcerpt(value, maxLength = 220) {
     const text = pxClean(value);
-
     if (text.length <= maxLength) {
       return text;
     }
-
     const shortened = text.slice(0, maxLength + 1);
-
     const lastSpace = shortened.lastIndexOf(" ");
-
     const safeEnd = lastSpace > maxLength * 0.7 ? lastSpace : maxLength;
-
     return `${shortened.slice(0, safeEnd).trim()}…`;
   }
-
   function pxSafeUrl(value) {
     const raw = String(value || "").trim();
-
     if (!raw) {
       return "";
     }
-
     try {
       const url = new URL(raw, window.location.href);
-
       if (!["http:", "https:"].includes(url.protocol)) {
         return "";
       }
-
       return url.href;
     } catch {
       return "";
     }
   }
-
   function pxRoute() {
     const parts = String(location.hash || "")
       .replace(/^#\/?/, "")
@@ -105,18 +83,12 @@
           return part;
         }
       });
-
     const routeName = parts[0] || "landing";
-
     return {
       routeName,
-
       programId: parts[1] || "",
-
       productId: parts[2] || "",
-
       capabilityId: routeName === "capability" ? parts[3] || "" : "",
-
       countryId:
         routeName === "product"
           ? parts[3] || ""
@@ -125,12 +97,10 @@
             : "",
     };
   }
-
   function pxTypeLabel(value) {
     const type = String(value || "capability")
       .trim()
       .toLowerCase();
-
     return (
       {
         agent: "Agente",
@@ -141,73 +111,54 @@
       }[type] || "Capacidad"
     );
   }
-
   function pxCatalog() {
     return pxRows("productCatalog")
       .filter((product) => {
         const programId = String(product.programId || PROGRAM_ID).trim();
-
         return programId === PROGRAM_ID && pxBoolean(product.enabled);
       })
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
   }
-
   function pxFeatures(productId = null) {
     return pxRows("productFeatures").filter((feature) => {
       if (!productId) {
         return true;
       }
-
       return pxNormalizeId(feature.productId) === pxNormalizeId(productId);
     });
   }
-
   function pxFindProduct(productId) {
     const id = pxNormalizeId(productId);
-
     return pxCatalog().find(
       (product) => pxNormalizeId(product.productId) === id,
     );
   }
-
   function pxCapabilities(productId) {
     const result = new Map();
-
     pxFeatures(productId).forEach((feature) => {
       const id = pxNormalizeId(feature.capabilityId);
-
       if (!id) {
         return;
       }
-
       if (!result.has(id)) {
         result.set(id, {
           id,
-
           name: feature.capabilityName || id,
-
           type: feature.capabilityType || "capability",
-
           overview: feature.capabilityOverview || "",
-
           deliverables: [],
         });
       }
-
       result.get(id).deliverables.push(feature);
     });
-
     return [...result.values()];
   }
-
   function pxFindCapability(productId, capabilityId) {
     const id = pxNormalizeId(capabilityId);
-
     return pxCapabilities(productId).find((capability) => capability.id === id);
   }
   function pxFeatureCountryIds(feature) {
     const raw = feature?.country ?? feature?.countries ?? "";
-
     return [
       ...new Set(
         String(raw || "")
@@ -223,12 +174,10 @@
       ),
     ];
   }
-
   function pxCountryDefinition(countryId) {
     const normalized = String(countryId || "")
       .trim()
       .toUpperCase();
-
     return pxCountries().find(
       (country) =>
         String(country.id || "")
@@ -236,14 +185,10 @@
           .toUpperCase() === normalized,
     );
   }
-
   function pxCountryBadge(countryId) {
     const country = pxCountryDefinition(countryId);
-
     const label = country?.label || countryId;
-
     const flagSrc = String(country?.flagSrc || "").trim();
-
     return `
     <span
       class="
@@ -262,17 +207,14 @@
           `
           : ""
       }
-
       <span>
         ${pxEsc(countryId)}
       </span>
     </span>
   `;
   }
-
   function pxDeliverableGeography(deliverable) {
     const countryIds = pxFeatureCountryIds(deliverable);
-
     if (!countryIds.length) {
       return `
       <span
@@ -284,7 +226,6 @@
       </span>
     `;
     }
-
     return `
     <div
       class="
@@ -302,9 +243,7 @@
     const deliverables = Array.isArray(capability?.deliverables)
       ? capability.deliverables
       : [];
-
     const result = new Set();
-
     deliverables.forEach((deliverable) => {
       pxFeatureCountryIds(deliverable).forEach((countryId) => {
         result.add(
@@ -314,37 +253,28 @@
         );
       });
     });
-
     const countryOrder = pxCountries().map((country) =>
       String(country.id || "")
         .trim()
         .toUpperCase(),
     );
-
     return [...result].sort((left, right) => {
       const leftIndex = countryOrder.indexOf(left);
-
       const rightIndex = countryOrder.indexOf(right);
-
       if (leftIndex === -1 && rightIndex === -1) {
         return left.localeCompare(right);
       }
-
       if (leftIndex === -1) {
         return 1;
       }
-
       if (rightIndex === -1) {
         return -1;
       }
-
       return leftIndex - rightIndex;
     });
   }
-
   function pxGlobalCapabilityCard(capability, productId) {
     const countryIds = pxCapabilityCountryIds(capability);
-
     const countriesMarkup = countryIds.length
       ? countryIds.map(pxCountryBadge).join("")
       : `
@@ -356,7 +286,6 @@
             Sin geografía
           </span>
         `;
-
     return `
     <article
       class="
@@ -374,7 +303,6 @@
         <span>
           ${pxEsc(pxTypeLabel(capability.type))}
         </span>
-
         <small>
           ${capability.deliverables.length}
           ${
@@ -384,7 +312,6 @@
           }
         </small>
       </div>
-
       <div
         class="
           product-experience-capability-availability
@@ -393,7 +320,6 @@
         <span>
           Disponible en
         </span>
-
         <div
           class="
             product-experience-deliverable-countries
@@ -402,11 +328,9 @@
           ${countriesMarkup}
         </div>
       </div>
-
       <h3>
         ${pxEsc(capability.name)}
       </h3>
-
       <p>
         ${pxEsc(
           capability.overview ||
@@ -414,7 +338,6 @@
             "Descripción no informada.",
         )}
       </p>
-
       <strong>
         Explorar capacidad →
       </strong>
@@ -430,30 +353,21 @@
       showGeography,
     });
   }
-
   function pxCapabilityRoute(productId, capabilityId, countryId = "") {
     const product = pxNormalizeId(productId);
-
     const capability = pxNormalizeId(capabilityId);
-
     const country = pxValidCountryId(countryId);
-
     const parts = ["capability", PROGRAM_ID, product, capability];
-
     if (country && country !== HOLDING_COUNTRY_ID) {
       parts.push(country);
     }
-
     return parts.join("/");
   }
-
   function pxCapabilityDeliverables(capability, countryId = "") {
     const all = Array.isArray(capability?.deliverables)
       ? capability.deliverables
       : [];
-
     const country = pxValidCountryId(countryId);
-
     if (!country || country === HOLDING_COUNTRY_ID) {
       /*
        * Holding:
@@ -465,45 +379,32 @@
        */
       return all;
     }
-
     return all.filter((deliverable) =>
       pxFeatureCountryIds(deliverable).includes(country),
     );
   }
-
   function pxCapabilityExecutionSection(productId, capability, countryId) {
     const stats = pxCapabilityLocalStats(productId, capability.id, countryId);
-
     if (!stats.itemCount) {
       return "";
     }
-
     const views = [
       {
         id: "summary",
-
         title: "Resumen",
-
         description: "Carriles funcional y técnico " + "de la capacidad.",
       },
-
       {
         id: "timeline",
-
         title: "Cronograma",
-
         description: "Planificación temporal " + "de la capacidad.",
       },
-
       {
         id: "backlog",
-
         title: "Backlog",
-
         description: "Elementos todavía " + "sin planificación.",
       },
     ];
-
     return `
     <section
       class="
@@ -523,13 +424,11 @@
           >
             Ejecución
           </span>
-
           <h2>
             Seguimiento de
             ${pxEsc(capability.name)}
           </h2>
         </div>
-
         <p>
           ${stats.itemCount}
           ${stats.itemCount === 1 ? "elemento" : "elementos"}
@@ -537,7 +436,6 @@
           a esta capacidad.
         </p>
       </header>
-
       <div
         class="
           product-experience-roadmap-grid
@@ -568,15 +466,12 @@
                 >
                   Roadmap
                 </span>
-
                 <h3>
                   ${pxEsc(item.title)}
                 </h3>
-
                 <p>
                   ${pxEsc(item.description)}
                 </p>
-
                 <strong>
                   Abrir ${pxEsc(item.title.toLowerCase())} →
                 </strong>
@@ -590,11 +485,9 @@
   }
   function pxExternalLink(value, label) {
     const url = pxSafeUrl(value);
-
     if (!url) {
       return "";
     }
-
     return `
       <a
         class="product-experience-external-link"
@@ -606,10 +499,8 @@
       </a>
     `;
   }
-
   function pxBulletList(value, numbered = false) {
     const items = pxList(value);
-
     if (!items.length) {
       return `
         <p
@@ -621,7 +512,6 @@
         </p>
       `;
     }
-
     return `
       <div
         class="
@@ -642,7 +532,6 @@
                 >
                   ${numbered ? String(index + 1).padStart(2, "0") : "✓"}
                 </span>
-
                 <p>
                   ${pxEsc(item)}
                 </p>
@@ -653,48 +542,38 @@
       </div>
     `;
   }
-
   function pxPickBullet(items, patterns, fallbackIndex = 0) {
     const values = pxList(items);
-
     const match = values.find((item) =>
       patterns.some((pattern) =>
         pattern.test(String(item || "").toLowerCase()),
       ),
     );
-
     return match || values[fallbackIndex] || values[0] || "";
   }
-
   function pxQuickRead(deliverable) {
     const functional = pxList(deliverable.functionalBullets);
-
     const experience = pxList(deliverable.experienceBullets);
-
     const objective = pxPickBullet(
       functional,
       [/calidad/, /estandariz/, /interacci/, /objetiv/],
       0,
     );
-
     const efficiency = pxPickBullet(
       functional,
       [/tiempo/, /minut/, /eficien/, /coste/, /latencia/],
       1,
     );
-
     const information = pxPickBullet(
       functional,
       [/informaci/, /fuente/, /dato/, /ada/, /cirbe/, /web/, /transacc/],
       2,
     );
-
     const userExperience = pxPickBullet(
       experience,
       [/escritorio/, /integraci/, /visualiz/, /informe/, /acceso/],
       0,
     );
-
     const cards = [
       {
         number: "01",
@@ -717,7 +596,6 @@
         value: userExperience,
       },
     ].filter((item) => item.value);
-
     return `
       <div
         class="
@@ -740,7 +618,6 @@
                   >
                     ${item.number}
                   </span>
-
                   <span
                     class="
                       product-experience-eyebrow
@@ -749,7 +626,6 @@
                     ${pxEsc(item.label)}
                   </span>
                 </div>
-
                 <p>
                   ${pxEsc(pxExcerpt(item.value, 145))}
                 </p>
@@ -760,20 +636,17 @@
       </div>
     `;
   }
-
   /*
    * =======================================================
    * COUNTRY / ROLLOUT
    * =======================================================
    */
-
   function pxCountries() {
     if (Array.isArray(COUNTRIES)) {
       return COUNTRIES.filter(
         (country) => String(country.id || "").trim() !== HOLDING_COUNTRY_ID,
       );
     }
-
     return [
       {
         id: "ES",
@@ -793,79 +666,61 @@
       },
     ];
   }
-
   function pxAllRoadmapItems() {
     if (typeof roadmapWorkspaceAllItems === "function") {
       return roadmapWorkspaceAllItems() || [];
     }
-
     return pxRows("roadmapItems");
   }
-
   function pxRoadmapProductId(item) {
     if (typeof roadmapWorkspaceNormalizeProduct === "function") {
       return roadmapWorkspaceNormalizeProduct(item?.product);
     }
-
     if (typeof normalizeRoadmapProduct === "function") {
       return normalizeRoadmapProduct(item?.product);
     }
-
     return pxNormalizeId(item?.product);
   }
-
   function pxRoadmapStatus(item) {
     if (typeof roadmapWorkspaceStatus === "function") {
       return roadmapWorkspaceStatus(item);
     }
-
     if (typeof rcsNormalizeStatus === "function") {
       return rcsNormalizeStatus(item?.status);
     }
-
     return String(item?.status || "")
       .trim()
       .toLowerCase()
       .replaceAll("_", "-")
       .replaceAll(" ", "-");
   }
-
   function pxRoadmapIsRisk(item) {
     if (typeof roadmapWorkspaceIsRisk === "function") {
       return roadmapWorkspaceIsRisk(item);
     }
-
     return ["at-risk", "blocked"].includes(pxRoadmapStatus(item));
   }
-
   function pxRoadmapProgress(item) {
     const value = Number(item?.progress);
-
     if (!Number.isFinite(value)) {
       return 0;
     }
-
     return Math.max(0, Math.min(100, value));
   }
   function pxCapabilityScopeId(value) {
     const raw = String(value || "").trim();
-
     if (!raw || raw.toUpperCase() === "ALL") {
       return "ALL";
     }
-
     return pxNormalizeId(raw);
   }
-
   function pxValidCountryId(value) {
     const raw = String(value || "")
       .trim()
       .toUpperCase();
-
     if (!raw) {
       return "";
     }
-
     const validCountries = new Set([
       HOLDING_COUNTRY_ID,
       ...pxCountries().map((country) =>
@@ -874,13 +729,10 @@
           .toUpperCase(),
       ),
     ]);
-
     return validCountries.has(raw) ? raw : "";
   }
-
   function pxRoadmapCapabilityIds(item) {
     const source = item?.source || {};
-
     const value =
       item?.capabilityIds ??
       item?.capabilityId ??
@@ -889,7 +741,6 @@
       source?.capability_ids ??
       source?.capability_id ??
       "";
-
     if (Array.isArray(value)) {
       return [
         ...new Set(
@@ -897,7 +748,6 @@
         ),
       ];
     }
-
     return [
       ...new Set(
         String(value || "")
@@ -907,19 +757,15 @@
       ),
     ];
   }
-
   function pxFilterRoadmapItemsByCapability(items, state) {
     const capabilityId = pxCapabilityScopeId(state?.capabilityId);
-
     if (capabilityId === "ALL") {
       return Array.isArray(items) ? items : [];
     }
-
     return (Array.isArray(items) ? items : []).filter((item) =>
       pxRoadmapCapabilityIds(item).includes(capabilityId),
     );
   }
-
   function pxLocalProductRoute(productId, countryId) {
     return [
       "product",
@@ -928,12 +774,9 @@
       pxValidCountryId(countryId),
     ].join("/");
   }
-
   function pxLocalProductRoadmapItems(productId, countryId) {
     const normalizedProductId = pxNormalizeId(productId);
-
     const normalizedCountryId = pxValidCountryId(countryId);
-
     return pxProductRoadmapItems(normalizedProductId).filter(
       (item) =>
         String(item?.country || "")
@@ -941,34 +784,25 @@
           .toUpperCase() === normalizedCountryId,
     );
   }
-
   function pxCapabilityLocalStats(productId, capabilityId, countryId) {
     const normalizedCapabilityId = pxCapabilityScopeId(capabilityId);
-
     const items = pxLocalProductRoadmapItems(productId, countryId).filter(
       (item) => pxRoadmapCapabilityIds(item).includes(normalizedCapabilityId),
     );
-
     const riskCount = items.filter(pxRoadmapIsRisk).length;
-
     const averageProgress = items.length
       ? Math.round(
           items.reduce((total, item) => total + pxRoadmapProgress(item), 0) /
             items.length,
         )
       : 0;
-
     return {
       itemCount: items.length,
-
       riskCount,
-
       averageProgress,
-
       items,
     };
   }
-
   function pxCapabilityRoadmapRoute(
     productId,
     capabilityId,
@@ -976,16 +810,12 @@
     viewName = "summary",
   ) {
     const product = pxNormalizeId(productId);
-
     const capability = pxCapabilityScopeId(capabilityId);
-
     const country = pxValidCountryId(countryId);
-
     const ambition =
       typeof ROADMAP_AMBITION_ALL !== "undefined"
         ? ROADMAP_AMBITION_ALL
         : "ALL";
-
     if (typeof roadmapWorkspaceRoute === "function") {
       return roadmapWorkspaceRoute(
         PROGRAM_ID,
@@ -997,7 +827,6 @@
         country,
       );
     }
-
     return [
       "roadmap",
       PROGRAM_ID,
@@ -1009,16 +838,12 @@
       country,
     ].join("/");
   }
-
   function pxLocalCapabilityCard(capability, productId, countryId) {
     const stats = pxCapabilityLocalStats(productId, capability.id, countryId);
-
     const hasExecution = stats.itemCount > 0;
-
     const routeValue = hasExecution
       ? pxCapabilityRoute(productId, capability.id, countryId)
       : "";
-
     return `
     <article
       class="
@@ -1045,7 +870,6 @@
         <span>
           ${pxEsc(pxTypeLabel(capability.type))}
         </span>
-
         <small>
           ${
             hasExecution
@@ -1058,11 +882,9 @@
           }
         </small>
       </div>
-
       <h3>
         ${pxEsc(capability.name)}
       </h3>
-
       <p>
         ${pxEsc(
           capability.overview ||
@@ -1070,7 +892,6 @@
             "Descripción no informada.",
         )}
       </p>
-
       <p>
         ${
           hasExecution
@@ -1088,14 +909,12 @@
             `
         }
       </p>
-
       <strong>
         ${hasExecution ? "Explorar capacidad →" : "Sin ejecución informada"}
       </strong>
     </article>
   `;
   }
-
   function pxRenderProductExecutionRoadmap(
     productId,
     countryId,
@@ -1104,7 +923,6 @@
     selectedTimelineQuarter,
   ) {
     const renderer = window.AIxBankerProductExecution;
-
     if (!renderer || typeof renderer.render !== "function") {
       return `
         <p class="product-experience-empty-copy">
@@ -1112,7 +930,6 @@
         </p>
       `;
     }
-
     return renderer.render({
       programId: PROGRAM_ID,
       productId,
@@ -1123,14 +940,11 @@
       quarter: selectedTimelineQuarter,
     });
   }
-
   function pxEnsureProductExecutionFeatures(productId, countryId) {
     const renderer = window.AIxBankerProductExecution;
-
     if (!renderer || typeof renderer.ensureFeatures !== "function") {
       return;
     }
-
     renderer
       .ensureFeatures({
         programId: PROGRAM_ID,
@@ -1148,9 +962,7 @@
         if (!loaded) {
           return;
         }
-
         const currentRoute = pxRoute();
-
         if (
           currentRoute.routeName === "product" &&
           currentRoute.programId === PROGRAM_ID &&
@@ -1164,11 +976,9 @@
         console.error("[AIxBanker] Error cargando Features JIRA XLSX", error);
       });
   }
-
   function pxRenderLocalProduct(productId, countryId) {
     const normalizedCountryId = pxValidCountryId(countryId);
     const product = pxFindProduct(productId);
-
     if (
       !product ||
       !normalizedCountryId ||
@@ -1181,9 +991,7 @@
       );
       return;
     }
-
     selectedCountry = normalizedCountryId;
-
     const country = pxCountries().find(
       (candidate) =>
         String(candidate.id || "")
@@ -1226,7 +1034,6 @@
       normalizedCountryId,
       "timeline",
     );
-
     setHead(
       `${product.productName} · ${countryLabel}`,
       product.tagline || `Visión local de ${product.productName}`,
@@ -1237,7 +1044,6 @@
         product.productName,
       ].join(" > "),
     );
-
     view.innerHTML = `
       <section
         class="product-experience product-experience-product-view"
@@ -1253,7 +1059,6 @@
         >
           ← Volver
         </button>
-
         <section class="product-experience-overview-panel">
           <div class="product-experience-overview-copy">
             <span class="product-experience-eyebrow">Qué es</span>
@@ -1262,7 +1067,6 @@
               ${pxEsc(product.overview || "Descripción de producto no informada.")}
             </p>
           </div>
-
           <aside class="product-experience-product-summary">
             <article>
               <span>País</span>
@@ -1278,7 +1082,6 @@
             </article>
           </aside>
         </section>
-
         <section class="product-experience-value-panel">
           <div>
             <span class="product-experience-eyebrow">Propuesta de valor</span>
@@ -1288,7 +1091,6 @@
             ${pxEsc(product.valueProposition || "Propuesta de valor no informada.")}
           </p>
         </section>
-
         <section class="product-experience-section">
           <header class="product-experience-section-header">
             <div>
@@ -1302,7 +1104,6 @@
               capacidad en ${pxEsc(countryLabel)}.
             </p>
           </header>
-
           <div class="product-experience-capability-grid">
             ${
               capabilities.length
@@ -1323,7 +1124,6 @@
             }
           </div>
         </section>
-
         <section class="product-experience-section product-experience-timeline-summary">
           <header class="product-experience-section-header product-experience-timeline-header">
             <div>
@@ -1344,9 +1144,7 @@
             selectedTimelineQuarter,
           )}
         </section>
-
         ${executionRoadmap}
-
         <button
           class="ghost-button"
           type="button"
@@ -1356,33 +1154,25 @@
         </button>
       </section>
     `;
-
     pxEnsureProductExecutionFeatures(productId, normalizedCountryId);
   }
-
   function pxProductRoadmapItems(productId) {
     const normalizedProductId = pxNormalizeId(productId);
-
     return pxAllRoadmapItems().filter((item) => {
       const programId = String(item?.programId || PROGRAM_ID).trim();
-
       return (
         programId === PROGRAM_ID &&
         pxNormalizeId(pxRoadmapProductId(item)) === normalizedProductId
       );
     });
   }
-
   function pxProductCountryStats(productId) {
     const items = pxProductRoadmapItems(productId);
-
     return pxCountries().map((country) => {
       const countryId = String(country.id || "").trim();
-
       const countryItems = items.filter(
         (item) => String(item?.country || "").trim() === countryId,
       );
-
       const averageProgress = countryItems.length
         ? Math.round(
             countryItems.reduce(
@@ -1391,27 +1181,19 @@
             ) / countryItems.length,
           )
         : 0;
-
       const riskCount = countryItems.filter(pxRoadmapIsRisk).length;
-
       return {
         id: countryId,
-
         label: country.label || countryId,
-
         itemCount: countryItems.length,
-
         averageProgress,
-
         riskCount,
       };
     });
   }
-
   function pxCountryRoadmapRoute(productId) {
     const quarter =
       typeof getCurrentQuarter === "function" ? getCurrentQuarter() : "ALL";
-
     if (typeof roadmapWorkspaceRoute === "function") {
       return roadmapWorkspaceRoute(
         PROGRAM_ID,
@@ -1420,7 +1202,6 @@
         quarter,
       );
     }
-
     return [
       "roadmap",
       PROGRAM_ID,
@@ -1429,12 +1210,9 @@
       quarter,
     ].join("/");
   }
-
   function pxCountryCard(country, productId) {
     const hasRoadmap = country.itemCount > 0;
-
     const routeValue = pxLocalProductRoute(productId, country.id);
-
     return `
     <article
       class="
@@ -1453,17 +1231,14 @@
         <span>
           País
         </span>
-
         <small>
           ${pxEsc(country.id)}
         </small>
       </div>
-
       <div>
         <h3>
           ${pxEsc(country.label)}
         </h3>
-
         <p>
           ${
             hasRoadmap
@@ -1481,7 +1256,6 @@
           }
         </p>
       </div>
-
       <footer>
         <span>
           ${
@@ -1498,7 +1272,6 @@
               `
           }
         </span>
-
         <strong>
           Abrir producto →
         </strong>
@@ -1506,12 +1279,9 @@
     </article>
   `;
   }
-
   function pxCountrySection(product) {
     const productId = pxNormalizeId(product.productId);
-
     const countries = pxProductCountryStats(productId);
-
     return `
       <section
         class="
@@ -1531,12 +1301,10 @@
             >
               Implantación
             </span>
-
             <h2>
               Visión por países
             </h2>
           </div>
-
           <p>
             Situación de la ejecución
             de ${pxEsc(product.productName)}
@@ -1545,7 +1313,6 @@
             geografía.
           </p>
         </header>
-
         <div
           class="
             program-home-product-grid
@@ -1559,54 +1326,42 @@
       </section>
     `;
   }
-
   /*
    * =======================================================
    * PROGRAM LANDING / PRODUCT
    * =======================================================
    */
-
   function pxLandingProducts() {
     return pxCatalog()
       .map((product) => ({
         ...product,
-
         productId: pxNormalizeId(product.productId),
       }))
       .filter((product) => product.productId);
   }
-
   function pxSelectedCountryId() {
     return String(selectedCountry || HOLDING_COUNTRY_ID).trim();
   }
-
   function pxSelectedCountryLabel() {
     const countryId = pxSelectedCountryId();
-
     if (countryId === HOLDING_COUNTRY_ID) {
       return "Holding";
     }
-
     const country = pxCountries().find(
       (candidate) => String(candidate.id || "").trim() === countryId,
     );
-
     return country?.label || countryId;
   }
-
   function pxProductDefinitionStats(productId) {
     const features = pxFeatures(productId);
-
     const capabilityCount = new Set(
       features
         .map((feature) => pxNormalizeId(feature.capabilityId))
         .filter(Boolean),
     ).size;
-
     const deliverableCount = features.filter((feature) =>
       pxClean(feature.deliverableName),
     ).length;
-
     return {
       capabilityCount,
       deliverableCount,
@@ -1614,7 +1369,6 @@
   }
   function pxProductCountryIds(productId) {
     const result = new Set();
-
     pxFeatures(productId).forEach((feature) => {
       pxFeatureCountryIds(feature).forEach((countryId) => {
         result.add(
@@ -1624,41 +1378,31 @@
         );
       });
     });
-
     const countryOrder = pxCountries().map((country) =>
       String(country.id || "")
         .trim()
         .toUpperCase(),
     );
-
     return [...result].sort((left, right) => {
       const leftIndex = countryOrder.indexOf(left);
-
       const rightIndex = countryOrder.indexOf(right);
-
       if (leftIndex === -1 && rightIndex === -1) {
         return left.localeCompare(right);
       }
-
       if (leftIndex === -1) {
         return 1;
       }
-
       if (rightIndex === -1) {
         return -1;
       }
-
       return leftIndex - rightIndex;
     });
   }
   function pxHoldingProductCard(product) {
     const productId = pxNormalizeId(product.productId);
-
     const { capabilityCount, deliverableCount } =
       pxProductDefinitionStats(productId);
-
     const countryIds = pxProductCountryIds(productId);
-
     const countriesMarkup = countryIds.length
       ? countryIds.map(pxCountryBadge).join("")
       : `
@@ -1670,7 +1414,6 @@
             Sin geografía
           </span>
         `;
-
     return `
     <article
       class="
@@ -1686,12 +1429,10 @@
         <span>
           Producto global
         </span>
-
         <small>
           Holding
         </small>
       </div>
-
       <div
         class="
           product-experience-program-card-heading
@@ -1705,16 +1446,13 @@
         >
           ${pxEsc(product.icon || "◇")}
         </span>
-
         <div>
           <h3>
             ${pxEsc(product.productName || productId)}
           </h3>
-
           <p>
             ${pxEsc(product.tagline || product.overview || "")}
           </p>
-
           <div
             class="
               product-experience-capability-availability
@@ -1723,7 +1461,6 @@
             <span>
               Disponible en
             </span>
-
             <div
               class="
                 product-experience-deliverable-countries
@@ -1738,7 +1475,6 @@
           </div>
         </div>
       </div>
-
       <footer>
         <span>
           ${capabilityCount}
@@ -1747,7 +1483,6 @@
           ${deliverableCount}
           ${deliverableCount === 1 ? "caso funcional" : "casos funcionales"}
         </span>
-
         <strong>
           Explorar producto →
         </strong>
@@ -1755,34 +1490,25 @@
     </article>
   `;
   }
-
   function pxLocalProductStats(productId, countryId) {
     const normalizedProductId = pxNormalizeId(productId);
-
     const normalizedCountryId = String(countryId || "").trim();
-
     const roadmapItems = pxProductRoadmapItems(normalizedProductId).filter(
       (item) => String(item?.country || "").trim() === normalizedCountryId,
     );
-
     const systems = pxRows("systems").filter((item) => {
       const programId = String(item?.programId || PROGRAM_ID).trim();
-
       const itemCountry = String(
         item?.country || item?.["RtC Anchor Country"] || "",
       ).trim();
-
       const itemProduct = pxNormalizeId(item?.product);
-
       return (
         programId === PROGRAM_ID &&
         itemCountry === normalizedCountryId &&
         itemProduct === normalizedProductId
       );
     });
-
     const riskCount = roadmapItems.filter(pxRoadmapIsRisk).length;
-
     const averageProgress = roadmapItems.length
       ? Math.round(
           roadmapItems.reduce(
@@ -1791,31 +1517,20 @@
           ) / roadmapItems.length,
         )
       : 0;
-
     return {
       roadmapCount: roadmapItems.length,
-
       systemsCount: systems.length,
-
       riskCount,
-
       averageProgress,
     };
   }
-
   function pxLocalProductCard(product) {
     const productId = pxNormalizeId(product.productId);
-
     const countryId = pxSelectedCountryId();
-
     const countryLabel = pxSelectedCountryLabel();
-
     const stats = pxLocalProductStats(productId, countryId);
-
     const hasExecution = stats.roadmapCount > 0;
-
     const routeValue = pxLocalProductRoute(productId, countryId);
-
     return `
     <article
       class="
@@ -1834,12 +1549,10 @@
         <span>
           Producto global
         </span>
-
         <small>
           ${pxEsc(countryLabel)}
         </small>
       </div>
-
       <div
         class="
           product-experience-program-card-heading
@@ -1853,18 +1566,15 @@
         >
           ${pxEsc(product.icon || "◇")}
         </span>
-
         <div>
           <h3>
             ${pxEsc(product.productName || productId)}
           </h3>
-
           <p>
             ${pxEsc(product.tagline || product.overview || "")}
           </p>
         </div>
       </div>
-
       <footer>
         <span>
           ${stats.roadmapCount}
@@ -1874,7 +1584,6 @@
           ${stats.systemsCount}
           ${stats.systemsCount === 1 ? "elemento" : "elementos"}
           de sistema
-
           ${
             hasExecution
               ? `
@@ -1888,7 +1597,6 @@
               : ""
           }
         </span>
-
         <strong>
           Explorar producto →
         </strong>
@@ -1896,23 +1604,18 @@
     </article>
   `;
   }
-
   function pxEnhanceProgramLanding() {
     const currentRoute = pxRoute();
-
     if (
       currentRoute.routeName !== "program" ||
       currentRoute.programId !== PROGRAM_ID
     ) {
       return;
     }
-
     const home = view.querySelector(".program-home");
-
     if (!home) {
       return;
     }
-
     const section = [
       ...home.querySelectorAll(":scope > .program-home-section"),
     ].find(
@@ -1921,23 +1624,17 @@
           .querySelector(":scope > .program-home-section-header span")
           ?.textContent?.trim() === "Productos",
     );
-
     if (!section) {
       return;
     }
-
     const header = section.querySelector(
       ":scope > .program-home-section-header",
     );
-
     const grid = section.querySelector(":scope > .program-home-product-grid");
-
     if (!header || !grid) {
       return;
     }
-
     const countryId = pxSelectedCountryId();
-
     /*
      * El render base genera una sección
      * nueva cuando cambia el ámbito.
@@ -1949,19 +1646,14 @@
     if (section.dataset.productExperienceEnhanced === countryId) {
       return;
     }
-
     const products = pxLandingProducts();
-
     const isHolding = countryId === HOLDING_COUNTRY_ID;
-
     const countryLabel = pxSelectedCountryLabel();
-
     header.innerHTML = `
     <div>
       <span>
         Productos
       </span>
-
       <h2>
         ${
           isHolding
@@ -1970,7 +1662,6 @@
         }
       </h2>
     </div>
-
     <p>
       ${
         isHolding
@@ -1988,9 +1679,7 @@
       }
     </p>
   `;
-
     grid.classList.add("product-experience-program-grid");
-
     if (!products.length) {
       grid.innerHTML = `
       <p
@@ -2007,23 +1696,19 @@
     } else {
       grid.innerHTML = products.map(pxLocalProductCard).join("");
     }
-
     section.dataset.productExperienceEnhanced = countryId;
   }
-
   /*
    * =======================================================
    * PRODUCT
    * =======================================================
    */
-
   function pxNotFound(titleText, message, backRoute) {
     setHead(
       titleText,
       message,
       "Retail Client Solutions > AIxBanker > Producto",
     );
-
     view.innerHTML = `
       <section
         class="
@@ -2042,7 +1727,6 @@
         >
           ← Volver
         </button>
-
         <article
           class="
             product-experience-empty-panel
@@ -2051,11 +1735,9 @@
           <span>
             Visión global
           </span>
-
           <h2>
             ${pxEsc(titleText)}
           </h2>
-
           <p>
             ${pxEsc(message)}
           </p>
@@ -2063,35 +1745,27 @@
       </section>
     `;
   }
-
   function pxRenderProduct(productId) {
     selectedCountry = HOLDING_COUNTRY_ID;
-
     const product = pxFindProduct(productId);
-
     if (!product) {
       pxNotFound(
         "Producto no disponible",
         "No existe una ficha global para este producto.",
         `program/${PROGRAM_ID}`,
       );
-
       return;
     }
-
     const capabilities = pxCapabilities(productId);
-
     const deliverableCount = capabilities.reduce(
       (total, capability) => total + capability.deliverables.length,
       0,
     );
-
     setHead(
       `${product.productName} · Producto`,
       product.tagline || "Visión global de producto",
       ["Retail Client Solutions", "AIxBanker", product.productName].join(" > "),
     );
-
     view.innerHTML = `
     <section
       class="
@@ -2113,7 +1787,6 @@
       >
         ← Volver
       </button>
-
       <section
         class="
           product-experience-overview-panel
@@ -2131,18 +1804,15 @@
           >
             Qué es
           </span>
-
           <h2>
             Visión del producto
           </h2>
-
           <p>
             ${pxEsc(
               product.overview || "Descripción de producto no informada.",
             )}
           </p>
         </div>
-
         <aside
           class="
             product-experience-product-summary
@@ -2152,34 +1822,28 @@
             <span>
               Usuarios
             </span>
-
             <strong>
               ${pxEsc(product.targetUsers || "No informado")}
             </strong>
           </article>
-
           <article>
             <span>
               Capacidades
             </span>
-
             <strong>
               ${capabilities.length}
             </strong>
           </article>
-
           <article>
             <span>
               Casos funcionales
             </span>
-
             <strong>
               ${deliverableCount}
             </strong>
           </article>
         </aside>
       </section>
-
       <section
         class="
           product-experience-value-panel
@@ -2193,19 +1857,16 @@
           >
             Propuesta de valor
           </span>
-
           <h3>
             Qué aporta
           </h3>
         </div>
-
         <p>
           ${pxEsc(
             product.valueProposition || "Propuesta de valor no informada.",
           )}
         </p>
       </section>
-
       <section
         class="
           product-experience-section
@@ -2224,13 +1885,11 @@
             >
               Capacidades
             </span>
-
             <h2>
               Qué contiene
               ${pxEsc(product.productName)}
             </h2>
           </div>
-
           <p>
             Agentes, subproductos y
             capacidades que forman parte
@@ -2239,7 +1898,6 @@
             donde están disponibles.
           </p>
         </header>
-
         <div
           class="
             product-experience-capability-grid
@@ -2266,27 +1924,21 @@
           }
         </div>
       </section>
-
       ${pxCountrySection(product)}
     </section>
   `;
   }
-
   /*
    * =======================================================
    * CAPABILITY
    * =======================================================
    */
-
   function pxRequirements(deliverable) {
     const functional = pxList(deliverable.functionalRequirements);
-
     const nonFunctional = pxList(deliverable.nonFunctionalRequirements);
-
     if (!functional.length && !nonFunctional.length) {
       return "";
     }
-
     return `
       <details
         class="
@@ -2298,7 +1950,6 @@
             Requerimientos y
             condicionantes
           </span>
-
           <strong
             class="
               product-experience-when-closed
@@ -2306,7 +1957,6 @@
           >
             Ver detalle +
           </strong>
-
           <strong
             class="
               product-experience-when-open
@@ -2315,7 +1965,6 @@
             Ocultar −
           </strong>
         </summary>
-
         <div
           class="
             product-experience-requirements-grid
@@ -2329,10 +1978,8 @@
             >
               Funcionales
             </span>
-
             ${pxBulletList(functional)}
           </section>
-
           <section>
             <span
               class="
@@ -2341,27 +1988,22 @@
             >
               No funcionales
             </span>
-
             ${pxBulletList(nonFunctional)}
           </section>
         </div>
       </details>
     `;
   }
-
   function pxDeliverable(deliverable, index, options = {}) {
     const showGeography = options?.showGeography === true;
-
     const documentLink = pxExternalLink(
       deliverable.documentUrl,
       "Abrir documento funcional",
     );
-
     const figmaLink = pxExternalLink(
       deliverable.figmaUrl,
       "Abrir diseño en Figma",
     );
-
     const geographyMarkup = showGeography
       ? `
           <div
@@ -2372,12 +2014,10 @@
             <span>
               Disponible en
             </span>
-
             ${pxDeliverableGeography(deliverable)}
           </div>
         `
       : "";
-
     return `
     <details
       class="
@@ -2392,7 +2032,6 @@
         >
           ${String(index + 1).padStart(2, "0")}
         </div>
-
         <div
           class="
             product-experience-deliverable-summary-copy
@@ -2406,21 +2045,17 @@
             <span>
               Caso funcional
             </span>
-
             ${geographyMarkup}
           </div>
-
           <h3>
             ${pxEsc(deliverable.deliverableName || "Caso funcional")}
           </h3>
-
           <p>
             ${pxEsc(
               pxExcerpt(deliverable.overview || "Descripción no informada."),
             )}
           </p>
         </div>
-
         <strong
           class="
             product-experience-deliverable-action
@@ -2429,7 +2064,6 @@
         >
           Ver detalle +
         </strong>
-
         <strong
           class="
             product-experience-deliverable-action
@@ -2439,7 +2073,6 @@
           Ocultar −
         </strong>
       </summary>
-
       <div
         class="
           product-experience-deliverable-body
@@ -2462,15 +2095,12 @@
             >
               Lectura rápida
             </span>
-
             <h4>
               Qué cambia para el gestor
             </h4>
           </div>
-
           ${pxQuickRead(deliverable)}
         </section>
-
         <details
           class="
             product-experience-functional-detail
@@ -2480,7 +2110,6 @@
             <span>
               Detalle funcional y experiencia
             </span>
-
             <strong
               class="
                 product-experience-when-closed
@@ -2488,7 +2117,6 @@
             >
               Ver detalle +
             </strong>
-
             <strong
               class="
                 product-experience-when-open
@@ -2497,7 +2125,6 @@
               Ocultar −
             </strong>
           </summary>
-
           <div
             class="
               product-experience-functional-detail-body
@@ -2515,12 +2142,10 @@
               >
                 Resumen ejecutivo
               </span>
-
               <p>
                 ${pxEsc(deliverable.overview || "Descripción no informada.")}
               </p>
             </section>
-
             <div
               class="
                 product-experience-detail-grid
@@ -2538,14 +2163,11 @@
                 >
                   Funcionalidad
                 </span>
-
                 <h4>
                   Capacidades funcionales
                 </h4>
-
                 ${pxBulletList(deliverable.functionalBullets)}
               </section>
-
               <section
                 class="
                   product-experience-detail-panel
@@ -2558,19 +2180,15 @@
                 >
                   Experiencia
                 </span>
-
                 <h4>
                   Experiencia del gestor
                 </h4>
-
                 ${pxBulletList(deliverable.experienceBullets, true)}
               </section>
             </div>
           </div>
         </details>
-
         ${pxRequirements(deliverable)}
-
         ${
           documentLink || figmaLink
             ? `
@@ -2591,15 +2209,10 @@
   }
   function pxRenderCapability(productId, capabilityId, countryId = "") {
     const country = pxValidCountryId(countryId);
-
     const isLocal = Boolean(country) && country !== HOLDING_COUNTRY_ID;
-
     selectedCountry = isLocal ? country : HOLDING_COUNTRY_ID;
-
     const product = pxFindProduct(productId);
-
     const capability = pxFindCapability(productId, capabilityId);
-
     if (!product || !capability) {
       pxNotFound(
         "Capacidad no disponible",
@@ -2608,31 +2221,23 @@
           ? pxLocalProductRoute(productId, country)
           : `product/${PROGRAM_ID}/${productId}`,
       );
-
       return;
     }
-
     const countryDefinition = isLocal ? pxCountryDefinition(country) : null;
-
     const countryLabel = countryDefinition?.label || country;
-
     const deliverables = pxCapabilityDeliverables(capability, country);
-
     const backRoute = isLocal
       ? pxLocalProductRoute(productId, country)
       : `product/${PROGRAM_ID}/${productId}`;
-
     setHead(
       isLocal
         ? `${capability.name} · ${countryLabel}`
         : `${capability.name} · ${product.productName}`,
-
       isLocal
         ? `${pxTypeLabel(
             capability.type,
           )} de ${product.productName} en ${countryLabel}`
         : `${pxTypeLabel(capability.type)} de ${product.productName}`,
-
       isLocal
         ? [
             "Retail Client Solutions",
@@ -2648,7 +2253,6 @@
             capability.name,
           ].join(" > "),
     );
-
     view.innerHTML = `
     <section
       class="
@@ -2674,7 +2278,6 @@
       >
         ← Volver
       </button>
-
       <section
         class="
           product-experience-overview-panel
@@ -2694,25 +2297,20 @@
             <span>
               ${pxEsc(pxTypeLabel(capability.type))}
             </span>
-
             <span>
               ${pxEsc(product.productName)}
             </span>
-
             <span>
               ${isLocal ? pxEsc(countryLabel) : "Holding · agregado"}
             </span>
           </div>
-
           <h2>
             Qué hace
           </h2>
-
           <p>
             ${pxEsc(capability.overview || "Descripción no informada.")}
           </p>
         </div>
-
         <aside
           class="
             product-experience-capability-stat
@@ -2721,13 +2319,11 @@
           <span>
             Casos funcionales
           </span>
-
           <strong>
             ${deliverables.length}
           </strong>
         </aside>
       </section>
-
       <section
         class="
           product-experience-section
@@ -2746,7 +2342,6 @@
             >
               Casos funcionales
             </span>
-
             <h2>
               ${
                 isLocal
@@ -2758,7 +2353,6 @@
               }
             </h2>
           </div>
-
           <p>
             ${
               isLocal
@@ -2777,7 +2371,6 @@
             }
           </p>
         </header>
-
         <div
           class="
             product-experience-deliverable-list
@@ -2805,7 +2398,6 @@
           }
         </div>
       </section>
-
       ${
         isLocal
           ? pxCapabilityExecutionSection(productId, capability, country)
@@ -2819,33 +2411,26 @@
    * ROUTING
    * =======================================================
    */
-
   function pxRenderSpecialRoute() {
     const currentRoute = pxRoute();
-
     if (
       currentRoute.programId !== PROGRAM_ID ||
       !["product", "capability"].includes(currentRoute.routeName)
     ) {
       return false;
     }
-
     if (currentRoute.routeName === "product") {
       const countryId = pxValidCountryId(currentRoute.countryId);
-
       const isLocal = countryId && countryId !== HOLDING_COUNTRY_ID;
-
       const existing = view.querySelector(
         isLocal
           ? '[data-product-experience-view="local-product"]'
           : '[data-product-experience-view="product"]',
       );
-
       const needsRender =
         !existing ||
         existing.dataset.productExperienceProduct !== currentRoute.productId ||
         (isLocal && existing.dataset.productExperienceCountry !== countryId);
-
       if (needsRender) {
         if (isLocal) {
           pxRenderLocalProduct(currentRoute.productId, countryId);
@@ -2853,28 +2438,22 @@
           pxRenderProduct(currentRoute.productId);
         }
       }
-
       return true;
     }
-
     const countryId = pxValidCountryId(currentRoute.countryId);
-
     const expectedCountry =
       countryId && countryId !== HOLDING_COUNTRY_ID
         ? countryId
         : HOLDING_COUNTRY_ID;
-
     const existing = view.querySelector(
       '[data-product-experience-view="capability"]',
     );
-
     const needsRender =
       !existing ||
       existing.dataset.productExperienceProduct !== currentRoute.productId ||
       existing.dataset.productExperienceCapability !==
         currentRoute.capabilityId ||
       existing.dataset.productExperienceCountry !== expectedCountry;
-
     if (needsRender) {
       pxRenderCapability(
         currentRoute.productId,
@@ -2882,15 +2461,11 @@
         countryId,
       );
     }
-
     return true;
   }
-
   function pxRefreshRoadmapBackButton() {
     const currentRoute = pxRoute();
-
     const routeName = String(currentRoute.routeName || "").trim();
-
     /*
      * =====================================================
      * DETALLES LEGACY
@@ -2902,7 +2477,6 @@
     if (["roadmap-detail", "roadmap-activity"].includes(routeName)) {
       return;
     }
-
     /*
      * Sólo trabajamos sobre las rutas
      * gestionadas por roadmap workspace.
@@ -2916,25 +2490,19 @@
     ) {
       return;
     }
-
     if (typeof roadmapWorkspaceParseRoute !== "function") {
       return;
     }
-
     const context = roadmapWorkspaceParseRoute();
-
     if (String(context?.programId || "").trim() !== PROGRAM_ID) {
       return;
     }
-
     const backButton =
       view.querySelector(".roadmap-workspace > .ghost-button") ||
       view.querySelector(".navigation-back-button");
-
     if (!backButton) {
       return;
     }
-
     /*
      * =====================================================
      * HELPER IDPOTENTE
@@ -2964,24 +2532,18 @@
      */
     function applyBackButtonState(targetRoute, targetText, ariaLabel) {
       const normalizedRoute = String(targetRoute || "").trim();
-
       const normalizedText = String(targetText || "");
-
       const normalizedAria = String(ariaLabel || "");
-
       if (String(backButton.dataset.route || "") !== normalizedRoute) {
         backButton.dataset.route = normalizedRoute;
       }
-
       if (backButton.textContent !== normalizedText) {
         backButton.textContent = normalizedText;
       }
-
       if (backButton.getAttribute("aria-label") !== normalizedAria) {
         backButton.setAttribute("aria-label", normalizedAria);
       }
     }
-
     /*
      * =====================================================
      * DETALLE WORKSPACE
@@ -2996,45 +2558,33 @@
         typeof getRoadmapDetailReturnRoute === "function"
           ? getRoadmapDetailReturnRoute()
           : "";
-
       if (storedRoute) {
         applyBackButtonState(
           storedRoute,
           "← Volver al roadmap",
           "Volver al roadmap",
         );
-
         return;
       }
     }
-
     /*
      * =====================================================
      * ROADMAP
      * =====================================================
      */
     const productId = pxNormalizeId(context.productId);
-
     const capabilityId = pxCapabilityScopeId(context.capabilityId);
-
     const countryId = pxValidCountryId(context.countryId || selectedCountry);
-
     if (!productId || productId.toUpperCase() === "ALL") {
       return;
     }
-
     const product = pxFindProduct(productId);
-
     const country = pxCountryDefinition(countryId);
-
     const countryLabel = country?.label || countryId || "";
-
     const isCapabilityScope = Boolean(capabilityId && capabilityId !== "ALL");
-
     let targetRoute = "";
     let targetText = "";
     let ariaLabel = "";
-
     /*
      * =====================================================
      * ROADMAP DE CAPACIDAD
@@ -3042,22 +2592,15 @@
      */
     if (isCapabilityScope) {
       const capability = pxFindCapability(productId, capabilityId);
-
       const capabilityName = capability?.name || capabilityId;
-
       targetRoute = pxCapabilityRoute(productId, capabilityId, countryId);
-
       targetText =
         `← Volver a ${capabilityName}` +
         (countryLabel ? ` · ${countryLabel}` : "");
-
       ariaLabel = `Volver a la capacidad ${capabilityName}`;
-
       applyBackButtonState(targetRoute, targetText, ariaLabel);
-
       return;
     }
-
     /*
      * =====================================================
      * ROADMAP DE PRODUCTO LOCAL
@@ -3065,36 +2608,27 @@
      */
     if (countryId && countryId !== HOLDING_COUNTRY_ID) {
       targetRoute = pxLocalProductRoute(productId, countryId);
-
       targetText =
         `← Volver a ${product?.productName || productId}` +
         (countryLabel ? ` · ${countryLabel}` : "");
-
       ariaLabel = "Volver al producto";
-
       applyBackButtonState(targetRoute, targetText, ariaLabel);
-
       return;
     }
-
     /*
      * =====================================================
      * ROADMAP GLOBAL
      * =====================================================
      */
     targetRoute = `product/${PROGRAM_ID}/${productId}`;
-
     targetText = `← Volver a ${product?.productName || productId}`;
-
     ariaLabel = "Volver al producto";
-
     applyBackButtonState(targetRoute, targetText, ariaLabel);
   }
   function pxInstallCapabilityRoadmapScope() {
     if (pxInstallCapabilityRoadmapScope.installed) {
       return true;
     }
-
     if (
       typeof roadmapWorkspaceState !== "function" ||
       typeof roadmapWorkspaceParseRoute !== "function" ||
@@ -3106,98 +2640,73 @@
     ) {
       return false;
     }
-
     pxInstallCapabilityRoadmapScope.installed = true;
-
     const baseState = roadmapWorkspaceState;
-
     roadmapWorkspaceState = function roadmapWorkspaceStateWithCapability(
       programId,
     ) {
       const state = baseState(programId);
-
       if (!state.capabilityId) {
         state.capabilityId = "ALL";
       }
-
       if (!state.countryId) {
         state.countryId =
           pxValidCountryId(selectedCountry) || HOLDING_COUNTRY_ID;
       }
-
       return state;
     };
-
     const baseParseRoute = roadmapWorkspaceParseRoute;
-
     roadmapWorkspaceParseRoute =
       function roadmapWorkspaceParseRouteWithCapability() {
         const context = baseParseRoute();
-
         const parts = String(location.hash || "")
           .replace(/^#\/?/, "")
           .split("/");
-
         if (context.routeName === "roadmap") {
           context.capabilityId = pxCapabilityScopeId(
             typeof roadmapWorkspaceDecode === "function"
               ? roadmapWorkspaceDecode(parts[6], "ALL")
               : parts[6] || "ALL",
           );
-
           context.countryId = pxValidCountryId(
             typeof roadmapWorkspaceDecode === "function"
               ? roadmapWorkspaceDecode(parts[7], "")
               : parts[7] || "",
           );
-
           return context;
         }
-
         const state = context.programId
           ? roadmapWorkspaceState(context.programId)
           : null;
-
         context.capabilityId = pxCapabilityScopeId(
           state?.capabilityId || "ALL",
         );
-
         context.countryId = pxValidCountryId(
           state?.countryId || selectedCountry,
         );
-
         return context;
       };
-
     const baseApplyRouteState = roadmapWorkspaceApplyRouteState;
-
     roadmapWorkspaceApplyRouteState =
       function roadmapWorkspaceApplyRouteStateWithCapability(
         programId,
         routeContext,
       ) {
         const requestedCountry = pxValidCountryId(routeContext?.countryId);
-
         if (requestedCountry) {
           selectedCountry = requestedCountry;
         }
-
         const state = baseApplyRouteState(programId, routeContext);
-
         state.capabilityId = pxCapabilityScopeId(
           routeContext?.capabilityId || "ALL",
         );
-
         state.countryId =
           requestedCountry ||
           pxValidCountryId(selectedCountry) ||
           HOLDING_COUNTRY_ID;
-
         return state;
       };
-
     const baseRoadmapRoute = roadmapWorkspaceRoute;
-
     roadmapWorkspaceRoute = function roadmapWorkspaceRouteWithCapability(
       programId,
       view,
@@ -3208,18 +2717,15 @@
       countryId = null,
     ) {
       const state = roadmapWorkspaceState(programId);
-
       const capability =
         capabilityId === null || capabilityId === undefined
           ? pxCapabilityScopeId(state.capabilityId)
           : pxCapabilityScopeId(capabilityId);
-
       const country =
         pxValidCountryId(countryId) ||
         pxValidCountryId(state.countryId) ||
         pxValidCountryId(selectedCountry) ||
         HOLDING_COUNTRY_ID;
-
       const baseRoute = baseRoadmapRoute(
         programId,
         view,
@@ -3227,17 +2733,13 @@
         quarter,
         ambitionId,
       );
-
       const encode =
         typeof roadmapWorkspaceEncode === "function"
           ? roadmapWorkspaceEncode
           : encodeURIComponent;
-
       return [baseRoute, encode(capability), encode(country)].join("/");
     };
-
     const baseFilteredItems = roadmapWorkspaceFilteredItems;
-
     roadmapWorkspaceFilteredItems =
       function roadmapWorkspaceFilteredItemsWithCapability(
         items,
@@ -3245,13 +2747,10 @@
         options = {},
       ) {
         const filtered = baseFilteredItems(items, state, options);
-
         return pxFilterRoadmapItemsByCapability(filtered, state);
       };
-
     if (typeof roadmapAmbitionScopeItems === "function") {
       const baseAmbitionScopeItems = roadmapAmbitionScopeItems;
-
       roadmapAmbitionScopeItems =
         function roadmapAmbitionScopeItemsWithCapability(
           items,
@@ -3259,13 +2758,10 @@
           options = {},
         ) {
           const filtered = baseAmbitionScopeItems(items, state, options);
-
           return pxFilterRoadmapItemsByCapability(filtered, state);
         };
     }
-
     const baseWorkspaceCopy = roadmapContextWorkspaceCopy;
-
     roadmapContextWorkspaceCopy =
       function roadmapContextWorkspaceCopyWithCapability(
         program,
@@ -3273,44 +2769,31 @@
         state,
       ) {
         const copy = baseWorkspaceCopy(program, programId, state);
-
         const capabilityId = pxCapabilityScopeId(state?.capabilityId);
-
         if (capabilityId === "ALL") {
           return copy;
         }
-
         const capability = pxFindCapability(state.productId, capabilityId);
-
         const capabilityName = capability?.name || capabilityId;
-
         const productName =
           typeof roadmapContextProductName === "function"
             ? roadmapContextProductName(state)
             : roadmapWorkspaceProductLabel(state.productId);
-
         const geographyLabel =
           typeof roadmapContextGeographyLabel === "function"
             ? roadmapContextGeographyLabel()
             : roadmapWorkspaceCountryLabel();
-
         const viewLabel =
           typeof roadmapContextViewLabel === "function"
             ? roadmapContextViewLabel(state.view)
             : state.view;
-
         const programName = program?.name || programId;
-
         return {
           ...copy,
-
           scopeClass: `${copy.scopeClass || ""} ` + "is-capability-scope",
-
           pageTitle: `${capabilityName} · Roadmap`,
-
           pageSubtitle:
             `${viewLabel} · ` + `${productName} · ` + `${geographyLabel}`,
-
           breadcrumb: [
             "Retail Client Solutions",
             programName,
@@ -3320,26 +2803,19 @@
             "Roadmap",
             viewLabel,
           ].join(" > "),
-
           heroEyebrow: `${pxTypeLabel(
             capability?.type || "capability",
           )} · ${productName}`,
-
           heroTitle: `Roadmap de ${capabilityName}`,
-
           heroDescription:
             `Resumen, cronograma y backlog ` +
             `de ${capabilityName} ` +
             `en ${geographyLabel}.`,
-
           backLabel: `← Volver a ` + `${productName} · ` + `${geographyLabel}`,
-
           detailBackLabel: `Volver al roadmap de ` + capabilityName,
         };
       };
-
     const baseProductSelector = roadmapContextRenderProductSelector;
-
     roadmapContextRenderProductSelector =
       function roadmapContextRenderProductSelectorWithCapability(
         programId,
@@ -3347,17 +2823,12 @@
         state,
       ) {
         const capabilityId = pxCapabilityScopeId(state?.capabilityId);
-
         if (capabilityId === "ALL") {
           return baseProductSelector(programId, items, state);
         }
-
         const capability = pxFindCapability(state.productId, capabilityId);
-
         const productName = roadmapWorkspaceProductLabel(state.productId);
-
         const capabilityName = capability?.name || capabilityId;
-
         return `
         <section
           class="
@@ -3375,12 +2846,10 @@
             <span>
               Producto
             </span>
-
             <strong>
               ${roadmapWorkspaceEscape(productName)}
             </strong>
           </div>
-
           <div
             class="
               roadmap-context-product-filter-copy
@@ -3389,7 +2858,6 @@
             <span>
               Capacidad
             </span>
-
             <strong>
               ${roadmapWorkspaceEscape(capabilityName)}
             </strong>
@@ -3397,19 +2865,15 @@
         </section>
       `;
       };
-
     return true;
   }
-
   function pxInstallProductCountryToolbar() {
     if (pxInstallProductCountryToolbar.installed) {
       return true;
     }
-
     if (typeof CONTEXT_TOOLBAR_PROGRAM_ROUTES === "undefined") {
       return false;
     }
-
     /*
      * Estas rutas deben seguir mostrando
      * la barra lateral de países.
@@ -3418,35 +2882,23 @@
      * exclusivamente context-toolbar.js.
      */
     CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("product");
-
     CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("capability");
-
     CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("roadmap");
-
     CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("roadmap-detail");
-
     CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("roadmap-activity");
-
     CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("roadmap-workspace-detail");
-
     CONTEXT_TOOLBAR_PROGRAM_ROUTES.add("roadmap-workspace-activity");
-
     pxInstallProductCountryToolbar.installed = true;
-
     return true;
   }
-
   function pxInstallProductRoadmapCapabilityAxis() {
     if (pxInstallProductRoadmapCapabilityAxis.installed) {
       return true;
     }
-
     if (typeof roadmapWorkspaceRenderTimeline !== "function") {
       return false;
     }
-
     const baseRenderTimeline = roadmapWorkspaceRenderTimeline;
-
     roadmapWorkspaceRenderTimeline =
       function roadmapWorkspaceRenderTimelineWithCapabilityAxis(
         programId,
@@ -3454,59 +2906,45 @@
         state,
       ) {
         const currentRoute = pxRoute();
-
         const countryId = pxValidCountryId(currentRoute.countryId);
-
         const productId = pxNormalizeId(currentRoute.productId);
-
         const isLocalProductView =
           currentRoute.routeName === "product" &&
           currentRoute.programId === PROGRAM_ID &&
           Boolean(productId) &&
           Boolean(countryId) &&
           countryId !== HOLDING_COUNTRY_ID;
-
         if (!isLocalProductView) {
           return baseRenderTimeline(programId, items, state);
         }
-
         const decoratedItems = (Array.isArray(items) ? items : []).map(
           (item) => {
             const capabilityLabels = pxRoadmapCapabilityIds(item).map(
               (capabilityId) =>
                 pxFindCapability(productId, capabilityId)?.name || capabilityId,
             );
-
             return {
               ...item,
-
               capabilityAxisLabels: capabilityLabels,
             };
           },
         );
-
         return baseRenderTimeline(programId, decoratedItems, {
           ...state,
-
           showCapabilityAxis: true,
         });
       };
-
     pxInstallProductRoadmapCapabilityAxis.installed = true;
-
     return true;
   }
   function pxInstallProductRoadmapCapabilityGrouping() {
     if (pxInstallProductRoadmapCapabilityGrouping.installed) {
       return true;
     }
-
     if (typeof roadmapWorkspaceRenderTimeline !== "function") {
       return false;
     }
-
     const baseRenderTimeline = roadmapWorkspaceRenderTimeline;
-
     roadmapWorkspaceRenderTimeline =
       function roadmapWorkspaceRenderTimelineWithCapabilityGrouping(
         programId,
@@ -3514,119 +2952,87 @@
         state,
       ) {
         const currentRoute = pxRoute();
-
         const productId = pxNormalizeId(currentRoute.productId);
-
         const countryId = pxValidCountryId(currentRoute.countryId);
-
         const isLocalProductView =
           currentRoute.routeName === "product" &&
           currentRoute.programId === PROGRAM_ID &&
           Boolean(productId) &&
           Boolean(countryId) &&
           countryId !== HOLDING_COUNTRY_ID;
-
         if (!isLocalProductView) {
           return baseRenderTimeline(programId, items, state);
         }
-
         const capabilityOrder = new Map(
           pxCapabilities(productId).map((capability, index) => [
             pxNormalizeId(capability.id),
             index,
           ]),
         );
-
         const decoratedItems = (Array.isArray(items) ? items : []).map(
           (item) => {
             const capabilityIds = pxRoadmapCapabilityIds(item);
-
             const seen = new Set();
-
             const capabilityGroupEntries = capabilityIds
               .map((capabilityId) => {
                 const normalizedId = pxNormalizeId(capabilityId);
-
                 if (!normalizedId || seen.has(normalizedId)) {
                   return null;
                 }
-
                 seen.add(normalizedId);
-
                 const capability = pxFindCapability(productId, normalizedId);
-
                 return {
                   id: normalizedId,
-
                   label: capability?.name || normalizedId,
-
                   order: capabilityOrder.has(normalizedId)
                     ? capabilityOrder.get(normalizedId)
                     : 999,
                 };
               })
               .filter(Boolean);
-
             return {
               ...item,
-
               capabilityGroupEntries,
             };
           },
         );
-
         return baseRenderTimeline(programId, decoratedItems, {
           ...state,
-
           groupByCapability: true,
         });
       };
-
     pxInstallProductRoadmapCapabilityGrouping.installed = true;
-
     return true;
   }
-
   function pxProductTimelineQuarter(productId, countryId) {
     const normalizedProductId = pxNormalizeId(productId);
-
     const normalizedCountryId = pxValidCountryId(countryId);
-
     const storageKey = [
       "productExperienceTimelineQuarter",
       PROGRAM_ID,
       normalizedProductId,
       normalizedCountryId,
     ].join(":");
-
     const storedValue = sessionStorage.getItem(storageKey);
-
     if (typeof roadmapWorkspaceValidQuarter === "function") {
       return roadmapWorkspaceValidQuarter(storedValue || "ALL");
     }
-
     const normalizedValue = String(storedValue || "ALL")
       .trim()
       .toUpperCase();
-
     if (/^\d{4}$/.test(normalizedValue)) {
       return normalizedValue;
     }
-
     return ["ALL", "Q1", "Q2", "Q3", "Q4"].includes(normalizedValue)
       ? normalizedValue
       : "ALL";
   }
-
   function pxSetProductTimelineQuarter(productId, countryId, quarter) {
     const normalizedProductId = pxNormalizeId(productId);
-
     const normalizedCountryId = pxValidCountryId(countryId);
-
     const rawValue = String(quarter || "ALL")
       .trim()
       .toUpperCase();
-
     const normalizedQuarter =
       typeof roadmapWorkspaceValidQuarter === "function"
         ? roadmapWorkspaceValidQuarter(rawValue)
@@ -3634,19 +3040,15 @@
             ["ALL", "Q1", "Q2", "Q3", "Q4"].includes(rawValue)
           ? rawValue
           : "ALL";
-
     const storageKey = [
       "productExperienceTimelineQuarter",
       PROGRAM_ID,
       normalizedProductId,
       normalizedCountryId,
     ].join(":");
-
     sessionStorage.setItem(storageKey, normalizedQuarter);
-
     return normalizedQuarter;
   }
-
   function pxProductTimelinePeriodSelector(
     productId,
     countryId,
@@ -3654,35 +3056,27 @@
   ) {
     return "";
   }
-
   function pxInstallProductTimelinePeriodSelector() {
     if (pxInstallProductTimelinePeriodSelector.installed) {
       return true;
     }
-
     document.addEventListener(
       "click",
       (event) => {
         const button = event.target.closest("[data-product-timeline-year]");
-
         if (!button) {
           return;
         }
-
         const currentRoute = pxRoute();
-
         const productId = pxNormalizeId(
           button.dataset.productId || currentRoute.productId,
         );
-
         const countryId = pxValidCountryId(
           button.dataset.productCountry ||
             currentRoute.countryId ||
             selectedCountry,
         );
-
         const year = String(button.dataset.productTimelineYear || "").trim();
-
         if (
           !productId ||
           !countryId ||
@@ -3691,75 +3085,55 @@
         ) {
           return;
         }
-
         event.preventDefault();
         event.stopImmediatePropagation();
-
         pxSetProductTimelineQuarter(productId, countryId, year);
-
         pxRenderLocalProduct(productId, countryId);
       },
       true,
     );
-
     pxInstallProductTimelinePeriodSelector.installed = true;
-
     return true;
   }
-
   function pxRefresh() {
     pxInstallCapabilityRoadmapScope();
-
     pxInstallProductCountryToolbar();
     pxInstallProductRoadmapCapabilityGrouping();
-
     pxInstallProductTimelinePeriodSelector();
-
     if (pxRenderSpecialRoute()) {
       if (typeof renderGlobalContextFilters === "function") {
         requestAnimationFrame(renderGlobalContextFilters);
       }
-
       return;
     }
-
     pxEnhanceProgramLanding();
-
     pxRefreshRoadmapBackButton();
   }
-
   /*
    * =======================================================
    * DATA MODEL
    * =======================================================
    */
-
   if (typeof normalizeProgramData === "function") {
     const baseNormalize = normalizeProgramData;
-
     normalizeProgramData = function normalizeProgramDataWithProducts(
       programId,
       rawData,
     ) {
       const normalized = baseNormalize(programId, rawData);
-
       const source = rawData || {};
       normalized.productCatalog = Array.isArray(source.productCatalog)
         ? source.productCatalog.map((row) => ({
             ...row,
-
             programId: row.programId || programId,
           }))
         : [];
-
       normalized.productFeatures = Array.isArray(source.productFeatures)
         ? source.productFeatures.map((row) => ({
             ...row,
-
             programId: row.programId || programId,
           }))
         : [];
-
       normalized.jiraWorkspaceFeatures = Array.isArray(
         source.jiraWorkspaceFeatures,
       )
@@ -3768,129 +3142,96 @@
             programId: row.programId || programId,
           }))
         : [];
-
       return normalized;
     };
   }
-
   if (typeof PROGRAM_DATA_CACHE !== "undefined" && PROGRAM_DATA_CACHE?.delete) {
     PROGRAM_DATA_CACHE.delete(PROGRAM_ID);
   }
-
   /*
    * =======================================================
    * COUNTRY → ROADMAP
    * =======================================================
    */
-
   document.addEventListener(
     "click",
     (event) => {
       const countryCard = event.target.closest("[data-product-country]");
-
       if (!countryCard) {
         return;
       }
-
       const countryId = String(countryCard.dataset.productCountry || "").trim();
-
       const productId = pxNormalizeId(countryCard.dataset.productId);
-
       if (!countryId || !productId) {
         return;
       }
-
       event.preventDefault();
       event.stopImmediatePropagation();
-
       sessionStorage.setItem(
         PRODUCT_RETURN_ROUTE_KEY,
         `product/${PROGRAM_ID}/${productId}`,
       );
-
       selectedCountry = countryId;
-
       route(pxCountryRoadmapRoute(productId));
     },
     true,
   );
-
   document.addEventListener("keydown", (event) => {
     if (!["Enter", " "].includes(event.key)) {
       return;
     }
-
     const countryCard = event.target.closest("[data-product-country]");
-
     if (!countryCard) {
       return;
     }
-
     event.preventDefault();
-
     countryCard.click();
   });
-
   /*
    * =======================================================
    * ROADMAP → PRODUCT
    * =======================================================
    */
-
   document.addEventListener(
     "click",
     (event) => {
       const backButton = event.target.closest(".navigation-back-button");
-
       if (!backButton) {
         return;
       }
-
       const currentRoute = pxRoute();
-
       if (!String(currentRoute.routeName || "").startsWith("roadmap")) {
         return;
       }
-
       const returnRoute = sessionStorage.getItem(PRODUCT_RETURN_ROUTE_KEY);
-
       if (!returnRoute) {
         return;
       }
-
       event.preventDefault();
       event.stopImmediatePropagation();
-
       sessionStorage.removeItem(PRODUCT_RETURN_ROUTE_KEY);
-
       selectedCountry = HOLDING_COUNTRY_ID;
-
       route(returnRoute);
     },
     true,
   );
-
   /*
    * =======================================================
    * VIEW OBSERVER
    * =======================================================
    */
-
   const observer = new MutationObserver(() => {
     pxRefresh();
   });
-
   if (view) {
     observer.observe(view, {
       childList: true,
       subtree: true,
     });
   }
-
   window.addEventListener("hashchange", () => {
     requestAnimationFrame(pxRefresh);
   });
-
   document.addEventListener("click", (event) => {
     if (event.target.closest("[data-country]")) {
       requestAnimationFrame(() => {
@@ -3898,6 +3239,5 @@
       });
     }
   });
-
   requestAnimationFrame(pxRefresh);
 })();

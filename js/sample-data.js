@@ -41,20 +41,6 @@ function cloneDemoData(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function demoProgramLabel(programId) {
-  const id = String(programId || "").trim();
-
-  if (DEMO_PROGRAM_LABELS[id]) {
-    return DEMO_PROGRAM_LABELS[id];
-  }
-
-  return id
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
 function demoCountryLabel(country) {
   return (
     {

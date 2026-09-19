@@ -444,21 +444,6 @@ function roadmapWorkspaceActivityRouteBase(programId, state, item) {
     roadmapWorkspaceEncode(item.id),
   ].join("/");
 }
-function roadmapWorkspacePlanningSource(item) {
-  const source = item?.source || {};
-
-  return String(
-    item?.planningSource ||
-      source.planningSource ||
-      source.planning_source ||
-      "internal",
-  )
-    .trim()
-    .toLowerCase() === "jira"
-    ? "jira"
-    : "internal";
-}
-
 function roadmapWorkspaceJiraFeatureStatus(value) {
   const status = String(value || "")
     .normalize("NFD")
