@@ -162,24 +162,6 @@
     `;
   }
 
-  function renderAircraft747() {
-    return `
-      <div class="portfolio-747" aria-hidden="true">
-        <span class="portfolio-747__body"></span>
-        <span class="portfolio-747__nose"></span>
-        <span class="portfolio-747__tail"></span>
-        <span class="portfolio-747__wing portfolio-747__wing--left"></span>
-        <span class="portfolio-747__wing portfolio-747__wing--right"></span>
-        <span class="portfolio-747__stab portfolio-747__stab--left"></span>
-        <span class="portfolio-747__stab portfolio-747__stab--right"></span>
-        <span class="portfolio-747__engine portfolio-747__engine--1"></span>
-        <span class="portfolio-747__engine portfolio-747__engine--2"></span>
-        <span class="portfolio-747__engine portfolio-747__engine--3"></span>
-        <span class="portfolio-747__engine portfolio-747__engine--4"></span>
-      </div>
-    `;
-  }
-
   function getProgramAircraftImage(program) {
     const defaultImage = "assets/program-aircraft/bbva-747-default.png";
 

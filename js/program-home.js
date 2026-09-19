@@ -141,16 +141,6 @@ function programHomeEscape(value) {
     .replaceAll("'", "&#039;");
 }
 
-function programHomeNumber(value) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(100, Math.round(number)));
-}
-
 function programHomeNormalizeProduct(value) {
   return String(value || "")
     .trim()

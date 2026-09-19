@@ -216,41 +216,6 @@ function contextToolbarNormalizeCountryId(value) {
   return exists ? countryId : "";
 }
 
-function contextToolbarCountryTargetRoute(targetCountryId) {
-  const countryId = contextToolbarNormalizeCountryId(targetCountryId);
-
-  if (!countryId) {
-    return "";
-  }
-
-  const context = contextToolbarRoute();
-
-  const programId = String(context?.programId || "").trim();
-
-  if (!programId) {
-    return "";
-  }
-
-  /*
-   * La geografía es navegación de
-   * primer nivel.
-   *
-   * Cambiarla siempre vuelve a la
-   * ficha raíz del programa.
-   *
-   * NO conservamos:
-   *
-   * - producto
-   * - capacidad
-   * - roadmap
-   * - año
-   * - ambición
-   * - proyecto
-   * - actividad
-   * - tarea
-   */
-  return ["program", encodeURIComponent(programId)].join("/");
-}
 function contextToolbarOrderedCountries() {
   const countries =
     typeof COUNTRIES !== "undefined" && Array.isArray(COUNTRIES)
@@ -996,83 +961,7 @@ document.addEventListener(
   true,
 );
 
-function contextToolbarLoadPortfolioUxPolish() {
-  if (!document.querySelector("#portfolioUxPolishStyles")) {
-    const stylesheet = document.createElement("link");
-
-    stylesheet.id = "portfolioUxPolishStyles";
-    stylesheet.rel = "stylesheet";
-    stylesheet.href = "styles/portfolio-ux-polish.css";
-
-    document.head.append(stylesheet);
-  }
-
-  if (document.querySelector("#portfolioUxPolishScript")) {
-    return;
-  }
-
-  const script = document.createElement("script");
-
-  script.id = "portfolioUxPolishScript";
-  script.src = "js/portfolio-ux-polish.js";
-
-  script.onload = () => {
-    const context = contextToolbarRoute();
-
-    if (view.querySelector(".portfolio-home")) {
-      renderLanding();
-      return;
-    }
-
-    if (
-      context.routeName === "program" &&
-      context.programId &&
-      view.querySelector(".program-home")
-    ) {
-      renderProgram(context.programId);
-
-      requestAnimationFrame(renderSidebarCountryNavigation);
-    }
-  };
-
-  script.onerror = () => {
-    console.error("No se pudo cargar la mejora de portfolio y landing.");
-  };
-
-  document.body.append(script);
-}
-
-function contextToolbarLoadNavigationUxFixes() {
-  if (!document.querySelector("#navigationUxFixesStyles")) {
-    const stylesheet = document.createElement("link");
-
-    stylesheet.id = "navigationUxFixesStyles";
-    stylesheet.rel = "stylesheet";
-    stylesheet.href = "styles/navigation-ux-fixes.css?v=3";
-
-    document.head.append(stylesheet);
-  }
-
-  if (document.querySelector("#navigationUxFixesScript")) {
-    return;
-  }
-
-  const script = document.createElement("script");
-
-  script.id = "navigationUxFixesScript";
-  script.src = "js/navigation-ux-fixes.js?v=3";
-
-  script.onerror = () => {
-    console.error("No se pudieron cargar los ajustes de navegación.");
-  };
-
-  document.body.append(script);
-}
-
 requestAnimationFrame(() => {
   renderGlobalContextFilters();
   renderSidebarCountryNavigation();
 });
-
-contextToolbarLoadPortfolioUxPolish();
-contextToolbarLoadNavigationUxFixes();
