@@ -7096,300 +7096,311 @@ async function init() {
   if (isLoadingData) {
     return;
   }
+
   isLoadingData = true;
-  const initialContext = getCurrentRoute();
-  let cachedProgram = null;
-  let portfolioBackgroundRequest = null;
+
   try {
     showLoadingOverlay("Validando acceso al cockpit...");
+
     /*
      * =====================================================
-     * ARRANQUE EN PARALELO
+     * UNA ÚNICA LLAMADA DE ARRANQUE
      * =====================================================
      *
-     * Access Control y Portfolio arrancan
-     * en el mismo instante.
+     * La misma llamada devuelve:
      *
-     * La respuesta de Portfolio todavía
-     * NO modifica el estado de la aplicación.
+     * - usuario;
+     * - rol;
+     * - catálogo ligero de Portfolio.
+     *
+     * No se carga el core general.
      */
-    const accessPromise = ensureRcsPortfolioAccess(true);
-    const dataPromise = fetchPortfolioSourceData(true);
-    const portfolioAccess = await accessPromise;
-    /*
-     * =====================================================
-     * ACCESO DENEGADO
-     * =====================================================
-     */
+
+    const portfolioAccess = await ensureRcsPortfolioAccess(true);
+
     if (!portfolioAccess.granted) {
-      /*
-       * Puede quedar una petición de datos
-       * ejecutándose.
-       *
-       * Nunca instalamos su respuesta.
-       */
-      void dataPromise.catch(() => {});
       blockRcsCockpitAccess(portfolioAccess);
+
       return;
     }
-    /*
-     * =====================================================
-     * ACCESO CONCEDIDO
-     * =====================================================
-     */
+
     restoreRcsCockpitAccess();
+
     applyRcsEditPermissions();
+
     installRcsAccessRoleTracking();
-    /*
-     * Sólo AHORA podemos tocar
-     * fotografías de sesión.
-     */
-    const cachedPortfolio = readRcsSessionCache("portfolio");
-    cachedProgram = initialContext.programId
-      ? readRcsSessionCache("program", initialContext.programId)
-      : null;
-    const restoredPortfolio = hydratePortfolioFromSessionCache();
+
     /*
      * =====================================================
-     * FAST BOOT
+     * LANDING LIVE
      * =====================================================
      */
-    if (restoredPortfolio) {
+
+    const landingInstalled = installPortfolioLandingData(
+      portfolioAccess.landing,
+    );
+
+    if (landingInstalled) {
       setRcsDataMode("portfolio", "live");
+
       DATA = PORTFOLIO_DATA;
+
       updateDataStatus();
+
       clearDataFallbackBanner();
-      /*
-       * La petición live ya está funcionando
-       * desde el inicio.
-       *
-       * No esperamos por ella para pintar.
-       */
-      portfolioBackgroundRequest = dataPromise;
     } else {
       /*
        * ===================================================
-       * COLD BOOT
+       * FALLBACK REAL
        * ===================================================
        *
-       * No existe fotografía previa.
-       *
-       * Esperamos la petición de datos,
-       * pero ésta lleva ejecutándose desde
-       * que empezó el Access Control.
+       * Sólo después de validar al usuario.
        */
-      showLoadingOverlay(
-        "Acceso validado. Cargando datos generales del portfolio... " +
-          "La primera carga puede tardar hasta uno o dos minutos. " +
-          "No cierres esta ventana.",
-      );
-      const rawData = await dataPromise;
-      installPortfolioSourceData(rawData);
-      setRcsDataMode("portfolio", "live");
-      resetRcsProgramDataModes();
-      DATA = PORTFOLIO_DATA;
-      updateDataStatus();
-      clearDataFallbackBanner();
+
+      const restoredPortfolio = hydratePortfolioFromSessionCache();
+
+      if (restoredPortfolio) {
+        DATA = PORTFOLIO_DATA;
+
+        setRcsDataMode("portfolio", "live");
+
+        updateDataStatus();
+
+        showDataFallbackBanner(
+          "No se ha podido actualizar el catálogo del Portfolio. " +
+            "Se mantiene la última fotografía real disponible.",
+        );
+      } else {
+        PORTFOLIO_DATA = {
+          portfolioKpis: [],
+          programs: [],
+        };
+
+        DATA = PORTFOLIO_DATA;
+
+        buildProgramSources([]);
+
+        setRcsDataMode("portfolio", "live");
+
+        statusEl.textContent =
+          "No se ha podido cargar el catálogo del Portfolio";
+
+        showDataFallbackBanner(
+          "No se ha podido cargar el catálogo de programas. " +
+            "Pulsa “Actualizar datos” para volver a intentarlo.",
+        );
+      }
     }
   } catch (error) {
     console.error("[RCS Cockpit] Error durante el arranque.", error);
+
     const accessState = getRcsAccessState();
-    /*
-     * =====================================================
-     * ACCESS
-     * =====================================================
-     */
+
     if (!accessState.portfolio?.granted) {
       blockRcsCockpitAccess({
         granted: false,
+
         role: "none",
+
         canEdit: false,
+
         code: error?.code || "ACCESS_CHECK_FAILED",
       });
+
       return;
     }
-    /*
-     * =====================================================
-     * DATA
-     * =====================================================
-     *
-     * El usuario está autorizado,
-     * pero el origen ha fallado.
-     *
-     * Nunca activamos DEMO.
-     */
+
     const restoredPortfolio = hydratePortfolioFromSessionCache();
+
     if (restoredPortfolio) {
       DATA = PORTFOLIO_DATA;
+
       setRcsDataMode("portfolio", "live");
+
       updateDataStatus();
+
       showDataFallbackBanner(
-        "No se han podido actualizar los datos generales. " +
-          "Se mantiene la última fotografía real disponible. " +
-          "Pulsa “Actualizar datos” para volver a intentarlo.",
+        "No se ha podido actualizar el catálogo del Portfolio. " +
+          "Se mantiene la última fotografía real disponible.",
       );
     } else {
       PORTFOLIO_DATA = {
         portfolioKpis: [],
         programs: [],
       };
+
       DATA = PORTFOLIO_DATA;
+
       buildProgramSources([]);
+
       setRcsDataMode("portfolio", "live");
-      statusEl.textContent = "No se han podido cargar los datos generales";
+
+      statusEl.textContent = "No se ha podido cargar el catálogo del Portfolio";
+
       showDataFallbackBanner(
-        "El origen general no ha respondido a tiempo. " +
+        "No se ha podido cargar el catálogo de programas. " +
           "Pulsa “Actualizar datos” para volver a intentarlo.",
       );
     }
   } finally {
     isLoadingData = false;
+
     hideLoadingOverlay();
   }
+
   syncDataSourceToggle();
+
   if (getRcsAccessState().blocked) {
     return;
   }
+
   await render();
-  /*
-   * =======================================================
-   * PORTFOLIO BACKGROUND REFRESH
-   * =======================================================
-   *
-   * Si arrancamos desde cache,
-   * completamos ahora la petición live
-   * que ya estaba ejecutándose.
-   */
-  if (portfolioBackgroundRequest) {
-    void portfolioBackgroundRequest
-      .then((rawData) => {
-        installPortfolioSourceData(rawData);
-        const currentContext = getCurrentRoute();
-        if (
-          !currentContext.programId ||
-          currentContext.routeName === "landing"
-        ) {
-          DATA = PORTFOLIO_DATA;
-          updateDataStatus();
-          clearDataFallbackBanner();
-          renderLanding();
-          syncRcsAccessRoleBadge();
-        }
-      })
-      .catch((error) => {
-        console.warn(
-          "[RCS Cockpit] No se ha podido actualizar Portfolio en background.",
-          error,
-        );
-        const currentContext = getCurrentRoute();
-        if (
-          !currentContext.programId ||
-          currentContext.routeName === "landing"
-        ) {
-          showDataFallbackBanner(
-            "No se han podido actualizar los datos generales. " +
-              "Se mantiene la última fotografía real disponible. " +
-              "Pulsa “Actualizar datos” para volver a intentarlo.",
-          );
-        }
-      });
-  }
-  /*
-   * loadProgramData ya realiza su propia
-   * revalidación concurrente cuando existe
-   * una fotografía cacheada.
-   */
-  void cachedProgram;
 }
 
 async function refreshCurrentDataSource() {
   const context = getCurrentRoute();
+
   const { routeName, programId } = context;
+
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
+
   const source = normalizedProgramId
     ? getProgramSource(normalizedProgramId)
     : window.APP_CONFIG.portfolio;
+
   showLoadingOverlay(
     normalizedProgramId
       ? `Actualizando datos de ${source?.label || normalizedProgramId}...`
-      : "Actualizando datos generales...",
+      : "Actualizando catálogo del Portfolio...",
   );
+
   try {
     /*
      * ===================================================
-     * PORTFOLIO
+     * LANDING
      * ===================================================
      */
+
     if (!normalizedProgramId || routeName === "landing") {
-      await loadPortfolioData(true);
+      const access = await ensureRcsPortfolioAccess(true, {
+        refreshLanding: true,
+      });
+
+      if (!access.granted) {
+        blockRcsCockpitAccess(access);
+
+        return;
+      }
+
+      const installed = installPortfolioLandingData(access.landing);
+
+      if (!installed) {
+        throw new Error(
+          access.landing?.error ||
+            "No se ha podido actualizar el catálogo del Portfolio.",
+        );
+      }
+
       setRcsDataMode("portfolio", "live");
-      resetRcsProgramDataModes();
+
       DATA = PORTFOLIO_DATA;
+
       updateDataStatus();
+
       clearDataFallbackBanner();
+
+      syncRcsAccessRoleBadge();
+
       await render();
+
       return;
     }
+
     /*
      * ===================================================
      * PROGRAMA
      * ===================================================
      */
+
     invalidateProgramDeferredData(normalizedProgramId);
+
     const programData = await loadProgramData(normalizedProgramId, true);
+
     setRcsDataMode(normalizedProgramId, "live");
+
     DATA = buildProgramData(programData);
+
     updateDataStatus(normalizedProgramId);
+
     clearDataFallbackBanner();
+
     await render();
   } catch (error) {
     console.error("[RCS] Error actualizando datos", error);
+
     /*
      * ===================================================
-     * PORTFOLIO · ÚLTIMA FOTO REAL
+     * LANDING · ÚLTIMA FOTO REAL
      * ===================================================
      */
+
     if (!normalizedProgramId || routeName === "landing") {
       const cachedPortfolio = hydratePortfolioFromSessionCache();
+
       if (
         cachedPortfolio ||
         (Array.isArray(PORTFOLIO_DATA.programs) &&
           PORTFOLIO_DATA.programs.length)
       ) {
         DATA = PORTFOLIO_DATA;
+
         renderLanding();
+
         updateDataStatus();
+
         showDataFallbackBanner(
-          "No se han podido actualizar los datos generales. " +
-            "Se mantiene la última fotografía real disponible. " +
-            "Pulsa “Actualizar datos” para volver a intentarlo.",
+          "No se ha podido actualizar el catálogo del Portfolio. " +
+            "Se mantiene la última fotografía real disponible.",
         );
+
         return;
       }
+
       DATA = PORTFOLIO_DATA;
+
       renderLanding();
-      statusEl.textContent = "No se han podido cargar los datos generales";
+
+      statusEl.textContent = "No se ha podido cargar el catálogo del Portfolio";
+
       showDataFallbackBanner(
-        "El origen general no ha respondido a tiempo. " +
+        "No se ha podido cargar el catálogo de programas. " +
           "Pulsa “Actualizar datos” para volver a intentarlo.",
       );
+
       return;
     }
+
     /*
      * ===================================================
      * PROGRAMA · ÚLTIMA FOTO REAL
      * ===================================================
      */
+
     let fallbackProgram = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
     if (!fallbackProgram) {
       fallbackProgram = hydrateProgramFromSessionCache(normalizedProgramId);
     }
+
     if (fallbackProgram) {
       DATA = buildProgramData(fallbackProgram);
+
       renderRouteContext(context);
+
       updateDataStatus(normalizedProgramId);
+
       showDataFallbackBanner(
         `No se han podido actualizar los datos de ${
           source?.label || normalizedProgramId
@@ -7397,21 +7408,21 @@ async function refreshCurrentDataSource() {
           "Se mantiene la última fotografía real disponible. " +
           "Pulsa “Actualizar datos” para volver a intentarlo.",
       );
+
       return;
     }
-    /*
-     * ===================================================
-     * PROGRAMA · SIN FOTO PREVIA
-     * ===================================================
-     */
+
     DATA = {
       ...PORTFOLIO_DATA,
       ...getEmptyProgramData(),
     };
+
     renderRouteContext(context);
+
     statusEl.textContent = `No se han podido cargar los datos de ${
       source?.label || normalizedProgramId
     }`;
+
     showDataFallbackBanner(
       `El origen de ${
         source?.label || normalizedProgramId
@@ -14193,115 +14204,223 @@ function normalizeRcsAccessResult(payload, spreadsheetId) {
     payload && payload.access && typeof payload.access === "object"
       ? payload.access
       : {};
+
   const user =
     access.user && typeof access.user === "object" ? access.user : {};
+
+  const landing =
+    payload && payload.landing && typeof payload.landing === "object"
+      ? payload.landing
+      : null;
+
   return {
     spreadsheetId,
+
     granted: payload?.ok === true && access.granted === true,
+
     role:
       access.role === "editor"
         ? "editor"
         : access.role === "viewer"
           ? "viewer"
           : "none",
+
     canEdit: payload?.ok === true && access.canEdit === true,
+
     user: {
       name: String(user.name || "").trim(),
+
       email: String(user.email || "").trim(),
     },
+
+    landing: landing
+      ? {
+          available: landing.available === true,
+
+          portfolioKpis: Array.isArray(landing.portfolioKpis)
+            ? landing.portfolioKpis
+            : [],
+
+          programs: Array.isArray(landing.programs) ? landing.programs : [],
+
+          error: String(landing.error || "").trim(),
+
+          generatedAt: String(landing.generatedAt || "").trim(),
+        }
+      : null,
+
     code: String(payload?.code || "").trim(),
+
     checkedAt: Date.now(),
   };
 }
 
-async function loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh = false) {
+async function loadRcsSpreadsheetAccess(
+  spreadsheetId,
+  forceRefresh = false,
+  { includeLanding = false, refreshLanding = false } = {},
+) {
   const normalizedSpreadsheetId = String(spreadsheetId || "").trim();
+
   if (!normalizedSpreadsheetId) {
     return {
       spreadsheetId: "",
       granted: false,
       role: "none",
       canEdit: false,
+      landing: null,
       code: "SPREADSHEET_ID_MISSING",
       checkedAt: Date.now(),
     };
   }
+
   const config = window.APP_CONFIG?.accessControl;
+
   if (!config?.driveJsonUrl || config.driveJsonUrl.includes("PEGA_AQUI")) {
     return {
       spreadsheetId: normalizedSpreadsheetId,
+
       granted: false,
+
       role: "none",
+
       canEdit: false,
+
+      landing: null,
+
       code: "ACCESS_CONTROL_NOT_CONFIGURED",
+
       checkedAt: Date.now(),
     };
   }
+
   const state = getRcsAccessState();
+
   const cached = state.spreadsheets[normalizedSpreadsheetId];
+
   const cacheTtlMs = 5 * 60 * 1000;
-  if (!forceRefresh && cached && Date.now() - cached.checkedAt < cacheTtlMs) {
+
+  const cachedHasLanding =
+    cached?.landing && typeof cached.landing === "object";
+
+  if (
+    !forceRefresh &&
+    cached &&
+    Date.now() - cached.checkedAt < cacheTtlMs &&
+    (!includeLanding || cachedHasLanding)
+  ) {
     return cached;
   }
+
   try {
     const url = new URL(config.driveJsonUrl, window.location.href);
+
     url.searchParams.set("spreadsheetId", normalizedSpreadsheetId);
+
+    if (includeLanding) {
+      url.searchParams.set("includeLanding", "1");
+    }
+
+    if (refreshLanding) {
+      url.searchParams.set("refreshLanding", "1");
+    }
+
     const payload = await loadJsonp(url.toString(), {
-      /*
-       * No esperamos 15 + 25 segundos
-       * en cadena.
-       *
-       * Si el Access Control no
-       * responde en 10 segundos,
-       * fallamos de forma explícita.
-       */
-      timeoutMs: 10000,
+      timeoutMs: includeLanding ? 15000 : 10000,
+
       retries: 0,
+
       cacheBust: true,
     });
+
     const access = normalizeRcsAccessResult(payload, normalizedSpreadsheetId);
-    /*
-     * Sólo cacheamos respuestas
-     * concluyentes.
-     */
+
     if (access.granted || access.code === "ACCESS_DENIED") {
       state.spreadsheets[normalizedSpreadsheetId] = access;
     }
+
     return access;
   } catch (error) {
     console.error("[RCS Access] No se pudo validar la Spreadsheet.", error);
+
     const message = String(error?.message || error || "")
       .trim()
       .toLowerCase();
+
     const timeout =
       message.includes("tiempo de espera") || message.includes("timeout");
+
     return {
       spreadsheetId: normalizedSpreadsheetId,
+
       granted: false,
+
       role: "none",
+
       canEdit: false,
-      /*
-       * IMPORTANTE:
-       *
-       * Un timeout NO significa que
-       * falte autorización OAuth.
-       */
+
+      landing: null,
+
       code: timeout ? "ACCESS_TIMEOUT" : "ACCESS_CHECK_FAILED",
+
       checkedAt: Date.now(),
     };
   }
 }
 
-async function ensureRcsPortfolioAccess(forceRefresh = false) {
+async function ensureRcsPortfolioAccess(
+  forceRefresh = false,
+  { refreshLanding = false } = {},
+) {
   const state = getRcsAccessState();
+
   const spreadsheetId = String(
     window.APP_CONFIG?.portfolio?.spreadsheetId || "",
   ).trim();
-  const access = await loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh);
+
+  const access = await loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh, {
+    includeLanding: true,
+    refreshLanding,
+  });
+
   state.portfolio = access;
+
   return access;
 }
+function installPortfolioLandingData(landing) {
+  if (
+    !landing ||
+    landing.available !== true ||
+    !Array.isArray(landing.programs)
+  ) {
+    return false;
+  }
 
+  PORTFOLIO_DATA = normalizePortfolioData({
+    portfolioKpis: landing.portfolioKpis,
+
+    programs: landing.programs,
+  });
+
+  buildProgramSources(PORTFOLIO_DATA.programs);
+
+  const generatedAt = landing.generatedAt
+    ? new Date(landing.generatedAt)
+    : new Date();
+
+  PORTFOLIO_LAST_LOADED_AT = Number.isNaN(generatedAt.getTime())
+    ? new Date()
+    : generatedAt;
+
+  writeRcsSessionCache(
+    "portfolio",
+    "",
+    PORTFOLIO_DATA,
+    PORTFOLIO_LAST_LOADED_AT,
+  );
+
+  return true;
+}
 async function ensureRcsProgramAccess(programId, forceRefresh = false) {
   const normalizedProgramId = String(programId || "")
     .trim()
