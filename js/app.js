@@ -7048,74 +7048,124 @@ async function ensureJiraFeaturesDataForRoute(context) {
 
 async function render() {
   const context = getCurrentRoute();
+
   const { routeName, programId } = context;
+
+  syncPortfolioSidebarNavigation(routeName);
+
   /*
    * =====================================================
-   * PORTFOLIO
+   * NAVEGACIÓN PORTFOLIO
    * =====================================================
    */
-  if (!programId || routeName === "landing") {
+
+  const portfolioPlaceholderRoutes = new Set([
+    "governance",
+    "kpis",
+    "ambition",
+    "key-reports",
+  ]);
+
+  if (portfolioPlaceholderRoutes.has(routeName)) {
     DATA = PORTFOLIO_DATA;
-    renderLanding();
+
+    renderPortfolioComingSoon(routeName);
+
     updateDataStatus();
+
     clearDataFallbackBanner();
+
     syncRcsAccessRoleBadge();
+
     return;
   }
+
+  /*
+   * =====================================================
+   * PORTFOLIO · PROGRAMAS
+   * =====================================================
+   */
+
+  if (!programId || routeName === "landing") {
+    DATA = PORTFOLIO_DATA;
+
+    renderLanding();
+
+    updateDataStatus();
+
+    clearDataFallbackBanner();
+
+    syncRcsAccessRoleBadge();
+
+    return;
+  }
+
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
+
   const hasMemorySnapshot = PROGRAM_DATA_CACHE.has(normalizedProgramId);
+
   const hasSessionSnapshot =
     !hasMemorySnapshot &&
     Boolean(readRcsSessionCache("program", normalizedProgramId));
+
   const requiresBlockingLoad = !hasMemorySnapshot && !hasSessionSnapshot;
+
   try {
     const source = getProgramSource(normalizedProgramId);
+
     if (requiresBlockingLoad) {
       showLoadingOverlay(
         `Cargando datos de ${source?.label || normalizedProgramId}...`,
       );
     }
+
     const programData = await loadProgramData(normalizedProgramId);
+
     setRcsDataMode(normalizedProgramId, "live");
+
     DATA = buildProgramData(programData);
+
     /*
      * ===================================================
      * DATASETS ON-DEMAND
      * ===================================================
      */
+
     await ensureJiraMsaDataForRoute(context);
+
     await ensureJiraFeaturesDataForRoute(context);
+
     /*
      * ===================================================
      * RENDER
      * ===================================================
      */
+
     renderRouteContext(context);
+
     updateDataStatus(normalizedProgramId);
+
     clearDataFallbackBanner();
+
     syncRcsAccessRoleBadge();
   } catch (error) {
     console.error(`[RCS] Error cargando ${normalizedProgramId}`, error);
-    /*
-     * ===================================================
-     * TIMEOUT / ERROR
-     * ===================================================
-     *
-     * No existe modo demo.
-     *
-     * Primero intentamos conservar una
-     * fotografía real anterior.
-     */
+
     let fallbackProgram = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
     if (!fallbackProgram) {
       fallbackProgram = hydrateProgramFromSessionCache(normalizedProgramId);
     }
+
     if (fallbackProgram) {
       DATA = buildProgramData(fallbackProgram);
+
       renderRouteContext(context);
+
       updateDataStatus(normalizedProgramId);
+
       showDataFallbackBanner(
         `No se han podido actualizar los datos de ${
           getProgramSource(normalizedProgramId)?.label || normalizedProgramId
@@ -7123,31 +7173,30 @@ async function render() {
           `Se mantiene la última fotografía real disponible. ` +
           `Pulsa “Actualizar datos” para reintentar la conexión.`,
       );
+
       syncRcsAccessRoleBadge();
+
       return;
     }
-    /*
-     * ===================================================
-     * SIN FOTOGRAFÍA PREVIA
-     * ===================================================
-     *
-     * Mostramos la estructura de la pantalla,
-     * pero nunca datos ficticios.
-     */
+
     DATA = {
       ...PORTFOLIO_DATA,
       ...getEmptyProgramData(),
     };
+
     renderRouteContext(context);
+
     statusEl.textContent = `No se han podido cargar los datos de ${
       getProgramSource(normalizedProgramId)?.label || normalizedProgramId
     }`;
+
     showDataFallbackBanner(
       `El origen de ${
         getProgramSource(normalizedProgramId)?.label || normalizedProgramId
       } no ha respondido a tiempo. ` +
         `Pulsa “Actualizar datos” para volver a intentarlo.`,
     );
+
     syncRcsAccessRoleBadge();
   } finally {
     if (requiresBlockingLoad) {
@@ -7353,7 +7402,7 @@ async function init() {
   if (isLoadingData) {
     return;
   }
-
+  installPortfolioSidebarNavigation();
   isLoadingData = true;
 
   try {
@@ -15323,6 +15372,793 @@ function installProductMapReturnNavigation() {
 }
 
 installProductMapReturnNavigation();
+function ensurePortfolioSidebarStyles() {
+  if (document.getElementById("portfolioSidebarStyles")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+
+  style.id = "portfolioSidebarStyles";
+
+  style.textContent = `
+    /*
+     * =====================================================
+     * PORTFOLIO SIDEBAR
+     * =====================================================
+     */
+
+    .sidebar {
+      gap: 0;
+      padding:
+        24px 8px
+        18px;
+    }
+
+    .sidebar .brand {
+      margin-bottom: 22px;
+    }
+
+    .tower-mark {
+      display: grid;
+      place-items: center;
+      width: 64px;
+      height: 64px;
+      margin:
+        0 auto
+        22px;
+      border:
+        1px solid
+        rgba(
+          255,
+          255,
+          255,
+          0.34
+        );
+      border-radius: 18px;
+      background:
+        rgba(
+          255,
+          255,
+          255,
+          0.11
+        );
+      color: #ffffff;
+      box-shadow:
+        0 8px 20px
+        rgba(
+          0,
+          0,
+          0,
+          0.08
+        );
+    }
+
+    .tower-mark svg {
+      width: 36px;
+      height: 36px;
+      display: block;
+    }
+
+    .side-title,
+    .home-link {
+      display:
+        none !important;
+    }
+
+    /*
+     * =====================================================
+     * NAVEGACIÓN PORTFOLIO
+     * =====================================================
+     */
+
+    .portfolio-sidebar-navigation {
+      display: grid;
+      width: 100%;
+      gap: 9px;
+      margin-top: 0;
+    }
+
+    /*
+     * Ya no mostramos el label PORTFOLIO.
+     */
+
+    .portfolio-sidebar-navigation-label {
+      display:
+        none !important;
+    }
+
+    .portfolio-sidebar-button {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 54px;
+      padding:
+        9px 7px;
+      border:
+        1px solid
+        rgba(
+          255,
+          255,
+          255,
+          0.08
+        );
+      border-radius: 14px;
+      background:
+        rgba(
+          255,
+          255,
+          255,
+          0.025
+        );
+      color:
+        rgba(
+          255,
+          255,
+          255,
+          0.88
+        );
+      font-family:
+        Inter,
+        Arial,
+        sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.2;
+      text-align: center;
+      cursor: pointer;
+      transition:
+        background 0.16s ease,
+        border-color 0.16s ease,
+        color 0.16s ease,
+        transform 0.16s ease,
+        box-shadow 0.16s ease;
+    }
+
+    .portfolio-sidebar-button:hover {
+      border-color:
+        rgba(
+          255,
+          255,
+          255,
+          0.28
+        );
+      background:
+        rgba(
+          255,
+          255,
+          255,
+          0.1
+        );
+      color: #ffffff;
+      transform:
+        translateY(-1px);
+    }
+
+    .portfolio-sidebar-button.active {
+      border-color:
+        rgba(
+          95,
+          208,
+          255,
+          0.72
+        );
+      background:
+        linear-gradient(
+          135deg,
+          rgba(
+            255,
+            255,
+            255,
+            0.18
+          ),
+          rgba(
+            255,
+            255,
+            255,
+            0.09
+          )
+        );
+      color: #ffffff;
+      box-shadow:
+        inset 4px 0
+        0 #49c8ff,
+        0 8px 18px
+        rgba(
+          0,
+          0,
+          0,
+          0.08
+        );
+    }
+
+    .portfolio-sidebar-button.active::after {
+      content: "";
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #49c8ff;
+      transform:
+        translateY(-50%);
+    }
+
+    /*
+     * Cuando existe contexto de programa
+     * mostramos la navegación geográfica.
+     */
+
+    .sidebar.has-country-navigation
+      .portfolio-sidebar-navigation {
+      display: none;
+    }
+
+    /*
+     * =====================================================
+     * PANTALLA PRÓXIMAMENTE
+     * =====================================================
+     */
+
+    .portfolio-coming-soon {
+      display: grid;
+      place-items: center;
+      min-height:
+        min(
+          620px,
+          calc(
+            100vh -
+            220px
+          )
+        );
+      padding: 38px;
+    }
+
+    .portfolio-coming-soon-card {
+      width:
+        min(
+          620px,
+          100%
+        );
+      padding:
+        54px 48px;
+      border:
+        1px solid
+        var(--line);
+      border-radius: 28px;
+      background: #ffffff;
+      box-shadow:
+        0 22px 52px
+        rgba(
+          7,
+          46,
+          111,
+          0.08
+        );
+      text-align: center;
+    }
+
+    .portfolio-coming-soon-icon {
+      display: grid;
+      place-items: center;
+      width: 72px;
+      height: 72px;
+      margin:
+        0 auto
+        24px;
+      border-radius: 22px;
+      background: #edf4ff;
+      color: var(--blue);
+      font-size: 28px;
+      font-weight: 900;
+    }
+
+    .portfolio-coming-soon-card
+      .eyebrow {
+      margin-bottom: 8px;
+    }
+
+    .portfolio-coming-soon-card
+      h2 {
+      margin: 0;
+      color: var(--blue);
+      font-size: 42px;
+      line-height: 1.05;
+    }
+
+    .portfolio-coming-soon-card
+      p {
+      max-width: 450px;
+      margin:
+        16px auto
+        0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    .portfolio-coming-soon-card
+      .ghost-button {
+      margin-top: 30px;
+    }
+
+    /*
+     * =====================================================
+     * AMBICIÓN RCSE
+     * =====================================================
+     */
+
+    .portfolio-ambition-page {
+      display: grid;
+      gap: 24px;
+      padding-bottom: 24px;
+    }
+
+    .portfolio-ambition-page-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .portfolio-ambition-page-header
+      h2 {
+      margin:
+        4px 0
+        8px;
+      font-size: 36px;
+    }
+
+    .portfolio-ambition-page-header
+      p {
+      max-width: 650px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .portfolio-ambition-page-meta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .portfolio-ambition-page-count {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .portfolio-ambition-page-count
+      strong {
+      color: var(--blue);
+      font-family: Georgia, serif;
+      font-size: 30px;
+    }
+
+    /*
+     * =====================================================
+     * FOOTER LANDING
+     * =====================================================
+     */
+
+    body.is-portfolio-landing
+      .footer {
+      width:
+        calc(
+          100% -
+          118px
+        );
+      margin-left: 118px;
+      padding:
+        7px 16px;
+      border-top: 0;
+      background: transparent;
+      backdrop-filter: none;
+      color:
+        rgba(
+          0,
+          19,
+          145,
+          0.24
+        );
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing:
+        0.04em;
+      text-transform: none;
+    }
+
+    @media (
+      max-height: 760px
+    ) {
+      .portfolio-sidebar-button {
+        min-height: 46px;
+        font-size: 10px;
+      }
+
+      .portfolio-sidebar-navigation {
+        gap: 6px;
+      }
+
+      .tower-mark {
+        width: 52px;
+        height: 52px;
+        margin-bottom: 14px;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+function installPortfolioSidebarNavigation() {
+  ensurePortfolioSidebarStyles();
+
+  const sidebar = document.querySelector(".sidebar");
+
+  if (!sidebar) {
+    return;
+  }
+
+  /*
+   * =====================================================
+   * TORRE DE CONTROL
+   * =====================================================
+   */
+
+  const towerMark = sidebar.querySelector(".tower-mark");
+
+  if (towerMark) {
+    towerMark.innerHTML = `
+      <svg
+        viewBox="0 0 64 64"
+        role="img"
+        aria-label="Torre de control"
+      >
+        <path
+          d="
+            M18 13
+            H46
+            L50 23
+            H14
+            Z
+          "
+          fill="none"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linejoin="round"
+        />
+
+        <path
+          d="
+            M21 23
+            H43
+            L39 34
+            H25
+            Z
+          "
+          fill="none"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linejoin="round"
+        />
+
+        <path
+          d="
+            M28 34
+            L24 54
+            M36 34
+            L40 54
+            M21 54
+            H43
+          "
+          fill="none"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+
+        <path
+          d="
+            M24 18
+            H40
+          "
+          fill="none"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+        />
+      </svg>
+    `;
+
+    towerMark.setAttribute("title", "RCS Control Tower");
+  }
+
+  sidebar.querySelector(".side-title")?.remove();
+
+  sidebar.querySelector(".home-link")?.remove();
+
+  let navigation = sidebar.querySelector("#portfolioSidebarNavigation");
+
+  if (!navigation) {
+    navigation = document.createElement("nav");
+
+    navigation.id = "portfolioSidebarNavigation";
+
+    navigation.className = "portfolio-sidebar-navigation";
+
+    navigation.setAttribute("aria-label", "Navegación del Portfolio");
+
+    navigation.innerHTML = `
+      <button
+        type="button"
+        class="portfolio-sidebar-button"
+        data-route="governance"
+        data-portfolio-nav="governance"
+      >
+        Modelo de Gobierno
+      </button>
+
+      <button
+        type="button"
+        class="portfolio-sidebar-button"
+        data-route="kpis"
+        data-portfolio-nav="kpis"
+      >
+        KPI's
+      </button>
+
+      <button
+        type="button"
+        class="portfolio-sidebar-button"
+        data-route="ambition"
+        data-portfolio-nav="ambition"
+      >
+        Ambición RCSE
+      </button>
+
+      <button
+        type="button"
+        class="portfolio-sidebar-button"
+        data-route="landing"
+        data-portfolio-nav="landing"
+      >
+        Programas
+      </button>
+
+      <button
+        type="button"
+        class="portfolio-sidebar-button"
+        data-route="key-reports"
+        data-portfolio-nav="key-reports"
+      >
+        Key Reports
+      </button>
+    `;
+
+    if (towerMark) {
+      towerMark.insertAdjacentElement("afterend", navigation);
+    } else {
+      sidebar.append(navigation);
+    }
+  }
+}
+function syncPortfolioSidebarNavigation(routeName) {
+  const normalizedRoute = String(routeName || "landing")
+    .trim()
+    .toLowerCase();
+
+  const portfolioRoutes = new Set([
+    "landing",
+    "governance",
+    "kpis",
+    "ambition",
+    "key-reports",
+  ]);
+
+  document.body.classList.toggle(
+    "is-portfolio-landing",
+    normalizedRoute === "landing",
+  );
+
+  document.body.classList.toggle(
+    "is-portfolio-route",
+    portfolioRoutes.has(normalizedRoute),
+  );
+
+  document.querySelectorAll("[data-portfolio-nav]").forEach((button) => {
+    const active =
+      String(button.dataset.portfolioNav || "")
+        .trim()
+        .toLowerCase() === normalizedRoute;
+
+    button.classList.toggle("active", active);
+
+    if (active) {
+      button.setAttribute("aria-current", "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
+  });
+}
+function renderPortfolioComingSoon(routeName) {
+  const normalizedRoute = String(routeName || "")
+    .trim()
+    .toLowerCase();
+
+  /*
+   * =====================================================
+   * AMBICIÓN RCSE
+   * =====================================================
+   */
+
+  if (normalizedRoute === "ambition") {
+    setHead(
+      "Ambición RCSE 2026",
+      "Marco estratégico de Retail Client Solutions",
+      "Retail Client Solutions > Ambición RCSE",
+    );
+
+    view.innerHTML = `
+      <section
+        class="portfolio-home portfolio-ambition-page"
+      >
+        <header
+          class="portfolio-ambition-page-header"
+        >
+          <div>
+            <span
+              class="portfolio-section-eyebrow"
+            >
+              Marco estratégico
+            </span>
+
+            <h2>
+              Ambición RCSE 2026
+            </h2>
+
+            <p>
+              Las ocho ambiciones forman el marco común de Retail Client
+              Solutions y permiten entender cómo se conecta la ejecución
+              de los programas con la estrategia.
+            </p>
+          </div>
+
+          <div
+            class="portfolio-ambition-page-meta"
+          >
+            <div
+              class="portfolio-ambitions-axis-list"
+              aria-label="Ejes estratégicos"
+            >
+              ${renderPortfolioAmbitionAxisTags()}
+            </div>
+
+            <span
+              class="portfolio-ambition-page-count"
+            >
+              <strong>
+                ${PORTFOLIO_AMBITIONS.length}
+              </strong>
+
+              <span>
+                ambiciones estratégicas
+              </span>
+            </span>
+          </div>
+        </header>
+
+        ${renderPortfolioAmbitions()}
+
+        <div>
+          <button
+            type="button"
+            class="ghost-button"
+            data-route="landing"
+          >
+            ← Volver a Programas
+          </button>
+        </div>
+      </section>
+    `;
+
+    return;
+  }
+
+  /*
+   * =====================================================
+   * RESTO DE SECCIONES
+   * =====================================================
+   */
+
+  const sections = {
+    governance: {
+      title: "Modelo de Gobierno",
+
+      subtitle:
+        "Gobierno, responsabilidades y modelo operativo de Retail Client Solutions.",
+
+      icon: "G",
+    },
+
+    kpis: {
+      title: "KPI's",
+
+      subtitle:
+        "Indicadores ejecutivos y seguimiento consolidado del Portfolio.",
+
+      icon: "K",
+    },
+
+    "key-reports": {
+      title: "Key Reports",
+
+      subtitle:
+        "Reporting ejecutivo consolidado y principales vistas de seguimiento.",
+
+      icon: "R",
+    },
+  };
+
+  const section = sections[normalizedRoute];
+
+  if (!section) {
+    route("landing");
+
+    return;
+  }
+
+  setHead(
+    section.title,
+    section.subtitle,
+    `Retail Client Solutions > ${section.title}`,
+  );
+
+  view.innerHTML = `
+    <section
+      class="portfolio-coming-soon"
+    >
+      <article
+        class="portfolio-coming-soon-card"
+      >
+        <div
+          class="portfolio-coming-soon-icon"
+          aria-hidden="true"
+        >
+          ${section.icon}
+        </div>
+
+        <p class="eyebrow">
+          Retail Client Solutions
+        </p>
+
+        <h2>
+          ${section.title}
+        </h2>
+
+        <p>
+          Esta sección estará disponible próximamente.
+        </p>
+
+        <button
+          type="button"
+          class="ghost-button"
+          data-route="landing"
+        >
+          ← Volver a Programas
+        </button>
+      </article>
+    </section>
+  `;
+}
 /* teams */
 document.addEventListener("click", (event) => {
   const quarterButton = event.target.closest("[data-team-quarter]");
