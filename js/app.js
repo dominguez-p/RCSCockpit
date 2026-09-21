@@ -15210,6 +15210,119 @@ function setRcsAccessValidationProgress(active) {
     progress.classList.remove("is-visible");
   }
 }
+function installProductMapReturnNavigation() {
+  const storageKey = "productMapReturnRoute";
+
+  const supportedRoutes = new Set(["functional", "systems", "architecture"]);
+
+  document.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target.closest("[data-route]");
+
+      if (!target) {
+        return;
+      }
+
+      const targetRoute = String(target.dataset.route || "").trim();
+
+      const targetParts = targetRoute.split("/");
+
+      const targetRouteName = String(targetParts[0] || "")
+        .trim()
+        .toLowerCase();
+
+      /*
+       * ===============================================
+       * ENTRADA DESDE UN PRODUCTO
+       * ===============================================
+       *
+       * Si entramos en Functional, Systems o
+       * Architecture desde:
+       *
+       * program/aixbanker/blue-buddy
+       *
+       * guardamos exactamente ese producto.
+       */
+
+      if (supportedRoutes.has(targetRouteName)) {
+        const currentContext = getCurrentRoute();
+
+        const currentProgramId = String(currentContext.programId || "").trim();
+
+        const currentProductId = String(currentContext.productId || "").trim();
+
+        const targetProgramId = String(targetParts[1] || "").trim();
+
+        if (
+          currentContext.routeName === "program" &&
+          currentProgramId &&
+          currentProductId &&
+          currentProgramId === targetProgramId
+        ) {
+          sessionStorage.setItem(
+            storageKey,
+            `program/${currentProgramId}/${currentProductId}`,
+          );
+        } else {
+          /*
+           * Evitamos reutilizar un producto
+           * anterior si la vista se abre desde
+           * otro punto del Cockpit.
+           */
+          sessionStorage.removeItem(storageKey);
+        }
+
+        return;
+      }
+
+      /*
+       * ===============================================
+       * VUELTA DESDE EL MAPA
+       * ===============================================
+       */
+
+      const backButton = target.classList.contains("back-to-program-btn");
+
+      if (!backButton) {
+        return;
+      }
+
+      const currentContext = getCurrentRoute();
+
+      const currentRouteName = String(currentContext.routeName || "")
+        .trim()
+        .toLowerCase();
+
+      if (!supportedRoutes.has(currentRouteName)) {
+        return;
+      }
+
+      const programId = String(currentContext.programId || "").trim();
+
+      const storedRoute = String(
+        sessionStorage.getItem(storageKey) || "",
+      ).trim();
+
+      if (!programId || !storedRoute.startsWith(`program/${programId}/`)) {
+        /*
+         * Sin producto de origen dejamos actuar
+         * al routing actual.
+         */
+        return;
+      }
+
+      event.preventDefault();
+
+      event.stopImmediatePropagation();
+
+      route(storedRoute);
+    },
+    true,
+  );
+}
+
+installProductMapReturnNavigation();
 /* teams */
 document.addEventListener("click", (event) => {
   const quarterButton = event.target.closest("[data-team-quarter]");
