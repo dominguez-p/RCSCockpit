@@ -422,106 +422,37 @@ renderLanding = function renderPortfolioLanding() {
   view.innerHTML = `
     <section class="portfolio-home">
 
-      <section class="portfolio-home-section portfolio-programs-section">
-        <header class="portfolio-home-section-header">
+      <section
+        class="
+          portfolio-home-section
+          portfolio-programs-section
+        "
+      >
+        <header
+          class="portfolio-home-section-header"
+        >
           <div>
-            <span class="portfolio-section-eyebrow">
+            <span
+              class="portfolio-section-eyebrow"
+            >
               Ejecución
             </span>
 
-            <h2>Programas RCS</h2>
+            <h2>
+              Programas RCS
+            </h2>
           </div>
 
           <p>
-            Los programas que materializan la estrategia de Retail Client Solutions.
+            Los programas que materializan la estrategia de
+            Retail Client Solutions.
           </p>
         </header>
 
         ${renderPortfolioPrograms(programs)}
 
         ${renderPortfolioKpis(portfolioKpis)}
-      </section>
 
-      <section class="portfolio-home-section portfolio-ambitions-section">
-        <details class="portfolio-ambitions-disclosure">
-
-          <summary class="portfolio-ambitions-summary">
-
-            <span class="portfolio-ambitions-summary-copy">
-              <span class="portfolio-section-eyebrow">
-                Marco estratégico
-              </span>
-
-              <span class="portfolio-ambitions-summary-title">
-                Ambición RCSE 2026
-              </span>
-
-              <span class="portfolio-ambitions-summary-description">
-                El marco estratégico que orienta la ejecución de los programas.
-              </span>
-            </span>
-
-            <span
-              class="portfolio-ambitions-axis-list"
-              aria-label="Ejes estratégicos"
-            >
-              ${renderPortfolioAmbitionAxisTags()}
-            </span>
-
-            <span class="portfolio-ambitions-summary-action">
-
-              <span class="portfolio-ambitions-count">
-                <strong>${PORTFOLIO_AMBITIONS.length}</strong>
-                <span>ambiciones estratégicas</span>
-              </span>
-
-              <span class="portfolio-ambitions-toggle">
-
-                <span class="portfolio-ambitions-toggle-closed">
-                  Ver marco estratégico
-                </span>
-
-                <span class="portfolio-ambitions-toggle-open">
-                  Ocultar marco estratégico
-                </span>
-
-                <span
-                  class="portfolio-ambitions-chevron"
-                  aria-hidden="true"
-                >
-                  ⌄
-                </span>
-
-              </span>
-            </span>
-
-          </summary>
-
-          <div class="portfolio-ambitions-content">
-
-            <header
-              class="portfolio-home-section-header portfolio-ambitions-expanded-header"
-            >
-              <div>
-                <span class="portfolio-section-eyebrow">
-                  Visión estratégica
-                </span>
-
-                <h2>Ambiciones RCS</h2>
-              </div>
-
-              <p>
-                Las ocho ambiciones forman el marco común del portfolio y
-                permiten entender cómo se conecta la ejecución de los programas
-                con la estrategia.
-              </p>
-            </header>
-
-            ${renderPortfolioAmbitions()}
-
-          </div>
-
-        </details>
       </section>
 
     </section>
