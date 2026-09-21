@@ -5732,7 +5732,6 @@ function buildProgramDatasetUrl(programId, dataset, params = {}) {
   });
   return url.toString();
 }
-
 async function loadProgramDataset(
   programId,
   dataset,
@@ -5742,66 +5741,62 @@ async function loadProgramDataset(
   if (typeof loadJsonpOnDemand !== "function") {
     throw new Error("No está disponible la carga JSONP on-demand.");
   }
+
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
+
   const normalizedDataset = String(dataset || "core")
     .trim()
     .toLowerCase();
+
   if (!normalizedProgramId) {
     throw new Error("No se ha informado programId para cargar el dataset.");
   }
-  /*
-   * =====================================================
-   * ACCESS CONTROL
-   * =====================================================
-   *
-   * Los datasets diferidos sólo se pueden consultar
-   * después de haber validado el acceso al programa.
-   *
-   * No hacemos una nueva llamada al Access Control:
-   * reutilizamos el permiso ya validado al entrar
-   * en el programa para no añadir latencia.
-   */
-  const accessState = getRcsAccessState();
-  const programAccess = accessState.programs[normalizedProgramId];
-  if (!programAccess || programAccess.granted !== true) {
-    const error = new Error("ACCESS_DENIED");
-    error.code = "ACCESS_DENIED";
-    throw error;
+
+  if (!normalizedDataset) {
+    throw new Error("No se ha informado el dataset que debe cargarse.");
   }
+
   const cacheKey = getProgramDatasetCacheKey(
     normalizedProgramId,
     normalizedDataset,
     params,
   );
+
   /*
    * =====================================================
    * MEMORIA
    * =====================================================
    */
+
   if (!forceRefresh && PROGRAM_DATASET_CACHE.has(cacheKey)) {
     return PROGRAM_DATASET_CACHE.get(cacheKey);
   }
+
   /*
    * =====================================================
    * SESSION STORAGE
    * =====================================================
    */
+
   if (!forceRefresh && persist) {
     const cached = readProgramDatasetSessionCache(
       normalizedProgramId,
       normalizedDataset,
       params,
     );
+
     if (cached?.data) {
       PROGRAM_DATASET_CACHE.set(cacheKey, cached.data);
+
       /*
-       * Revalidación silenciosa.
+       * Revalidamos en background.
        *
-       * Entregamos inmediatamente la fotografía
-       * existente y actualizamos en background.
+       * La fotografía existente se
+       * devuelve inmediatamente.
        */
+
       if (!PROGRAM_DATASET_REQUESTS.has(cacheKey)) {
         const backgroundRequest = loadProgramDataset(
           normalizedProgramId,
@@ -5819,43 +5814,78 @@ async function loadProgramDataset(
               "Se mantiene la última fotografía válida.",
             error,
           );
+
           return cached.data;
         });
+
         void backgroundRequest;
       }
+
       return cached.data;
     }
   }
+
   /*
    * =====================================================
    * PETICIÓN YA EN CURSO
    * =====================================================
    */
+
   if (PROGRAM_DATASET_REQUESTS.has(cacheKey)) {
     return PROGRAM_DATASET_REQUESTS.get(cacheKey);
   }
+
   /*
    * =====================================================
-   * LIVE REQUEST
+   * PETICIÓN LIVE
    * =====================================================
    */
+
   const request = (async () => {
     const url = buildProgramDatasetUrl(
       normalizedProgramId,
       normalizedDataset,
       params,
     );
+
     const payload = await loadJsonpOnDemand(url, {
+      /*
+       * Los datasets on-demand son
+       * bastante más pequeños que CORE,
+       * pero Apps Script puede sufrir
+       * cold start.
+       */
       timeoutMs: 45000,
+
       retries: 0,
+
       cacheBust: forceRefresh,
     });
+
     if (!payload || payload.ok === false) {
       throw new Error(
         payload?.error || `El dataset ${normalizedDataset} no está disponible.`,
       );
     }
+
+    /*
+     * =================================================
+     * CACHE DE MEMORIA
+     * =================================================
+     */
+
     PROGRAM_DATASET_CACHE.set(cacheKey, payload);
+
+    /*
+     * =================================================
+     * SESSION STORAGE
+     * =================================================
+     *
+     * writeProgramDatasetSessionCache()
+     * ya evita persistir datasets
+     * restricted.
+     */
+
     if (persist) {
       writeProgramDatasetSessionCache(
         normalizedProgramId,
@@ -5865,13 +5895,240 @@ async function loadProgramDataset(
         new Date(),
       );
     }
+
     return payload;
   })();
+
   PROGRAM_DATASET_REQUESTS.set(cacheKey, request);
+
   try {
     return await request;
   } finally {
     PROGRAM_DATASET_REQUESTS.delete(cacheKey);
+  }
+}
+async function loadProgramData(programId, forceRefresh = false) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const source = getProgramSource(normalizedProgramId);
+
+  if (!source) {
+    throw new Error(
+      `No existe un origen configurado para el programa ${normalizedProgramId}`,
+    );
+  }
+
+  if (!source.driveJsonUrl) {
+    throw new Error(
+      `El programa ${normalizedProgramId} no tiene driveJsonUrl configurado`,
+    );
+  }
+
+  /*
+   * =======================================================
+   * ACCESS + CORE EN PARALELO
+   * =======================================================
+   *
+   * Antes:
+   *
+   * Access → esperar → Core → esperar
+   *
+   * Ahora:
+   *
+   * Access ───────┐
+   * Core   ─────────────┐
+   *                  resultado
+   *
+   * Los datos no se instalan hasta que Access haya
+   * confirmado que el usuario tiene permiso.
+   */
+
+  const accessPromise = ensureRcsProgramAccess(
+    normalizedProgramId,
+    forceRefresh,
+  );
+
+  const requestRegistry = getRcsCoreRequestRegistry();
+
+  let corePromise = requestRegistry.programs.get(normalizedProgramId);
+
+  if (!corePromise) {
+    corePromise = loadConfiguredSource(source, {
+      /*
+       * Restauramos el margen que ya
+       * habíamos establecido.
+       */
+      timeoutMs: 90000,
+
+      retries: 0,
+
+      cacheBust: forceRefresh,
+    });
+
+    requestRegistry.programs.set(normalizedProgramId, corePromise);
+  }
+
+  /*
+   * =======================================================
+   * ACCESS RESULT
+   * =======================================================
+   */
+
+  const access = await accessPromise;
+
+  if (!access.granted) {
+    /*
+     * La petición core puede seguir viva.
+     *
+     * Evitamos una Promise rechazada sin gestionar,
+     * pero NO instalamos sus datos.
+     */
+
+    void corePromise.catch(() => {});
+
+    blockRcsCockpitAccess(access);
+
+    const error = new Error(access.code || "ACCESS_DENIED");
+
+    error.code = access.code || "ACCESS_DENIED";
+
+    throw error;
+  }
+
+  /*
+   * =======================================================
+   * MEMORY CACHE
+   * =======================================================
+   */
+
+  if (!forceRefresh && PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+    /*
+     * Ya hemos validado permisos.
+     *
+     * La fotografía en memoria es segura para esta sesión.
+     */
+
+    void corePromise
+      .then((rawData) => {
+        const programData = normalizeProgramData(normalizedProgramId, rawData);
+
+        const completeProgramData = {
+          ...programData,
+
+          restricted: getEmptyRestrictedProgramData(),
+        };
+
+        PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
+
+        const loadedAt = new Date();
+
+        PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, loadedAt);
+
+        writeRcsSessionCache(
+          "program",
+          normalizedProgramId,
+          programData,
+          loadedAt,
+        );
+      })
+      .catch((error) => {
+        console.warn(
+          `[RCS Cockpit] No se ha podido actualizar ${normalizedProgramId} en background.`,
+          error,
+        );
+      })
+      .finally(() => {
+        requestRegistry.programs.delete(normalizedProgramId);
+      });
+
+    return PROGRAM_DATA_CACHE.get(normalizedProgramId);
+  }
+
+  /*
+   * =======================================================
+   * SESSION CACHE
+   * =======================================================
+   */
+
+  if (!forceRefresh) {
+    const cachedProgram = hydrateProgramFromSessionCache(normalizedProgramId);
+
+    if (cachedProgram) {
+      void corePromise
+        .then((rawData) => {
+          const programData = normalizeProgramData(
+            normalizedProgramId,
+            rawData,
+          );
+
+          const completeProgramData = {
+            ...programData,
+
+            restricted: getEmptyRestrictedProgramData(),
+          };
+
+          PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
+
+          const loadedAt = new Date();
+
+          PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, loadedAt);
+
+          writeRcsSessionCache(
+            "program",
+            normalizedProgramId,
+            programData,
+            loadedAt,
+          );
+        })
+        .catch((error) => {
+          console.warn(
+            `[RCS Cockpit] No se ha podido actualizar ${normalizedProgramId} en background.`,
+            error,
+          );
+        })
+        .finally(() => {
+          requestRegistry.programs.delete(normalizedProgramId);
+        });
+
+      return cachedProgram;
+    }
+  }
+
+  /*
+   * =======================================================
+   * COLD BOOT
+   * =======================================================
+   *
+   * Si no existe fotografía previa esperamos el core.
+   *
+   * La petición ya lleva ejecutándose durante todo el
+   * tiempo empleado en validar el acceso.
+   */
+
+  try {
+    const rawData = await corePromise;
+
+    const programData = normalizeProgramData(normalizedProgramId, rawData);
+
+    const completeProgramData = {
+      ...programData,
+
+      restricted: getEmptyRestrictedProgramData(),
+    };
+
+    PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
+
+    const loadedAt = new Date();
+
+    PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, loadedAt);
+
+    writeRcsSessionCache("program", normalizedProgramId, programData, loadedAt);
+
+    return completeProgramData;
+  } finally {
+    requestRegistry.programs.delete(normalizedProgramId);
   }
 }
 
@@ -14258,7 +14515,7 @@ function normalizeRcsAccessResult(payload, spreadsheetId) {
 async function loadRcsSpreadsheetAccess(
   spreadsheetId,
   forceRefresh = false,
-  { includeLanding = false, refreshLanding = false } = {},
+  { includeLanding = false, refreshLanding = false, timeoutMs = null } = {},
 ) {
   const normalizedSpreadsheetId = String(spreadsheetId || "").trim();
 
@@ -14325,8 +14582,29 @@ async function loadRcsSpreadsheetAccess(
       url.searchParams.set("refreshLanding", "1");
     }
 
+    /*
+     * =====================================================
+     * TIMEOUT
+     * =====================================================
+     *
+     * Access Control también es Apps Script.
+     *
+     * Diez segundos resulta demasiado agresivo para
+     * ejecuciones en frío.
+     *
+     * - Portfolio landing: 30 s
+     * - Programas: 30 s
+     *
+     * Sigue siendo una llamada ligera: no carga el core.
+     */
+
+    const effectiveTimeoutMs =
+      Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
+        ? Number(timeoutMs)
+        : 30000;
+
     const payload = await loadJsonp(url.toString(), {
-      timeoutMs: includeLanding ? 15000 : 10000,
+      timeoutMs: effectiveTimeoutMs,
 
       retries: 0,
 
@@ -14425,6 +14703,7 @@ async function ensureRcsProgramAccess(programId, forceRefresh = false) {
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
+
   if (!normalizedProgramId) {
     return {
       granted: false,
@@ -14434,7 +14713,9 @@ async function ensureRcsProgramAccess(programId, forceRefresh = false) {
       checkedAt: Date.now(),
     };
   }
+
   const source = getProgramSource(normalizedProgramId);
+
   if (!source?.spreadsheetId) {
     return {
       granted: false,
@@ -14444,11 +14725,25 @@ async function ensureRcsProgramAccess(programId, forceRefresh = false) {
       checkedAt: Date.now(),
     };
   }
+
   const spreadsheetId = String(source.spreadsheetId || "").trim();
-  const access = await loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh);
+
+  const access = await loadRcsSpreadsheetAccess(spreadsheetId, forceRefresh, {
+    /*
+     * Access Control ligero.
+     *
+     * Dejamos margen suficiente para
+     * cold starts de Apps Script.
+     */
+    timeoutMs: 30000,
+  });
+
   const state = getRcsAccessState();
+
   state.programs[normalizedProgramId] = access;
+
   applyRcsEditPermissions(normalizedProgramId);
+
   return access;
 }
 
