@@ -1,6 +1,37 @@
+/*
+ * =========================================================
+ * RCS COCKPIT · DATA SOURCE
+ * =========================================================
+ *
+ * Apps Script tiene únicamente tres responsabilidades
+ * desde el navegador:
+ *
+ * 1. ACCESS CONTROL
+ *
+ *    Validar permisos mediante JSONP.
+ *
+ * 2. SNAPSHOT
+ *
+ *    Servir el JSON ya generado en Drive.
+ *
+ *    No reconstruye datos.
+ *
+ * 3. REFRESH
+ *
+ *    Regenerar explícitamente la fotografía cuando
+ *    el usuario pulsa "Actualizar datos".
+ *
+ * No existen cargas de negocio por dataset.
+ * =========================================================
+ */
+
+/* =========================================================
+ * JSONP
+ * ========================================================= */
+
 function createJsonpRequest(
   url,
-  timeoutMs = 25000,
+  timeoutMs = 30000,
   { cacheBust = false } = {},
 ) {
   return new Promise((resolve, reject) => {
@@ -13,17 +44,6 @@ function createJsonpRequest(
     let settled = false;
     let timer = null;
 
-    /*
-     * =====================================================
-     * CALLBACK TARDÍO
-     * =====================================================
-     *
-     * Apps Script puede seguir ejecutándose aunque
-     * nosotros hayamos alcanzado el timeout.
-     *
-     * En caso de timeout mantenemos temporalmente
-     * un callback vacío que absorbe una respuesta tardía.
-     */
     const installLateCallback = () => {
       window[callbackName] = () => {};
 
@@ -59,6 +79,7 @@ function createJsonpRequest(
 
       if (timer) {
         window.clearTimeout(timer);
+
         timer = null;
       }
 
@@ -81,14 +102,14 @@ function createJsonpRequest(
 
     script.onerror = () => {
       finish(() => {
-        reject(new Error("No se pudo cargar el JSON desde Apps Script."));
+        reject(new Error("No se ha podido ejecutar la llamada a Apps Script."));
       });
     };
 
     timer = window.setTimeout(() => {
       finish(
         () => {
-          reject(new Error("Tiempo de espera agotado al cargar Apps Script."));
+          reject(new Error("Tiempo de espera agotado en Apps Script."));
         },
         {
           preserveLateCallback: true,
@@ -99,31 +120,35 @@ function createJsonpRequest(
     const requestUrl = new URL(url, window.location.href);
 
     requestUrl.searchParams.delete("callback");
+
     requestUrl.searchParams.delete("_");
 
     requestUrl.searchParams.set("callback", callbackName);
 
-    /*
-     * Sólo forzamos una URL completamente nueva
-     * cuando necesitamos una actualización explícita.
-     *
-     * Las cargas normales pueden reutilizar el comportamiento
-     * de caché disponible en la infraestructura intermedia.
-     */
     if (cacheBust) {
       requestUrl.searchParams.set("_", String(Date.now()));
     }
 
     script.src = requestUrl.toString();
+
     script.async = true;
 
     document.head.appendChild(script);
   });
 }
 
+/* =========================================================
+ * JSONP CON REINTENTOS
+ *
+ * Se utiliza para:
+ *
+ * - Access Control.
+ * - Lectura de action=snapshot.
+ * ========================================================= */
+
 async function loadJsonp(
   url,
-  { timeoutMs = 25000, retries = 1, cacheBust = false } = {},
+  { timeoutMs = 30000, retries = 0, cacheBust = false } = {},
 ) {
   let lastError = null;
 
@@ -139,40 +164,44 @@ async function loadJsonp(
 
       console.warn(
         "[RCS Cockpit] " +
-          "Fallo cargando Apps Script. " +
+          "Fallo en llamada JSONP. " +
           `Intento ${attempt}/${totalAttempts}.`,
         error,
       );
     }
   }
 
-  throw lastError || new Error("No se pudo cargar Apps Script.");
+  throw lastError || new Error("No se ha podido completar la llamada JSONP.");
 }
 
-async function loadJsonpOnDemand(
-  url,
-  { timeoutMs = 45000, retries = 0, cacheBust = false } = {},
-) {
-  let lastError = null;
+/* =========================================================
+ * REFRESH EXPLÍCITO
+ * ========================================================= */
 
-  const totalAttempts = Math.max(1, Number(retries || 0) + 1);
+async function triggerDataRefresh(url, { timeoutMs = 120000 } = {}) {
+  const normalizedUrl = String(url || "").trim();
 
-  for (let attempt = 1; attempt <= totalAttempts; attempt += 1) {
-    try {
-      return await createJsonpRequest(url, timeoutMs, {
-        cacheBust,
-      });
-    } catch (error) {
-      lastError = error;
-
-      console.warn(
-        "[RCS Cockpit] " +
-          "Fallo carga on-demand Apps Script. " +
-          `Intento ${attempt}/${totalAttempts}.`,
-        error,
-      );
-    }
+  if (!normalizedUrl) {
+    throw new Error("No se ha configurado la URL de actualización.");
   }
 
-  throw lastError || new Error("No se pudo cargar el dataset on-demand.");
+  const refreshUrl = new URL(normalizedUrl, window.location.href);
+
+  refreshUrl.searchParams.delete("dataset");
+
+  refreshUrl.searchParams.delete("action");
+
+  refreshUrl.searchParams.set("action", "refresh");
+
+  const payload = await createJsonpRequest(refreshUrl.toString(), timeoutMs, {
+    cacheBust: true,
+  });
+
+  if (!payload || payload.ok === false) {
+    throw new Error(
+      payload?.error || "No se ha podido regenerar la fotografía de datos.",
+    );
+  }
+
+  return payload;
 }
