@@ -1,6 +1,10 @@
 const EXPORT_FOLDER_NAME = "PortfolioPDB";
 const EXPORT_FILE_NAME = "app-common-data.json";
+const SNAPSHOT_SCHEMA_VERSION = 4;
 
+const RCS_ACCESS_TOKEN_SECRET_PROPERTY = "RCS_ACCESS_TOKEN_SECRET";
+
+const EXPORT_FILE_ID_PROPERTY = "RCS_EXPORT_FILE_ID";
 const PRODUCT_CATALOG_SHEET_NAME = "productCatalog";
 const PRODUCT_FEATURES_SHEET_NAME = "productFeatures";
 
@@ -19,10 +23,13 @@ const PRODUCT_FEATURES_HEADERS = {
 
 const SHEETS = {
   modules: "modules",
+
   roles: "roles",
+
   priorities: "priorities",
 
   functional: "functional_map",
+
   systems: "systems_inventory",
 
   functionalSystemLinks: "functional_system_links",
@@ -47,6 +54,16 @@ const SHEETS = {
   roadmapItemActivities: "roadmapItemActivities",
 
   roadmapItemStatusHistory: "roadmapItemStatusHistory",
+
+  /*
+   * =====================================================
+   * MANAGEMENT REPORTS
+   * =====================================================
+   */
+
+  managementRoadmapLinks: "Management Roadmap Links",
+
+  managementRoadmapLines: "Management Roadmap Lines",
 
   // Modelo legado
   projects: "projects",
@@ -545,11 +562,17 @@ function applyOcr_(file) {
  * ========================================================= */
 
 function exportPortfolioJson() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  /*
+   * =====================================================
+   * DATOS
+   * =====================================================
+   */
+
   const core = getCoreAppData_();
 
   const jiraFeatures = getJiraFeaturesData_();
-
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
   const historySheet = spreadsheet.getSheetByName(
     SHEETS.roadmapItemStatusHistory,
@@ -559,17 +582,52 @@ function exportPortfolioJson() {
     ? sheetToObjects_(historySheet)
     : [];
 
+  const staffing = getStaffingData_();
+
+  /*
+   * =====================================================
+   * PERMISOS
+   * =====================================================
+   */
+
+  const access = buildSnapshotAccess_(spreadsheet);
+
+  /*
+   * =====================================================
+   * SNAPSHOT
+   * =====================================================
+   */
+
   const data = {
+    schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+
+    programId: "aixbanker",
+
     ...core,
 
     dataset: "full-export",
 
-    jiraWorkspaceFeatures: jiraFeatures.jiraWorkspaceFeatures,
+    access,
+
+    jiraWorkspaceFeatures: Array.isArray(jiraFeatures?.jiraWorkspaceFeatures)
+      ? jiraFeatures.jiraWorkspaceFeatures
+      : [],
 
     roadmapItemStatusHistory,
+
+    staffing: {
+      generatedAt: staffing?.generatedAt || "",
+
+      source:
+        staffing?.source && typeof staffing.source === "object"
+          ? staffing.source
+          : {},
+
+      products: Array.isArray(staffing?.products) ? staffing.products : [],
+    },
   };
 
-  const json = JSON.stringify(data, null, 2);
+  const json = JSON.stringify(data);
 
   const folder = getOrCreateFolder_(EXPORT_FOLDER_NAME);
 
@@ -577,21 +635,48 @@ function exportPortfolioJson() {
 
   file.setContent(json);
 
-  Logger.log("JSON generado correctamente");
-
-  Logger.log("Archivo: " + file.getName());
-
-  Logger.log("URL: " + file.getUrl());
-
-  Logger.log(
-    "Productos exportados: " +
-      (Array.isArray(data.productCatalog) ? data.productCatalog.length : 0),
+  PropertiesService.getScriptProperties().setProperty(
+    EXPORT_FILE_ID_PROPERTY,
+    file.getId(),
   );
 
-  Logger.log(
-    "Funcionalidades exportadas: " +
-      (Array.isArray(data.productFeatures) ? data.productFeatures.length : 0),
-  );
+  Logger.log("========================================");
+
+  Logger.log("AIXBANKER · FULL SNAPSHOT");
+
+  Logger.log("========================================");
+
+  Logger.log(`Schema: ${data.schemaVersion}`);
+
+  Logger.log(`Generado: ${data.generatedAt}`);
+
+  Logger.log(`File ID: ${file.getId()}`);
+
+  Logger.log(`Usuarios explícitos: ${Object.keys(access.users).length}`);
+
+  Logger.log(`Dominios: ${Object.keys(access.domains).length}`);
+
+  Logger.log(`Grupos: ${access.groups.length}`);
+
+  Logger.log(`Features JIRA: ${data.jiraWorkspaceFeatures.length}`);
+
+  Logger.log(`Estados MSA: ${data.roadmapItemStatusHistory.length}`);
+
+  Logger.log(`Productos Staffing: ${data.staffing.products.length}`);
+
+  Logger.log("========================================");
+
+  return {
+    generatedAt: data.generatedAt,
+
+    fileId: file.getId(),
+
+    fileName: file.getName(),
+
+    fileUrl: file.getUrl(),
+
+    snapshot: data,
+  };
 }
 
 /* =========================================================
@@ -1575,7 +1660,77 @@ function getOrCreateFile_(folder, fileName, content) {
 
   return folder.createFile(fileName, content, "application/json");
 }
+function syncSnapshotPermissions_(snapshotFile, spreadsheet) {
+  if (!snapshotFile) {
+    throw new Error("No se ha informado el fichero snapshot.");
+  }
 
+  if (!spreadsheet) {
+    throw new Error("No se ha informado la Spreadsheet origen.");
+  }
+
+  const spreadsheetFile = DriveApp.getFileById(spreadsheet.getId());
+
+  /*
+   * =====================================================
+   * EDITORES
+   * =====================================================
+   */
+
+  const editorEmails = spreadsheetFile
+    .getEditors()
+    .map((user) =>
+      String(user.getEmail() || "")
+        .trim()
+        .toLowerCase(),
+    )
+    .filter(Boolean);
+
+  /*
+   * =====================================================
+   * LECTORES
+   * =====================================================
+   */
+
+  const viewerEmails = spreadsheetFile
+    .getViewers()
+    .map((user) =>
+      String(user.getEmail() || "")
+        .trim()
+        .toLowerCase(),
+    )
+    .filter(Boolean);
+
+  /*
+   * =====================================================
+   * SNAPSHOT · EDITORES
+   * =====================================================
+   *
+   * No necesitan editar realmente el JSON,
+   * pero mantenemos el mismo nivel de permiso
+   * que tienen sobre la Spreadsheet.
+   */
+
+  if (editorEmails.length) {
+    snapshotFile.addEditors(editorEmails);
+  }
+
+  /*
+   * =====================================================
+   * SNAPSHOT · LECTORES
+   * =====================================================
+   */
+
+  if (viewerEmails.length) {
+    snapshotFile.addViewers(viewerEmails);
+  }
+
+  Logger.log("Permisos snapshot sincronizados");
+
+  Logger.log("Editores: " + editorEmails.length);
+
+  Logger.log("Lectores: " + viewerEmails.length);
+}
 /* =========================================================
  * TRIGGER DE EXPORT ACTUAL
  *
@@ -1583,15 +1738,16 @@ function getOrCreateFile_(folder, fileName, content) {
  * manual de producto.
  * ========================================================= */
 
-function createHourlyTrigger() {
+function createDailyTrigger() {
   deleteExistingTriggers_("exportPortfolioJson");
 
   ScriptApp.newTrigger("exportPortfolioJson")
     .timeBased()
-    .everyHours(1)
+    .everyDays(1)
+    .atHour(6)
     .create();
 
-  Logger.log("Trigger horario creado");
+  Logger.log("Trigger diario de exportPortfolioJson creado");
 }
 
 function deleteExistingTriggers_(functionName) {
@@ -1607,66 +1763,85 @@ function deleteExistingTriggers_(functionName) {
  * ========================================================= */
 
 function doGet(e) {
+  const parameters = e && e.parameter ? e.parameter : {};
+
+  const requestedCallback = String(parameters.callback || "callback").trim();
+
+  const callback = /^[A-Za-z_$][A-Za-z0-9_$.\[\]]*$/.test(requestedCallback)
+    ? requestedCallback
+    : "callback";
+
+  const action = String(parameters.action || "snapshot")
+    .trim()
+    .toLowerCase();
+
   try {
-    const parameters = e && e.parameter ? e.parameter : {};
+    let snapshot;
 
-    const requestedCallback = String(parameters.callback || "callback").trim();
+    /*
+     * =====================================================
+     * SNAPSHOT
+     * =====================================================
+     *
+     * Camino normal.
+     *
+     * Si existe app-common-data.json:
+     *   -> sólo se lee.
+     *
+     * Si no existe o no es válido:
+     *   -> se importan todas las fuentes;
+     *   -> se genera;
+     *   -> se devuelve.
+     */
+    if (action === "snapshot") {
+      snapshot = getOrBuildPortfolioSnapshot_();
+    } else if (action === "refresh") {
 
-    const callback = /^[A-Za-z_$][A-Za-z0-9_$.\[\]]*$/.test(requestedCallback)
-      ? requestedCallback
-      : "callback";
+    /*
+     * =====================================================
+     * REFRESH
+     * =====================================================
+     *
+     * Camino explícito.
+     *
+     * Se ejecuta únicamente cuando el usuario
+     * pulsa "Actualizar datos".
+     */
+      const result = refreshAllSourcesAndExport();
 
-    const dataset = String(parameters.dataset || "core")
-      .trim()
-      .toLowerCase();
+      snapshot = result?.snapshot || getPortfolioSnapshot_();
+    } else {
 
-    let data;
+    /*
+     * =====================================================
+     * ACTION NO SOPORTADA
+     * =====================================================
+     */
+      throw new Error(`Acción no soportada: ${action}`);
+    }
 
-    switch (dataset) {
-      case "jira-features":
-        data = getJiraFeaturesData_();
-
-        break;
-
-      case "jira-msa":
-        data = getJiraMsaData_();
-
-        break;
-
-      case "staffing":
-        data = getStaffingData_();
-
-        break;
-
-      case "core":
-      default:
-        data = getCoreAppData_();
-
-        break;
+    if (!snapshot || typeof snapshot !== "object") {
+      throw new Error(
+        "No se ha podido obtener una fotografía válida del programa.",
+      );
     }
 
     const payload = {
       ok: true,
 
-      ...data,
+      ...snapshot,
     };
 
     return ContentService.createTextOutput(
-      `${callback}(` + `${JSON.stringify(payload)}` + `);`,
+      `${callback}(${JSON.stringify(payload)});`,
     ).setMimeType(ContentService.MimeType.JAVASCRIPT);
   } catch (error) {
-    const parameters = e && e.parameter ? e.parameter : {};
-
-    const requestedCallback = String(parameters.callback || "callback").trim();
-
-    const callback = /^[A-Za-z_$][A-Za-z0-9_$.\[\]]*$/.test(requestedCallback)
-      ? requestedCallback
-      : "callback";
-
     const payload = {
       ok: false,
 
-      dataset: String(parameters.dataset || ""),
+      action,
+
+      code: "SNAPSHOT_ERROR",
 
       error: String(error && error.message ? error.message : error),
 
@@ -1674,9 +1849,52 @@ function doGet(e) {
     };
 
     return ContentService.createTextOutput(
-      `${callback}(` + `${JSON.stringify(payload)}` + `);`,
+      `${callback}(${JSON.stringify(payload)});`,
     ).setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
+}
+function getPortfolioSnapshot_() {
+  const folders = DriveApp.getFoldersByName(EXPORT_FOLDER_NAME);
+
+  if (!folders.hasNext()) {
+    throw new Error(`No existe la carpeta ${EXPORT_FOLDER_NAME}.`);
+  }
+
+  const folder = folders.next();
+
+  const files = folder.getFilesByName(EXPORT_FILE_NAME);
+
+  if (!files.hasNext()) {
+    throw new Error(
+      `No existe la fotografía ${EXPORT_FILE_NAME}. Ejecuta exportPortfolioJson().`,
+    );
+  }
+
+  const file = files.next();
+
+  const content = file.getBlob().getDataAsString("UTF-8");
+
+  if (!content.trim()) {
+    throw new Error(`La fotografía ${EXPORT_FILE_NAME} está vacía.`);
+  }
+
+  let data;
+
+  try {
+    data = JSON.parse(content);
+  } catch {
+    throw new Error(
+      `La fotografía ${EXPORT_FILE_NAME} no contiene JSON válido.`,
+    );
+  }
+
+  if (!data || typeof data !== "object") {
+    throw new Error(
+      `La fotografía ${EXPORT_FILE_NAME} no contiene un objeto válido.`,
+    );
+  }
+
+  return data;
 }
 /* =========================================================
  * JIRA E2E
@@ -3126,4 +3344,1120 @@ function testGetJiraMsaData() {
   );
 
   Logger.log("========================================");
+}
+
+/* =========================================================
+ * MANAGEMENT ROADMAP LINKS
+ *
+ * Persistencia de las asociaciones:
+ *
+ * Deliverable ejecutivo
+ *        ↓
+ * SDA
+ *        ↓
+ * Deliverable SDA
+ *
+ * Las Features NO se almacenan aquí.
+ * Se resuelven automáticamente desde JIRA.
+ * ========================================================= */
+
+/* =========================================================
+ * MANAGEMENT ROADMAP LINKS
+ * ========================================================= */
+
+const MANAGEMENT_ROADMAP_LINKS_SHEET_NAME = "Management Roadmap Links";
+
+const MANAGEMENT_ROADMAP_LINKS_HEADERS = [
+  "executiveLineId",
+  "sdaId",
+  "deliverableId",
+  "active",
+];
+
+/* =========================================================
+ * WEB APP · ESCRITURA
+ * ========================================================= */
+
+function doPost(e) {
+  try {
+    const body = parseManagementRoadmapPostBody_(e);
+
+    const action = String(body.action || "")
+      .trim()
+      .toLowerCase();
+
+    let result = null;
+
+    switch (action) {
+      case "save-management-roadmap-links":
+        result = saveManagementRoadmapLinks_(body.links);
+
+        break;
+
+      case "save-management-roadmap-lines":
+        result = saveManagementRoadmapLines_(body.lines);
+
+        break;
+
+      case "delete-management-roadmap-line":
+        result = deleteManagementRoadmapLine_(body.lineId);
+
+        break;
+
+      default:
+        throw new Error(`Acción no soportada: ${action || "(vacía)"}`);
+    }
+
+    return createManagementRoadmapJsonResponse_({
+      ok: true,
+
+      action,
+
+      saved: result?.saved || 0,
+
+      deleted: result?.deleted || 0,
+
+      deletedLinks: result?.deletedLinks || 0,
+
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(error);
+
+    return createManagementRoadmapJsonResponse_({
+      ok: false,
+
+      error: error?.message || String(error),
+
+      generatedAt: new Date().toISOString(),
+    });
+  }
+}
+
+/* =========================================================
+ * BODY
+ * ========================================================= */
+
+function parseManagementRoadmapPostBody_(e) {
+  const contents = String(e?.postData?.contents || "").trim();
+
+  if (contents) {
+    try {
+      return JSON.parse(contents);
+    } catch (error) {
+      throw new Error("El body recibido no contiene JSON válido.");
+    }
+  }
+
+  const payload = String(e?.parameter?.payload || "").trim();
+
+  if (payload) {
+    try {
+      return JSON.parse(payload);
+    } catch (error) {
+      throw new Error("El parámetro payload no contiene JSON válido.");
+    }
+  }
+
+  return {};
+}
+
+/* =========================================================
+ * RESPONSE
+ * ========================================================= */
+
+function createManagementRoadmapJsonResponse_(payload) {
+  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(
+    ContentService.MimeType.JSON,
+  );
+}
+
+/* =========================================================
+ * NORMALIZACIÓN
+ * ========================================================= */
+
+function normalizeManagementRoadmapLinkRow_(row) {
+  const executiveLineId = String(row?.executiveLineId || "").trim();
+
+  const sdaId = String(row?.sdaId || "").trim();
+
+  const deliverableId = String(row?.deliverableId || "").trim();
+
+  /*
+   * Las filas incompletas antiguas
+   * no deben bloquear toda la escritura.
+   *
+   * Ejemplo actual:
+   *
+   * es-blue-buddy-competidores
+   * SDA informada
+   * deliverableId vacío
+   *
+   * Esa fila simplemente desaparece
+   * en la siguiente publicación.
+   */
+  if (!executiveLineId || !sdaId || !deliverableId) {
+    return null;
+  }
+
+  const activeText = String(row?.active ?? true)
+    .trim()
+    .toLowerCase();
+
+  const active = !["false", "0", "no", "off"].includes(activeText);
+
+  return {
+    executiveLineId,
+
+    sdaId,
+
+    deliverableId,
+
+    active,
+  };
+}
+
+/* =========================================================
+ * DEDUPLICACIÓN
+ * ========================================================= */
+
+function deduplicateManagementRoadmapLinks_(rows) {
+  const result = new Map();
+
+  (Array.isArray(rows) ? rows : [])
+    .map(normalizeManagementRoadmapLinkRow_)
+    .filter(Boolean)
+    .forEach((row) => {
+      const key = [
+        row.executiveLineId.trim().toLowerCase(),
+
+        row.sdaId.trim().toUpperCase(),
+
+        row.deliverableId.trim().toUpperCase(),
+      ].join("::");
+
+      result.set(key, row);
+    });
+
+  return [...result.values()];
+}
+
+/* =========================================================
+ * SHEET
+ * ========================================================= */
+
+function getOrCreateManagementRoadmapLinksSheet_() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  let sheet = spreadsheet.getSheetByName(MANAGEMENT_ROADMAP_LINKS_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(MANAGEMENT_ROADMAP_LINKS_SHEET_NAME);
+  }
+
+  return sheet;
+}
+
+/* =========================================================
+ * SAVE
+ * ========================================================= */
+
+function saveManagementRoadmapLinks_(rawLinks) {
+  const links = deduplicateManagementRoadmapLinks_(rawLinks);
+
+  const lock = LockService.getDocumentLock();
+
+  if (!lock.tryLock(5000)) {
+    throw new Error(
+      "Hay otra actualización de relaciones en curso. Inténtalo de nuevo.",
+    );
+  }
+
+  try {
+    const sheet = getOrCreateManagementRoadmapLinksSheet_();
+
+    /*
+     * La pestaña representa una fotografía
+     * completa del mapping.
+     *
+     * Reescribirla permite que eliminar
+     * una relación desde el cockpit
+     * realmente la elimine del origen.
+     */
+    sheet.clearContents();
+
+    sheet
+      .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINKS_HEADERS.length)
+      .setValues([MANAGEMENT_ROADMAP_LINKS_HEADERS]);
+
+    if (links.length) {
+      const values = links.map((link) => [
+        link.executiveLineId,
+
+        link.sdaId,
+
+        link.deliverableId,
+
+        link.active,
+      ]);
+
+      sheet
+        .getRange(2, 1, values.length, MANAGEMENT_ROADMAP_LINKS_HEADERS.length)
+        .setValues(values);
+    }
+
+    SpreadsheetApp.flush();
+
+    return {
+      saved: links.length,
+
+      links,
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* =========================================================
+ * TEST
+ * ========================================================= */
+
+function testManagementRoadmapLinks() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  const sheet = spreadsheet.getSheetByName(MANAGEMENT_ROADMAP_LINKS_SHEET_NAME);
+
+  const rows = sheet ? sheetToObjects_(sheet) : [];
+
+  Logger.log("========================================");
+
+  Logger.log("MANAGEMENT ROADMAP LINKS");
+
+  Logger.log("========================================");
+
+  Logger.log(`Relaciones: ${rows.length}`);
+
+  Logger.log(JSON.stringify(rows, null, 2));
+
+  Logger.log("========================================");
+
+  return rows;
+}
+/* =========================================================
+ * MANAGEMENT ROADMAP LINES
+ * ========================================================= */
+
+const MANAGEMENT_ROADMAP_LINES_SHEET_NAME = "Management Roadmap Lines";
+
+const MANAGEMENT_ROADMAP_LINES_HEADERS = [
+  "id",
+  "programId",
+  "productId",
+  "country",
+  "year",
+  "order",
+  "category",
+  "categoryTone",
+  "title",
+  "status",
+  "statusLabel",
+  "statusTone",
+  "comments",
+  "active",
+];
+
+/* =========================================================
+ * NORMALIZACIÓN
+ * ========================================================= */
+
+function normalizeManagementRoadmapLineRow_(row) {
+  const id = String(row?.id || "").trim();
+
+  if (!id) {
+    return null;
+  }
+
+  const title = String(row?.title || "").trim();
+
+  if (!title) {
+    return null;
+  }
+
+  return {
+    id,
+
+    programId: String(row?.programId || "")
+      .trim()
+      .toLowerCase(),
+
+    productId: String(row?.productId || "")
+      .trim()
+      .toLowerCase(),
+
+    country: String(row?.country || "")
+      .trim()
+      .toUpperCase(),
+
+    year: Number(row?.year) || "",
+
+    order: Number(row?.order) || 999,
+
+    category: String(row?.category || "").trim(),
+
+    categoryTone: String(row?.categoryTone || "").trim(),
+
+    title,
+
+    status: String(row?.status || "").trim(),
+
+    statusLabel: String(row?.statusLabel || "").trim(),
+
+    statusTone: String(row?.statusTone || "").trim(),
+
+    comments: String(row?.comments || "").trim(),
+
+    active: !["false", "0", "no", "off"].includes(
+      String(row?.active ?? true)
+        .trim()
+        .toLowerCase(),
+    ),
+  };
+}
+
+/* =========================================================
+ * DEDUPLICACIÓN
+ * ========================================================= */
+
+function deduplicateManagementRoadmapLines_(rows) {
+  const result = new Map();
+
+  (Array.isArray(rows) ? rows : [])
+    .map(normalizeManagementRoadmapLineRow_)
+    .filter(Boolean)
+    .forEach((row) => {
+      result.set(row.id.trim().toLowerCase(), row);
+    });
+
+  return [...result.values()].sort(
+    (left, right) => Number(left.order || 999) - Number(right.order || 999),
+  );
+}
+
+/* =========================================================
+ * SHEET
+ * ========================================================= */
+
+function getOrCreateManagementRoadmapLinesSheet_() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  let sheet = spreadsheet.getSheetByName(MANAGEMENT_ROADMAP_LINES_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(MANAGEMENT_ROADMAP_LINES_SHEET_NAME);
+  }
+
+  return sheet;
+}
+
+/* =========================================================
+ * SAVE
+ * ========================================================= */
+
+function saveManagementRoadmapLines_(rawLines) {
+  const lines = deduplicateManagementRoadmapLines_(rawLines);
+
+  const lock = LockService.getDocumentLock();
+
+  if (!lock.tryLock(5000)) {
+    throw new Error(
+      "Hay otra actualización del Roadmap en curso. Inténtalo de nuevo.",
+    );
+  }
+
+  try {
+    const sheet = getOrCreateManagementRoadmapLinesSheet_();
+
+    sheet.clearContents();
+
+    sheet
+      .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
+      .setValues([MANAGEMENT_ROADMAP_LINES_HEADERS]);
+
+    if (lines.length) {
+      const values = lines.map((line) => [
+        line.id,
+        line.programId,
+        line.productId,
+        line.country,
+        line.year,
+        line.order,
+        line.category,
+        line.categoryTone,
+        line.title,
+        line.status,
+        line.statusLabel,
+        line.statusTone,
+        line.comments,
+        line.active,
+      ]);
+
+      sheet
+        .getRange(2, 1, values.length, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
+        .setValues(values);
+    }
+
+    SpreadsheetApp.flush();
+
+    return {
+      saved: lines.length,
+
+      lines,
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* =========================================================
+ * TEST
+ * ========================================================= */
+
+function testManagementRoadmapLines() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  const sheet = spreadsheet.getSheetByName(MANAGEMENT_ROADMAP_LINES_SHEET_NAME);
+
+  const rows = sheet ? sheetToObjects_(sheet) : [];
+
+  Logger.log("========================================");
+
+  Logger.log("MANAGEMENT ROADMAP LINES");
+
+  Logger.log("========================================");
+
+  Logger.log(`Filas: ${rows.length}`);
+
+  Logger.log(JSON.stringify(rows, null, 2));
+
+  return rows;
+}
+function deleteManagementRoadmapLine_(lineId) {
+  const normalizedLineId = String(lineId || "").trim();
+
+  if (!normalizedLineId) {
+    throw new Error("No se ha recibido el ID del deliverable.");
+  }
+
+  const lock = LockService.getDocumentLock();
+
+  if (!lock.tryLock(5000)) {
+    throw new Error(
+      "Hay otra actualización del Roadmap en curso. Inténtalo de nuevo.",
+    );
+  }
+
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+    /*
+     * =====================================================
+     * MANAGEMENT ROADMAP LINES
+     * =====================================================
+     */
+
+    const linesSheet = spreadsheet.getSheetByName(
+      MANAGEMENT_ROADMAP_LINES_SHEET_NAME,
+    );
+
+    const currentLines = linesSheet ? sheetToObjects_(linesSheet) : [];
+
+    const normalizedLowerId = normalizedLineId.toLowerCase();
+
+    const nextLines = currentLines.filter(
+      (line) =>
+        String(line.id || "")
+          .trim()
+          .toLowerCase() !== normalizedLowerId,
+    );
+
+    const deleted = currentLines.length - nextLines.length;
+
+    if (linesSheet) {
+      linesSheet.clearContents();
+
+      linesSheet
+        .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
+        .setValues([MANAGEMENT_ROADMAP_LINES_HEADERS]);
+
+      if (nextLines.length) {
+        const values = nextLines.map((line) => [
+          line.id,
+          line.programId,
+          line.productId,
+          line.country,
+          line.year,
+          line.order,
+          line.category,
+          line.categoryTone,
+          line.title,
+          line.status,
+          line.statusLabel,
+          line.statusTone,
+          line.comments,
+          line.active,
+        ]);
+
+        linesSheet
+          .getRange(
+            2,
+            1,
+            values.length,
+            MANAGEMENT_ROADMAP_LINES_HEADERS.length,
+          )
+          .setValues(values);
+      }
+    }
+
+    /*
+     * =====================================================
+     * MANAGEMENT ROADMAP LINKS
+     *
+     * También eliminamos todas las relaciones SDA
+     * asociadas al deliverable ejecutivo.
+     * =====================================================
+     */
+
+    const linksSheet = spreadsheet.getSheetByName(
+      MANAGEMENT_ROADMAP_LINKS_SHEET_NAME,
+    );
+
+    const currentLinks = linksSheet ? sheetToObjects_(linksSheet) : [];
+
+    const nextLinks = currentLinks.filter(
+      (link) =>
+        String(link.executiveLineId || "")
+          .trim()
+          .toLowerCase() !== normalizedLowerId,
+    );
+
+    const deletedLinks = currentLinks.length - nextLinks.length;
+
+    if (linksSheet) {
+      linksSheet.clearContents();
+
+      linksSheet
+        .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINKS_HEADERS.length)
+        .setValues([MANAGEMENT_ROADMAP_LINKS_HEADERS]);
+
+      if (nextLinks.length) {
+        const values = nextLinks.map((link) => [
+          link.executiveLineId,
+          link.sdaId,
+          link.deliverableId,
+          link.active,
+        ]);
+
+        linksSheet
+          .getRange(
+            2,
+            1,
+            values.length,
+            MANAGEMENT_ROADMAP_LINKS_HEADERS.length,
+          )
+          .setValues(values);
+      }
+    }
+
+    SpreadsheetApp.flush();
+
+    return {
+      deleted,
+
+      deletedLinks,
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function validateSnapshotUser_() {
+  const email = String(Session.getActiveUser().getEmail() || "")
+    .trim()
+    .toLowerCase();
+
+  if (!email) {
+    throw new Error("No se ha podido identificar al usuario conectado.");
+  }
+
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  const spreadsheetFile = DriveApp.getFileById(spreadsheet.getId());
+
+  const allowedEmails = new Set();
+
+  spreadsheetFile.getEditors().forEach((user) => {
+    const userEmail = String(user.getEmail() || "")
+      .trim()
+      .toLowerCase();
+
+    if (userEmail) {
+      allowedEmails.add(userEmail);
+    }
+  });
+
+  spreadsheetFile.getViewers().forEach((user) => {
+    const userEmail = String(user.getEmail() || "")
+      .trim()
+      .toLowerCase();
+
+    if (userEmail) {
+      allowedEmails.add(userEmail);
+    }
+  });
+
+  /*
+   * El propietario también debe estar autorizado.
+   */
+
+  const ownerEmail = String(spreadsheetFile.getOwner()?.getEmail() || "")
+    .trim()
+    .toLowerCase();
+
+  if (ownerEmail) {
+    allowedEmails.add(ownerEmail);
+  }
+
+  if (!allowedEmails.has(email)) {
+    throw new Error("ACCESS_DENIED");
+  }
+
+  return {
+    email,
+    granted: true,
+  };
+}
+function buildSnapshotAccess_(spreadsheet) {
+  if (!spreadsheet) {
+    throw new Error(
+      "No se ha informado la Spreadsheet para construir permisos.",
+    );
+  }
+
+  const spreadsheetId = spreadsheet.getId();
+
+  const response = Drive.Permissions.list(spreadsheetId, {
+    supportsAllDrives: true,
+
+    fields: "permissions(id,type,role,emailAddress,domain)",
+  });
+
+  const permissions = Array.isArray(response?.permissions)
+    ? response.permissions
+    : [];
+
+  const users = {};
+
+  const domains = {};
+
+  const groups = [];
+
+  permissions.forEach((permission) => {
+    const role = snapshotPermissionRole_(permission.role);
+
+    if (!role) {
+      return;
+    }
+
+    const type = String(permission.type || "")
+      .trim()
+      .toLowerCase();
+
+    const email = String(permission.emailAddress || "")
+      .trim()
+      .toLowerCase();
+
+    const domain = String(permission.domain || "")
+      .trim()
+      .toLowerCase();
+
+    if (type === "user" && email) {
+      users[email] = strongerSnapshotRole_(users[email], role);
+
+      return;
+    }
+
+    if (type === "domain" && domain) {
+      domains[domain] = strongerSnapshotRole_(domains[domain], role);
+
+      return;
+    }
+
+    if (type === "group" && email) {
+      groups.push({
+        email,
+        role,
+      });
+    }
+  });
+
+  return {
+    generatedAt: new Date().toISOString(),
+
+    sourceSpreadsheetId: spreadsheetId,
+
+    users,
+
+    domains,
+
+    /*
+     * Guardamos también los grupos para
+     * trazabilidad.
+     *
+     * La resolución automática inicial
+     * será para usuarios y dominios.
+     */
+
+    groups,
+  };
+}
+
+function snapshotPermissionRole_(driveRole) {
+  const role = String(driveRole || "")
+    .trim()
+    .toLowerCase();
+
+  if (["owner", "organizer", "fileorganizer", "writer"].includes(role)) {
+    return "editor";
+  }
+
+  if (["commenter", "reader"].includes(role)) {
+    return "viewer";
+  }
+
+  return "";
+}
+
+function strongerSnapshotRole_(currentRole, newRole) {
+  if (currentRole === "editor" || newRole === "editor") {
+    return "editor";
+  }
+
+  if (currentRole === "viewer" || newRole === "viewer") {
+    return "viewer";
+  }
+
+  return "";
+}
+function resolveSnapshotRole_(snapshot, email) {
+  const normalizedEmail = String(email || "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedEmail) {
+    return "";
+  }
+
+  const access = snapshot?.access;
+
+  if (!access || typeof access !== "object") {
+    return "";
+  }
+
+  const directRole = String(access.users?.[normalizedEmail] || "")
+    .trim()
+    .toLowerCase();
+
+  if (directRole === "editor" || directRole === "viewer") {
+    return directRole;
+  }
+
+  const domain = normalizedEmail.split("@").at(-1);
+
+  const domainRole = String(access.domains?.[domain] || "")
+    .trim()
+    .toLowerCase();
+
+  if (domainRole === "editor" || domainRole === "viewer") {
+    return domainRole;
+  }
+
+  return "";
+}
+function verifyIdentityToken_(token) {
+  const normalizedToken = String(token || "").trim();
+
+  if (!normalizedToken) {
+    throw new Error("IDENTITY_REQUIRED");
+  }
+
+  const parts = normalizedToken.split(".");
+
+  if (parts.length !== 2) {
+    throw new Error("INVALID_IDENTITY_TOKEN");
+  }
+
+  const [encodedPayload, providedSignature] = parts;
+
+  const expectedSignature = signSnapshotIdentityPayload_(encodedPayload);
+
+  if (providedSignature !== expectedSignature) {
+    throw new Error("INVALID_IDENTITY_TOKEN");
+  }
+
+  let payload;
+
+  try {
+    payload = JSON.parse(base64UrlDecode_(encodedPayload));
+  } catch {
+    throw new Error("INVALID_IDENTITY_TOKEN");
+  }
+
+  const email = String(payload?.email || "")
+    .trim()
+    .toLowerCase();
+
+  const expiresAt = Number(payload?.exp || 0);
+
+  if (!email || !expiresAt) {
+    throw new Error("INVALID_IDENTITY_TOKEN");
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+
+  if (expiresAt <= now) {
+    throw new Error("IDENTITY_EXPIRED");
+  }
+
+  if (!email.endsWith("@bbva.com")) {
+    throw new Error("INVALID_DOMAIN");
+  }
+
+  return {
+    email,
+    expiresAt,
+  };
+}
+
+function signSnapshotIdentityPayload_(payload) {
+  const secret = getSnapshotIdentitySecret_();
+
+  const signature = Utilities.computeHmacSha256Signature(payload, secret);
+
+  return Utilities.base64EncodeWebSafe(signature).replace(/=+$/g, "");
+}
+
+function getSnapshotIdentitySecret_() {
+  const secret = String(
+    PropertiesService.getScriptProperties().getProperty(
+      RCS_ACCESS_TOKEN_SECRET_PROPERTY,
+    ) || "",
+  ).trim();
+
+  if (!secret) {
+    throw new Error(
+      `Falta la Script Property ${RCS_ACCESS_TOKEN_SECRET_PROPERTY}.`,
+    );
+  }
+
+  return secret;
+}
+
+function base64UrlDecode_(value) {
+  const bytes = Utilities.base64DecodeWebSafe(String(value || ""));
+
+  return Utilities.newBlob(bytes).getDataAsString("UTF-8");
+}
+function refreshAllSourcesAndExport() {
+  const startedAt = new Date();
+
+  Logger.log("========================================");
+
+  Logger.log("AIXBANKER · FULL REFRESH");
+
+  Logger.log("========================================");
+
+  /*
+   * =====================================================
+   * SDA
+   * =====================================================
+   */
+
+  refreshSdaGeneralData();
+
+  /*
+   * =====================================================
+   * JIRA FEATURES
+   * =====================================================
+   */
+
+  refreshJiraWorkspaceFeatures();
+
+  /*
+   * =====================================================
+   * JIRA MSA
+   * =====================================================
+   */
+
+  refreshJiraMsaData();
+
+  /*
+   * =====================================================
+   * STAFFING
+   * =====================================================
+   */
+
+  refreshStaffingData();
+
+  /*
+   * =====================================================
+   * SNAPSHOT
+   * =====================================================
+   */
+
+  const result = exportPortfolioJson();
+
+  Logger.log(
+    `Refresh completo finalizado en ${
+      new Date().getTime() - startedAt.getTime()
+    } ms`,
+  );
+
+  return result;
+}
+function getPortfolioSnapshotFile_() {
+  const properties = PropertiesService.getScriptProperties();
+
+  const configuredFileId = String(
+    properties.getProperty(EXPORT_FILE_ID_PROPERTY) || "",
+  ).trim();
+
+  /*
+   * =====================================================
+   * FAST PATH · FILE ID
+   * =====================================================
+   */
+
+  if (configuredFileId) {
+    try {
+      const file = DriveApp.getFileById(configuredFileId);
+
+      if (file && !file.isTrashed()) {
+        return file;
+      }
+    } catch (error) {
+      console.warn("[Snapshot] El File ID guardado ya no es válido.", error);
+
+      properties.deleteProperty(EXPORT_FILE_ID_PROPERTY);
+    }
+  }
+
+  /*
+   * =====================================================
+   * FALLBACK · CARPETA + NOMBRE
+   * =====================================================
+   */
+
+  const folders = DriveApp.getFoldersByName(EXPORT_FOLDER_NAME);
+
+  if (!folders.hasNext()) {
+    return null;
+  }
+
+  const folder = folders.next();
+
+  const files = folder.getFilesByName(EXPORT_FILE_NAME);
+
+  if (!files.hasNext()) {
+    return null;
+  }
+
+  const file = files.next();
+
+  properties.setProperty(EXPORT_FILE_ID_PROPERTY, file.getId());
+
+  return file;
+}
+
+function getPortfolioSnapshot_() {
+  const file = getPortfolioSnapshotFile_();
+
+  if (!file) {
+    return null;
+  }
+
+  const content = String(file.getBlob().getDataAsString("UTF-8") || "").trim();
+
+  if (!content) {
+    return null;
+  }
+
+  let snapshot;
+
+  try {
+    snapshot = JSON.parse(content);
+  } catch (error) {
+    console.warn("[Snapshot] El JSON almacenado no es válido.", error);
+
+    return null;
+  }
+
+  if (!snapshot || typeof snapshot !== "object") {
+    return null;
+  }
+
+  if (
+    String(snapshot.dataset || "")
+      .trim()
+      .toLowerCase() !== "full-export"
+  ) {
+    return null;
+  }
+
+  return snapshot;
+}
+
+function getOrBuildPortfolioSnapshot_() {
+  /*
+   * =====================================================
+   * L2 CACHE · DRIVE JSON
+   * =====================================================
+   */
+
+  const snapshot = getPortfolioSnapshot_();
+
+  if (snapshot) {
+    Logger.log("Snapshot existente encontrado. No se ejecutan importaciones.");
+
+    return snapshot;
+  }
+
+  /*
+   * =====================================================
+   * CACHE MISS
+   * =====================================================
+   *
+   * Sólo llegamos aquí si:
+   *
+   * - no existe el JSON;
+   * - está vacío;
+   * - está corrupto;
+   * - o no es full-export.
+   */
+
+  Logger.log("No existe un snapshot válido. Se ejecutará refresh completo.");
+
+  const result = refreshAllSourcesAndExport();
+
+  if (result?.snapshot && typeof result.snapshot === "object") {
+    return result.snapshot;
+  }
+
+  const generatedSnapshot = getPortfolioSnapshot_();
+
+  if (!generatedSnapshot) {
+    throw new Error(
+      "El refresh ha finalizado pero no se ha podido recuperar el snapshot generado.",
+    );
+  }
+
+  return generatedSnapshot;
 }

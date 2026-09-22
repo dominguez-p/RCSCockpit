@@ -35,7 +35,12 @@ const STAFFING_CONFIG = {
   programId: "aixbanker",
 
   productScrums: {
-    "blue-buddy": ["Blue Buddy Experience", "Cross", "Sales Assistant"],
+    "blue-buddy": [
+      "Knowledge Assistant",
+      "Blue Buddy Experience",
+      "Cross",
+      "Sales Assistant",
+    ],
   },
 };
 
@@ -108,7 +113,6 @@ const STAFFING_SHEET_HEADERS = [
  * REFRESH
  * =========================================================
  */
-
 function refreshStaffingData() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -127,33 +131,154 @@ function refreshStaffingData() {
   try {
     spreadsheet.toast("Procesando Staffing...", "AIxBanker", 6);
 
-    const sourceFile = findLatestStaffingSourceFile_();
+    /*
+     * =====================================================
+     * FICHEROS DE ORIGEN
+     * =====================================================
+     *
+     * Ya no usamos únicamente el CSV más reciente.
+     *
+     * La carpeta puede contener diferentes descargas
+     * correspondientes a diferentes proyectos.
+     *
+     * Para cada proyecto utilizaremos la descarga más
+     * reciente que contenga dicho proyecto.
+     * =====================================================
+     */
 
-    const parsed = parseStaffingSourceFile_(sourceFile);
+    const sourceFiles = findStaffingSourceFiles_();
 
-    if (!parsed.rows.length) {
+    const parsedFiles = sourceFiles.map((file) => ({
+      file,
+      parsed: parseStaffingSourceFile_(file),
+    }));
+
+    /*
+     * =====================================================
+     * ÚLTIMA FOTO POR PROYECTO
+     * =====================================================
+     *
+     * Ejemplo:
+     *
+     * fichero A:
+     *   Blue Buddy
+     *
+     * fichero B:
+     *   Panorama
+     *
+     * Ambos se conservan.
+     *
+     * Si dos ficheros contienen Blue Buddy,
+     * se utiliza el más reciente para Blue Buddy.
+     * =====================================================
+     */
+
+    const latestFileByProject = new Map();
+
+    parsedFiles.forEach(({ file, parsed }) => {
+      const projectCodes = [
+        ...new Set(
+          parsed.rows
+            .map((row) => String(row.projectCode || "").trim())
+            .filter(Boolean),
+        ),
+      ];
+
+      projectCodes.forEach((projectCode) => {
+        const current = latestFileByProject.get(projectCode);
+
+        if (
+          !current ||
+          file.getLastUpdated().getTime() >
+            current.file.getLastUpdated().getTime()
+        ) {
+          latestFileByProject.set(projectCode, {
+            file,
+            parsed,
+          });
+        }
+      });
+    });
+
+    /*
+     * =====================================================
+     * CONSOLIDACIÓN
+     * =====================================================
+     */
+
+    const consolidatedRows = [];
+
+    const seenRows = new Set();
+
+    let ignoredRows = 0;
+
+    let duplicates = 0;
+
+    latestFileByProject.forEach(({ parsed }, projectCode) => {
+      ignoredRows += Number(parsed.ignoredRows || 0);
+
+      parsed.rows
+        .filter((row) => String(row.projectCode || "").trim() === projectCode)
+        .forEach((row) => {
+          const dedupeKey = staffingRowDedupeKey_(row);
+
+          if (seenRows.has(dedupeKey)) {
+            duplicates += 1;
+
+            return;
+          }
+
+          seenRows.add(dedupeKey);
+
+          consolidatedRows.push(row);
+        });
+    });
+
+    if (!consolidatedRows.length) {
       throw new Error(
-        "El CSV de Staffing no contiene posiciones válidas para los scrums configurados.",
+        "Los CSV de Staffing no contienen posiciones válidas para los productos y scrums configurados.",
       );
     }
 
-    writeStaffingSheet_(spreadsheet, parsed.rows);
+    /*
+     * =====================================================
+     * SPREADSHEET
+     * =====================================================
+     */
+
+    writeStaffingSheet_(spreadsheet, consolidatedRows);
 
     SpreadsheetApp.flush();
 
-    const dataset = buildStaffingDataset_(parsed.rows);
+    /*
+     * =====================================================
+     * DATASET
+     * =====================================================
+     */
+
+    const dataset = buildStaffingDataset_(consolidatedRows);
 
     const latestProducts = dataset.products.map((product) => ({
       productId: product.productId,
 
       latestPeriod: product.latestPeriod,
 
-      scrums:
-        (
-          product.periods.find(
-            (period) => period.period === product.latestPeriod,
-          ) || {}
-        ).scrums?.map((scrum) => ({
+      periods: product.periods.map((period) => ({
+        period: period.period,
+
+        year: period.year,
+
+        quarter: period.quarter,
+
+        totalFte: period.totalFte,
+
+        assignedFte: period.assignedFte,
+
+        openFte: period.openFte,
+
+        positions: period.positions,
+
+        scrums: period.scrums.map((scrum) => ({
           name: scrum.name,
 
           totalFte: scrum.totalFte,
@@ -163,13 +288,15 @@ function refreshStaffingData() {
           assignedFte: scrum.assignedFte,
 
           openFte: scrum.openFte,
-        })) || [],
+        })),
+      })),
     }));
 
     spreadsheet.toast(
       [
-        `CSV: ${sourceFile.getName()}`,
-        `Filas: ${parsed.rows.length}`,
+        `CSV procesados: ${sourceFiles.length}`,
+        `Proyectos: ${latestFileByProject.size}`,
+        `Filas: ${consolidatedRows.length}`,
         `Productos: ${dataset.products.length}`,
       ].join(" · "),
       "Staffing actualizado",
@@ -179,13 +306,19 @@ function refreshStaffingData() {
     Logger.log(
       JSON.stringify(
         {
-          sourceFile: sourceFile.getName(),
+          files: sourceFiles.map((file) => ({
+            id: file.getId(),
+            name: file.getName(),
+            updatedAt: file.getLastUpdated().toISOString(),
+          })),
 
-          importedRows: parsed.rows.length,
+          projects: [...latestFileByProject.keys()],
 
-          ignoredRows: parsed.ignoredRows,
+          rows: consolidatedRows.length,
 
-          duplicates: parsed.duplicates,
+          ignoredRows,
+
+          duplicates,
 
           products: latestProducts,
         },
@@ -196,7 +329,10 @@ function refreshStaffingData() {
 
     return dataset;
   } catch (error) {
-    const message = error && error.message ? error.message : String(error);
+    const message =
+      error && error.message
+        ? error.message
+        : "No se ha podido actualizar Staffing.";
 
     spreadsheet.toast(message, "Error actualizando Staffing", 10);
 
@@ -223,12 +359,14 @@ function getStaffingSourceFolder_() {
     return DriveApp.getFolderById(folderId);
   } catch (error) {
     throw new Error(
-      `No se ha podido abrir la carpeta configurada en "${STAFFING_CONFIG.sourceFolderProperty}".`,
+      `No se ha podido abrir la carpeta de Staffing ` +
+        `configurada en "${STAFFING_CONFIG.sourceFolderProperty}". ` +
+        `${error?.message || error}`,
     );
   }
 }
 
-function findLatestStaffingSourceFile_() {
+function findStaffingSourceFiles_() {
   const folder = getStaffingSourceFolder_();
 
   const files = folder.getFiles();
@@ -259,10 +397,10 @@ function findLatestStaffingSourceFile_() {
 
   candidates.sort(
     (left, right) =>
-      right.getLastUpdated().getTime() - left.getLastUpdated().getTime(),
+      left.getLastUpdated().getTime() - right.getLastUpdated().getTime(),
   );
 
-  return candidates[0];
+  return candidates;
 }
 
 /*
