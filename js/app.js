@@ -16978,4 +16978,3 @@ document.addEventListener("change", (event) => {
 window.addEventListener("hashchange", () => {
   render().catch(console.error);
 });
-init();
