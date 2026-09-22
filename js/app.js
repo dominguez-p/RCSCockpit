@@ -7571,8 +7571,6 @@ async function refreshCurrentDataSource() {
      * ===================================================
      * LANDING
      * ===================================================
-     *
-     * Se mantiene el comportamiento actual.
      */
 
     if (!normalizedProgramId || routeName === "landing") {
@@ -7614,9 +7612,16 @@ async function refreshCurrentDataSource() {
      * ===================================================
      * PROGRAMA · ACCESS
      * ===================================================
+     *
+     * Importante:
+     *
+     * NO forzamos una nueva validación.
+     *
+     * Si ya existe en sessionStorage,
+     * se reutiliza.
      */
 
-    const access = await ensureRcsProgramAccess(normalizedProgramId, true);
+    const access = await ensureRcsProgramAccess(normalizedProgramId, false);
 
     if (!access.granted) {
       blockRcsCockpitAccess(access);
@@ -7625,12 +7630,20 @@ async function refreshCurrentDataSource() {
     }
 
     /*
+     * Sólo un Editor puede regenerar
+     * las fuentes del programa.
+     */
+
+    if (!access.canEdit) {
+      throw new Error(
+        "Sólo un perfil Editor puede actualizar los datos del programa.",
+      );
+    }
+
+    /*
      * ===================================================
-     * REFRESH EXPLÍCITO
+     * REFRESH
      * ===================================================
-     *
-     * Este es el único punto del frontend
-     * que regenera la fotografía.
      */
 
     const refreshUrl = String(
@@ -7647,13 +7660,26 @@ async function refreshCurrentDataSource() {
       throw new Error("No está disponible triggerDataRefresh.");
     }
 
-    await triggerDataRefresh(refreshUrl, {
-      timeoutMs: 120000,
+    /*
+     * El propio refresh devuelve el snapshot nuevo.
+     *
+     * Ya no hacemos una segunda llamada action=snapshot.
+     */
+
+    const rawData = await triggerDataRefresh(refreshUrl, {
+      timeoutMs: 300000,
     });
+
+    if (!rawData || rawData.ok === false) {
+      throw new Error(
+        rawData?.error ||
+          "No se ha podido recuperar la fotografía actualizada.",
+      );
+    }
 
     /*
      * ===================================================
-     * INVALIDAR FOTOGRAFÍA ANTERIOR
+     * INVALIDAR CACHE ANTERIOR
      * ===================================================
      */
 
@@ -7665,15 +7691,41 @@ async function refreshCurrentDataSource() {
 
     /*
      * ===================================================
-     * CARGAR NUEVO SNAPSHOT
+     * INSTALAR SNAPSHOT NUEVO
      * ===================================================
      */
 
-    const programData = await loadProgramData(normalizedProgramId, true);
+    const programData = normalizeProgramData(normalizedProgramId, rawData);
+
+    const completeProgramData = {
+      ...programData,
+
+      restricted: getEmptyRestrictedProgramData(),
+    };
+
+    PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
+
+    const snapshotDate = rawData.generatedAt
+      ? new Date(rawData.generatedAt)
+      : new Date();
+
+    const loadedAt = Number.isNaN(snapshotDate.getTime())
+      ? new Date()
+      : snapshotDate;
+
+    PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, loadedAt);
+
+    /*
+     * ===================================================
+     * SESSION CACHE
+     * ===================================================
+     */
+
+    writeRcsSessionCache("program", normalizedProgramId, programData, loadedAt);
 
     setRcsDataMode(normalizedProgramId, "live");
 
-    DATA = buildProgramData(programData);
+    DATA = buildProgramData(completeProgramData);
 
     updateDataStatus(normalizedProgramId);
 
@@ -12658,10 +12710,257 @@ function renderManagementRoadmapMappingPanel(
     }
   });
 }
+function getManagementRoadmapMonthLabels() {
+  return [
+    "Ene",
+    "Feb",
+    "Mar",
+    "Abr",
+    "May",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dic",
+  ];
+}
 
-function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
+function getManagementRoadmapQuarterMonthRange(quarter) {
+  return (
+    {
+      Q1: { start: 0, end: 2 },
+      Q2: { start: 3, end: 5 },
+      Q3: { start: 6, end: 8 },
+      Q4: { start: 9, end: 11 },
+    }[
+      String(quarter || "")
+        .trim()
+        .toUpperCase()
+    ] || null
+  );
+}
+
+function getManagementRoadmapTimelineSegments(row) {
+  const quarters = ["Q1", "Q2", "Q3", "Q4"];
+  return quarters
+    .map((quarter) => {
+      const data = getManagementRoadmapQuarterData(row, quarter);
+      const monthRange = getManagementRoadmapQuarterMonthRange(quarter);
+
+      if (!monthRange || !data.hasAssociation) {
+        return null;
+      }
+
+      if (!data.totalFeatures && !data.sdaPlanned) {
+        return null;
+      }
+
+      const left = (monthRange.start / 12) * 100;
+      const width = ((monthRange.end - monthRange.start + 1) / 12) * 100;
+
+      let label = "Plan SDA";
+      if (data.totalFeatures > 0) {
+        label = `${quarter} · ${data.deployedFeatures}/${data.totalFeatures}`;
+      }
+
+      return {
+        quarter,
+        left,
+        width,
+        status: data.status,
+        label,
+        summary:
+          data.totalFeatures > 0
+            ? `${data.deployedFeatures} de ${data.totalFeatures} Features desplegadas`
+            : `Planificación SDA en ${quarter}`,
+      };
+    })
+    .filter(Boolean);
+}
+
+function renderManagementRoadmapStatusPanel(row) {
+  return `
+    <div class="management-roadmap-status-panel">
+      <span
+        class="
+          management-roadmap-status-pill
+          ${getManagementRoadmapStatusClass(row)}
+        "
+      >
+        ${rcsEsc(row.statusLabel || "Sin estado")}
+      </span>
+      <div class="management-roadmap-status-progress">
+        ${renderManagementRoadmapProgress(row.id)}
+      </div>
+      <div class="management-roadmap-status-comments">
+        <strong>
+          Estatus
+        </strong>
+        <p>
+          ${rcsEsc(row.comments || "Sin comentarios")}
+        </p>
+      </div>
+    </div>
+  `;
+}
+
+function renderManagementRoadmapBoard(programId, productId, countryId) {
+  const rows = getManagementRoadmapRows(programId, productId, countryId);
+
+  if (!rows.length) {
+    return `
+      <div class="management-deliverables-table-wrap">
+        <div class="management-deliverables-empty">
+          No hay deliverables configurados para
+          ${rcsEsc(getManagementRoadmapProductLabel(productId))}
+          en
+          ${rcsEsc(getManagementRoadmapCountrySelectorLabel(countryId))}.
+        </div>
+      </div>
+    `;
+  }
+
+  const months = getManagementRoadmapMonthLabels();
+  const timelineYear = Number(rows[0]?.year) || new Date().getFullYear();
+  const now = new Date();
+  const showTodayLine = timelineYear === now.getFullYear();
+  const todayLinePosition = showTodayLine
+    ? (((now.getMonth() + now.getDate() / 31) / 12) * 100).toFixed(2)
+    : null;
+
+  return `
+    <div class="management-roadmap-board-wrap">
+      <div class="management-roadmap-board">
+        <div class="management-roadmap-board-header">
+          <div class="management-roadmap-board-left">
+            <div class="management-roadmap-board-title">
+              Roadmap
+            </div>
+            <div class="management-roadmap-board-subtitle">
+              ${rcsEsc(getManagementRoadmapProductLabel(productId))}
+              ·
+              ${rcsEsc(getManagementRoadmapCountrySelectorLabel(countryId))}
+              ·
+              ${rcsEsc(String(timelineYear))}
+            </div>
+          </div>
+          <div class="management-roadmap-board-months">
+            ${months
+              .map(
+                (month) => `
+                  <div class="management-roadmap-board-month">
+                    ${rcsEsc(month)}
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+          <div class="management-roadmap-board-status-title">
+            Estatus
+          </div>
+        </div>
+
+        <div class="management-roadmap-board-body">
+          ${rows
+            .map((row) => {
+              const segments = getManagementRoadmapTimelineSegments(row);
+
+              return `
+                <article
+                  class="management-roadmap-row"
+                  data-management-roadmap-line="${rcsEsc(row.id)}"
+                >
+                  <div class="management-roadmap-row-left">
+                    ${renderManagementRoadmapCategory(row)}
+                    <div class="management-roadmap-row-title">
+                      ${rcsEsc(row.title)}
+                    </div>
+                    <div class="management-roadmap-row-meta">
+                      ${rcsEsc(getManagementRoadmapCountrySelectorLabel(countryId))}
+                    </div>
+                  </div>
+
+                  <div class="management-roadmap-row-timeline">
+                    <div class="management-roadmap-row-grid">
+                      ${months
+                        .map(
+                          (_, index) => `
+                            <span
+                              class="management-roadmap-row-grid-cell"
+                              aria-hidden="true"
+                              style="left:${((index / 12) * 100).toFixed(2)}%;"
+                            ></span>
+                          `,
+                        )
+                        .join("")}
+                    </div>
+
+                    ${
+                      showTodayLine
+                        ? `
+                          <span
+                            class="management-roadmap-today-line"
+                            style="left:${todayLinePosition}%;"
+                            aria-hidden="true"
+                          ></span>
+                        `
+                        : ""
+                    }
+
+                    <div class="management-roadmap-row-bars">
+                      ${
+                        segments.length
+                          ? segments
+                              .map(
+                                (segment) => `
+                                  <div
+                                    class="
+                                      management-roadmap-bar
+                                      is-${rcsEsc(segment.status)}
+                                    "
+                                    style="
+                                      left:${segment.left}%;
+                                      width:${segment.width}%;
+                                    "
+                                    title="${rcsEsc(segment.summary)}"
+                                  >
+                                    <span class="management-roadmap-bar-label">
+                                      ${rcsEsc(segment.label)}
+                                    </span>
+                                  </div>
+                                `,
+                              )
+                              .join("")
+                          : `
+                            <div class="management-roadmap-row-empty">
+                              Sin planificación temporal
+                            </div>
+                          `
+                      }
+                    </div>
+                  </div>
+
+                  ${renderManagementRoadmapStatusPanel(row)}
+                </article>
+              `;
+            })
+            .join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderManagementRoadmapSnapshotEditorTable(
+  programId,
+  productId,
+  countryId,
+) {
   const rows = getManagementRoadmapRows(programId, productId, countryId);
   const mappingState = getManagementRoadmapMappingUiState();
+
   if (!rows.length) {
     return `
       <div
@@ -12693,6 +12992,7 @@ function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
       </div>
     `;
   }
+
   return `
     <div
       class="management-deliverables-table-wrap"
@@ -12860,6 +13160,19 @@ function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
       </table>
     </div>
   `;
+}
+function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
+  const mappingState = getManagementRoadmapMappingUiState();
+
+  if (mappingState.enabled) {
+    return renderManagementRoadmapSnapshotEditorTable(
+      programId,
+      productId,
+      countryId,
+    );
+  }
+
+  return renderManagementRoadmapBoard(programId, productId, countryId);
 }
 
 function bindManagementRoadmapLineEditors(programId) {
@@ -14604,11 +14917,17 @@ async function loadRcsSpreadsheetAccess(
   if (!normalizedSpreadsheetId) {
     return {
       spreadsheetId: "",
+
       granted: false,
+
       role: "none",
+
       canEdit: false,
+
       landing: null,
+
       code: "SPREADSHEET_ID_MISSING",
+
       checkedAt: Date.now(),
     };
   }
@@ -14635,11 +14954,9 @@ async function loadRcsSpreadsheetAccess(
 
   const state = getRcsAccessState();
 
-  const cacheTtlMs = 5 * 60 * 1000;
-
   /*
    * =====================================================
-   * CACHE EN MEMORIA
+   * L1 · MEMORY CACHE
    * =====================================================
    */
 
@@ -14648,23 +14965,19 @@ async function loadRcsSpreadsheetAccess(
   const memoryHasLanding =
     memoryCached?.landing && typeof memoryCached.landing === "object";
 
-  if (
-    !forceRefresh &&
-    memoryCached &&
-    Date.now() - Number(memoryCached.checkedAt || 0) < cacheTtlMs &&
-    (!includeLanding || memoryHasLanding)
-  ) {
+  if (!forceRefresh && memoryCached && (!includeLanding || memoryHasLanding)) {
     return memoryCached;
   }
 
   /*
    * =====================================================
-   * CACHE DE SESIÓN
+   * L2 · SESSION CACHE
    * =====================================================
    *
-   * Sobrevive a F5.
+   * No usamos TTL.
    *
-   * No sobrevive al cierre de la pestaña/sesión.
+   * Mientras exista la pestaña/sesión,
+   * el permiso sigue siendo válido.
    */
 
   if (!forceRefresh) {
@@ -14675,17 +14988,10 @@ async function loadRcsSpreadsheetAccess(
 
     const sessionAccess = sessionCached?.data;
 
-    const sessionCheckedAt = Number(sessionAccess?.checkedAt || 0);
-
     const sessionHasLanding =
       sessionAccess?.landing && typeof sessionAccess.landing === "object";
 
-    if (
-      sessionAccess &&
-      sessionCheckedAt > 0 &&
-      Date.now() - sessionCheckedAt < cacheTtlMs &&
-      (!includeLanding || sessionHasLanding)
-    ) {
+    if (sessionAccess && (!includeLanding || sessionHasLanding)) {
       state.spreadsheets[normalizedSpreadsheetId] = sessionAccess;
 
       return sessionAccess;
@@ -14696,6 +15002,9 @@ async function loadRcsSpreadsheetAccess(
    * =====================================================
    * ACCESS CONTROL REAL
    * =====================================================
+   *
+   * Sólo llegamos aquí una vez por sesión
+   * para cada Spreadsheet.
    */
 
   try {
@@ -14728,15 +15037,11 @@ async function loadRcsSpreadsheetAccess(
 
     /*
      * ===================================================
-     * PERSISTENCIA SEGURA DE SESIÓN
+     * SESSION
      * ===================================================
      *
-     * Sólo guardamos:
-     *
-     * - accesos concedidos;
-     * - denegaciones explícitas.
-     *
-     * Nunca persistimos timeouts o fallos técnicos.
+     * Guardamos accesos concedidos y denegaciones
+     * explícitas durante toda la sesión.
      */
 
     if (access.granted || access.code === "ACCESS_DENIED") {
