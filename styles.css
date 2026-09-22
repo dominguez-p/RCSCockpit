@@ -6051,3 +6051,333 @@ th {
     white-space: nowrap;
   }
 }
+/* =========================================================
+   MANAGEMENT ROADMAP · VISUAL REDESIGN
+   ========================================================= */
+
+.management-roadmap-board-wrap {
+  margin-top: 10px;
+}
+
+.management-roadmap-board {
+  display: grid;
+  gap: 0;
+  border: 1px solid rgba(0, 19, 145, 0.12);
+  border-radius: 24px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(7, 46, 111, 0.08);
+}
+
+.management-roadmap-board-header {
+  display: grid;
+  grid-template-columns: 280px minmax(720px, 1fr) 260px;
+  align-items: stretch;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0, 19, 145, 0.12);
+}
+
+.management-roadmap-board-left {
+  padding: 26px 22px 18px;
+  background: #ffffff;
+}
+
+.management-roadmap-board-title {
+  font-family: Georgia, serif;
+  font-weight: 700;
+  font-size: 2.3rem;
+  line-height: 1;
+  color: #001391;
+  margin-bottom: 8px;
+}
+
+.management-roadmap-board-subtitle {
+  font-size: 0.95rem;
+  color: rgba(0, 19, 145, 0.7);
+  line-height: 1.4;
+}
+
+.management-roadmap-board-months {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  background: #001391;
+}
+
+.management-roadmap-board-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 86px;
+  padding: 10px 6px;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  font-family: Georgia, serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-transform: none;
+}
+
+.management-roadmap-board-month:last-child {
+  border-right: 0;
+}
+
+.management-roadmap-board-status-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px 16px;
+  background: #edf4ff;
+  color: #001391;
+  font-family: Georgia, serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-left: 1px solid rgba(0, 19, 145, 0.12);
+}
+
+.management-roadmap-board-body {
+  display: grid;
+  gap: 0;
+}
+
+.management-roadmap-row {
+  display: grid;
+  grid-template-columns: 280px minmax(720px, 1fr) 260px;
+  align-items: stretch;
+  min-height: 132px;
+  border-bottom: 1px solid rgba(0, 19, 145, 0.1);
+}
+
+.management-roadmap-row:last-child {
+  border-bottom: 0;
+}
+
+.management-roadmap-row-left {
+  padding: 18px 18px 18px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  background: #ffffff;
+}
+
+.management-roadmap-row-title {
+  font-family: Georgia, serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #001391;
+}
+
+.management-roadmap-row-meta {
+  font-size: 0.95rem;
+  color: rgba(0, 19, 145, 0.76);
+  font-weight: 600;
+}
+
+.management-roadmap-row-timeline {
+  position: relative;
+  min-height: 132px;
+  background: #fbfbfd;
+  border-left: 1px solid rgba(0, 19, 145, 0.08);
+  border-right: 1px solid rgba(0, 19, 145, 0.08);
+  overflow: hidden;
+}
+
+.management-roadmap-row-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.management-roadmap-row-grid-cell {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: calc(100% / 12);
+  border-left: 1px dashed rgba(0, 19, 145, 0.14);
+}
+
+.management-roadmap-row-grid-cell:first-child {
+  border-left: 0;
+}
+
+.management-roadmap-today-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed #ffb04c;
+  opacity: 0.95;
+  z-index: 1;
+}
+
+.management-roadmap-row-bars {
+  position: relative;
+  height: 100%;
+  min-height: 132px;
+  padding: 22px 0;
+}
+
+.management-roadmap-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 0;
+  border: 1px solid rgba(0, 19, 145, 0.08);
+  box-shadow: 0 4px 12px rgba(7, 46, 111, 0.08);
+  overflow: hidden;
+}
+
+.management-roadmap-bar:first-of-type {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.management-roadmap-bar:last-of-type {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.management-roadmap-bar-label {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #001391;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.management-roadmap-bar.is-complete {
+  background: #83d97b;
+}
+
+.management-roadmap-bar.is-progress {
+  background: #7db8eb;
+}
+
+.management-roadmap-bar.is-planned {
+  background: #39c1c4;
+}
+
+.management-roadmap-bar.is-sda {
+  background: #d8d8d8;
+}
+
+.management-roadmap-bar.is-empty {
+  background: #f0f3f8;
+}
+
+.management-roadmap-bar.is-unmapped {
+  background: #f0f3f8;
+}
+
+.management-roadmap-row-empty {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
+  font-size: 0.9rem;
+  color: rgba(0, 19, 145, 0.48);
+  font-weight: 600;
+}
+
+.management-roadmap-status-panel {
+  height: 100%;
+  padding: 16px 18px;
+  background: #edf4ff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+}
+
+.management-roadmap-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+
+.management-roadmap-status-pill.is-done {
+  background: #e0f4e3;
+  color: #207245;
+  border-color: #b7e0c1;
+}
+
+.management-roadmap-status-pill.is-on-track,
+.management-roadmap-status-pill.is-planned {
+  background: #dff1ff;
+  color: #1f5f99;
+  border-color: #b7daf8;
+}
+
+.management-roadmap-status-pill.is-at-risk {
+  background: #ffe3a8;
+  color: #8a5b00;
+  border-color: #f2ce6f;
+}
+
+.management-roadmap-status-pill.is-blocked {
+  background: #f4b1b1;
+  color: #8b1f1f;
+  border-color: #df8e8e;
+}
+
+.management-roadmap-status-pill.is-pending {
+  background: #edf0f6;
+  color: #5b6480;
+  border-color: #d6ddeb;
+}
+
+.management-roadmap-status-progress .management-deliverables-progress,
+.management-roadmap-status-progress
+  .management-deliverables-progress.is-unmapped,
+.management-roadmap-status-progress .management-deliverables-progress.is-empty {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.management-roadmap-status-comments strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #001391;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.management-roadmap-status-comments p {
+  margin: 0;
+  color: rgba(0, 19, 145, 0.84);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.management-roadmap-row-left .management-deliverables-category {
+  width: fit-content;
+  margin-bottom: 2px;
+}
+
+@media (max-width: 1480px) {
+  .management-roadmap-board {
+    overflow-x: auto;
+  }
+
+  .management-roadmap-board-header,
+  .management-roadmap-row {
+    min-width: 1260px;
+  }
+}
