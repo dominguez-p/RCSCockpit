@@ -15,7 +15,9 @@
     HLD: "HL",
   };
   const PRODUCT_SELECTION = new Map();
+  let SELECTED_STAFFING_DOMAIN = "";
 
+  let SELECTED_STAFFING_POOL = "";
   function normalizeDashboardProductId(value) {
     return String(value || "")
       .trim()
@@ -372,20 +374,22 @@
 
       scrums.add(`${position._productId}::${position._scrum}`);
 
-      companies(position).forEach((company) => {
-        const fte = Number(company.fte || 0);
+      (position.assignments || []).forEach((assignment) => {
+        const fte = Number(assignment.fte || 0);
 
         if (!Number.isFinite(fte) || fte <= 0) {
           return;
         }
 
-        if (isInternalCompany(company.name)) {
+        const type = fold(assignment.type);
+
+        if (type.includes("interno")) {
           internalFte += fte;
 
           return;
         }
 
-        if (!fold(company.name).startsWith("sin ")) {
+        if (type.includes("externo")) {
           externalFte += fte;
         }
       });
@@ -463,46 +467,1276 @@
       }))
       .sort((left, right) => right.fte - left.fte);
   }
+  function staffingReportingDomain(position) {
+    const domainCode = String(position?.domain?.code || "")
+      .trim()
+      .toUpperCase();
 
-  function renderKpis(rows) {
-    const data = metrics(rows);
+    const domainLabel = fold(position?.domain?.label);
 
-    const items = [
-      ["⏱", "FTE total", data.totalFte],
-      ["🏦", "FTE interno", data.internalFte],
-      ["🤝", "FTE externo", data.externalFte],
-      ["○", "Sin asignar", data.unassignedFte],
-      ["▦", "Scrums", data.scrums],
-      ["#", "Posiciones", data.positions],
+    const poolLabel = fold(position?.pool?.label);
+
+    /*
+     * =====================================================
+     * RCS ENGINEERING
+     * =====================================================
+     *
+     * Estos Pools pertenecen funcionalmente a RCS
+     * aunque en Staffing puedan venir bajo dominio ENG.
+     */
+
+    const rcsEngineeringPools = [
+      "sw eng - deliv. retail rcs",
+      "architecture at rcs",
+      "sw eng - retail",
+      "business",
+      "design, marketing & be",
     ];
 
-    document.querySelector("#teamsKpis").innerHTML = items
-      .map(
-        ([icon, label, value]) => `
+    if (
+      rcsEngineeringPools.some(
+        (pool) => poolLabel === pool || poolLabel.includes(pool),
+      )
+    ) {
+      return "RCS Engineering";
+    }
+
+    /*
+     * =====================================================
+     * DATA
+     * =====================================================
+     */
+
+    const dataPools = [
+      "ai factory",
+      "data engineer",
+      "architecture at data",
+      "data scientist",
+      "data team",
+    ];
+
+    if (
+      dataPools.some((pool) => poolLabel === pool || poolLabel.includes(pool))
+    ) {
+      return "Data";
+    }
+
+    /*
+     * =====================================================
+     * FALLBACK POR DOMINIO
+     * =====================================================
+     */
+
+    if (
+      domainCode === "RCS" ||
+      domainLabel === "rcs" ||
+      domainLabel.includes("retail client solutions")
+    ) {
+      return "RCS Engineering";
+    }
+
+    if (domainCode === "DAT" || domainLabel === "data") {
+      return "Data";
+    }
+
+    /*
+     * ENG sin Pool reconocido no se asigna
+     * automáticamente a Data.
+     *
+     * Así evitamos volver a clasificar erróneamente
+     * Pools de RCS Engineering.
+     */
+
+    return "Sin dominio";
+  }
+
+  function staffingPoolLabel(position) {
+    const label = String(position?.pool?.label || "").trim();
+
+    if (label) {
+      return label;
+    }
+
+    const code = String(position?.pool?.code || "").trim();
+
+    if (code) {
+      return code;
+    }
+
+    return "Sin Pool";
+  }
+
+  function staffingPoolMetrics(rows) {
+    const pools = new Map();
+
+    rows.forEach((position) => {
+      const domain = staffingReportingDomain(position);
+
+      const pool = staffingPoolLabel(position);
+
+      const key = `${domain}::${pool}`;
+
+      if (!pools.has(key)) {
+        pools.set(key, {
+          domain,
+
+          pool,
+
+          totalFte: 0,
+
+          internalFte: 0,
+
+          externalFte: 0,
+
+          unassignedFte: 0,
+
+          positions: new Set(),
+        });
+      }
+
+      const metric = pools.get(key);
+
+      const demandFte = Number(position.demandFte || 0);
+
+      metric.totalFte += demandFte;
+
+      if (position.id) {
+        metric.positions.add(String(position.id));
+      }
+
+      let positionInternalFte = 0;
+
+      let positionExternalFte = 0;
+
+      (position.assignments || []).forEach((assignment) => {
+        const fte = Number(assignment.fte || 0);
+
+        if (!Number.isFinite(fte) || fte <= 0) {
+          return;
+        }
+
+        const assignmentType = fold(assignment.type);
+
+        if (assignmentType.includes("interno")) {
+          positionInternalFte += fte;
+
+          return;
+        }
+
+        if (assignmentType.includes("externo")) {
+          positionExternalFte += fte;
+        }
+      });
+
+      metric.internalFte += positionInternalFte;
+
+      metric.externalFte += positionExternalFte;
+
+      metric.unassignedFte += Math.max(
+        0,
+        demandFte - positionInternalFte - positionExternalFte,
+      );
+    });
+
+    return [...pools.values()]
+      .map((pool) => ({
+        ...pool,
+
+        positions: pool.positions.size,
+      }))
+      .sort(
+        (left, right) =>
+          left.domain.localeCompare(right.domain, "es") ||
+          right.totalFte - left.totalFte ||
+          left.pool.localeCompare(right.pool, "es"),
+      );
+  }
+
+  function staffingDomainMetrics(rows) {
+    const domains = new Map();
+
+    staffingPoolMetrics(rows).forEach((pool) => {
+      if (!domains.has(pool.domain)) {
+        domains.set(pool.domain, {
+          domain: pool.domain,
+
+          totalFte: 0,
+
+          internalFte: 0,
+
+          externalFte: 0,
+
+          unassignedFte: 0,
+
+          positions: 0,
+
+          pools: 0,
+        });
+      }
+
+      const metric = domains.get(pool.domain);
+
+      metric.totalFte += pool.totalFte;
+
+      metric.internalFte += pool.internalFte;
+
+      metric.externalFte += pool.externalFte;
+
+      metric.unassignedFte += pool.unassignedFte;
+
+      metric.positions += pool.positions;
+
+      metric.pools += 1;
+    });
+
+    const preferredOrder = ["Data", "RCS Engineering", "Sin dominio"];
+
+    return [...domains.values()].sort((left, right) => {
+      const leftIndex = preferredOrder.indexOf(left.domain);
+
+      const rightIndex = preferredOrder.indexOf(right.domain);
+
+      return (
+        (leftIndex >= 0 ? leftIndex : 99) -
+          (rightIndex >= 0 ? rightIndex : 99) ||
+        left.domain.localeCompare(right.domain, "es")
+      );
+    });
+  }
+  function staffingPoolDetailPositions(rows, domainName, poolName) {
+    return rows
+      .filter(
+        (position) =>
+          staffingReportingDomain(position) === domainName &&
+          staffingPoolLabel(position) === poolName,
+      )
+      .map((position) => {
+        let internalFte = 0;
+
+        let externalFte = 0;
+
+        const companies = new Set();
+
+        const people = [];
+
+        (position.assignments || []).forEach((assignment) => {
+          const fte = Number(assignment.fte || 0);
+
+          if (Number.isFinite(fte) && fte > 0) {
+            const assignmentType = fold(assignment.type);
+
+            if (assignmentType.includes("interno")) {
+              internalFte += fte;
+            } else if (assignmentType.includes("externo")) {
+              externalFte += fte;
+            }
+          }
+
+          const company = String(assignment.company || "").trim();
+
+          if (company && !fold(company).startsWith("sin ")) {
+            companies.add(company);
+          }
+
+          const personName = String(assignment.personName || "").trim();
+
+          if (personName) {
+            people.push({
+              name: personName,
+              fte,
+              type: String(assignment.type || "").trim(),
+              company,
+            });
+          }
+        });
+
+        const demandFte = Number(position.demandFte || 0);
+
+        const unassignedFte = Math.max(
+          0,
+          demandFte - internalFte - externalFte,
+        );
+
+        let assignmentLabel = "Sin asignar";
+
+        if (internalFte > 0 && externalFte > 0) {
+          assignmentLabel = "Mixto";
+        } else if (internalFte > 0) {
+          assignmentLabel = "Interno";
+        } else if (externalFte > 0) {
+          assignmentLabel = "Externo";
+        }
+
+        return {
+          id: String(position.id || ""),
+
+          people,
+
+          scrum: String(position._scrum || position.scrum || "Sin Scrum"),
+
+          role: String(position.role || "Sin rol"),
+
+          profile: String(position.profile || "Sin perfil"),
+
+          country: String(
+            position?.country?.label || position?.country?.code || "Sin país",
+          ),
+
+          demandFte,
+
+          internalFte,
+
+          externalFte,
+
+          unassignedFte,
+
+          assignmentLabel,
+
+          companies: [...companies],
+        };
+      })
+      .sort(
+        (left, right) =>
+          right.demandFte - left.demandFte ||
+          left.role.localeCompare(right.role, "es"),
+      );
+  }
+  function renderKpis(rows) {
+    const container = document.querySelector("#teamsKpis");
+
+    if (!container) {
+      return;
+    }
+
+    const domains = staffingDomainMetrics(rows);
+
+    const pools = staffingPoolMetrics(rows);
+
+    const availableDomains = domains.filter(
+      (domain) =>
+        domain.domain === "Data" || domain.domain === "RCS Engineering",
+    );
+
+    if (
+      SELECTED_STAFFING_DOMAIN &&
+      !availableDomains.some(
+        (domain) => domain.domain === SELECTED_STAFFING_DOMAIN,
+      )
+    ) {
+      SELECTED_STAFFING_DOMAIN = "";
+
+      SELECTED_STAFFING_POOL = "";
+    }
+
+    const selectedPools = SELECTED_STAFFING_DOMAIN
+      ? pools.filter((pool) => pool.domain === SELECTED_STAFFING_DOMAIN)
+      : [];
+
+    if (
+      SELECTED_STAFFING_POOL &&
+      !selectedPools.some((pool) => pool.pool === SELECTED_STAFFING_POOL)
+    ) {
+      SELECTED_STAFFING_POOL = "";
+    }
+
+    container.className = "";
+
+    const domainCardsHtml = `
+    <section
+      style="
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      "
+    >
+      ${availableDomains
+        .map((domain) => {
+          const isActive = domain.domain === SELECTED_STAFFING_DOMAIN;
+
+          return `
             <article
-              class="kpi-card"
+              data-staffing-domain="${rcsEsc(domain.domain)}"
+              role="button"
+              tabindex="0"
+              aria-pressed="${isActive ? "true" : "false"}"
+              style="
+                display: grid;
+                gap: 14px;
+                min-height: 190px;
+                padding: 24px 26px;
+
+                border:
+                  ${isActive ? "2px" : "1px"}
+                  solid
+                  ${isActive ? "var(--blue)" : "var(--line)"};
+
+                border-radius: 20px;
+
+                background:
+                  ${isActive ? "#f4f7ff" : "#ffffff"};
+
+                box-shadow:
+                  ${
+                    isActive
+                      ? "0 12px 30px rgba(7, 26, 140, 0.10)"
+                      : "var(--shadow)"
+                  };
+
+                color: inherit;
+
+                text-align: left;
+                cursor: pointer;
+              "
             >
               <div
-                class="kpi-icon"
+                style="
+                  display: flex;
+                  align-items: flex-start;
+                  justify-content: space-between;
+                  gap: 16px;
+                "
               >
-                ${icon}
+                <div>
+                  <span
+                    style="
+                      display: block;
+                      margin-bottom: 6px;
+
+                      color: var(--muted);
+
+                      font-size: 11px;
+                      font-weight: 900;
+                      letter-spacing: 0.08em;
+                      text-transform: uppercase;
+                    "
+                  >
+                    Dominio
+                  </span>
+
+                  <strong
+                    style="
+                      display: block;
+
+                      color: var(--blue);
+
+                      font-family: Georgia, serif;
+                      font-size: 24px;
+                      line-height: 1.1;
+                    "
+                  >
+                    ${rcsEsc(domain.domain)}
+                  </strong>
+                </div>
+
+                <span
+                  style="
+                    display: grid;
+
+                    width: 36px;
+                    height: 36px;
+
+                    place-items: center;
+
+                    border-radius: 999px;
+
+                    background:
+                      ${isActive ? "var(--blue)" : "#edf3ff"};
+
+                    color:
+                      ${isActive ? "#ffffff" : "var(--blue)"};
+
+                    font-size: 18px;
+                    font-weight: 900;
+                  "
+                >
+                  ${isActive ? "−" : "+"}
+                </span>
               </div>
 
               <div>
-                <h3>
-                  ${rcsEsc(label)}
-                </h3>
+                <strong
+                  style="
+                    display: block;
 
-                <strong>
-                  ${formatFte(value)}
+                    color: var(--blue);
+
+                    font-family: Georgia, serif;
+                    font-size: 44px;
+                    line-height: 1;
+                  "
+                >
+                  ${formatFte(domain.totalFte)}
                 </strong>
+
+                <span
+                  style="
+                    display: block;
+                    margin-top: 4px;
+
+                    color: var(--blue);
+
+                    font-size: 14px;
+                    font-weight: 900;
+                  "
+                >
+                  FTE
+                </span>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 14px;
+
+                  padding-top: 12px;
+
+                  border-top: 1px solid var(--line);
+
+                  color: var(--muted);
+
+                  font-size: 12px;
+                  font-weight: 700;
+                "
+              >
+                <span>
+                  ${domain.pools}
+                  ${domain.pools === 1 ? "Pool" : "Pools"}
+                </span>
+
+                <span>
+                  ${domain.positions}
+                  posiciones
+                </span>
               </div>
             </article>
-          `,
-      )
-      .join("");
-  }
+          `;
+        })
+        .join("")}
+    </section>
+  `;
 
+    const poolsHtml = !SELECTED_STAFFING_DOMAIN
+      ? `
+      <div
+        style="
+          margin-top: 16px;
+          padding: 14px 4px 0;
+
+          color: var(--muted);
+
+          font-size: 13px;
+          text-align: center;
+        "
+      >
+        Selecciona un dominio para ver sus Pools.
+      </div>
+    `
+      : `
+      <section
+        style="
+          margin-top: 24px;
+        "
+      >
+        <div
+          style="
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 16px;
+
+            margin-bottom: 12px;
+          "
+        >
+          <div>
+            <span
+              style="
+                display: block;
+                margin-bottom: 4px;
+
+                color: var(--muted);
+
+                font-size: 10px;
+                font-weight: 900;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+              "
+            >
+              ${rcsEsc(SELECTED_STAFFING_DOMAIN)}
+            </span>
+
+            <strong
+              style="
+                color: var(--blue);
+
+                font-family: Georgia, serif;
+                font-size: 22px;
+              "
+            >
+              Pools
+            </strong>
+          </div>
+
+          <span
+            style="
+              color: var(--muted);
+
+              font-size: 12px;
+              font-weight: 700;
+            "
+          >
+            ${selectedPools.length}
+            ${selectedPools.length === 1 ? "Pool" : "Pools"}
+          </span>
+        </div>
+
+        <div
+          style="
+            display: grid;
+
+            grid-template-columns:
+              repeat(auto-fit, minmax(250px, 1fr));
+
+            gap: 12px;
+          "
+        >
+          ${selectedPools
+            .map((pool) => {
+              const isActive = pool.pool === SELECTED_STAFFING_POOL;
+
+              return `
+                <article
+                  data-staffing-pool="${rcsEsc(pool.pool)}"
+                  role="button"
+                  tabindex="0"
+                  aria-pressed="${isActive ? "true" : "false"}"
+
+                  style="
+                    display: grid;
+                    gap: 14px;
+
+                    min-width: 0;
+                    padding: 18px;
+
+                    border:
+                      ${isActive ? "2px" : "1px"}
+                      solid
+                      ${isActive ? "var(--blue)" : "var(--line)"};
+
+                    border-radius: 16px;
+
+                    background:
+                      ${isActive ? "#f4f7ff" : "#ffffff"};
+
+                    color: inherit;
+
+                    text-align: left;
+                    cursor: pointer;
+
+                    box-shadow:
+                      ${
+                        isActive ? "0 8px 22px rgba(7, 26, 140, 0.08)" : "none"
+                      };
+                  "
+                >
+                  <div
+                    style="
+                      display: flex;
+                      align-items: flex-start;
+                      justify-content: space-between;
+                      gap: 14px;
+                    "
+                  >
+                    <div
+                      style="
+                        min-width: 0;
+                      "
+                    >
+                      <span
+                        style="
+                          display: block;
+                          margin-bottom: 4px;
+
+                          color: var(--muted);
+
+                          font-size: 10px;
+                          font-weight: 900;
+                          letter-spacing: 0.08em;
+                          text-transform: uppercase;
+                        "
+                      >
+                        Pool
+                      </span>
+
+                      <strong
+                        style="
+                          display: block;
+
+                          color: var(--blue);
+
+                          font-size: 15px;
+                          line-height: 1.25;
+                        "
+                      >
+                        ${rcsEsc(pool.pool)}
+                      </strong>
+                    </div>
+
+                    <div
+                      style="
+                        flex: 0 0 auto;
+                        text-align: right;
+                      "
+                    >
+                      <strong
+                        style="
+                          display: block;
+
+                          color: var(--blue);
+
+                          font-family: Georgia, serif;
+                          font-size: 26px;
+                          line-height: 1;
+                        "
+                      >
+                        ${formatFte(pool.totalFte)}
+                      </strong>
+
+                      <span
+                        style="
+                          color: var(--muted);
+
+                          font-size: 10px;
+                          font-weight: 900;
+                        "
+                      >
+                        FTE
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    style="
+                      display: grid;
+
+                      grid-template-columns:
+                        repeat(3, minmax(0, 1fr));
+
+                      gap: 8px;
+
+                      padding-top: 12px;
+
+                      border-top: 1px solid var(--line);
+                    "
+                  >
+                    <div>
+                      <span
+                        style="
+                          display: block;
+
+                          color: var(--muted);
+
+                          font-size: 10px;
+                        "
+                      >
+                        Interno
+                      </span>
+
+                      <strong
+                        style="
+                          color: var(--blue);
+
+                          font-size: 14px;
+                        "
+                      >
+                        ${formatFte(pool.internalFte)}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span
+                        style="
+                          display: block;
+
+                          color: var(--muted);
+
+                          font-size: 10px;
+                        "
+                      >
+                        Externo
+                      </span>
+
+                      <strong
+                        style="
+                          color: var(--blue);
+
+                          font-size: 14px;
+                        "
+                      >
+                        ${formatFte(pool.externalFte)}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span
+                        style="
+                          display: block;
+
+                          color: var(--muted);
+
+                          font-size: 10px;
+                        "
+                      >
+                        Sin asignar
+                      </span>
+
+                      <strong
+                        style="
+                          color: var(--blue);
+
+                          font-size: 14px;
+                        "
+                      >
+                        ${formatFte(pool.unassignedFte)}
+                      </strong>
+                    </div>
+                  </div>
+                </article>
+              `;
+            })
+            .join("")}
+        </div>
+      </section>
+    `;
+
+    let detailHtml = "";
+
+    if (SELECTED_STAFFING_DOMAIN && SELECTED_STAFFING_POOL) {
+      const selectedPoolMetric = selectedPools.find(
+        (pool) => pool.pool === SELECTED_STAFFING_POOL,
+      );
+
+      const detailPositions = staffingPoolDetailPositions(
+        rows,
+        SELECTED_STAFFING_DOMAIN,
+        SELECTED_STAFFING_POOL,
+      );
+
+      const assignments = detailPositions.flatMap((position) => {
+        if (!position.people.length) {
+          return [
+            {
+              personName: "Sin asignar",
+
+              scrum: position.scrum,
+
+              role: position.role,
+
+              country: position.country,
+
+              fte: position.unassignedFte || position.demandFte,
+
+              assignmentLabel: "Sin asignar",
+
+              company: "—",
+            },
+          ];
+        }
+
+        return position.people.map((person) => {
+          const assignmentType = fold(person.type);
+
+          let assignmentLabel = "Asignado";
+
+          if (assignmentType.includes("interno")) {
+            assignmentLabel = "Interno";
+          } else if (assignmentType.includes("externo")) {
+            assignmentLabel = "Externo";
+          }
+
+          return {
+            personName: person.name,
+
+            scrum: position.scrum,
+
+            role: position.role,
+
+            country: position.country,
+
+            fte: person.fte,
+
+            assignmentLabel,
+
+            company:
+              person.company && !fold(person.company).startsWith("sin ")
+                ? person.company
+                : "—",
+          };
+        });
+      });
+
+      detailHtml = `
+      <section
+        style="
+          margin-top: 18px;
+
+          border: 1px solid var(--line);
+          border-radius: 18px;
+
+          background: #ffffff;
+
+          overflow: hidden;
+        "
+      >
+        <div
+          style="
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+
+            padding: 20px 22px;
+
+            background: #f7f9ff;
+
+            border-bottom: 1px solid var(--line);
+          "
+        >
+          <div>
+            <span
+              style="
+                display: block;
+                margin-bottom: 5px;
+
+                color: var(--muted);
+
+                font-size: 10px;
+                font-weight: 900;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+              "
+            >
+              ${rcsEsc(SELECTED_STAFFING_DOMAIN)} · Pool
+            </span>
+
+            <h3
+              style="
+                margin: 0;
+
+                color: var(--blue);
+
+                font-family: Georgia, serif;
+                font-size: 24px;
+              "
+            >
+              ${rcsEsc(SELECTED_STAFFING_POOL)}
+            </h3>
+          </div>
+
+          <div
+            style="
+              text-align: right;
+            "
+          >
+            <strong
+              style="
+                display: block;
+
+                color: var(--blue);
+
+                font-family: Georgia, serif;
+                font-size: 32px;
+                line-height: 1;
+              "
+            >
+              ${formatFte(selectedPoolMetric?.totalFte || 0)}
+            </strong>
+
+            <span
+              style="
+                color: var(--muted);
+
+                font-size: 11px;
+                font-weight: 900;
+              "
+            >
+              FTE
+            </span>
+          </div>
+        </div>
+
+        <div
+          style="
+            display: grid;
+
+            grid-template-columns:
+              repeat(4, minmax(0, 1fr));
+
+            border-bottom: 1px solid var(--line);
+          "
+        >
+          ${[
+            ["Interno", selectedPoolMetric?.internalFte || 0],
+            ["Externo", selectedPoolMetric?.externalFte || 0],
+            ["Sin asignar", selectedPoolMetric?.unassignedFte || 0],
+            ["Posiciones", selectedPoolMetric?.positions || 0],
+          ]
+            .map(
+              ([label, value], index) => `
+                <div
+                  style="
+                    padding: 14px 18px;
+
+                    ${index ? "border-left: 1px solid var(--line);" : ""}
+                  "
+                >
+                  <span
+                    style="
+                      display: block;
+                      margin-bottom: 3px;
+
+                      color: var(--muted);
+
+                      font-size: 10px;
+                    "
+                  >
+                    ${rcsEsc(label)}
+                  </span>
+
+                  <strong
+                    style="
+                      color: var(--blue);
+
+                      font-size: 16px;
+                    "
+                  >
+                    ${label === "Posiciones" ? value : formatFte(value)}
+                  </strong>
+                </div>
+              `,
+            )
+            .join("")}
+        </div>
+
+        <div
+          style="
+            padding: 18px 22px 22px;
+          "
+        >
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+
+              margin-bottom: 12px;
+            "
+          >
+            <strong
+              style="
+                color: var(--blue);
+
+                font-family: Georgia, serif;
+                font-size: 18px;
+              "
+            >
+              FTEs
+            </strong>
+
+            <span
+              style="
+                color: var(--muted);
+
+                font-size: 12px;
+              "
+            >
+              ${assignments.length}
+            </span>
+          </div>
+
+          <div
+            style="
+              overflow-x: auto;
+            "
+          >
+            <table
+              style="
+                width: 100%;
+
+                border-collapse: collapse;
+
+                font-size: 12px;
+              "
+            >
+              <thead>
+                <tr
+                  style="
+                    background: #f4f7fb;
+                  "
+                >
+                  ${[
+                    "Persona",
+                    "Scrum",
+                    "Rol",
+                    "País",
+                    "FTE",
+                    "Asignación",
+                    "Empresa",
+                  ]
+                    .map(
+                      (label) => `
+                        <th
+                          style="
+                            padding: 10px 12px;
+
+                            border-bottom: 1px solid var(--line);
+
+                            color: var(--blue);
+
+                            text-align: left;
+                            white-space: nowrap;
+                          "
+                        >
+                          ${rcsEsc(label)}
+                        </th>
+                      `,
+                    )
+                    .join("")}
+                </tr>
+              </thead>
+
+              <tbody>
+                ${assignments
+                  .map(
+                    (assignment) => `
+                      <tr>
+                        <td
+                          style="
+                            padding: 10px 12px;
+
+                            border-bottom: 1px solid var(--line);
+
+                            color: var(--blue);
+
+                            font-weight: 800;
+                          "
+                        >
+                          ${rcsEsc(assignment.personName)}
+                        </td>
+
+                        <td
+                          style="
+                            padding: 10px 12px;
+                            border-bottom: 1px solid var(--line);
+                          "
+                        >
+                          ${rcsEsc(assignment.scrum)}
+                        </td>
+
+                        <td
+                          style="
+                            padding: 10px 12px;
+                            border-bottom: 1px solid var(--line);
+                          "
+                        >
+                          ${rcsEsc(assignment.role)}
+                        </td>
+
+                        <td
+                          style="
+                            padding: 10px 12px;
+                            border-bottom: 1px solid var(--line);
+                          "
+                        >
+                          ${rcsEsc(assignment.country)}
+                        </td>
+
+                        <td
+                          style="
+                            padding: 10px 12px;
+
+                            border-bottom: 1px solid var(--line);
+
+                            color: var(--blue);
+
+                            font-weight: 900;
+                          "
+                        >
+                          ${formatFte(assignment.fte)}
+                        </td>
+
+                        <td
+                          style="
+                            padding: 10px 12px;
+                            border-bottom: 1px solid var(--line);
+                          "
+                        >
+                          ${rcsEsc(assignment.assignmentLabel)}
+                        </td>
+
+                        <td
+                          style="
+                            padding: 10px 12px;
+                            border-bottom: 1px solid var(--line);
+                          "
+                        >
+                          ${rcsEsc(assignment.company)}
+                        </td>
+                      </tr>
+                    `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    `;
+    }
+
+    container.innerHTML = `
+    ${domainCardsHtml}
+
+    ${poolsHtml}
+
+    ${detailHtml}
+  `;
+
+    const domainCards = container.querySelectorAll("[data-staffing-domain]");
+
+    domainCards.forEach((card) => {
+      card.addEventListener("click", () => {
+        const domain = String(card.dataset.staffingDomain || "").trim();
+
+        if (SELECTED_STAFFING_DOMAIN === domain) {
+          SELECTED_STAFFING_DOMAIN = "";
+
+          SELECTED_STAFFING_POOL = "";
+        } else {
+          SELECTED_STAFFING_DOMAIN = domain;
+
+          SELECTED_STAFFING_POOL = "";
+        }
+
+        renderKpis(rows);
+      });
+    });
+
+    const poolCards = container.querySelectorAll("[data-staffing-pool]");
+
+    poolCards.forEach((card) => {
+      card.addEventListener("click", (event) => {
+        event.stopPropagation();
+
+        const pool = String(card.dataset.staffingPool || "").trim();
+
+        SELECTED_STAFFING_POOL = SELECTED_STAFFING_POOL === pool ? "" : pool;
+
+        renderKpis(rows);
+      });
+    });
+  }
   function renderBars(rows) {
     const groups = scrumGroups(rows);
 

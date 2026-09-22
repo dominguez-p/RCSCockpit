@@ -43,7 +43,6 @@ const STAFFING_CONFIG = {
     ],
   },
 };
-
 const STAFFING_SHEET_HEADERS = [
   "programId",
 
@@ -79,6 +78,10 @@ const STAFFING_SHEET_HEADERS = [
 
   "domainLabel",
 
+  "poolCode",
+
+  "poolLabel",
+
   "workforceType",
 
   "status",
@@ -95,6 +98,8 @@ const STAFFING_SHEET_HEADERS = [
 
   "assignedFte",
 
+  "personName",
+
   "profile",
 
   "experience",
@@ -107,7 +112,6 @@ const STAFFING_SHEET_HEADERS = [
 
   "sourceUpdatedAt",
 ];
-
 /*
  * =========================================================
  * REFRESH
@@ -542,6 +546,8 @@ function validateStaffingHeaders_(headerMap) {
 
     "Dominio demandado",
 
+    "Pool demandado",
+
     "Perfil demandado",
 
     "Experiencia demandada",
@@ -575,7 +581,21 @@ function validateStaffingHeaders_(headerMap) {
     }
   });
 }
+function staffingCsvFirstValue_(row, headerMap, headers) {
+  const candidates = Array.isArray(headers) ? headers : [];
 
+  for (const header of candidates) {
+    const value = staffingCsvValue_(row, headerMap, header);
+
+    const normalized = staffingText_(value);
+
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "";
+}
 function staffingCsvValue_(row, headerMap, header) {
   const index = headerMap[staffingFold_(header)];
 
@@ -645,6 +665,12 @@ function normalizeStaffingSourceRow_(row, headerMap, source) {
     staffingCsvValue_(row, headerMap, "Dominio demandado"),
   );
 
+  const poolCode = staffingText_(
+    staffingCsvValue_(row, headerMap, "Pool demandado"),
+  );
+
+  const poolLabel = normalizeStaffingPoolLabel_(poolCode);
+
   const workforceType = normalizeStaffingWorkforceType_(
     staffingCsvValue_(row, headerMap, "SW / Non SW"),
   );
@@ -679,6 +705,20 @@ function normalizeStaffingSourceRow_(row, headerMap, source) {
     assignmentType,
     rawAssignedFte,
   );
+
+  /*
+   * El nombre ha cambiado de cabecera entre
+   * distintas exportaciones de Staffing.
+   *
+   * Lo buscamos de forma tolerante.
+   */
+  const personName = staffingCsvFirstValue_(row, headerMap, [
+    "Nombre persona asignada",
+    "Persona asignada",
+    "Descripción de la asignación",
+    "Descripción asignación",
+    "Descripción",
+  ]);
 
   const assignedProfile = staffingText_(
     staffingCsvValue_(row, headerMap, "Perfil persona asignada"),
@@ -735,6 +775,10 @@ function normalizeStaffingSourceRow_(row, headerMap, source) {
 
     domainLabel: staffingDomainLabel_(domainCode),
 
+    poolCode,
+
+    poolLabel,
+
     workforceType,
 
     status,
@@ -750,6 +794,8 @@ function normalizeStaffingSourceRow_(row, headerMap, source) {
     assignmentReason,
 
     assignedFte,
+
+    personName,
 
     profile,
 
@@ -772,6 +818,7 @@ function staffingRowDedupeKey_(row) {
       row.assignmentType,
       row.assignmentReason,
       row.assignedFte,
+      row.personName,
       row.company,
       row.profile,
       row.experience,
@@ -1280,6 +1327,12 @@ function buildStaffingPositions_(rows) {
           label: staffingText_(row.domainLabel),
         },
 
+        pool: {
+          code: staffingText_(row.poolCode),
+
+          label: staffingText_(row.poolLabel) || "Sin Pool",
+        },
+
         status: staffingText_(row.status),
 
         demandProfile: staffingText_(row.demandProfile),
@@ -1300,6 +1353,7 @@ function buildStaffingPositions_(rows) {
         row.assignmentType,
         row.assignmentReason,
         row.assignedFte,
+        row.personName,
         row.company,
         row.profile,
         row.experience,
@@ -1319,6 +1373,8 @@ function buildStaffingPositions_(rows) {
       reason: staffingText_(row.assignmentReason),
 
       fte: staffingNumber_(row.assignedFte),
+
+      personName: staffingText_(row.personName),
 
       profile:
         staffingText_(row.profile) || position.demandProfile || "Sin perfil",
@@ -1678,4 +1734,22 @@ function staffingSlug_(value) {
   return staffingFold_(value)
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+function normalizeStaffingPoolLabel_(value) {
+  const raw = staffingText_(value);
+
+  if (!raw) {
+    return "Sin Pool";
+  }
+
+  const parts = raw
+    .split(" - ")
+    .map((part) => staffingText_(part))
+    .filter(Boolean);
+
+  if (parts.length >= 3) {
+    return parts.slice(2).join(" - ");
+  }
+
+  return raw;
 }
