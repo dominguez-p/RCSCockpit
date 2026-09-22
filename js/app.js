@@ -7603,7 +7603,7 @@ async function refreshCurrentDataSource() {
 
       syncRcsAccessRoleBadge();
 
-      await render();
+      renderLanding();
 
       return;
     }
@@ -7613,12 +7613,9 @@ async function refreshCurrentDataSource() {
      * PROGRAMA · ACCESS
      * ===================================================
      *
-     * Importante:
+     * Reutilizamos el permiso existente en sesión.
      *
-     * NO forzamos una nueva validación.
-     *
-     * Si ya existe en sessionStorage,
-     * se reutiliza.
+     * No forzamos una nueva validación.
      */
 
     const access = await ensureRcsProgramAccess(normalizedProgramId, false);
@@ -7629,11 +7626,6 @@ async function refreshCurrentDataSource() {
       return;
     }
 
-    /*
-     * Sólo un Editor puede regenerar
-     * las fuentes del programa.
-     */
-
     if (!access.canEdit) {
       throw new Error(
         "Sólo un perfil Editor puede actualizar los datos del programa.",
@@ -7642,7 +7634,7 @@ async function refreshCurrentDataSource() {
 
     /*
      * ===================================================
-     * REFRESH
+     * REFRESH URL
      * ===================================================
      */
 
@@ -7661,9 +7653,19 @@ async function refreshCurrentDataSource() {
     }
 
     /*
-     * El propio refresh devuelve el snapshot nuevo.
+     * ===================================================
+     * REFRESH
+     * ===================================================
      *
-     * Ya no hacemos una segunda llamada action=snapshot.
+     * El backend:
+     *
+     * 1. importa las fuentes;
+     * 2. actualiza la Spreadsheet;
+     * 3. genera app-common-data.json;
+     * 4. devuelve directamente el nuevo snapshot.
+     *
+     * NO debe existir una llamada action=snapshot
+     * después de esta operación.
      */
 
     const rawData = await triggerDataRefresh(refreshUrl, {
@@ -7679,7 +7681,7 @@ async function refreshCurrentDataSource() {
 
     /*
      * ===================================================
-     * INVALIDAR CACHE ANTERIOR
+     * INVALIDAR CACHÉS DERIVADAS ANTERIORES
      * ===================================================
      */
 
@@ -7691,7 +7693,7 @@ async function refreshCurrentDataSource() {
 
     /*
      * ===================================================
-     * INSTALAR SNAPSHOT NUEVO
+     * NORMALIZAR NUEVO SNAPSHOT
      * ===================================================
      */
 
@@ -7703,7 +7705,19 @@ async function refreshCurrentDataSource() {
       restricted: getEmptyRestrictedProgramData(),
     };
 
+    /*
+     * ===================================================
+     * MEMORY CACHE
+     * ===================================================
+     */
+
     PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
+
+    /*
+     * ===================================================
+     * FECHA SNAPSHOT
+     * ===================================================
+     */
 
     const snapshotDate = rawData.generatedAt
       ? new Date(rawData.generatedAt)
@@ -7717,21 +7731,74 @@ async function refreshCurrentDataSource() {
 
     /*
      * ===================================================
-     * SESSION CACHE
+     * SESSION STORAGE
      * ===================================================
      */
 
     writeRcsSessionCache("program", normalizedProgramId, programData, loadedAt);
 
+    /*
+     * ===================================================
+     * INSTALAR DATA
+     * ===================================================
+     */
+
     setRcsDataMode(normalizedProgramId, "live");
 
     DATA = buildProgramData(completeProgramData);
+
+    /*
+     * ===================================================
+     * CACHÉS DERIVADAS
+     * ===================================================
+     *
+     * Se reconstruyen desde PROGRAM_DATA_CACHE.
+     *
+     * No generan llamadas de red porque el snapshot
+     * completo ya está cargado en memoria.
+     */
+
+    if (routeRequiresJiraMsaData(context)) {
+      const jiraMsaData = await loadJiraMsaData(normalizedProgramId, false);
+
+      installJiraMsaData(normalizedProgramId, jiraMsaData);
+    }
+
+    if (routeRequiresJiraFeaturesData(context)) {
+      const jiraFeaturesData = await loadJiraFeaturesData(
+        normalizedProgramId,
+        false,
+      );
+
+      installJiraFeaturesData(normalizedProgramId, jiraFeaturesData);
+    }
+
+    /*
+     * ===================================================
+     * RENDER DIRECTO
+     * ===================================================
+     *
+     * MUY IMPORTANTE:
+     *
+     * NO llamamos a render().
+     *
+     * render() volvería a entrar en:
+     *
+     * loadProgramData()
+     * → Access Control
+     * → snapshot
+     *
+     * cuando acabamos de recibir e instalar
+     * exactamente esos datos.
+     */
+
+    renderRouteContext(context);
 
     updateDataStatus(normalizedProgramId);
 
     clearDataFallbackBanner();
 
-    await render();
+    syncRcsAccessRoleBadge();
   } catch (error) {
     console.error("[RCS] Error actualizando datos", error);
 
