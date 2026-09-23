@@ -5295,12 +5295,6 @@ async function loadConfiguredSource(
    * =====================================================
    * SNAPSHOT
    * =====================================================
-   *
-   * La carga normal nunca solicita datasets live.
-   *
-   * Apps Script únicamente devuelve:
-   *
-   * app-common-data.json
    */
 
   url.searchParams.delete("dataset");
@@ -5311,11 +5305,55 @@ async function loadConfiguredSource(
 
   url.searchParams.set("action", "snapshot");
 
-  const payload = await loadJsonp(url.toString(), {
-    timeoutMs,
-    retries,
-    cacheBust,
-  });
+  let payload;
+
+  try {
+    payload = await loadJsonp(url.toString(), {
+      timeoutMs,
+      retries,
+      cacheBust,
+    });
+  } catch (error) {
+    /*
+     * ===================================================
+     * PRIMER ACCESO AL APPS SCRIPT DEL PROGRAMA
+     * ===================================================
+     *
+     * Google necesita mostrar su pantalla OAuth.
+     *
+     * Una llamada JSONP no puede completar ese flujo
+     * en segundo plano, así que trasladamos el control
+     * a la pantalla de autorización del Cockpit.
+     */
+
+    if (String(error?.code || "").trim() === "JSONP_SCRIPT_ERROR") {
+      const authorizationError = new Error(
+        "Es necesario autorizar el Apps Script del programa.",
+      );
+
+      authorizationError.code = "AUTHORIZATION_REQUIRED";
+
+      authorizationError.authorization = {
+        kind: "program-backend",
+
+        url: url.toString(),
+
+        probeUrl: url.toString(),
+
+        spreadsheetId: String(source?.spreadsheetId || "").trim(),
+
+        programId: String(source?.id || "")
+          .trim()
+          .toLowerCase(),
+
+        label: String(source?.label || source?.id || "el programa").trim(),
+      };
+
+      throw authorizationError;
+    }
+
+    throw error;
+  }
 
   if (!payload || payload.ok === false) {
     throw new Error(
@@ -6382,10 +6420,6 @@ async function loadProgramData(programId, forceRefresh = false) {
      * ===============================================
      * SNAPSHOT
      * ===============================================
-     *
-     * Esta llamada NO genera datos.
-     *
-     * Sólo lee app-common-data.json.
      */
 
     const rawData = await loadConfiguredSource(source, {
@@ -6432,8 +6466,6 @@ async function loadProgramData(programId, forceRefresh = false) {
      * ===============================================
      * SESSION CACHE
      * ===============================================
-     *
-     * Restricted continúa fuera.
      */
 
     writeRcsSessionCache("program", normalizedProgramId, programData, loadedAt);
@@ -6445,6 +6477,53 @@ async function loadProgramData(programId, forceRefresh = false) {
 
   try {
     return await request;
+  } catch (error) {
+    /*
+     * ===================================================
+     * PRIMER ACCESO AL BACKEND DEL PROGRAMA
+     * ===================================================
+     */
+
+    if (String(error?.code || "").trim() === "AUTHORIZATION_REQUIRED") {
+      blockRcsCockpitAccess({
+        spreadsheetId: String(source?.spreadsheetId || "").trim(),
+
+        granted: false,
+
+        role: "none",
+
+        canEdit: false,
+
+        landing: null,
+
+        code: "AUTHORIZATION_REQUIRED",
+
+        authorization:
+          error?.authorization && typeof error.authorization === "object"
+            ? error.authorization
+            : {
+                kind: "program-backend",
+
+                url: String(
+                  source?.snapshotUrl || source?.driveJsonUrl || "",
+                ).trim(),
+
+                probeUrl: String(
+                  source?.snapshotUrl || source?.driveJsonUrl || "",
+                ).trim(),
+
+                spreadsheetId: String(source?.spreadsheetId || "").trim(),
+
+                programId: normalizedProgramId,
+
+                label: source?.label || normalizedProgramId,
+              },
+
+        checkedAt: Date.now(),
+      });
+    }
+
+    throw error;
   } finally {
     requestRegistry.programs.delete(normalizedProgramId);
   }
@@ -15040,11 +15119,6 @@ async function loadRcsSpreadsheetAccess(
    * =====================================================
    * L2 · SESSION CACHE
    * =====================================================
-   *
-   * No usamos TTL.
-   *
-   * Mientras exista la pestaña/sesión,
-   * el permiso sigue siendo válido.
    */
 
   if (!forceRefresh) {
@@ -15069,29 +15143,26 @@ async function loadRcsSpreadsheetAccess(
    * =====================================================
    * ACCESS CONTROL REAL
    * =====================================================
-   *
-   * Sólo llegamos aquí una vez por sesión
-   * para cada Spreadsheet.
    */
 
+  const url = new URL(config.driveJsonUrl, window.location.href);
+
+  url.searchParams.set("spreadsheetId", normalizedSpreadsheetId);
+
+  if (includeLanding) {
+    url.searchParams.set("includeLanding", "1");
+  }
+
+  if (refreshLanding) {
+    url.searchParams.set("refreshLanding", "1");
+  }
+
+  const effectiveTimeoutMs =
+    Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
+      ? Number(timeoutMs)
+      : 30000;
+
   try {
-    const url = new URL(config.driveJsonUrl, window.location.href);
-
-    url.searchParams.set("spreadsheetId", normalizedSpreadsheetId);
-
-    if (includeLanding) {
-      url.searchParams.set("includeLanding", "1");
-    }
-
-    if (refreshLanding) {
-      url.searchParams.set("refreshLanding", "1");
-    }
-
-    const effectiveTimeoutMs =
-      Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
-        ? Number(timeoutMs)
-        : 30000;
-
     const payload = await loadJsonp(url.toString(), {
       timeoutMs: effectiveTimeoutMs,
 
@@ -15106,9 +15177,6 @@ async function loadRcsSpreadsheetAccess(
      * ===================================================
      * SESSION
      * ===================================================
-     *
-     * Guardamos accesos concedidos y denegaciones
-     * explícitas durante toda la sesión.
      */
 
     if (access.granted || access.code === "ACCESS_DENIED") {
@@ -15130,8 +15198,33 @@ async function loadRcsSpreadsheetAccess(
       .trim()
       .toLowerCase();
 
+    const errorCode = String(error?.code || "").trim();
+
     const timeout =
-      message.includes("tiempo de espera") || message.includes("timeout");
+      errorCode === "JSONP_TIMEOUT" ||
+      message.includes("tiempo de espera") ||
+      message.includes("timeout");
+
+    /*
+     * ===================================================
+     * PRIMER ACCESO
+     * ===================================================
+     *
+     * El Web App existe y la petición no ha podido
+     * ejecutarse como script.
+     *
+     * En nuestro runtime esto corresponde al caso
+     * habitual en el que Google necesita mostrar
+     * primero su consentimiento OAuth.
+     */
+
+    const authorizationRequired = errorCode === "JSONP_SCRIPT_ERROR";
+
+    const authorizationUrl = new URL(config.driveJsonUrl, window.location.href);
+
+    authorizationUrl.searchParams.set("mode", "authorize");
+
+    authorizationUrl.searchParams.set("spreadsheetId", normalizedSpreadsheetId);
 
     return {
       spreadsheetId: normalizedSpreadsheetId,
@@ -15144,7 +15237,25 @@ async function loadRcsSpreadsheetAccess(
 
       landing: null,
 
-      code: timeout ? "ACCESS_TIMEOUT" : "ACCESS_CHECK_FAILED",
+      code: authorizationRequired
+        ? "AUTHORIZATION_REQUIRED"
+        : timeout
+          ? "ACCESS_TIMEOUT"
+          : "ACCESS_CHECK_FAILED",
+
+      authorization: authorizationRequired
+        ? {
+            kind: "access-control",
+
+            url: authorizationUrl.toString(),
+
+            probeUrl: url.toString(),
+
+            spreadsheetId: normalizedSpreadsheetId,
+
+            label: includeLanding ? "RCS Cockpit" : "el programa seleccionado",
+          }
+        : null,
 
       checkedAt: Date.now(),
     };
@@ -15287,61 +15398,86 @@ function clearRcsSessionCache() {
 
 function renderRcsAccessScreen(access) {
   const current = document.getElementById("rcsAccessScreen");
+
   if (current) {
     current.remove();
   }
+
   const code = String(access?.code || "").trim();
+
   const denied = code === "ACCESS_DENIED";
+
   const authorizationRequired = code === "AUTHORIZATION_REQUIRED";
+
   const timeout = code === "ACCESS_TIMEOUT";
+
+  const authorizationLabel = String(access?.authorization?.label || "").trim();
+
   const screen = document.createElement("section");
+
   screen.id = "rcsAccessScreen";
+
   screen.className = "rcs-access-screen";
+
   let title = "No se puede validar el acceso";
+
   let message =
     "No se ha podido comprobar tu acceso al RCS Cockpit. Por seguridad no se mostrará información hasta completar la validación.";
+
   let buttonLabel = "Reintentar";
+
   let infoHtml = "";
+
   if (denied) {
     title = "Acceso no autorizado";
+
     message =
       "Tu cuenta no dispone de acceso al RCS Cockpit. Solicita acceso de lectura o edición a la Spreadsheet correspondiente.";
   } else if (authorizationRequired) {
     title = "Primera validación de acceso";
-    message =
-      "Necesitamos validar tu cuenta de Google Workspace antes de acceder al RCS Cockpit.";
+
+    message = authorizationLabel
+      ? `Google Workspace necesita validar tu cuenta antes de acceder a ${authorizationLabel}.`
+      : "Google Workspace necesita validar tu cuenta antes de acceder al RCS Cockpit.";
+
     buttonLabel = "Validar acceso";
+
     infoHtml = `
       <div class="rcs-access-info">
         <span class="rcs-access-info-icon">
           i
         </span>
+
         <div class="rcs-access-info-content">
           <strong class="rcs-access-info-title">
             Normalmente sólo tendrás que hacer esto una vez
           </strong>
+
           <span class="rcs-access-info-text">
-            La validación puede tardar unos minutos.
-            Cuando pulses “Validar acceso”, mantén abiertas
-            tanto esta ventana como la ventana de Google
-            hasta que el proceso termine.
+            Al pulsar “Validar acceso” se abrirá Google Workspace
+            para revisar los permisos. Mantén abiertas ambas ventanas.
+            Cuando termines, el Cockpit continuará automáticamente.
           </span>
         </div>
       </div>
     `;
   } else if (timeout) {
     title = "La validación está tardando";
+
     message =
       "Google Workspace todavía no ha podido completar la comprobación de acceso.";
+
     infoHtml = `
       <div class="rcs-access-info">
         <span class="rcs-access-info-icon">
           i
         </span>
+
         <div class="rcs-access-info-content">
           <strong class="rcs-access-info-title">
             No cierres la ventana
           </strong>
+
           <span class="rcs-access-info-text">
             En algunos casos la primera validación puede tardar
             varios minutos. Puedes pulsar “Reintentar” para
@@ -15351,22 +15487,23 @@ function renderRcsAccessScreen(access) {
       </div>
     `;
   }
+
   screen.innerHTML = `
-    <article
-      class="rcs-access-card"
-    >
-      <span
-        class="rcs-access-brand"
-      >
+    <article class="rcs-access-card">
+      <span class="rcs-access-brand">
         BBVA
       </span>
+
       <h1>
         ${title}
       </h1>
+
       <p id="rcsAccessMainMessage">
         ${message}
       </p>
+
       ${infoHtml}
+
       <div
         id="rcsAccessProgress"
         class="rcs-access-progress"
@@ -15377,10 +15514,12 @@ function renderRcsAccessScreen(access) {
           class="rcs-access-spinner"
           aria-hidden="true"
         ></span>
+
         <span>
           Validando identidad y permisos. No cierres esta ventana.
         </span>
       </div>
+
       <button
         type="button"
         id="rcsAccessAction"
@@ -15389,17 +15528,24 @@ function renderRcsAccessScreen(access) {
       </button>
     </article>
   `;
+
   const app = document.getElementById("app");
+
   if (app) {
     app.hidden = true;
   }
+
   document.body.appendChild(screen);
+
   screen.querySelector("#rcsAccessAction")?.addEventListener("click", () => {
     if (authorizationRequired) {
       setRcsAccessValidationProgress(true);
-      openRcsAccessAuthorization();
+
+      openRcsAccessAuthorization(access);
+
       return;
     }
+
     window.location.reload();
   });
 }
@@ -15582,34 +15728,94 @@ function installRcsAccessRoleTracking() {
   syncRcsAccessRoleBadge();
 }
 
-function openRcsAccessAuthorization() {
-  const config = window.APP_CONFIG?.accessControl;
-  const spreadsheetId = String(
+function openRcsAccessAuthorization(access = null) {
+  const fallbackConfig = window.APP_CONFIG?.accessControl;
+
+  const fallbackSpreadsheetId = String(
     window.APP_CONFIG?.portfolio?.spreadsheetId || "",
   ).trim();
-  if (!config?.driveJsonUrl || !spreadsheetId) {
+
+  let authorization =
+    access?.authorization && typeof access.authorization === "object"
+      ? access.authorization
+      : null;
+
+  /*
+   * =====================================================
+   * COMPATIBILIDAD
+   * =====================================================
+   *
+   * Si por algún flujo antiguo no recibimos contexto,
+   * utilizamos el Access Control del Portfolio.
+   */
+
+  if (!authorization && fallbackConfig?.driveJsonUrl && fallbackSpreadsheetId) {
+    const fallbackUrl = new URL(
+      fallbackConfig.driveJsonUrl,
+      window.location.href,
+    );
+
+    fallbackUrl.searchParams.set("mode", "authorize");
+
+    fallbackUrl.searchParams.set("spreadsheetId", fallbackSpreadsheetId);
+
+    authorization = {
+      kind: "access-control",
+
+      url: fallbackUrl.toString(),
+
+      probeUrl: fallbackUrl.toString(),
+
+      spreadsheetId: fallbackSpreadsheetId,
+
+      label: "RCS Cockpit",
+    };
+  }
+
+  const authorizationUrl = String(authorization?.url || "").trim();
+
+  const probeUrl = String(authorization?.probeUrl || authorizationUrl).trim();
+
+  const kind = String(authorization?.kind || "access-control").trim();
+
+  const spreadsheetId = String(authorization?.spreadsheetId || "").trim();
+
+  if (!authorizationUrl || !probeUrl) {
     setRcsAccessValidationProgress(false);
-    window.alert("El control de acceso no está configurado correctamente.");
+
+    window.alert("No se ha podido preparar la validación de Google Workspace.");
+
     return;
   }
-  const authorizationUrl = new URL(config.driveJsonUrl, window.location.href);
-  authorizationUrl.searchParams.set("mode", "authorize");
-  authorizationUrl.searchParams.set("spreadsheetId", spreadsheetId);
+
+  /*
+   * =====================================================
+   * GOOGLE AUTHORIZATION WINDOW
+   * =====================================================
+   */
+
   const popup = window.open(
-    authorizationUrl.toString(),
+    authorizationUrl,
     "rcsCockpitAuthorization",
     ["width=620", "height=720", "resizable=yes", "scrollbars=yes"].join(","),
   );
+
   if (!popup) {
     setRcsAccessValidationProgress(false);
+
     window.alert(
       "El navegador ha bloqueado la ventana de validación. Permite las ventanas emergentes para RCS Cockpit y vuelve a intentarlo.",
     );
+
     return;
   }
+
   const startedAt = Date.now();
+
   const maxValidationMs = 5 * 60 * 1000;
+
   let checking = false;
+
   const closePopup = () => {
     try {
       if (popup && !popup.closed) {
@@ -15622,25 +15828,139 @@ function openRcsAccessAuthorization() {
       );
     }
   };
+
   const finish = (monitor) => {
     window.clearInterval(monitor);
+
     closePopup();
   };
+
+  const completeAuthorization = (monitor) => {
+    finish(monitor);
+
+    const screen = document.getElementById("rcsAccessScreen");
+
+    const button = screen?.querySelector("#rcsAccessAction");
+
+    const message = screen?.querySelector("#rcsAccessMainMessage");
+
+    if (button) {
+      button.disabled = true;
+
+      button.textContent = "Acceso validado";
+    }
+
+    if (message) {
+      message.textContent = "Acceso validado. Cargando RCS Cockpit...";
+    }
+
+    window.setTimeout(() => {
+      window.location.reload();
+    }, 400);
+  };
+
+  /*
+   * =====================================================
+   * VALIDACIÓN
+   * =====================================================
+   *
+   * Hay dos tipos de Apps Script:
+   *
+   * 1. access-control
+   *    Comprobamos de nuevo el permiso de Spreadsheet.
+   *
+   * 2. program-backend
+   *    Comprobamos que el Web App ya puede ejecutar
+   *    correctamente una llamada JSONP.
+   */
+
+  const validateAuthorization = async () => {
+    if (kind === "access-control") {
+      if (!spreadsheetId) {
+        return {
+          complete: false,
+
+          denied: false,
+
+          access: null,
+        };
+      }
+
+      const result = await loadRcsSpreadsheetAccess(spreadsheetId, true, {
+        timeoutMs: 30000,
+      });
+
+      return {
+        complete: result.granted === true,
+
+        denied: result.code === "ACCESS_DENIED",
+
+        access: result,
+      };
+    }
+
+    try {
+      await loadJsonp(probeUrl, {
+        timeoutMs: 30000,
+
+        retries: 0,
+
+        cacheBust: true,
+      });
+
+      /*
+       * Si JSONP ha podido ejecutar el callback,
+       * la autorización OAuth ya se ha completado.
+       *
+       * El contenido funcional del payload se
+       * validará después durante la carga normal.
+       */
+
+      return {
+        complete: true,
+
+        denied: false,
+
+        access: null,
+      };
+    } catch (error) {
+      const code = String(error?.code || "").trim();
+
+      if (code === "JSONP_SCRIPT_ERROR" || code === "JSONP_TIMEOUT") {
+        return {
+          complete: false,
+
+          denied: false,
+
+          access: null,
+        };
+      }
+
+      throw error;
+    }
+  };
+
   const checkAccess = async (monitor) => {
     if (checking) {
       return;
     }
+
     checking = true;
+
     try {
-      const access = await loadRcsSpreadsheetAccess(spreadsheetId, true);
-      if (access.granted) {
-        finish(monitor);
-        window.location.reload();
+      const result = await validateAuthorization();
+
+      if (result.complete) {
+        completeAuthorization(monitor);
+
         return;
       }
-      if (access.code === "ACCESS_DENIED") {
+
+      if (result.denied) {
         finish(monitor);
-        blockRcsCockpitAccess(access);
+
+        blockRcsCockpitAccess(result.access);
+
         return;
       }
     } catch (error) {
@@ -15649,37 +15969,59 @@ function openRcsAccessAuthorization() {
       checking = false;
     }
   };
+
+  /*
+   * =====================================================
+   * MONITOR
+   * =====================================================
+   */
+
   const monitor = window.setInterval(async () => {
     if (Date.now() - startedAt > maxValidationMs) {
       finish(monitor);
+
       renderRcsAccessScreen({
         granted: false,
+
         role: "none",
+
         canEdit: false,
+
         code: "ACCESS_TIMEOUT",
       });
+
       return;
     }
+
     if (popup.closed) {
       window.clearInterval(monitor);
+
       try {
-        const access = await loadRcsSpreadsheetAccess(spreadsheetId, true);
-        if (access.granted) {
-          window.location.reload();
+        const result = await validateAuthorization();
+
+        if (result.complete) {
+          completeAuthorization(monitor);
+
           return;
         }
-        if (access.code === "ACCESS_DENIED") {
-          blockRcsCockpitAccess(access);
+
+        if (result.denied) {
+          blockRcsCockpitAccess(result.access);
+
           return;
         }
       } catch (error) {
         console.debug("[RCS Access] La autorización no se completó.", error);
       }
+
       setRcsAccessValidationProgress(false);
+
       return;
     }
+
     await checkAccess(monitor);
   }, 5000);
+
   window.setTimeout(() => {
     void checkAccess(monitor);
   }, 2000);

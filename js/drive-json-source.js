@@ -39,10 +39,32 @@ function createJsonpRequest(
       .toString(36)
       .slice(2)}`;
 
+    const requestUrl = new URL(url, window.location.href);
+
+    requestUrl.searchParams.delete("callback");
+
+    requestUrl.searchParams.delete("_");
+
+    requestUrl.searchParams.set("callback", callbackName);
+
+    if (cacheBust) {
+      requestUrl.searchParams.set("_", String(Date.now()));
+    }
+
     const script = document.createElement("script");
 
     let settled = false;
     let timer = null;
+
+    const createRequestError = (message, code) => {
+      const error = new Error(message);
+
+      error.code = code;
+
+      error.requestUrl = requestUrl.toString();
+
+      return error;
+    };
 
     const installLateCallback = () => {
       window[callbackName] = () => {};
@@ -101,33 +123,31 @@ function createJsonpRequest(
     };
 
     script.onerror = () => {
+      const error = createRequestError(
+        "No se ha podido ejecutar la llamada a Apps Script.",
+        "JSONP_SCRIPT_ERROR",
+      );
+
       finish(() => {
-        reject(new Error("No se ha podido ejecutar la llamada a Apps Script."));
+        reject(error);
       });
     };
 
     timer = window.setTimeout(() => {
+      const error = createRequestError(
+        "Tiempo de espera agotado en Apps Script.",
+        "JSONP_TIMEOUT",
+      );
+
       finish(
         () => {
-          reject(new Error("Tiempo de espera agotado en Apps Script."));
+          reject(error);
         },
         {
           preserveLateCallback: true,
         },
       );
     }, timeoutMs);
-
-    const requestUrl = new URL(url, window.location.href);
-
-    requestUrl.searchParams.delete("callback");
-
-    requestUrl.searchParams.delete("_");
-
-    requestUrl.searchParams.set("callback", callbackName);
-
-    if (cacheBust) {
-      requestUrl.searchParams.set("_", String(Date.now()));
-    }
 
     script.src = requestUrl.toString();
 
