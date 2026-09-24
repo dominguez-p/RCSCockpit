@@ -6254,30 +6254,56 @@ function flightDeckStaffingCurrentContext(programId, productId) {
 
 function updateFlightDeckStaffingSummary(programId, productId) {
   const normalizedProgramId = String(programId || "").trim();
+
   const normalizedProductId = normalizeStaffingProductId(productId);
+
   const scrumElement = document.querySelector("#flightDeckStaffingScrumCount");
+
   const totalElement = document.querySelector("#flightDeckStaffingTotalFte");
+
   const internalElement = document.querySelector(
     "#flightDeckStaffingInternalFte",
   );
+
   const externalElement = document.querySelector(
     "#flightDeckStaffingExternalFte",
   );
+
   const summary = document.querySelector("#flightDeckTeamPlanningSummary");
+
   const elements = [
     scrumElement,
     totalElement,
     internalElement,
     externalElement,
   ].filter(Boolean);
+
   if (elements.length !== 4) {
     return;
   }
+
+  const setUnavailable = () => {
+    elements.forEach((element) => {
+      element.textContent = "—";
+
+      element.classList.remove("is-loading");
+
+      element.classList.add("is-unavailable");
+    });
+
+    if (summary) {
+      summary.setAttribute("aria-label", "Staffing no disponible");
+    }
+  };
+
   elements.forEach((element) => {
     element.textContent = "…";
+
     element.classList.add("is-loading");
+
     element.classList.remove("is-unavailable");
   });
+
   ensureFlightDeckStaffingData(normalizedProgramId, normalizedProductId)
     .then((staffingData) => {
       if (
@@ -6288,30 +6314,55 @@ function updateFlightDeckStaffingSummary(programId, productId) {
       ) {
         return;
       }
+
+      /*
+       * =================================================
+       * STAFFING NO CONFIGURADO
+       * =================================================
+       *
+       * No es un error.
+       *
+       * Algunos programas todavía no disponen
+       * de esta fuente.
+       * =================================================
+       */
+
       if (!staffingData) {
-        throw new Error("Staffing no disponible.");
+        setUnavailable();
+
+        return;
       }
+
       scrumElement.textContent = String(staffingData.scrumCount);
+
       totalElement.textContent = formatFlightDeckStaffingFte(
         staffingData.totalFte,
       );
+
       internalElement.textContent = formatFlightDeckStaffingFte(
         staffingData.internalFte,
       );
+
       externalElement.textContent = formatFlightDeckStaffingFte(
         staffingData.externalFte,
       );
+
       elements.forEach((element) => {
         element.classList.remove("is-loading", "is-unavailable");
       });
+
       if (summary) {
         summary.setAttribute(
           "aria-label",
           [
             `${staffingData.scrumCount} scrums`,
+
             `${formatFlightDeckStaffingFte(staffingData.totalFte)} FTE totales`,
+
             `${formatFlightDeckStaffingFte(staffingData.internalFte)} internos`,
+
             `${formatFlightDeckStaffingFte(staffingData.externalFte)} externos`,
+
             `${formatFlightDeckStaffingFte(
               staffingData.unassignedFte,
             )} sin asignar`,
@@ -6320,12 +6371,9 @@ function updateFlightDeckStaffingSummary(programId, productId) {
       }
     })
     .catch((error) => {
-      console.error("[Flight Deck] Error cargando Staffing", error);
-      elements.forEach((element) => {
-        element.textContent = "—";
-        element.classList.remove("is-loading");
-        element.classList.add("is-unavailable");
-      });
+      console.error("[Flight Deck] Error real cargando Staffing", error);
+
+      setUnavailable();
     });
 }
 
