@@ -3381,22 +3381,141 @@ function renderAIxBankerRoadmap(programId, productId, quarter = null) {
 
 function getFlightDeckProjectFeatureCount(programId, productId) {
   const normalizedProgramId = String(programId || "").trim();
+
   const normalizedProductId = normalizeRoadmapProduct(productId);
+
   const features = Array.isArray(DATA?.jiraWorkspaceFeatures)
     ? DATA.jiraWorkspaceFeatures
     : [];
-  return features.filter((item) => {
-    const itemProgramId = String(item.programId || normalizedProgramId).trim();
+
+  /*
+   * Utilizamos el año del Flight SDA.
+   *
+   * Si no está disponible, usamos el año actual.
+   */
+  const sdaFlight = (
+    Array.isArray(DATA?.sdaFlights) ? DATA.sdaFlights : []
+  ).find((item) => {
+    const itemProgramId = String(item.programId || "").trim();
+
     const itemProductId = normalizeRoadmapProduct(
-      item.product || item.productId || item.product_id || "",
+      item.productId || item.product || "",
     );
+
     return (
       itemProgramId === normalizedProgramId &&
       itemProductId === normalizedProductId
     );
+  });
+
+  const year = Number(sdaFlight?.year) || new Date().getFullYear();
+
+  const startOfYear = new Date(year, 0, 1);
+
+  const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
+
+  const parseDate = (value) => {
+    if (!value) {
+      return null;
+    }
+
+    if (typeof parseValidDate === "function") {
+      const parsed = parseValidDate(value);
+
+      if (parsed) {
+        return parsed;
+      }
+    }
+
+    const parsed = new Date(value);
+
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  return features.filter((item) => {
+    const itemProgramId = String(item.programId || normalizedProgramId).trim();
+
+    const itemProductId = normalizeRoadmapProduct(
+      item.product || item.productId || item.product_id || "",
+    );
+
+    if (
+      itemProgramId !== normalizedProgramId ||
+      itemProductId !== normalizedProductId
+    ) {
+      return false;
+    }
+
+    /*
+     * Mismo perímetro temporal que Product Flight Plan:
+     *
+     * sólo Features con una ventana de planificación
+     * que intersecta el año seleccionado.
+     */
+    const startDate = parseDate(item.startDate);
+
+    const endDate = parseDate(item.endDate || item.targetDate);
+
+    if (!startDate || !endDate) {
+      return false;
+    }
+
+    return startDate <= endOfYear && endDate >= startOfYear;
   }).length;
 }
+function getFlightDeckJiraTrackingMetrics(programId, productId) {
+  const normalizedProgramId = String(programId || "").trim();
 
+  const normalizedProductId = normalizeRoadmapProduct(productId);
+
+  const jiraIndexItems = (
+    Array.isArray(DATA?.jiraMsaIndex) ? DATA.jiraMsaIndex : []
+  ).filter((item) => {
+    const itemProgramId = String(item.programId || normalizedProgramId).trim();
+
+    const itemProductId = normalizeRoadmapProduct(
+      item.product || item.productId || normalizedProductId,
+    );
+
+    return (
+      itemProgramId === normalizedProgramId &&
+      itemProductId === normalizedProductId
+    );
+  });
+
+  const trackedItems = jiraIndexItems.filter(
+    (item) =>
+      item.historyAvailable === true || Number(item.historyEntries || 0) > 0,
+  );
+
+  const normalizeStatus = (value) => {
+    if (typeof normalizeRoadmapJiraStatus === "function") {
+      return normalizeRoadmapJiraStatus(value);
+    }
+
+    return String(value || "").trim();
+  };
+
+  const riskBlocked = trackedItems.filter((item) => {
+    const status = normalizeStatus(item.currentStatus || item.status || "");
+
+    return ["Blocked", "Risk", "At Risk", "At-Risk"].includes(status);
+  }).length;
+
+  const done = trackedItems.filter((item) => {
+    const status = normalizeStatus(item.currentStatus || item.status || "");
+
+    return status === "Closed";
+  }).length;
+
+  return {
+    tracked: trackedItems.length,
+
+    riskBlocked,
+
+    done,
+  };
+}
 function updateFlightDeckProjectTrackingMetrics({
   programId,
   productId,
@@ -3404,79 +3523,172 @@ function updateFlightDeckProjectTrackingMetrics({
   msaCount,
 }) {
   const normalizedProgramId = String(programId || "").trim();
+
   const normalizedProductId = normalizeRoadmapProduct(productId);
+
   const sdaElement = document.querySelector("#flightDeckProjectSdaCount");
+
   const msaElement = document.querySelector("#flightDeckProjectMsaCount");
+
   const featureElement = document.querySelector(
     "#flightDeckProjectFeatureCount",
   );
+
   if (sdaElement) {
     sdaElement.textContent = String(Math.max(0, Number(sdaCount) || 0));
   }
+
   if (msaElement) {
     msaElement.textContent = String(Math.max(0, Number(msaCount) || 0));
   }
+
+  /*
+   * =====================================================
+   * TELEMETRÍA JIRA
+   * =====================================================
+   *
+   * renderAIxBankerHome todavía pinta inicialmente
+   * estos indicadores con la lógica legacy.
+   *
+   * Los actualizamos al final del mismo ciclo de render
+   * para que representen el significado correcto:
+   *
+   * JIRA TRACKED  = MSA con histórico disponible.
+   * RISK/BLOCKED  = MSA tracked actualmente bloqueados.
+   * DONE          = MSA tracked cerrados.
+   */
+
+  const paintJiraTelemetry = () => {
+    const currentRoute = String(location.hash || "");
+
+    const expectedRoutePart = `/${normalizedProgramId}/${normalizedProductId}`;
+
+    if (!currentRoute.includes(expectedRoutePart)) {
+      return;
+    }
+
+    const metrics = getFlightDeckJiraTrackingMetrics(
+      normalizedProgramId,
+      normalizedProductId,
+    );
+
+    const trackedElement = document.querySelector("#flightDeckJiraCount");
+
+    const riskElement = document.querySelector("#flightDeckRiskCount");
+
+    const doneElement = document.querySelector("#flightDeckDoneCount");
+
+    if (trackedElement) {
+      trackedElement.textContent = String(metrics.tracked);
+    }
+
+    if (riskElement) {
+      riskElement.textContent = String(metrics.riskBlocked);
+    }
+
+    if (doneElement) {
+      doneElement.textContent = String(metrics.done);
+    }
+  };
+
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(paintJiraTelemetry);
+  } else {
+    Promise.resolve().then(paintJiraTelemetry);
+  }
+
+  /*
+   * =====================================================
+   * FEATURES
+   * =====================================================
+   */
+
   if (!featureElement) {
     return;
   }
+
   const paintFeatureCount = () => {
     const currentFeatureElement = document.querySelector(
       "#flightDeckProjectFeatureCount",
     );
+
     if (!currentFeatureElement) {
       return;
     }
+
     const currentRoute = String(location.hash || "");
+
     const expectedRoutePart = `/${normalizedProgramId}/${normalizedProductId}`;
+
     if (!currentRoute.includes(expectedRoutePart)) {
       return;
     }
+
     currentFeatureElement.textContent = String(
       getFlightDeckProjectFeatureCount(
         normalizedProgramId,
         normalizedProductId,
       ),
     );
+
     currentFeatureElement.classList.remove("is-loading");
+
     currentFeatureElement.classList.remove("is-unavailable");
   };
+
   const alreadyLoadedFeatures =
     Array.isArray(DATA?.jiraWorkspaceFeatures) &&
     DATA.jiraWorkspaceFeatures.some((item) => {
       const itemProgramId = String(
         item.programId || normalizedProgramId,
       ).trim();
+
       return itemProgramId === normalizedProgramId;
     });
+
   if (alreadyLoadedFeatures) {
     paintFeatureCount();
+
     return;
   }
+
   featureElement.textContent = "…";
+
   featureElement.classList.add("is-loading");
+
   if (typeof loadJiraFeaturesData !== "function") {
     featureElement.textContent = "—";
+
     featureElement.classList.remove("is-loading");
+
     featureElement.classList.add("is-unavailable");
+
     return;
   }
+
   loadJiraFeaturesData(normalizedProgramId)
     .then((jiraData) => {
       if (typeof installJiraFeaturesData === "function") {
         installJiraFeaturesData(normalizedProgramId, jiraData);
       }
+
       paintFeatureCount();
     })
     .catch((error) => {
       console.error("[Flight Deck] Error cargando Features JIRA", error);
+
       const currentFeatureElement = document.querySelector(
         "#flightDeckProjectFeatureCount",
       );
+
       if (!currentFeatureElement) {
         return;
       }
+
       currentFeatureElement.textContent = "—";
+
       currentFeatureElement.classList.remove("is-loading");
+
       currentFeatureElement.classList.add("is-unavailable");
     });
 }
@@ -5377,7 +5589,66 @@ function buildProgramData(programData) {
     ...programData,
   };
 }
+function getRcsAuthorizationMarkerKey(kind, url) {
+  const normalizedKind =
+    String(kind || "endpoint")
+      .trim()
+      .toLowerCase() || "endpoint";
 
+  const rawUrl = String(url || "").trim();
+
+  let endpointKey = rawUrl;
+
+  try {
+    const endpoint = new URL(rawUrl, window.location.href);
+
+    endpoint.search = "";
+    endpoint.hash = "";
+
+    endpointKey = `${endpoint.origin}${endpoint.pathname}`.replace(/\/+$/, "");
+  } catch (error) {
+    console.debug(
+      "[RCS Access] No se pudo normalizar el endpoint de autorización.",
+      error,
+    );
+  }
+
+  return [
+    "rcsCockpit",
+    "authorization",
+    "v1",
+    normalizedKind,
+    encodeURIComponent(endpointKey),
+  ].join(":");
+}
+
+function hasRcsAuthorizationMarker(kind, url) {
+  try {
+    const key = getRcsAuthorizationMarkerKey(kind, url);
+
+    return window.localStorage.getItem(key) === "1";
+  } catch (error) {
+    console.debug(
+      "[RCS Access] No se pudo leer el marcador de autorización.",
+      error,
+    );
+
+    return false;
+  }
+}
+
+function markRcsAuthorizationMarker(kind, url) {
+  try {
+    const key = getRcsAuthorizationMarkerKey(kind, url);
+
+    window.localStorage.setItem(key, "1");
+  } catch (error) {
+    console.debug(
+      "[RCS Access] No se pudo guardar el marcador de autorización.",
+      error,
+    );
+  }
+}
 async function loadConfiguredSource(
   source,
   { timeoutMs = 30000, retries = 0, cacheBust = false } = {},
@@ -5412,6 +5683,11 @@ async function loadConfiguredSource(
 
   url.searchParams.set("action", "snapshot");
 
+  const previouslyAuthorized = hasRcsAuthorizationMarker(
+    "program-backend",
+    sourceUrl,
+  );
+
   let payload;
 
   try {
@@ -5420,20 +5696,37 @@ async function loadConfiguredSource(
       retries,
       cacheBust,
     });
+
+    /*
+     * El Apps Script ha ejecutado correctamente
+     * un callback JSONP.
+     *
+     * A partir de este momento sabemos que este
+     * navegador ya ha completado al menos una vez
+     * la autorización de este backend.
+     */
+    markRcsAuthorizationMarker("program-backend", sourceUrl);
   } catch (error) {
     /*
      * ===================================================
-     * PRIMER ACCESO AL APPS SCRIPT DEL PROGRAMA
+     * PRIMER ACCESO REAL AL APPS SCRIPT
      * ===================================================
      *
-     * Google necesita mostrar su pantalla OAuth.
+     * JSONP_SCRIPT_ERROR por sí solo no demuestra que
+     * Google esté pidiendo OAuth.
      *
-     * Una llamada JSONP no puede completar ese flujo
-     * en segundo plano, así que trasladamos el control
-     * a la pantalla de autorización del Cockpit.
+     * Sólo mostramos el flujo de "Primera validación"
+     * cuando el backend nunca ha funcionado previamente
+     * en este navegador.
+     *
+     * Si ya funcionó antes, conservamos el error técnico
+     * original para que el Cockpit pueda utilizar sus
+     * mecanismos normales de caché/fallback.
      */
 
-    if (String(error?.code || "").trim() === "JSONP_SCRIPT_ERROR") {
+    const errorCode = String(error?.code || "").trim();
+
+    if (errorCode === "JSONP_SCRIPT_ERROR" && !previouslyAuthorized) {
       const authorizationError = new Error(
         "Es necesario autorizar el Apps Script del programa.",
       );
@@ -16603,7 +16896,7 @@ async function loadRcsSpreadsheetAccess(
    * =====================================================
    */
 
-  const memoryCached = state.spreadsheets[normalizedSpreadsheetId];
+  const memoryCached = state.spreadsheets[normalizedSpreadsheetId] || null;
 
   const memoryHasLanding =
     memoryCached?.landing && typeof memoryCached.landing === "object";
@@ -16616,25 +16909,50 @@ async function loadRcsSpreadsheetAccess(
    * =====================================================
    * L2 · SESSION CACHE
    * =====================================================
+   *
+   * La leemos también cuando forceRefresh=true.
+   *
+   * En ese caso no la devolvemos directamente,
+   * pero podremos conservarla como fallback si
+   * Apps Script tiene un fallo temporal.
    */
 
-  if (!forceRefresh) {
-    const sessionCached = readRcsSessionCache(
-      "access",
-      normalizedSpreadsheetId,
-    );
+  const sessionCached = readRcsSessionCache("access", normalizedSpreadsheetId);
 
-    const sessionAccess = sessionCached?.data;
+  const sessionAccess = sessionCached?.data || null;
 
-    const sessionHasLanding =
-      sessionAccess?.landing && typeof sessionAccess.landing === "object";
+  const sessionHasLanding =
+    sessionAccess?.landing && typeof sessionAccess.landing === "object";
 
-    if (sessionAccess && (!includeLanding || sessionHasLanding)) {
-      state.spreadsheets[normalizedSpreadsheetId] = sessionAccess;
+  if (
+    !forceRefresh &&
+    sessionAccess &&
+    (!includeLanding || sessionHasLanding)
+  ) {
+    state.spreadsheets[normalizedSpreadsheetId] = sessionAccess;
 
-      return sessionAccess;
-    }
+    return sessionAccess;
   }
+
+  /*
+   * =====================================================
+   * ÚLTIMO ACCESO VÁLIDO
+   * =====================================================
+   *
+   * Un fallo técnico del endpoint no debe convertir
+   * automáticamente a un usuario ya validado en un
+   * usuario pendiente de OAuth.
+   */
+
+  const reusableAccess =
+    memoryCached?.granted === true
+      ? memoryCached
+      : sessionAccess?.granted === true
+        ? sessionAccess
+        : null;
+
+  const reusableHasLanding =
+    reusableAccess?.landing && typeof reusableAccess.landing === "object";
 
   /*
    * =====================================================
@@ -16659,6 +16977,11 @@ async function loadRcsSpreadsheetAccess(
       ? Number(timeoutMs)
       : 30000;
 
+  const previouslyAuthorized = hasRcsAuthorizationMarker(
+    "access-control",
+    config.driveJsonUrl,
+  );
+
   try {
     const payload = await loadJsonp(url.toString(), {
       timeoutMs: effectiveTimeoutMs,
@@ -16667,6 +16990,16 @@ async function loadRcsSpreadsheetAccess(
 
       cacheBust: true,
     });
+
+    /*
+     * Hemos conseguido ejecutar el Web App.
+     *
+     * Independientemente de que el usuario
+     * tenga permiso sobre la Spreadsheet,
+     * Google ya ha completado la autorización
+     * necesaria para ejecutar este endpoint.
+     */
+    markRcsAuthorizationMarker("access-control", config.driveJsonUrl);
 
     const access = normalizeRcsAccessResult(payload, normalizedSpreadsheetId);
 
@@ -16697,6 +17030,8 @@ async function loadRcsSpreadsheetAccess(
 
     const errorCode = String(error?.code || "").trim();
 
+    const scriptError = errorCode === "JSONP_SCRIPT_ERROR";
+
     const timeout =
       errorCode === "JSONP_TIMEOUT" ||
       message.includes("tiempo de espera") ||
@@ -16704,18 +17039,44 @@ async function loadRcsSpreadsheetAccess(
 
     /*
      * ===================================================
-     * PRIMER ACCESO
+     * FALLBACK DE ACCESO
      * ===================================================
      *
-     * El Web App existe y la petición no ha podido
-     * ejecutarse como script.
+     * Si el usuario ya estaba validado en esta sesión
+     * y el Access Control tiene un fallo temporal,
+     * mantenemos ese acceso.
      *
-     * En nuestro runtime esto corresponde al caso
-     * habitual en el que Google necesita mostrar
-     * primero su consentimiento OAuth.
+     * No hacemos esto durante un refresh explícito
+     * de la landing, porque ahí sí queremos conocer
+     * el resultado real de la actualización.
      */
 
-    const authorizationRequired = errorCode === "JSONP_SCRIPT_ERROR";
+    const canReuseAccess =
+      !refreshLanding &&
+      reusableAccess &&
+      (!includeLanding || reusableHasLanding);
+
+    if (canReuseAccess && (scriptError || timeout)) {
+      console.warn(
+        "[RCS Access] Fallo temporal de validación. Se mantiene el acceso ya validado en sesión.",
+      );
+
+      state.spreadsheets[normalizedSpreadsheetId] = reusableAccess;
+
+      return reusableAccess;
+    }
+
+    /*
+     * ===================================================
+     * PRIMER ACCESO REAL
+     * ===================================================
+     *
+     * Un JSONP_SCRIPT_ERROR sólo se considera OAuth
+     * pendiente cuando este navegador nunca ha
+     * conseguido ejecutar correctamente el Web App.
+     */
+
+    const authorizationRequired = scriptError && !previouslyAuthorized;
 
     const authorizationUrl = new URL(config.driveJsonUrl, window.location.href);
 
@@ -17049,8 +17410,24 @@ function renderRcsAccessScreen(access) {
 
 function blockRcsCockpitAccess(access) {
   const state = getRcsAccessState();
+
   state.blocked = true;
-  clearRcsSessionCache();
+
+  /*
+   * Sólo eliminamos la sesión cuando el backend
+   * ha confirmado explícitamente que el usuario
+   * ya no tiene acceso.
+   *
+   * Un timeout, un error de red o un fallo temporal
+   * de Apps Script no invalidan un permiso que ya
+   * había sido comprobado correctamente.
+   */
+  const code = String(access?.code || "").trim();
+
+  if (code === "ACCESS_DENIED") {
+    clearRcsSessionCache();
+  }
+
   renderRcsAccessScreen(access);
 }
 
