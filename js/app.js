@@ -23,7 +23,7 @@ let selectedTeamQuarter = "ALL";
 let showManagementSpaceVision = false;
 const MANAGEMENT_GLOBAL_STATUS_PRODUCT_ID = "blue-global-status";
 const MANAGEMENT_GLOBAL_STATUS_YEAR = 2026;
-const MANAGEMENT_GLOBAL_STATUS_MANUAL_VALUES = ["N/A", "2027"];
+const MANAGEMENT_GLOBAL_STATUS_MANUAL_VALUES = ["N/A", "2027", "100%"];
 const MANAGEMENT_GLOBAL_STATUS_CONFIG = Object.freeze({
   title: "Blue Buddy Global Status",
   subtitle: "Executive snapshot",
@@ -12269,143 +12269,176 @@ function isManagementRoadmapDraftDirty() {
 
 async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
   const state = getManagementRoadmapMappingEditorState();
+
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
+
   const normalizedLineId = String(executiveLineId || "")
     .trim()
     .toLowerCase();
+
   const source = getProgramSource(normalizedProgramId);
+
   if (!source || !source.driveJsonUrl) {
     window.alert(
       "No existe un Web App configurado para guardar las relaciones.",
     );
+
     return;
   }
+
   const saveButton = document.querySelector(
     "[data-management-roadmap-mapping-save]",
   );
+
   const statusElement = document.querySelector(
     ".management-roadmap-mapping-session-note",
   );
+
   if (saveButton) {
     saveButton.disabled = true;
     saveButton.textContent = "Guardando...";
   }
+
   if (statusElement) {
     statusElement.innerHTML = `
       <strong>
         Guardando cambios
       </strong>
+
       <span>
         Actualizando Management Roadmap Links...
       </span>
     `;
   }
+
   try {
     const currentLinks = Array.isArray(DATA?.managementRoadmapLinks)
       ? DATA.managementRoadmapLinks
       : [];
-    /*
-     * Quitamos las relaciones actuales
-     * de la línea que se está editando.
-     */
+
     const unrelatedLinks = currentLinks.filter(
       (link) =>
         String(link.executiveLineId || "")
           .trim()
           .toLowerCase() !== normalizedLineId,
     );
-    /*
-     * Incorporamos el draft actual.
-     *
-     * Después saneamos la fotografía
-     * completa para eliminar:
-     *
-     * - relaciones incompletas;
-     * - duplicados;
-     * - residuos antiguos.
-     */
+
     const nextLinks = buildManagementRoadmapPersistableLinks([
       ...unrelatedLinks,
       ...cloneManagementRoadmapLinks(state.draftLinks),
     ]);
-    const payload = {
-      action: "save-management-roadmap-links",
-      links: nextLinks,
-    };
+
     /*
-     * Limpiamos la URL antes del POST.
+     * =====================================================
+     * WRITE
+     * =====================================================
      */
     const endpoint = new URL(source.driveJsonUrl, window.location.href);
+
     endpoint.searchParams.delete("callback");
     endpoint.searchParams.delete("_");
     endpoint.searchParams.delete("dataset");
+    endpoint.searchParams.delete("action");
+
     await fetch(endpoint.toString(), {
       method: "POST",
       mode: "no-cors",
       credentials: "include",
       cache: "no-store",
+
       headers: {
         "Content-Type": "text/plain;charset=UTF-8",
       },
-      body: JSON.stringify(payload),
+
+      body: JSON.stringify({
+        action: "save-management-roadmap-links",
+
+        links: nextLinks,
+      }),
     });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+
     /*
-     * Damos tiempo a Sheets para
-     * hacer visible la escritura.
+     * =====================================================
+     * DIRECT READ-BACK
+     * =====================================================
      */
-    await new Promise((resolve) => window.setTimeout(resolve, 900));
-    /*
-     * Volvemos a cargar el CORE.
-     *
-     * managementRoadmapLinks ya forma
-     * parte de SHEETS, por lo que
-     * getCoreAppData_() lo devolverá.
-     */
-    const rawData = await loadConfiguredSource(source, {
-      timeoutMs: 25000,
-      retries: 0,
-      cacheBust: true,
-    });
-    const normalizedData = normalizeProgramData(normalizedProgramId, rawData);
+    const persistedConfig =
+      await loadManagementRoadmapConfig(normalizedProgramId);
+
     const persistedLinks = buildManagementRoadmapPersistableLinks(
-      normalizedData?.managementRoadmapLinks,
+      persistedConfig.managementRoadmapLinks,
     );
+
+    /*
+     * =====================================================
+     * VERIFY
+     * =====================================================
+     */
     const expectedSignature =
       getManagementRoadmapPersistenceSignature(nextLinks);
+
     const persistedSignature =
       getManagementRoadmapPersistenceSignature(persistedLinks);
+
     if (expectedSignature !== persistedSignature) {
+      console.error("[Management Roadmap] Persistencia de links distinta", {
+        expectedSignature,
+        persistedSignature,
+        expectedLinks: nextLinks,
+        persistedLinks,
+      });
+
       throw new Error(
-        "La Spreadsheet no devuelve las relaciones que se acaban de guardar.",
+        "Las relaciones SDA escritas en Management Roadmap Links no coinciden con las enviadas.",
       );
     }
+
     /*
-     * Actualizamos el dataset vivo.
+     * =====================================================
+     * DATA
+     * =====================================================
      */
     DATA.managementRoadmapLinks = persistedLinks;
+
+    DATA.managementRoadmapLines = buildManagementRoadmapPersistableLines(
+      persistedConfig.managementRoadmapLines,
+    );
+
     if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
       const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
       PROGRAM_DATA_CACHE.set(normalizedProgramId, {
         ...cached,
-        managementRoadmapLinks: persistedLinks,
+
+        managementRoadmapLinks: DATA.managementRoadmapLinks,
+
+        managementRoadmapLines: DATA.managementRoadmapLines,
       });
     }
+
     state.originalLinks = cloneManagementRoadmapLinks(state.draftLinks);
+
     closeManagementRoadmapMappingPanel();
+
     await render();
   } catch (error) {
     console.error("[Management Roadmap] Error guardando relaciones", error);
+
     if (saveButton) {
       saveButton.disabled = false;
       saveButton.textContent = "Guardar";
     }
+
     if (statusElement) {
       statusElement.innerHTML = `
         <strong>
           No se han podido guardar los cambios
         </strong>
+
         <span>
           ${rcsEsc(error?.message || "Error desconocido.")}
         </span>
@@ -12528,11 +12561,19 @@ function installManagementRoadmapPersistenceUiObserver() {
 }
 installManagementRoadmapPersistenceUiObserver();
 function normalizeManagementGlobalStatusManualValue(value) {
-  const normalized = String(value || "")
+  /*
+   * Google Sheets puede devolver un porcentaje
+   * introducido como 100% como valor numérico 1.
+   */
+  if (Number(value) === 1 && String(value).trim() !== "100") {
+    return "100%";
+  }
+
+  const normalized = String(value ?? "")
     .trim()
     .toUpperCase();
 
-  if (normalized === "N/A" || normalized === "2027") {
+  if (normalized === "N/A" || normalized === "2027" || normalized === "100%") {
     return normalized;
   }
 
@@ -12735,12 +12776,445 @@ function getManagementGlobalStatusProgress(line) {
     manualValue: normalizeManagementGlobalStatusManualValue(line?.manualValue),
   };
 }
+function getManagementGlobalStatusUiState() {
+  if (!window.RCS_MANAGEMENT_GLOBAL_STATUS_UI) {
+    window.RCS_MANAGEMENT_GLOBAL_STATUS_UI = {
+      editMode: false,
+      saving: false,
+      draftManualValues: {},
+      lastSavedAt: "",
+    };
+  }
 
+  return window.RCS_MANAGEMENT_GLOBAL_STATUS_UI;
+}
+
+function beginManagementGlobalStatusConfiguration(programId) {
+  if (!rcsCanEdit(programId)) {
+    return;
+  }
+
+  installManagementGlobalStatusSeedLines(programId);
+
+  const state = getManagementGlobalStatusUiState();
+
+  state.editMode = true;
+  state.saving = false;
+  state.draftManualValues = {};
+
+  getEffectiveManagementExecutiveLines()
+    .filter(
+      (line) =>
+        normalizeRoadmapProduct(line.productId) ===
+        normalizeRoadmapProduct(MANAGEMENT_GLOBAL_STATUS_PRODUCT_ID),
+    )
+    .forEach((line) => {
+      state.draftManualValues[line.id] =
+        normalizeManagementGlobalStatusManualValue(line.manualValue);
+    });
+
+  renderManagementGlobalStatusView(programId);
+}
+
+function cancelManagementGlobalStatusConfiguration(programId) {
+  const state = getManagementGlobalStatusUiState();
+
+  state.editMode = false;
+  state.saving = false;
+  state.draftManualValues = {};
+
+  renderManagementGlobalStatusView(programId);
+}
+
+function getManagementGlobalStatusDraftManualValue(line) {
+  const state = getManagementGlobalStatusUiState();
+
+  if (
+    state.editMode &&
+    Object.prototype.hasOwnProperty.call(
+      state.draftManualValues,
+      String(line?.id || ""),
+    )
+  ) {
+    return normalizeManagementGlobalStatusManualValue(
+      state.draftManualValues[String(line.id)],
+    );
+  }
+
+  return normalizeManagementGlobalStatusManualValue(line?.manualValue);
+}
+
+function setManagementGlobalStatusDraftManualValue(lineId, value) {
+  const state = getManagementGlobalStatusUiState();
+
+  if (!state.editMode) {
+    return;
+  }
+
+  const normalizedLineId = String(lineId || "").trim();
+
+  if (!normalizedLineId) {
+    return;
+  }
+
+  state.draftManualValues[normalizedLineId] =
+    normalizeManagementGlobalStatusManualValue(value);
+}
+async function loadManagementRoadmapConfig(programId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const source = getProgramSource(normalizedProgramId);
+
+  if (!source || !source.driveJsonUrl) {
+    throw new Error(
+      "No existe un Web App configurado para leer la configuración del Roadmap.",
+    );
+  }
+
+  if (typeof loadJsonp !== "function") {
+    throw new Error("No está disponible la función loadJsonp.");
+  }
+
+  const endpoint = new URL(source.driveJsonUrl, window.location.href);
+
+  endpoint.searchParams.delete("dataset");
+  endpoint.searchParams.delete("itemId");
+  endpoint.searchParams.delete("action");
+
+  endpoint.searchParams.set("action", "management-roadmap-config");
+
+  const payload = await loadJsonp(endpoint.toString(), {
+    timeoutMs: 25000,
+    retries: 1,
+    cacheBust: true,
+  });
+
+  if (!payload || payload.ok === false) {
+    throw new Error(
+      payload?.error ||
+        "No se ha podido leer la configuración persistida del Roadmap.",
+    );
+  }
+
+  return {
+    managementRoadmapLines: Array.isArray(payload.managementRoadmapLines)
+      ? payload.managementRoadmapLines
+      : [],
+
+    managementRoadmapLinks: Array.isArray(payload.managementRoadmapLinks)
+      ? payload.managementRoadmapLinks
+      : [],
+
+    generatedAt: String(payload.generatedAt || ""),
+  };
+}
+function getManagementGlobalStatusPersistenceSignature(lines) {
+  return (Array.isArray(lines) ? lines : [])
+    .filter(
+      (line) =>
+        normalizeRoadmapProduct(line?.productId) ===
+        normalizeRoadmapProduct(MANAGEMENT_GLOBAL_STATUS_PRODUCT_ID),
+    )
+    .map((line) => ({
+      id: String(line?.id || "")
+        .trim()
+        .toLowerCase(),
+
+      manualValue: normalizeManagementGlobalStatusManualValue(
+        line?.manualValue,
+      ),
+    }))
+    .filter((line) => line.id)
+    .sort((left, right) => left.id.localeCompare(right.id))
+    .map((line) => JSON.stringify(line))
+    .join("|");
+}
+async function saveManagementGlobalStatusConfiguration(programId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  if (!rcsCanEdit(normalizedProgramId)) {
+    return;
+  }
+
+  const state = getManagementGlobalStatusUiState();
+
+  if (!state.editMode || state.saving) {
+    return;
+  }
+
+  const source = getProgramSource(normalizedProgramId);
+
+  if (!source || !source.driveJsonUrl) {
+    window.alert(
+      "No existe un Web App configurado para guardar el Global Status.",
+    );
+    return;
+  }
+
+  installManagementGlobalStatusSeedLines(normalizedProgramId);
+
+  /*
+   * =====================================================
+   * 45 FILAS CANÓNICAS
+   * =====================================================
+   *
+   * Partimos siempre del seed actual.
+   *
+   * De esta forma una versión antigua no puede dejar
+   * residuos en la Spreadsheet.
+   */
+  const seedLines = buildManagementGlobalStatusSeedLines(normalizedProgramId);
+
+  const currentLines = Array.isArray(DATA?.managementRoadmapLines)
+    ? DATA.managementRoadmapLines
+    : [];
+
+  const currentById = new Map(
+    currentLines.map((line) => [
+      String(line?.id || "")
+        .trim()
+        .toLowerCase(),
+      line,
+    ]),
+  );
+
+  const globalStatusLines = buildManagementRoadmapPersistableLines(
+    seedLines.map((seedLine) => {
+      const key = String(seedLine.id || "")
+        .trim()
+        .toLowerCase();
+
+      const currentLine = currentById.get(key) || {};
+
+      const hasDraftValue = Object.prototype.hasOwnProperty.call(
+        state.draftManualValues,
+        seedLine.id,
+      );
+
+      return {
+        ...seedLine,
+        ...currentLine,
+
+        /*
+         * Mantenemos siempre identidad y estructura
+         * del seed actual.
+         */
+        id: seedLine.id,
+        programId: seedLine.programId,
+        productId: seedLine.productId,
+        country: seedLine.country,
+        year: seedLine.year,
+        order: seedLine.order,
+        category: seedLine.category,
+        categoryTone: seedLine.categoryTone,
+        title: seedLine.title,
+        active: true,
+
+        manualValue: hasDraftValue
+          ? normalizeManagementGlobalStatusManualValue(
+              state.draftManualValues[seedLine.id],
+            )
+          : normalizeManagementGlobalStatusManualValue(currentLine.manualValue),
+      };
+    }),
+  );
+
+  /*
+   * Protección: la configuración actual
+   * debe contener exactamente 45 celdas.
+   */
+  if (globalStatusLines.length !== 45) {
+    console.error(
+      "[Blue Buddy Global Status] Número inesperado de líneas",
+      globalStatusLines,
+    );
+
+    window.alert(
+      `La configuración contiene ${globalStatusLines.length} celdas en lugar de 45.`,
+    );
+
+    return;
+  }
+
+  state.saving = true;
+
+  const saveButton = document.querySelector(
+    "[data-management-global-status-save]",
+  );
+
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.textContent = "Guardando...";
+  }
+
+  try {
+    /*
+     * =====================================================
+     * WRITE
+     * =====================================================
+     */
+    const endpoint = new URL(source.driveJsonUrl, window.location.href);
+
+    endpoint.searchParams.delete("callback");
+    endpoint.searchParams.delete("_");
+    endpoint.searchParams.delete("dataset");
+    endpoint.searchParams.delete("action");
+
+    await fetch(endpoint.toString(), {
+      method: "POST",
+      mode: "no-cors",
+      credentials: "include",
+      cache: "no-store",
+
+      headers: {
+        "Content-Type": "text/plain;charset=UTF-8",
+      },
+
+      body: JSON.stringify({
+        action: "save-management-global-status-lines",
+
+        lines: globalStatusLines,
+      }),
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
+
+    /*
+     * =====================================================
+     * READ BACK DIRECTO
+     * =====================================================
+     */
+    const persistedConfig =
+      await loadManagementRoadmapConfig(normalizedProgramId);
+
+    const persistedLines = buildManagementRoadmapPersistableLines(
+      persistedConfig.managementRoadmapLines,
+    );
+
+    const persistedGlobalStatus = persistedLines.filter(
+      (line) =>
+        normalizeRoadmapProduct(line?.productId) ===
+        normalizeRoadmapProduct(MANAGEMENT_GLOBAL_STATUS_PRODUCT_ID),
+    );
+
+    /*
+     * =====================================================
+     * VALIDACIÓN ESTRUCTURAL
+     * =====================================================
+     */
+    if (persistedGlobalStatus.length !== 45) {
+      console.error("[Blue Buddy Global Status] Persistencia incorrecta", {
+        expected: 45,
+        persisted: persistedGlobalStatus.length,
+        persistedGlobalStatus,
+      });
+
+      throw new Error(
+        `Se esperaban 45 celdas de Global Status y se han recuperado ${persistedGlobalStatus.length}.`,
+      );
+    }
+
+    /*
+     * =====================================================
+     * VALIDACIÓN DE VALORES
+     * =====================================================
+     */
+    const expectedSignature =
+      getManagementGlobalStatusPersistenceSignature(globalStatusLines);
+
+    const persistedSignature = getManagementGlobalStatusPersistenceSignature(
+      persistedGlobalStatus,
+    );
+
+    if (expectedSignature !== persistedSignature) {
+      console.error("[Blue Buddy Global Status] Valores manuales distintos", {
+        expectedGlobalStatus: globalStatusLines.map((line) => ({
+          id: line.id,
+          manualValue: line.manualValue,
+        })),
+
+        persistedGlobalStatus: persistedGlobalStatus.map((line) => ({
+          id: line.id,
+          manualValue: line.manualValue,
+        })),
+      });
+
+      throw new Error(
+        "Los valores manuales recuperados no coinciden con los guardados.",
+      );
+    }
+
+    /*
+     * =====================================================
+     * DATA LOCAL
+     * =====================================================
+     */
+    DATA.managementRoadmapLines = persistedLines;
+
+    DATA.managementRoadmapLinks = buildManagementRoadmapPersistableLinks(
+      persistedConfig.managementRoadmapLinks,
+    );
+
+    if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+      const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
+      PROGRAM_DATA_CACHE.set(normalizedProgramId, {
+        ...cached,
+
+        managementRoadmapLines: DATA.managementRoadmapLines,
+
+        managementRoadmapLinks: DATA.managementRoadmapLinks,
+      });
+    }
+
+    /*
+     * =====================================================
+     * FIN EDICIÓN
+     * =====================================================
+     */
+    state.editMode = false;
+    state.saving = false;
+    state.draftManualValues = {};
+    state.lastSavedAt = new Date().toISOString();
+
+    renderManagementGlobalStatusView(normalizedProgramId);
+  } catch (error) {
+    console.error(
+      "[Blue Buddy Global Status] Error guardando configuración",
+      error,
+    );
+
+    state.saving = false;
+
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = "Guardar cambios";
+    }
+
+    window.alert(
+      error?.message ||
+        "No se ha podido guardar la configuración del Global Status.",
+    );
+  }
+}
 function renderManagementGlobalStatusCell(programId, line) {
-  const canEdit = rcsCanEdit(programId);
+  const uiState = getManagementGlobalStatusUiState();
+  const editMode = uiState.editMode && rcsCanEdit(programId);
+
   const progress = getManagementGlobalStatusProgress(line);
   const hasLinks = progress.links.length > 0;
 
+  const manualValue = getManagementGlobalStatusDraftManualValue(line);
+
+  /*
+   * =====================================================
+   * FEATURES
+   * =====================================================
+   */
   if (hasLinks && progress.featureCount > 0) {
     const cardClass =
       progress.progress === 100
@@ -12757,18 +13231,20 @@ function renderManagementGlobalStatusCell(programId, line) {
         </div>
 
         <div class="management-global-status-subline">
-          <strong>${rcsEsc(progress.deployedCount)}/${rcsEsc(progress.featureCount)}</strong>
+          <strong>
+            ${rcsEsc(progress.deployedCount)}/${rcsEsc(progress.featureCount)}
+          </strong>
           Features desplegadas
         </div>
 
-        <div class="management-global-status-subline">
-          <strong>${rcsEsc(progress.links.length)}</strong>
-          asociación(es) SDA / deliverable
-        </div>
-
         ${
-          canEdit
+          editMode
             ? `
+              <div class="management-global-status-subline">
+                <strong>${rcsEsc(progress.links.length)}</strong>
+                asociación(es) SDA / deliverable
+              </div>
+
               <div class="management-global-status-actions">
                 <button
                   class="management-roadmap-action"
@@ -12786,18 +13262,26 @@ function renderManagementGlobalStatusCell(programId, line) {
     `;
   }
 
+  /*
+   * =====================================================
+   * SDA ASOCIADA PERO SIN FEATURES
+   * =====================================================
+   */
   if (hasLinks && progress.featureCount === 0) {
     return `
       <div class="management-global-status-cell-card is-warning">
-        <div class="management-global-status-manual">Sin Features</div>
-
-        <div class="management-global-status-subline">
-          Hay asociaciones SDA / deliverable, pero no se han encontrado Features para este país.
+        <div class="management-global-status-manual">
+          Sin Features
         </div>
 
         ${
-          canEdit
+          editMode
             ? `
+              <div class="management-global-status-subline">
+                Hay una asociación SDA / deliverable,
+                pero no se han encontrado Features para este país.
+              </div>
+
               <div class="management-global-status-actions">
                 <button
                   class="management-roadmap-action"
@@ -12815,60 +13299,75 @@ function renderManagementGlobalStatusCell(programId, line) {
     `;
   }
 
+  /*
+   * =====================================================
+   * READ ONLY
+   * =====================================================
+   */
+  if (!editMode) {
+    return `
+      <div class="management-global-status-cell-card is-empty">
+        ${
+          manualValue
+            ? `
+              <div class="management-global-status-manual">
+                ${rcsEsc(manualValue)}
+              </div>
+            `
+            : `
+              <div class="management-global-status-empty-label">
+                —
+              </div>
+            `
+        }
+      </div>
+    `;
+  }
+
+  /*
+   * =====================================================
+   * CONFIGURACIÓN
+   * =====================================================
+   */
   return `
     <div class="management-global-status-cell-card is-empty">
-      ${
-        progress.manualValue
-          ? `
-            <div class="management-global-status-manual">
-              ${rcsEsc(progress.manualValue)}
-            </div>
-          `
-          : `
-            <div class="management-global-status-empty-label">
-              Sin SDA asociada
-            </div>
-          `
-      }
-
-      <div class="management-global-status-subline">
-        Si esta capability todavía no se mide por Features, se puede informar manualmente como <strong>N/A</strong> o <strong>2027</strong>.
+      <div class="management-global-status-empty-label">
+        Sin SDA asociada
       </div>
 
-      ${
-        canEdit
-          ? `
-            <div class="management-global-status-actions">
-              <select
-                class="management-global-status-select"
-                data-management-global-status-manual
-                data-line-id="${rcsEsc(line.id)}"
-              >
-                <option value="">Seleccionar…</option>
-                ${MANAGEMENT_GLOBAL_STATUS_MANUAL_VALUES.map(
-                  (value) => `
-                    <option
-                      value="${rcsEsc(value)}"
-                      ${progress.manualValue === value ? "selected" : ""}
-                    >
-                      ${rcsEsc(value)}
-                    </option>
-                  `,
-                ).join("")}
-              </select>
+      <div class="management-global-status-subline">
+        Asocia una SDA o informa un valor manual.
+      </div>
 
-              <button
-                class="management-roadmap-action"
-                type="button"
-                data-management-global-status-links
-                data-line-id="${rcsEsc(line.id)}"
+      <div class="management-global-status-actions">
+        <select
+          class="management-global-status-select"
+          data-management-global-status-manual
+          data-line-id="${rcsEsc(line.id)}"
+        >
+          <option value="">Seleccionar…</option>
+
+          ${MANAGEMENT_GLOBAL_STATUS_MANUAL_VALUES.map(
+            (value) => `
+              <option
+                value="${rcsEsc(value)}"
+                ${manualValue === value ? "selected" : ""}
               >
-                Relacionar SDA
-              </button>
-            </div>
-          `
-          : ""
-      }
+                ${rcsEsc(value)}
+              </option>
+            `,
+          ).join("")}
+        </select>
+
+        <button
+          class="management-roadmap-action"
+          type="button"
+          data-management-global-status-links
+          data-line-id="${rcsEsc(line.id)}"
+        >
+          Relacionar SDA
+        </button>
+      </div>
     </div>
   `;
 }
@@ -12879,6 +13378,10 @@ function renderManagementGlobalStatusView(programId) {
     .toLowerCase();
 
   installManagementGlobalStatusSeedLines(normalizedProgramId);
+
+  const uiState = getManagementGlobalStatusUiState();
+  const canEdit = rcsCanEdit(normalizedProgramId);
+  const editMode = canEdit && uiState.editMode === true;
 
   setHead(
     "Blue Buddy Global Status",
@@ -12891,7 +13394,78 @@ function renderManagementGlobalStatusView(programId) {
 
   const board = document.querySelector("#managementGlobalStatusBoard");
 
-  const tableHtml = `
+  if (!board) {
+    return;
+  }
+
+  const configurationActions = canEdit
+    ? editMode
+      ? `
+        <div
+          style="
+            display:flex;
+            align-items:center;
+            justify-content:flex-end;
+            flex-wrap:wrap;
+            gap:8px;
+          "
+        >
+          <span class="management-global-status-meta">
+            Modo configuración
+          </span>
+
+          <button
+            class="management-report-card-link"
+            type="button"
+            data-management-global-status-cancel
+          >
+            Cancelar
+          </button>
+
+          <button
+            class="management-report-card-link"
+            type="button"
+            data-management-global-status-save
+            style="
+              background:var(--blue);
+              border-color:var(--blue);
+              color:#ffffff;
+            "
+          >
+            Guardar cambios
+          </button>
+        </div>
+      `
+      : `
+        <div
+          style="
+            display:flex;
+            align-items:center;
+            justify-content:flex-end;
+            flex-wrap:wrap;
+            gap:8px;
+          "
+        >
+          <span class="management-global-status-meta">
+            Solo lectura
+          </span>
+
+          <button
+            class="management-report-card-link"
+            type="button"
+            data-management-global-status-configure
+          >
+            ⚙ Configurar
+          </button>
+        </div>
+      `
+    : `
+      <span class="management-global-status-meta">
+        Solo lectura
+      </span>
+    `;
+
+  board.innerHTML = `
     <section class="management-global-status-shell">
       <div class="management-global-status-hero">
         <div>
@@ -12899,15 +13473,24 @@ function renderManagementGlobalStatusView(programId) {
             ${rcsEsc(MANAGEMENT_GLOBAL_STATUS_CONFIG.title)}
             — ${rcsEsc(MANAGEMENT_GLOBAL_STATUS_CONFIG.subtitle)}
           </h3>
+
           <p>
-            La matriz calcula el porcentaje de avance automáticamente a partir de las asociaciones
-            <strong>SDA → Deliverable → Feature</strong>. Si una celda no tiene SDA asociada, permite informar
-            <strong>N/A</strong> o <strong>2027</strong>.
+            ${
+              editMode
+                ? `
+                  Configura las asociaciones SDA y los valores manuales de la matriz.
+                  Los valores N/A / 2027 no se persistirán hasta pulsar
+                  <strong>Guardar cambios</strong>.
+                `
+                : `
+                  La matriz calcula automáticamente el avance mediante
+                  <strong>SDA → Deliverable → Feature</strong>.
+                `
+            }
           </p>
         </div>
-        <span class="management-global-status-meta">
-          AIxBanker · Blue Buddy
-        </span>
+
+        ${configurationActions}
       </div>
 
       <div class="management-global-status-table-wrap">
@@ -12915,6 +13498,7 @@ function renderManagementGlobalStatusView(programId) {
           <thead>
             <tr>
               <th class="management-global-status-stub"></th>
+
               ${MANAGEMENT_GLOBAL_STATUS_CONFIG.countries
                 .map(
                   (country) => `
@@ -12922,6 +13506,7 @@ function renderManagementGlobalStatusView(programId) {
                       <span class="management-global-status-country-flag">
                         ${rcsEsc(country.flag)}
                       </span>
+
                       <span class="management-global-status-country-name">
                         ${rcsEsc(country.label)}
                       </span>
@@ -12935,6 +13520,7 @@ function renderManagementGlobalStatusView(programId) {
               <th class="management-global-status-target-label">
                 Target users already deployed
               </th>
+
               ${MANAGEMENT_GLOBAL_STATUS_CONFIG.countries
                 .map(
                   (country) => `
@@ -12950,6 +13536,7 @@ function renderManagementGlobalStatusView(programId) {
               <th class="management-global-status-target-label">
                 Expected target
               </th>
+
               ${MANAGEMENT_GLOBAL_STATUS_CONFIG.countries
                 .map(
                   (country) => `
@@ -12967,8 +13554,13 @@ function renderManagementGlobalStatusView(programId) {
               .map(
                 (section) => `
                   <tr class="management-global-status-section-row">
-                    <th colspan="${1 + MANAGEMENT_GLOBAL_STATUS_CONFIG.countries.length}">
+                    <th
+                      colspan="${
+                        1 + MANAGEMENT_GLOBAL_STATUS_CONFIG.countries.length
+                      }"
+                    >
                       ${rcsEsc(section.title)}
+
                       ${
                         section.badge
                           ? `
@@ -13021,20 +13613,67 @@ function renderManagementGlobalStatusView(programId) {
       </div>
 
       <div class="management-global-status-footnote">
-        El porcentaje es <strong>100%</strong> cuando todas las Features asociadas para esa celda están desplegadas.
-        Si existe asociación SDA pero no aparecen Features en el país, la celda se marca como
-        <strong>Sin Features</strong> para facilitar la revisión del mapping.
+        ${
+          editMode
+            ? `
+              Modo configuración activo.
+              Las asociaciones SDA se gestionan desde cada celda.
+              Los valores manuales se guardan conjuntamente con
+              <strong>Guardar cambios</strong>.
+            `
+            : `
+              Vista de consulta.
+              El porcentaje muestra Features desplegadas sobre el total
+              de Features asociadas a cada capability y país.
+            `
+        }
       </div>
     </section>
   `;
 
-  board.innerHTML = tableHtml;
-
   const backButton = document.querySelector("#managementGlobalStatusBackBtn");
+
   if (backButton) {
     backButton.addEventListener("click", () => {
-      route(`management-reports/${normalizedProgramId}`);
+      uiState.editMode = false;
+      uiState.draftManualValues = {};
+
+      route(`projects/${normalizedProgramId}/live`);
     });
+  }
+
+  const configureButton = document.querySelector(
+    "[data-management-global-status-configure]",
+  );
+
+  if (configureButton) {
+    configureButton.addEventListener("click", () => {
+      beginManagementGlobalStatusConfiguration(normalizedProgramId);
+    });
+  }
+
+  const cancelButton = document.querySelector(
+    "[data-management-global-status-cancel]",
+  );
+
+  if (cancelButton) {
+    cancelButton.addEventListener("click", () => {
+      cancelManagementGlobalStatusConfiguration(normalizedProgramId);
+    });
+  }
+
+  const saveButton = document.querySelector(
+    "[data-management-global-status-save]",
+  );
+
+  if (saveButton) {
+    saveButton.addEventListener("click", async () => {
+      await saveManagementGlobalStatusConfiguration(normalizedProgramId);
+    });
+  }
+
+  if (!editMode) {
+    return;
   }
 
   document
@@ -13042,9 +13681,11 @@ function renderManagementGlobalStatusView(programId) {
     .forEach((button) => {
       button.addEventListener("click", () => {
         const lineId = String(button.dataset.lineId || "").trim();
+
         if (!lineId) {
           return;
         }
+
         renderManagementRoadmapMappingPanel(normalizedProgramId, lineId);
       });
     });
@@ -13052,21 +13693,14 @@ function renderManagementGlobalStatusView(programId) {
   document
     .querySelectorAll("[data-management-global-status-manual]")
     .forEach((select) => {
-      select.addEventListener("change", async () => {
+      select.addEventListener("change", () => {
         const lineId = String(select.dataset.lineId || "").trim();
+
         if (!lineId) {
           return;
         }
 
-        const line = getManagementRoadmapLineById(lineId);
-        if (!line) {
-          return;
-        }
-
-        await saveManagementRoadmapLine(normalizedProgramId, {
-          ...line,
-          manualValue: normalizeManagementGlobalStatusManualValue(select.value),
-        });
+        setManagementGlobalStatusDraftManualValue(lineId, select.value);
       });
     });
 }
