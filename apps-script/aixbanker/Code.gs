@@ -1,4 +1,4 @@
-const EXPORT_FOLDER_NAME = "PortfolioPDB";
+const EXPORT_FOLDER_NAME = "RCSCockpit-AIxBanker";
 const EXPORT_FILE_NAME = "app-common-data.json";
 const SNAPSHOT_SCHEMA_VERSION = 4;
 
@@ -635,6 +635,21 @@ function exportPortfolioJson() {
 
   file.setContent(json);
 
+  /*
+   * =====================================================
+   * SINCRONIZACIÓN DE PERMISOS
+   * =====================================================
+   *
+   * El snapshot debe ser accesible por los mismos usuarios
+   * que tienen acceso a la Spreadsheet origen.
+   *
+   * Esto es necesario porque el Web App se ejecuta como
+   * el usuario que accede al Cockpit.
+   * =====================================================
+   */
+
+  syncSnapshotPermissions_(file, spreadsheet);
+
   PropertiesService.getScriptProperties().setProperty(
     EXPORT_FILE_ID_PROPERTY,
     file.getId(),
@@ -664,6 +679,8 @@ function exportPortfolioJson() {
 
   Logger.log(`Productos Staffing: ${data.staffing.products.length}`);
 
+  Logger.log("Permisos del snapshot sincronizados");
+
   Logger.log("========================================");
 
   return {
@@ -678,7 +695,6 @@ function exportPortfolioJson() {
     snapshot: data,
   };
 }
-
 /* =========================================================
  * CAMINO CRÍTICO DE LA WEB
  *
@@ -1761,7 +1777,32 @@ function deleteExistingTriggers_(functionName) {
 /* =========================================================
  * WEB APP / JSONP
  * ========================================================= */
+function getManagementRoadmapConfig_() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
+  const linesSheet = spreadsheet.getSheetByName(
+    MANAGEMENT_ROADMAP_LINES_SHEET_NAME,
+  );
+
+  const linksSheet = spreadsheet.getSheetByName(
+    MANAGEMENT_ROADMAP_LINKS_SHEET_NAME,
+  );
+
+  const lines = linesSheet
+    ? deduplicateManagementRoadmapLines_(sheetToObjects_(linesSheet))
+    : [];
+
+  const links = linksSheet
+    ? deduplicateManagementRoadmapLinks_(sheetToObjects_(linksSheet))
+    : [];
+
+  return {
+    dataset: "management-roadmap-config",
+    generatedAt: new Date().toISOString(),
+    managementRoadmapLines: lines,
+    managementRoadmapLinks: links,
+  };
+}
 function doGet(e) {
   const parameters = e && e.parameter ? e.parameter : {};
 
@@ -1776,40 +1817,40 @@ function doGet(e) {
     .toLowerCase();
 
   try {
-    let snapshot;
+    let data;
 
     /*
      * =====================================================
      * SNAPSHOT
      * =====================================================
-     *
-     * Camino normal.
-     *
-     * Si existe app-common-data.json:
-     *   -> sólo se lee.
-     *
-     * Si no existe o no es válido:
-     *   -> se importan todas las fuentes;
-     *   -> se genera;
-     *   -> se devuelve.
      */
     if (action === "snapshot") {
-      snapshot = getOrBuildPortfolioSnapshot_();
+      data = getOrBuildPortfolioSnapshot_();
     } else if (action === "refresh") {
 
     /*
      * =====================================================
      * REFRESH
      * =====================================================
-     *
-     * Camino explícito.
-     *
-     * Se ejecuta únicamente cuando el usuario
-     * pulsa "Actualizar datos".
      */
       const result = refreshAllSourcesAndExport();
 
-      snapshot = result?.snapshot || getPortfolioSnapshot_();
+      data = result?.snapshot || getPortfolioSnapshot_();
+    } else if (action === "management-roadmap-config") {
+
+    /*
+     * =====================================================
+     * MANAGEMENT ROADMAP · DIRECT READ
+     * =====================================================
+     *
+     * Esta lectura se utiliza después de una escritura.
+     *
+     * No pasa por app-common-data.json.
+     *
+     * Así evitamos verificar un guardado contra una
+     * fotografía de Drive que todavía pueda estar cacheada.
+     */
+      data = getManagementRoadmapConfig_();
     } else {
 
     /*
@@ -1820,16 +1861,15 @@ function doGet(e) {
       throw new Error(`Acción no soportada: ${action}`);
     }
 
-    if (!snapshot || typeof snapshot !== "object") {
+    if (!data || typeof data !== "object") {
       throw new Error(
-        "No se ha podido obtener una fotografía válida del programa.",
+        "No se ha podido obtener una respuesta válida del programa.",
       );
     }
 
     const payload = {
       ok: true,
-
-      ...snapshot,
+      ...data,
     };
 
     return ContentService.createTextOutput(
@@ -1838,13 +1878,9 @@ function doGet(e) {
   } catch (error) {
     const payload = {
       ok: false,
-
       action,
-
-      code: "SNAPSHOT_ERROR",
-
+      code: "DATA_ERROR",
       error: String(error && error.message ? error.message : error),
-
       generatedAt: new Date().toISOString(),
     };
 
@@ -3391,17 +3427,18 @@ function doPost(e) {
     switch (action) {
       case "save-management-roadmap-links":
         result = saveManagementRoadmapLinks_(body.links);
-
         break;
 
       case "save-management-roadmap-lines":
         result = saveManagementRoadmapLines_(body.lines);
+        break;
 
+      case "save-management-global-status-lines":
+        result = saveManagementGlobalStatusLines_(body.lines);
         break;
 
       case "delete-management-roadmap-line":
         result = deleteManagementRoadmapLine_(body.lineId);
-
         break;
 
       default:
@@ -3410,15 +3447,10 @@ function doPost(e) {
 
     return createManagementRoadmapJsonResponse_({
       ok: true,
-
       action,
-
       saved: result?.saved || 0,
-
       deleted: result?.deleted || 0,
-
       deletedLinks: result?.deletedLinks || 0,
-
       generatedAt: new Date().toISOString(),
     });
   } catch (error) {
@@ -3426,9 +3458,7 @@ function doPost(e) {
 
     return createManagementRoadmapJsonResponse_({
       ok: false,
-
       error: error?.message || String(error),
-
       generatedAt: new Date().toISOString(),
     });
   }
@@ -3573,17 +3603,11 @@ function saveManagementRoadmapLinks_(rawLinks) {
     );
   }
 
+  let result;
+
   try {
     const sheet = getOrCreateManagementRoadmapLinksSheet_();
 
-    /*
-     * La pestaña representa una fotografía
-     * completa del mapping.
-     *
-     * Reescribirla permite que eliminar
-     * una relación desde el cockpit
-     * realmente la elimine del origen.
-     */
     sheet.clearContents();
 
     sheet
@@ -3593,11 +3617,8 @@ function saveManagementRoadmapLinks_(rawLinks) {
     if (links.length) {
       const values = links.map((link) => [
         link.executiveLineId,
-
         link.sdaId,
-
         link.deliverableId,
-
         link.active,
       ]);
 
@@ -3608,14 +3629,21 @@ function saveManagementRoadmapLinks_(rawLinks) {
 
     SpreadsheetApp.flush();
 
-    return {
+    result = {
       saved: links.length,
-
       links,
     };
   } finally {
     lock.releaseLock();
   }
+
+  /*
+   * Sincronizamos inmediatamente la fotografía consumida
+   * por el Cockpit.
+   */
+  exportPortfolioJson();
+
+  return result;
 }
 
 /* =========================================================
@@ -3663,13 +3691,68 @@ const MANAGEMENT_ROADMAP_LINES_HEADERS = [
   "statusLabel",
   "statusTone",
   "comments",
+  "manualValue",
   "active",
 ];
 
 /* =========================================================
  * NORMALIZACIÓN
  * ========================================================= */
+function normalizeManagementRoadmapManualValue_(value) {
+  /*
+   * Google Sheets puede almacenar 100%
+   * internamente como el número 1.
+   */
+  if (typeof value === "number" && value === 1) {
+    return "100%";
+  }
 
+  const normalized = String(value ?? "")
+    .trim()
+    .toUpperCase();
+
+  /*
+   * Protección adicional por si el valor
+   * llega serializado desde Sheets como "1".
+   */
+  if (normalized === "1") {
+    return "100%";
+  }
+
+  if (normalized === "N/A" || normalized === "2027" || normalized === "100%") {
+    return normalized;
+  }
+
+  return "";
+}
+function prepareManagementRoadmapManualValueColumn_(sheet, dataRowCount) {
+  if (!sheet) {
+    throw new Error("No se ha recibido la pestaña Management Roadmap Lines.");
+  }
+
+  const manualValueColumn =
+    MANAGEMENT_ROADMAP_LINES_HEADERS.indexOf("manualValue") + 1;
+
+  if (manualValueColumn < 1) {
+    throw new Error(
+      'No existe "manualValue" en MANAGEMENT_ROADMAP_LINES_HEADERS.',
+    );
+  }
+
+  /*
+   * IMPORTANTE:
+   *
+   * clearContents() elimina contenido,
+   * pero mantiene el formato anterior.
+   *
+   * Forzamos la columna como texto para evitar:
+   *
+   * "100%" -> 1
+   */
+  const rowsToFormat = Math.max(1, Number(dataRowCount) || 0);
+
+  sheet.getRange(2, manualValueColumn, rowsToFormat, 1).setNumberFormat("@");
+}
 function normalizeManagementRoadmapLineRow_(row) {
   const id = String(row?.id || "").trim();
 
@@ -3715,6 +3798,8 @@ function normalizeManagementRoadmapLineRow_(row) {
     statusTone: String(row?.statusTone || "").trim(),
 
     comments: String(row?.comments || "").trim(),
+
+    manualValue: normalizeManagementRoadmapManualValue_(row?.manualValue),
 
     active: !["false", "0", "no", "off"].includes(
       String(row?.active ?? true)
@@ -3763,19 +3848,59 @@ function getOrCreateManagementRoadmapLinesSheet_() {
  * SAVE
  * ========================================================= */
 
-function saveManagementRoadmapLines_(rawLines) {
-  const lines = deduplicateManagementRoadmapLines_(rawLines);
+function saveManagementGlobalStatusLines_(rawLines) {
+  const GLOBAL_STATUS_PRODUCT_ID = "blue-global-status";
+
+  const globalStatusLines = deduplicateManagementRoadmapLines_(rawLines).filter(
+    (line) =>
+      String(line?.productId || "")
+        .trim()
+        .toLowerCase() === GLOBAL_STATUS_PRODUCT_ID,
+  );
+
+  if (!globalStatusLines.length) {
+    throw new Error(
+      "No se han recibido líneas válidas de Blue Buddy Global Status.",
+    );
+  }
 
   const lock = LockService.getDocumentLock();
 
   if (!lock.tryLock(5000)) {
     throw new Error(
-      "Hay otra actualización del Roadmap en curso. Inténtalo de nuevo.",
+      "Hay otra actualización del Global Status en curso. Inténtalo de nuevo.",
     );
   }
 
+  let result;
+
   try {
     const sheet = getOrCreateManagementRoadmapLinesSheet_();
+
+    const currentRows = sheet.getLastRow() > 1 ? sheetToObjects_(sheet) : [];
+
+    /*
+     * Conservamos todas las líneas que no pertenecen
+     * a Blue Buddy Global Status.
+     */
+    const nonGlobalStatusRows = currentRows.filter(
+      (row) =>
+        String(row?.productId || "")
+          .trim()
+          .toLowerCase() !== GLOBAL_STATUS_PRODUCT_ID,
+    );
+
+    const preservedLines =
+      deduplicateManagementRoadmapLines_(nonGlobalStatusRows);
+
+    /*
+     * Sustituimos la fotografía completa
+     * de Global Status.
+     */
+    const nextLines = deduplicateManagementRoadmapLines_([
+      ...preservedLines,
+      ...globalStatusLines,
+    ]);
 
     sheet.clearContents();
 
@@ -3783,8 +3908,19 @@ function saveManagementRoadmapLines_(rawLines) {
       .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
       .setValues([MANAGEMENT_ROADMAP_LINES_HEADERS]);
 
-    if (lines.length) {
-      const values = lines.map((line) => [
+    /*
+     * CRÍTICO:
+     *
+     * manualValue se almacena como texto.
+     *
+     * Esto evita que Google Sheets transforme:
+     *
+     * 100% -> 1
+     */
+    prepareManagementRoadmapManualValueColumn_(sheet, nextLines.length);
+
+    if (nextLines.length) {
+      const values = nextLines.map((line) => [
         line.id,
         line.programId,
         line.productId,
@@ -3798,6 +3934,7 @@ function saveManagementRoadmapLines_(rawLines) {
         line.statusLabel,
         line.statusTone,
         line.comments,
+        normalizeManagementRoadmapManualValue_(line.manualValue),
         line.active,
       ]);
 
@@ -3808,14 +3945,124 @@ function saveManagementRoadmapLines_(rawLines) {
 
     SpreadsheetApp.flush();
 
-    return {
-      saved: lines.length,
-
-      lines,
+    result = {
+      saved: globalStatusLines.length,
+      lines: globalStatusLines,
     };
   } finally {
     lock.releaseLock();
   }
+
+  exportPortfolioJson();
+
+  return result;
+}
+function saveManagementGlobalStatusLines_(rawLines) {
+  const GLOBAL_STATUS_PRODUCT_ID = "blue-global-status";
+
+  /*
+   * IMPORTANTE:
+   *
+   * deduplicateManagementRoadmapLines_
+   * pasa por normalizeManagementRoadmapLineRow_.
+   *
+   * Por eso manualValue debe formar parte
+   * explícitamente de dicha normalización.
+   */
+  const globalStatusLines = deduplicateManagementRoadmapLines_(rawLines).filter(
+    (line) =>
+      String(line?.productId || "")
+        .trim()
+        .toLowerCase() === GLOBAL_STATUS_PRODUCT_ID,
+  );
+
+  if (!globalStatusLines.length) {
+    throw new Error(
+      "No se han recibido líneas válidas de Blue Buddy Global Status.",
+    );
+  }
+
+  const lock = LockService.getDocumentLock();
+
+  if (!lock.tryLock(5000)) {
+    throw new Error(
+      "Hay otra actualización del Global Status en curso. Inténtalo de nuevo.",
+    );
+  }
+
+  let result;
+
+  try {
+    const sheet = getOrCreateManagementRoadmapLinesSheet_();
+
+    const currentRows = sheet.getLastRow() > 1 ? sheetToObjects_(sheet) : [];
+
+    /*
+     * Conservamos todas las líneas que no pertenecen
+     * a Blue Buddy Global Status.
+     */
+    const nonGlobalStatusRows = currentRows.filter(
+      (row) =>
+        String(row?.productId || "")
+          .trim()
+          .toLowerCase() !== GLOBAL_STATUS_PRODUCT_ID,
+    );
+
+    const preservedLines =
+      deduplicateManagementRoadmapLines_(nonGlobalStatusRows);
+
+    /*
+     * Sustituimos la fotografía completa
+     * de Global Status.
+     */
+    const nextLines = deduplicateManagementRoadmapLines_([
+      ...preservedLines,
+      ...globalStatusLines,
+    ]);
+
+    sheet.clearContents();
+
+    sheet
+      .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
+      .setValues([MANAGEMENT_ROADMAP_LINES_HEADERS]);
+
+    if (nextLines.length) {
+      const values = nextLines.map((line) => [
+        line.id,
+        line.programId,
+        line.productId,
+        line.country,
+        line.year,
+        line.order,
+        line.category,
+        line.categoryTone,
+        line.title,
+        line.status,
+        line.statusLabel,
+        line.statusTone,
+        line.comments,
+        normalizeManagementRoadmapManualValue_(line.manualValue),
+        line.active,
+      ]);
+
+      sheet
+        .getRange(2, 1, values.length, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
+        .setValues(values);
+    }
+
+    SpreadsheetApp.flush();
+
+    result = {
+      saved: globalStatusLines.length,
+      lines: globalStatusLines,
+    };
+  } finally {
+    lock.releaseLock();
+  }
+
+  exportPortfolioJson();
+
+  return result;
 }
 
 /* =========================================================
@@ -3856,6 +4103,8 @@ function deleteManagementRoadmapLine_(lineId) {
     );
   }
 
+  let result;
+
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -3864,7 +4113,6 @@ function deleteManagementRoadmapLine_(lineId) {
      * MANAGEMENT ROADMAP LINES
      * =====================================================
      */
-
     const linesSheet = spreadsheet.getSheetByName(
       MANAGEMENT_ROADMAP_LINES_SHEET_NAME,
     );
@@ -3904,6 +4152,7 @@ function deleteManagementRoadmapLine_(lineId) {
           line.statusLabel,
           line.statusTone,
           line.comments,
+          normalizeManagementRoadmapManualValue_(line.manualValue),
           line.active,
         ]);
 
@@ -3921,12 +4170,8 @@ function deleteManagementRoadmapLine_(lineId) {
     /*
      * =====================================================
      * MANAGEMENT ROADMAP LINKS
-     *
-     * También eliminamos todas las relaciones SDA
-     * asociadas al deliverable ejecutivo.
      * =====================================================
      */
-
     const linksSheet = spreadsheet.getSheetByName(
       MANAGEMENT_ROADMAP_LINKS_SHEET_NAME,
     );
@@ -3970,14 +4215,17 @@ function deleteManagementRoadmapLine_(lineId) {
 
     SpreadsheetApp.flush();
 
-    return {
+    result = {
       deleted,
-
       deletedLinks,
     };
   } finally {
     lock.releaseLock();
   }
+
+  exportPortfolioJson();
+
+  return result;
 }
 function validateSnapshotUser_() {
   const email = String(Session.getActiveUser().getEmail() || "")
