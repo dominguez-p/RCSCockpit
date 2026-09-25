@@ -5377,7 +5377,66 @@ function buildProgramData(programData) {
     ...programData,
   };
 }
+function getRcsAuthorizationMarkerKey(kind, url) {
+  const normalizedKind =
+    String(kind || "endpoint")
+      .trim()
+      .toLowerCase() || "endpoint";
 
+  const rawUrl = String(url || "").trim();
+
+  let endpointKey = rawUrl;
+
+  try {
+    const endpoint = new URL(rawUrl, window.location.href);
+
+    endpoint.search = "";
+    endpoint.hash = "";
+
+    endpointKey = `${endpoint.origin}${endpoint.pathname}`.replace(/\/+$/, "");
+  } catch (error) {
+    console.debug(
+      "[RCS Access] No se pudo normalizar el endpoint de autorización.",
+      error,
+    );
+  }
+
+  return [
+    "rcsCockpit",
+    "authorization",
+    "v1",
+    normalizedKind,
+    encodeURIComponent(endpointKey),
+  ].join(":");
+}
+
+function hasRcsAuthorizationMarker(kind, url) {
+  try {
+    const key = getRcsAuthorizationMarkerKey(kind, url);
+
+    return window.localStorage.getItem(key) === "1";
+  } catch (error) {
+    console.debug(
+      "[RCS Access] No se pudo leer el marcador de autorización.",
+      error,
+    );
+
+    return false;
+  }
+}
+
+function markRcsAuthorizationMarker(kind, url) {
+  try {
+    const key = getRcsAuthorizationMarkerKey(kind, url);
+
+    window.localStorage.setItem(key, "1");
+  } catch (error) {
+    console.debug(
+      "[RCS Access] No se pudo guardar el marcador de autorización.",
+      error,
+    );
+  }
+}
 async function loadConfiguredSource(
   source,
   { timeoutMs = 30000, retries = 0, cacheBust = false } = {},
@@ -5412,6 +5471,11 @@ async function loadConfiguredSource(
 
   url.searchParams.set("action", "snapshot");
 
+  const previouslyAuthorized = hasRcsAuthorizationMarker(
+    "program-backend",
+    sourceUrl,
+  );
+
   let payload;
 
   try {
@@ -5420,20 +5484,37 @@ async function loadConfiguredSource(
       retries,
       cacheBust,
     });
+
+    /*
+     * El Apps Script ha ejecutado correctamente
+     * un callback JSONP.
+     *
+     * A partir de este momento sabemos que este
+     * navegador ya ha completado al menos una vez
+     * la autorización de este backend.
+     */
+    markRcsAuthorizationMarker("program-backend", sourceUrl);
   } catch (error) {
     /*
      * ===================================================
-     * PRIMER ACCESO AL APPS SCRIPT DEL PROGRAMA
+     * PRIMER ACCESO REAL AL APPS SCRIPT
      * ===================================================
      *
-     * Google necesita mostrar su pantalla OAuth.
+     * JSONP_SCRIPT_ERROR por sí solo no demuestra que
+     * Google esté pidiendo OAuth.
      *
-     * Una llamada JSONP no puede completar ese flujo
-     * en segundo plano, así que trasladamos el control
-     * a la pantalla de autorización del Cockpit.
+     * Sólo mostramos el flujo de "Primera validación"
+     * cuando el backend nunca ha funcionado previamente
+     * en este navegador.
+     *
+     * Si ya funcionó antes, conservamos el error técnico
+     * original para que el Cockpit pueda utilizar sus
+     * mecanismos normales de caché/fallback.
      */
 
-    if (String(error?.code || "").trim() === "JSONP_SCRIPT_ERROR") {
+    const errorCode = String(error?.code || "").trim();
+
+    if (errorCode === "JSONP_SCRIPT_ERROR" && !previouslyAuthorized) {
       const authorizationError = new Error(
         "Es necesario autorizar el Apps Script del programa.",
       );
@@ -16603,7 +16684,7 @@ async function loadRcsSpreadsheetAccess(
    * =====================================================
    */
 
-  const memoryCached = state.spreadsheets[normalizedSpreadsheetId];
+  const memoryCached = state.spreadsheets[normalizedSpreadsheetId] || null;
 
   const memoryHasLanding =
     memoryCached?.landing && typeof memoryCached.landing === "object";
@@ -16616,25 +16697,50 @@ async function loadRcsSpreadsheetAccess(
    * =====================================================
    * L2 · SESSION CACHE
    * =====================================================
+   *
+   * La leemos también cuando forceRefresh=true.
+   *
+   * En ese caso no la devolvemos directamente,
+   * pero podremos conservarla como fallback si
+   * Apps Script tiene un fallo temporal.
    */
 
-  if (!forceRefresh) {
-    const sessionCached = readRcsSessionCache(
-      "access",
-      normalizedSpreadsheetId,
-    );
+  const sessionCached = readRcsSessionCache("access", normalizedSpreadsheetId);
 
-    const sessionAccess = sessionCached?.data;
+  const sessionAccess = sessionCached?.data || null;
 
-    const sessionHasLanding =
-      sessionAccess?.landing && typeof sessionAccess.landing === "object";
+  const sessionHasLanding =
+    sessionAccess?.landing && typeof sessionAccess.landing === "object";
 
-    if (sessionAccess && (!includeLanding || sessionHasLanding)) {
-      state.spreadsheets[normalizedSpreadsheetId] = sessionAccess;
+  if (
+    !forceRefresh &&
+    sessionAccess &&
+    (!includeLanding || sessionHasLanding)
+  ) {
+    state.spreadsheets[normalizedSpreadsheetId] = sessionAccess;
 
-      return sessionAccess;
-    }
+    return sessionAccess;
   }
+
+  /*
+   * =====================================================
+   * ÚLTIMO ACCESO VÁLIDO
+   * =====================================================
+   *
+   * Un fallo técnico del endpoint no debe convertir
+   * automáticamente a un usuario ya validado en un
+   * usuario pendiente de OAuth.
+   */
+
+  const reusableAccess =
+    memoryCached?.granted === true
+      ? memoryCached
+      : sessionAccess?.granted === true
+        ? sessionAccess
+        : null;
+
+  const reusableHasLanding =
+    reusableAccess?.landing && typeof reusableAccess.landing === "object";
 
   /*
    * =====================================================
@@ -16659,6 +16765,11 @@ async function loadRcsSpreadsheetAccess(
       ? Number(timeoutMs)
       : 30000;
 
+  const previouslyAuthorized = hasRcsAuthorizationMarker(
+    "access-control",
+    config.driveJsonUrl,
+  );
+
   try {
     const payload = await loadJsonp(url.toString(), {
       timeoutMs: effectiveTimeoutMs,
@@ -16667,6 +16778,16 @@ async function loadRcsSpreadsheetAccess(
 
       cacheBust: true,
     });
+
+    /*
+     * Hemos conseguido ejecutar el Web App.
+     *
+     * Independientemente de que el usuario
+     * tenga permiso sobre la Spreadsheet,
+     * Google ya ha completado la autorización
+     * necesaria para ejecutar este endpoint.
+     */
+    markRcsAuthorizationMarker("access-control", config.driveJsonUrl);
 
     const access = normalizeRcsAccessResult(payload, normalizedSpreadsheetId);
 
@@ -16697,6 +16818,8 @@ async function loadRcsSpreadsheetAccess(
 
     const errorCode = String(error?.code || "").trim();
 
+    const scriptError = errorCode === "JSONP_SCRIPT_ERROR";
+
     const timeout =
       errorCode === "JSONP_TIMEOUT" ||
       message.includes("tiempo de espera") ||
@@ -16704,18 +16827,44 @@ async function loadRcsSpreadsheetAccess(
 
     /*
      * ===================================================
-     * PRIMER ACCESO
+     * FALLBACK DE ACCESO
      * ===================================================
      *
-     * El Web App existe y la petición no ha podido
-     * ejecutarse como script.
+     * Si el usuario ya estaba validado en esta sesión
+     * y el Access Control tiene un fallo temporal,
+     * mantenemos ese acceso.
      *
-     * En nuestro runtime esto corresponde al caso
-     * habitual en el que Google necesita mostrar
-     * primero su consentimiento OAuth.
+     * No hacemos esto durante un refresh explícito
+     * de la landing, porque ahí sí queremos conocer
+     * el resultado real de la actualización.
      */
 
-    const authorizationRequired = errorCode === "JSONP_SCRIPT_ERROR";
+    const canReuseAccess =
+      !refreshLanding &&
+      reusableAccess &&
+      (!includeLanding || reusableHasLanding);
+
+    if (canReuseAccess && (scriptError || timeout)) {
+      console.warn(
+        "[RCS Access] Fallo temporal de validación. Se mantiene el acceso ya validado en sesión.",
+      );
+
+      state.spreadsheets[normalizedSpreadsheetId] = reusableAccess;
+
+      return reusableAccess;
+    }
+
+    /*
+     * ===================================================
+     * PRIMER ACCESO REAL
+     * ===================================================
+     *
+     * Un JSONP_SCRIPT_ERROR sólo se considera OAuth
+     * pendiente cuando este navegador nunca ha
+     * conseguido ejecutar correctamente el Web App.
+     */
+
+    const authorizationRequired = scriptError && !previouslyAuthorized;
 
     const authorizationUrl = new URL(config.driveJsonUrl, window.location.href);
 
@@ -17049,8 +17198,24 @@ function renderRcsAccessScreen(access) {
 
 function blockRcsCockpitAccess(access) {
   const state = getRcsAccessState();
+
   state.blocked = true;
-  clearRcsSessionCache();
+
+  /*
+   * Sólo eliminamos la sesión cuando el backend
+   * ha confirmado explícitamente que el usuario
+   * ya no tiene acceso.
+   *
+   * Un timeout, un error de red o un fallo temporal
+   * de Apps Script no invalidan un permiso que ya
+   * había sido comprobado correctamente.
+   */
+  const code = String(access?.code || "").trim();
+
+  if (code === "ACCESS_DENIED") {
+    clearRcsSessionCache();
+  }
+
   renderRcsAccessScreen(access);
 }
 
