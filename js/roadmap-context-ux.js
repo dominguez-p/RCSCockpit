@@ -1402,58 +1402,178 @@ function installProductPlanComparison() {
       .filter((row) => row.startDate && row.endDate);
   }
   function collectMsaRows(programId, productId) {
+    const normalizedProgramId = String(programId || "").trim();
+
+    const normalizedProductId = normalizeProduct(productId);
+
     const items =
       typeof roadmapWorkspaceAllItems === "function"
         ? roadmapWorkspaceAllItems()
         : [];
+
+    /*
+     * =====================================================
+     * FEATURES JIRA
+     * =====================================================
+     *
+     * Los MSA descubiertos desde ID Analysis pueden no
+     * disponer todavía de histórico JIRA.
+     *
+     * En ese caso no tienen startDate/endDate propios.
+     *
+     * Para poder situarlos en el Flight Plan utilizamos
+     * provisionalmente la ventana temporal de las Features
+     * que los referencian.
+     *
+     * Cuando exista histórico JIRA real, las fechas del MSA
+     * tendrán prioridad.
+     * =====================================================
+     */
+
+    const featureWindows = (
+      Array.isArray(DATA?.jiraWorkspaceFeatures)
+        ? DATA.jiraWorkspaceFeatures
+        : []
+    )
+      .filter((feature) => {
+        const featureProgramId = String(
+          feature.programId || normalizedProgramId,
+        ).trim();
+
+        const featureProductId = normalizeProduct(
+          feature.product || feature.productId || feature.product_id || "",
+        );
+
+        return (
+          featureProgramId === normalizedProgramId &&
+          featureProductId === normalizedProductId
+        );
+      })
+      .map((feature) => {
+        const analysisKeys = productPlanExtractJiraKeys(
+          feature.analysisId || "",
+        );
+
+        return {
+          analysisKeys,
+
+          startDate: parseDate(feature.startDate),
+
+          endDate: parseDate(feature.endDate || feature.targetDate),
+        };
+      })
+      .filter((feature) => feature.analysisKeys.length);
+
     const today = new Date();
+
+    const todayDate = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    );
+
     return items
       .filter(
         (item) =>
-          String(item.programId || "").trim() ===
-            String(programId || "").trim() &&
-          normalizeProduct(item.product) === productId &&
+          String(item.programId || "").trim() === normalizedProgramId &&
+          normalizeProduct(item.product) === normalizedProductId &&
           String(item.type || "")
             .trim()
             .toLowerCase() === "msa",
       )
       .map((item) => {
-        const startDate = parseDate(item.startDate);
-        let endDate = parseDate(
-          item.endDate || item.targetDate || item.nextMilestoneDate,
-        );
-        if (startDate && !endDate && startDate <= today) {
-          endDate = new Date(
-            today.getFullYear(),
-            today.getMonth(),
-            today.getDate(),
-          );
-        }
         const relationKeys = [item.id, item.jiraKey]
           .flatMap(productPlanExtractJiraKeys)
           .filter(Boolean);
+
+        const relationKeySet = new Set(relationKeys);
+
+        const relatedFeatures = featureWindows.filter((feature) =>
+          feature.analysisKeys.some((analysisKey) =>
+            relationKeySet.has(analysisKey),
+          ),
+        );
+
+        /*
+         * ===================================================
+         * FECHAS DEL MSA
+         * ===================================================
+         *
+         * 1. Histórico / roadmap MSA.
+         * 2. Ventana de las Features relacionadas.
+         * 3. Si está abierto y sólo tenemos inicio, hoy.
+         * ===================================================
+         */
+
+        let startDate = parseDate(item.startDate);
+
+        let endDate = parseDate(
+          item.endDate || item.targetDate || item.nextMilestoneDate,
+        );
+
+        if (!startDate) {
+          const featureStartDates = relatedFeatures
+            .map((feature) => feature.startDate)
+            .filter(Boolean);
+
+          if (featureStartDates.length) {
+            startDate = new Date(
+              Math.min(...featureStartDates.map((date) => date.getTime())),
+            );
+          }
+        }
+
+        if (!endDate) {
+          const featureEndDates = relatedFeatures
+            .map((feature) => feature.endDate)
+            .filter(Boolean);
+
+          if (featureEndDates.length) {
+            endDate = new Date(
+              Math.max(...featureEndDates.map((date) => date.getTime())),
+            );
+          }
+        }
+
+        if (startDate && !endDate && startDate <= todayDate) {
+          endDate = todayDate;
+        }
+
         return {
           id: `msa-${item.id || item.jiraKey || item.title}`,
+
           sourceType: "msa",
+
           sourceLabel: "JIRA · MSA",
+
           sourceKey: String(item.jiraKey || item.id || "MSA").trim(),
+
           title: String(
             item.title || item.name || item.initiative || "MSA",
           ).trim(),
+
           subtitle: String(
             item.jiraCurrentStatus ||
               item.jiraMetrics?.currentStatus ||
               item.status ||
               "",
           ).trim(),
+
           startDate,
+
           endDate,
+
           countries: parseCountries(item.country),
+
           relationKeys: [...new Set(relationKeys)],
+
+          relatedFeatureCount: relatedFeatures.length,
+
+          hasJiraPlanning: Boolean(parseDate(item.startDate)),
+
           raw: item,
         };
-      })
-      .filter((row) => row.startDate && row.endDate);
+      });
   }
   function collectFeatureRows(programId, productId) {
     const normalizedProgramId = String(programId || "").trim();
@@ -1512,12 +1632,37 @@ function installProductPlanComparison() {
   }
   function filterRowsByYear(rows, year) {
     return (Array.isArray(rows) ? rows : [])
-      .filter((row) => rangeOverlapsYear(row.startDate, row.endDate, year))
-      .sort((left, right) => {
-        const startDifference = left.startDate - right.startDate;
-        if (startDifference !== 0) {
-          return startDifference;
+      .filter((row) => {
+        /*
+         * Los MSA descubiertos mediante ID Analysis
+         * pueden existir antes de tener histórico JIRA.
+         *
+         * No debemos eliminarlos del modelo por no
+         * disponer todavía de fechas.
+         */
+        if (!row.startDate || !row.endDate) {
+          return row.sourceType === "msa";
         }
+
+        return rangeOverlapsYear(row.startDate, row.endDate, year);
+      })
+      .sort((left, right) => {
+        const leftHasDates = Boolean(left.startDate && left.endDate);
+
+        const rightHasDates = Boolean(right.startDate && right.endDate);
+
+        if (leftHasDates !== rightHasDates) {
+          return leftHasDates ? -1 : 1;
+        }
+
+        if (leftHasDates && rightHasDates) {
+          const startDifference = left.startDate - right.startDate;
+
+          if (startDifference !== 0) {
+            return startDifference;
+          }
+        }
+
         return String(left.title || "").localeCompare(
           String(right.title || ""),
           "es",
@@ -3271,85 +3416,107 @@ function installProductPlanComparison() {
   `;
   }
   function renderProductPlanLinkedRow(row, year, sourceType) {
-    const layout = rowLayout(row, year);
     const isMsa = sourceType === "msa";
+
     const label = isMsa ? "MSA" : "FEATURE";
+
+    const hasPlanningDates = Boolean(row.startDate && row.endDate);
+
+    const layout = hasPlanningDates ? rowLayout(row, year) : null;
+
     /*
      * El row.raw del MSA conserva el
      * roadmap item original.
      *
-     * Debemos navegar utilizando item.id,
-     * porque el detalle busca el elemento
-     * exactamente por:
+     * El detalle se navega mediante:
      *
      * type = msa
      * id   = roadmapItem.id
-     *
-     * No utilizamos sourceKey como id de
-     * navegación porque normalmente muestra
-     * jiraKey y no queremos asumir que ambos
-     * identificadores sean siempre iguales.
      */
+
     const detailId = isMsa ? String(row?.raw?.id || "").trim() : "";
+
     const canNavigate = isMsa && Boolean(detailId);
+
+    const planningLabel = hasPlanningDates
+      ? `${formatShortDate(row.startDate)} → ${formatShortDate(row.endDate)}`
+      : "Sin planificación temporal";
+
     const barTitle = [
       row.sourceKey,
       row.title,
-      `${formatShortDate(row.startDate)} → ${formatShortDate(row.endDate)}`,
+      planningLabel,
       canNavigate ? "Abrir detalle del MSA" : "",
     ]
       .filter(Boolean)
       .join(" · ");
-    const timelineBar = canNavigate
-      ? `
-          <button
-            type="button"
-            class="
-              product-plan-bar
-              product-plan-bar-${escapeHtml(sourceType)}
-            "
-            data-roadmap-detail-type="msa"
-            data-roadmap-detail-id="${escapeHtml(detailId)}"
-            style="
-              left:${layout.left}%;
-              width:${layout.width}%;
-              border:0;
-              cursor:pointer;
-              font:inherit;
-            "
-            title="${escapeHtml(barTitle)}"
-            aria-label="${escapeHtml(`Abrir detalle del MSA ${row.title}`)}"
-          >
-            <span>
-              ${escapeHtml(row.sourceKey)}
-              ·
-              ${escapeHtml(formatShortDate(row.startDate))}
-              →
-              ${escapeHtml(formatShortDate(row.endDate))}
-            </span>
-          </button>
-        `
-      : `
-          <span
-            class="
-              product-plan-bar
-              product-plan-bar-${escapeHtml(sourceType)}
-            "
-            style="
-              left:${layout.left}%;
-              width:${layout.width}%;
-            "
-            title="${escapeHtml(barTitle)}"
-          >
-            <span>
-              ${escapeHtml(row.sourceKey)}
-              ·
-              ${escapeHtml(formatShortDate(row.startDate))}
-              →
-              ${escapeHtml(formatShortDate(row.endDate))}
-            </span>
-          </span>
-        `;
+
+    let timelineBar = "";
+
+    if (hasPlanningDates && canNavigate) {
+      timelineBar = `
+      <button
+        type="button"
+        class="
+          product-plan-bar
+          product-plan-bar-${escapeHtml(sourceType)}
+        "
+        data-roadmap-detail-type="msa"
+        data-roadmap-detail-id="${escapeHtml(detailId)}"
+        style="
+          left:${layout.left}%;
+          width:${layout.width}%;
+          border:0;
+          cursor:pointer;
+          font:inherit;
+        "
+        title="${escapeHtml(barTitle)}"
+        aria-label="${escapeHtml(`Abrir detalle del MSA ${row.title}`)}"
+      >
+        <span>
+          ${escapeHtml(row.sourceKey)}
+          ·
+          ${escapeHtml(formatShortDate(row.startDate))}
+          →
+          ${escapeHtml(formatShortDate(row.endDate))}
+        </span>
+      </button>
+    `;
+    } else if (hasPlanningDates) {
+      timelineBar = `
+      <span
+        class="
+          product-plan-bar
+          product-plan-bar-${escapeHtml(sourceType)}
+        "
+        style="
+          left:${layout.left}%;
+          width:${layout.width}%;
+        "
+        title="${escapeHtml(barTitle)}"
+      >
+        <span>
+          ${escapeHtml(row.sourceKey)}
+          ·
+          ${escapeHtml(formatShortDate(row.startDate))}
+          →
+          ${escapeHtml(formatShortDate(row.endDate))}
+        </span>
+      </span>
+    `;
+    } else {
+      timelineBar = `
+      <span
+        class="
+          product-plan-sda-hidden
+        "
+        title="${escapeHtml(barTitle)}"
+      >
+        Sin planificación temporal
+      </span>
+    `;
+    }
+
     return `
     <article
       class="
@@ -3375,6 +3542,7 @@ function installProductPlanComparison() {
           >
             ${label}
           </span>
+
           <span
             class="
               product-plan-source-key
@@ -3382,13 +3550,16 @@ function installProductPlanComparison() {
           >
             ${escapeHtml(row.sourceKey)}
           </span>
+
           ${renderCountryBadges(row.countries)}
         </div>
+
         <strong
           title="${escapeHtml(row.title)}"
         >
           ${escapeHtml(row.title)}
         </strong>
+
         ${
           row.subtitle
             ? `
@@ -3399,12 +3570,14 @@ function installProductPlanComparison() {
             : ""
         }
       </div>
+
       <div
         class="
           product-plan-row-track
         "
       >
         ${renderTodayLine(year)}
+
         ${timelineBar}
       </div>
     </article>
