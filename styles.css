@@ -6381,3 +6381,298 @@ th {
     min-width: 1260px;
   }
 }
+/* =========================================================
+   MANAGEMENT REPORTS · BLUE BUDDY GLOBAL STATUS
+   ========================================================= */
+.management-global-status-board {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.management-global-status-shell {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgba(7, 46, 111, 0.08);
+  overflow: hidden;
+}
+
+.management-global-status-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 24px 24px 18px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f2f7ff 100%);
+  border-bottom: 1px solid var(--line);
+}
+
+.management-global-status-hero h3 {
+  margin: 0;
+  color: var(--blue);
+  font-size: 30px;
+  line-height: 1.05;
+}
+
+.management-global-status-hero p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.management-global-status-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #eef4ff;
+  border: 1px solid #d8e5ff;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.management-global-status-table-wrap {
+  overflow-x: auto;
+}
+
+.management-global-status-table {
+  width: 100%;
+  min-width: 1320px;
+  border-collapse: collapse;
+}
+
+.management-global-status-table thead th,
+.management-global-status-table tbody td,
+.management-global-status-table tbody th {
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.management-global-status-table thead tr:first-child th {
+  border-top: 0;
+}
+
+.management-global-status-table thead th {
+  padding: 14px 12px;
+}
+
+.management-global-status-table th.management-global-status-stub {
+  width: 320px;
+  min-width: 320px;
+  background: #ffffff;
+}
+
+.management-global-status-country-head {
+  text-align: center;
+  background: #ffffff;
+}
+
+.management-global-status-country-flag {
+  display: block;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.management-global-status-country-name {
+  display: block;
+  margin-top: 8px;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.management-global-status-target-label {
+  padding: 16px 18px;
+  background: #0a3e98;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.management-global-status-target-cell {
+  padding: 16px 14px;
+  background: #0a3e98;
+  color: #ffffff;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.management-global-status-section-row th {
+  padding: 18px 20px;
+  background: #f6fbff;
+  color: var(--blue);
+  text-align: left;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.management-global-status-section-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  margin-left: 10px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #8be08f;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.management-global-status-item-label {
+  padding: 16px 20px;
+  background: #ffffff;
+}
+
+.management-global-status-item-title {
+  color: var(--blue);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.management-global-status-item-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.management-global-status-cell {
+  padding: 14px 12px;
+  background: #ffffff;
+}
+
+.management-global-status-cell-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 126px;
+  padding: 14px;
+  border: 1px solid #dce8ff;
+  border-radius: 16px;
+  background: #fbfdff;
+}
+
+.management-global-status-cell-card.is-complete {
+  background: linear-gradient(180deg, #f6fffa 0%, #effcf4 100%);
+  border-color: #cfead7;
+}
+
+.management-global-status-cell-card.is-warning {
+  background: linear-gradient(180deg, #fffdfa 0%, #fff7ea 100%);
+  border-color: #f0dfb6;
+}
+
+.management-global-status-cell-card.is-empty {
+  background: linear-gradient(180deg, #fbfdff 0%, #f6f8fc 100%);
+  border-color: #e2e7f2;
+}
+
+.management-global-status-progress {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.management-global-status-progress strong {
+  color: var(--blue);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.management-global-status-progress span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.management-global-status-subline {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.management-global-status-subline strong {
+  color: var(--blue);
+}
+
+.management-global-status-manual {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #eef4ff;
+  border: 1px solid #dce8ff;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.management-global-status-empty-label {
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.management-global-status-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.management-global-status-actions .management-roadmap-action {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.management-global-status-select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid #d6deef;
+  background: #ffffff;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.management-global-status-footnote {
+  padding: 16px 20px 22px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  background: #fbfdff;
+}
+
+@media (max-width: 900px) {
+  .management-global-status-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
