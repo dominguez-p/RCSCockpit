@@ -7552,6 +7552,7 @@ async function ensureJiraFeaturesDataForRoute(context) {
     hideLoadingOverlay();
   }
 }
+
 async function render() {
   const context = getCurrentRoute();
 
@@ -18599,6 +18600,11 @@ function installPortfolioSidebarNavigation() {
 
   sidebar.querySelector(".side-title")?.remove();
 
+  /*
+   * Eliminamos el botón antiguo definido en el HTML.
+   * La navegación a Inicio pasa a gestionarse junto
+   * al resto de navegación dinámica del sidebar.
+   */
   sidebar.querySelector(".home-link")?.remove();
 
   let navigation = sidebar.querySelector("#portfolioSidebarNavigation");
@@ -18665,6 +18671,47 @@ function installPortfolioSidebarNavigation() {
       sidebar.append(navigation);
     }
   }
+
+  /*
+   * =====================================================
+   * INICIO GLOBAL
+   * =====================================================
+   *
+   * El botón vive fuera de la navegación del Portfolio
+   * para que siga disponible cuando el contexto de
+   * programa sustituye esa navegación por los países.
+   */
+  let homeButton = sidebar.querySelector("#globalSidebarHomeButton");
+
+  if (!homeButton) {
+    homeButton = document.createElement("button");
+
+    homeButton.id = "globalSidebarHomeButton";
+    homeButton.type = "button";
+
+    homeButton.className =
+      "portfolio-sidebar-button global-sidebar-home-button";
+
+    homeButton.dataset.route = "landing";
+
+    homeButton.innerHTML = `
+      <span aria-hidden="true">⌂</span>
+      <span>Inicio</span>
+    `;
+
+    homeButton.setAttribute("aria-label", "Volver al inicio del Cockpit");
+
+    /*
+     * Siempre pegado a la parte inferior
+     * de la barra lateral.
+     */
+    homeButton.style.marginTop = "auto";
+    homeButton.style.flexDirection = "column";
+    homeButton.style.gap = "3px";
+    homeButton.style.minHeight = "52px";
+
+    sidebar.append(homeButton);
+  }
 }
 function syncPortfolioSidebarNavigation(routeName) {
   const normalizedRoute = String(routeName || "landing")
@@ -18703,6 +18750,19 @@ function syncPortfolioSidebarNavigation(routeName) {
       button.removeAttribute("aria-current");
     }
   });
+
+  /*
+   * =====================================================
+   * INICIO GLOBAL
+   * =====================================================
+   *
+   * Visible en cualquier pantalla salvo en la landing.
+   */
+  const homeButton = document.querySelector("#globalSidebarHomeButton");
+
+  if (homeButton) {
+    homeButton.style.display = normalizedRoute === "landing" ? "none" : "flex";
+  }
 }
 function renderPortfolioComingSoon(routeName) {
   const normalizedRoute = String(routeName || "")
