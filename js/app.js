@@ -9026,18 +9026,24 @@ function renderProjectsView(programId) {
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
+
   const routeContext = getCurrentRoute();
   const categoryId = String(routeContext.productId || "")
     .trim()
     .toLowerCase();
+
   if (["static", "live", "ai"].includes(categoryId)) {
     renderManagementReportsCategoryView(programId, categoryId);
     return;
   }
+
   const contrastPrograms = new Set(["blue", "aixbanker", "rosetta"]);
   const hasContrastValidation = contrastPrograms.has(normalizedProgramId);
+  const hasGlobalStatus = normalizedProgramId === "aixbanker";
+
   view.innerHTML = "";
   view.append(tpl("#projects-template"));
+
   setHead(
     `${program?.name || "Programa"} · Management Reports`,
     "Informes ejecutivos, seguimiento dinámico e inteligencia generada con IA.",
@@ -9045,15 +9051,20 @@ function renderProjectsView(programId) {
       program?.name || programId
     } > Management Reports`,
   );
+
   const backButton = document.querySelector(".back-to-program-btn");
+
   if (backButton) {
     backButton.dataset.route = getFlightDeckReturnRoute(programId);
     backButton.textContent = `← Volver a ${program?.name || "programa"}`;
   }
+
   const cardsContainer = document.querySelector("#managementReportsCards");
+
   if (!cardsContainer) {
     return;
   }
+
   const primaryReportButtonStyle = `
     min-height: 46px;
     padding: 0 18px;
@@ -9063,6 +9074,7 @@ function renderProjectsView(programId) {
     box-shadow: 0 8px 18px rgba(0, 19, 145, 0.18);
     text-decoration: none;
   `;
+
   cardsContainer.innerHTML = `
     <article class="management-report-card">
       <div class="management-report-card-top">
@@ -9074,11 +9086,13 @@ function renderProjectsView(programId) {
           </p>
         </div>
       </div>
+
       <div class="management-report-card-kpis">
         <span>Snapshots</span>
         <span>Reporting ejecutivo</span>
         <span>Material de referencia</span>
       </div>
+
       <div
         style="
           display: flex;
@@ -9110,6 +9124,7 @@ function renderProjectsView(programId) {
               </button>
             `
         }
+
         <button
           class="management-report-card-link"
           type="button"
@@ -9119,10 +9134,12 @@ function renderProjectsView(programId) {
           Demos →
         </button>
       </div>
+
       <div class="management-report-card-footer">
         <span class="management-report-caption">
           Informes ejecutivos consolidados.
         </span>
+
         <button
           class="management-report-card-link"
           type="button"
@@ -9132,6 +9149,7 @@ function renderProjectsView(programId) {
         </button>
       </div>
     </article>
+
     <article class="management-report-card">
       <div class="management-report-card-top">
         <div>
@@ -9142,11 +9160,13 @@ function renderProjectsView(programId) {
           </p>
         </div>
       </div>
+
       <div class="management-report-card-kpis">
         <span>Roadmap</span>
         <span>KPI Performance</span>
         <span>Geografías</span>
       </div>
+
       <div
         style="
           display: flex;
@@ -9163,6 +9183,22 @@ function renderProjectsView(programId) {
         >
           Roadmap →
         </button>
+
+        ${
+          hasGlobalStatus
+            ? `
+              <button
+                class="management-report-card-link"
+                type="button"
+                data-route="management-global-status/${rcsEsc(programId)}"
+                style="${primaryReportButtonStyle}"
+              >
+                Global Status →
+              </button>
+            `
+            : ""
+        }
+
         <a
           class="management-report-card-link"
           href="https://script.google.com/a/macros/bbva.com/s/AKfycbwB4Pe197DmvUW8j1x_YTA_j96CDkeKp3hH5GCSJGYNnlEinJbCS8Awm8RfJgy30BLj/exec"
@@ -9173,10 +9209,12 @@ function renderProjectsView(programId) {
           RCS KPIs Heatmap ↗
         </a>
       </div>
+
       <div class="management-report-card-footer">
         <span class="management-report-caption">
           Planificación, ejecución y performance ejecutiva.
         </span>
+
         <button
           class="management-report-card-link"
           type="button"
@@ -9186,6 +9224,7 @@ function renderProjectsView(programId) {
         </button>
       </div>
     </article>
+
     <article class="management-report-card">
       <div class="management-report-card-top">
         <div>
@@ -9195,19 +9234,23 @@ function renderProjectsView(programId) {
             y el contexto disponible en el Cockpit.
           </p>
         </div>
+
         <span class="management-report-badge is-soon">
           Próximamente
         </span>
       </div>
+
       <div class="management-report-card-kpis">
         <span>Executive Summary</span>
         <span>Risks & Attention</span>
         <span>What's Changed</span>
       </div>
+
       <div class="management-report-card-footer">
         <span class="management-report-caption">
           Nueva capa de inteligencia ejecutiva.
         </span>
+
         <button
           class="management-report-card-link"
           type="button"
