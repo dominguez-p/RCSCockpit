@@ -12120,6 +12120,7 @@ function getManagementRoadmapLineById(lineId) {
 
 function getManagementRoadmapProgressData(executiveLineId) {
   const links = getManagementRoadmapLinksForLine(executiveLineId);
+
   if (!links.length) {
     return {
       hasAssociation: false,
@@ -12128,15 +12129,24 @@ function getManagementRoadmapProgressData(executiveLineId) {
       featureCount: 0,
       deployedFeatures: [],
       deployedCount: 0,
+      epicGroups: [],
+      epicCount: 0,
       progress: null,
     };
   }
+
   const features = getManagementFeaturesForLine(executiveLineId);
+
   const deployedFeatures = features.filter(isManagementFeatureDeployed);
+
+  const epicGroups = groupManagementFeaturesByEpic(features);
+
   const featureCount = features.length;
   const deployedCount = deployedFeatures.length;
+
   const progress =
     featureCount > 0 ? Math.round((deployedCount / featureCount) * 100) : null;
+
   return {
     hasAssociation: true,
     linkCount: links.length,
@@ -12144,12 +12154,15 @@ function getManagementRoadmapProgressData(executiveLineId) {
     featureCount,
     deployedFeatures,
     deployedCount,
+    epicGroups,
+    epicCount: epicGroups.length,
     progress,
   };
 }
 
 function renderManagementRoadmapProgress(executiveLineId) {
   const progress = getManagementRoadmapProgressData(executiveLineId);
+
   if (!progress.hasAssociation) {
     return `
       <div
@@ -12164,6 +12177,7 @@ function renderManagementRoadmapProgress(executiveLineId) {
       </div>
     `;
   }
+
   if (!progress.featureCount) {
     return `
       <div
@@ -12175,24 +12189,38 @@ function renderManagementRoadmapProgress(executiveLineId) {
         <strong>
           0
         </strong>
+
         <span>
           Sin Features
         </span>
       </div>
     `;
   }
+
   return `
-    <div class="management-deliverables-progress">
-      <div class="management-deliverables-progress-head">
+    <div
+      class="
+        management-deliverables-progress
+      "
+    >
+      <div
+        class="
+          management-deliverables-progress-head
+        "
+      >
         <strong>
           ${progress.deployedCount}/${progress.featureCount}
         </strong>
+
         <span>
           ${progress.progress}%
         </span>
       </div>
+
       <div
-        class="management-deliverables-progress-bar"
+        class="
+          management-deliverables-progress-bar
+        "
         aria-label="${progress.progress}% desplegado"
       >
         <span
@@ -12204,8 +12232,11 @@ function renderManagementRoadmapProgress(executiveLineId) {
           "
         ></span>
       </div>
+
       <small>
-        deployed
+        ${progress.epicCount}
+        ${progress.epicCount === 1 ? "épica" : "épicas"}
+        · deployed
       </small>
     </div>
   `;

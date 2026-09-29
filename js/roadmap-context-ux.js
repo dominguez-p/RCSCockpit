@@ -1137,6 +1137,7 @@ function installProductPlanComparison() {
   }
   function comparisonState(programId, productId) {
     const key = comparisonStateKey(programId, productId);
+
     if (!comparisonStates.has(key)) {
       comparisonStates.set(key, {
         sources: {
@@ -1144,24 +1145,54 @@ function installProductPlanComparison() {
           msa: true,
           features: true,
         },
+
+        /*
+         * Preferencia visual del Flight Plan.
+         *
+         * false:
+         * SDA → Features
+         *
+         * true:
+         * SDA → Epic → Features
+         */
+        groupFeaturesByEpic: false,
+
         holdingCountries: new Set(localCountryIds()),
+
         featuresLoading: false,
+
         featuresLoadError: false,
+
         relationshipsLoading: false,
+
         relationshipsLoadError: false,
+
         relationshipsPromise: null,
       });
     }
+
     const state = comparisonStates.get(key);
+
+    /*
+     * Compatibilidad con estados que ya estuvieran
+     * creados antes de incorporar la agrupación.
+     */
+    if (state.groupFeaturesByEpic === undefined) {
+      state.groupFeaturesByEpic = false;
+    }
+
     if (state.relationshipsLoading === undefined) {
       state.relationshipsLoading = false;
     }
+
     if (state.relationshipsLoadError === undefined) {
       state.relationshipsLoadError = false;
     }
+
     if (state.relationshipsPromise === undefined) {
       state.relationshipsPromise = null;
     }
+
     return state;
   }
   function rowMatchesGeography(rowCountries, state) {
@@ -2934,45 +2965,123 @@ function installProductPlanComparison() {
     }
     route(buildRoute(programId, productId, year, countryId, sdaDeliverableId));
   }
+  function toggleProductPlanEpicGrouping() {
+    const context =
+      typeof roadmapWorkspaceParseRoute === "function"
+        ? roadmapWorkspaceParseRoute()
+        : null;
+
+    const programId = String(context?.programId || "").trim();
+
+    const productId = normalizeProduct(context?.productId);
+
+    if (
+      !isProductPlanProgram(programId) ||
+      !productId ||
+      productId === ALL_ID
+    ) {
+      return;
+    }
+
+    const state = comparisonState(programId, productId);
+
+    /*
+     * La agrupación sólo tiene sentido
+     * cuando las Features están visibles.
+     */
+    if (!state.sources.features) {
+      return;
+    }
+
+    state.groupFeaturesByEpic = !state.groupFeaturesByEpic;
+
+    rerenderComparison();
+  }
   function handleComparisonClick(event) {
+    const epicGroupingToggle = event.target.closest(
+      "[data-product-plan-epic-grouping]",
+    );
+
+    if (epicGroupingToggle) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      toggleProductPlanEpicGrouping();
+
+      return;
+    }
+
+    const epicToggle = event.target.closest("[data-product-plan-epic-toggle]");
+
+    if (epicToggle) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      toggleProductPlanEpicGroup(epicToggle);
+
+      return;
+    }
+
     const sdaToggle = event.target.closest("[data-product-plan-sda-toggle]");
+
     if (sdaToggle) {
       event.preventDefault();
       event.stopPropagation();
+
       toggleProductPlanSdaGroup(sdaToggle);
+
       return;
     }
+
     const sdaAction = event.target.closest("[data-product-plan-sda-action]");
+
     if (sdaAction) {
       event.preventDefault();
+
       const action = String(
         sdaAction.dataset.productPlanSdaAction || "",
       ).trim();
+
       if (action === "expand-all") {
         setProductPlanAllSdaGroupsExpanded(true);
+
         return;
       }
+
       if (action === "collapse-all") {
         setProductPlanAllSdaGroupsExpanded(false);
+
         return;
       }
     }
+
     const sourceButton = event.target.closest("[data-product-plan-source]");
+
     if (sourceButton) {
       event.preventDefault();
+
       toggleSource(sourceButton).catch(console.error);
+
       return;
     }
+
     const countryButton = event.target.closest("[data-product-plan-country]");
+
     if (countryButton) {
       event.preventDefault();
+
       toggleHoldingCountry(countryButton);
+
       return;
     }
+
     const yearButton = event.target.closest("[data-product-plan-year]");
+
     if (yearButton) {
       event.preventDefault();
+
       selectYear(yearButton);
+
       return;
     }
   }
@@ -3679,16 +3788,27 @@ function installProductPlanComparison() {
   }
   function renderProductPlanCollapseToolbar(groups, state) {
     const availableGroups = Array.isArray(groups) ? groups : [];
+
     if (!availableGroups.length) {
       return "";
     }
+
     const expanded = productPlanExpandedSdaSet(state);
+
     const keys = availableGroups
       .map((group) => productPlanSdaCollapseKey(group.sda))
       .filter(Boolean);
+
     const expandedCount = keys.filter((key) => expanded.has(key)).length;
+
     const allExpanded = keys.length > 0 && expandedCount === keys.length;
+
     const allCollapsed = expandedCount === 0;
+
+    const epicGroupingActive = state.groupFeaturesByEpic === true;
+
+    const featuresVisible = state.sources.features === true;
+
     return `
     <section
       class="
@@ -3706,6 +3826,7 @@ function installProductPlanComparison() {
         <span>
           DETALLE SDA
         </span>
+
         <strong>
           ${expandedCount}
           de
@@ -3713,11 +3834,47 @@ function installProductPlanComparison() {
           desplegados
         </strong>
       </div>
+
       <div
         class="
           product-plan-collapse-actions
         "
       >
+        <button
+          type="button"
+          class="
+            product-plan-epic-grouping-toggle
+            ${epicGroupingActive ? "is-active" : ""}
+          "
+          data-product-plan-epic-grouping
+          aria-pressed="${epicGroupingActive ? "true" : "false"}"
+          ${featuresVisible ? "" : "disabled"}
+          title="${
+            featuresVisible
+              ? epicGroupingActive
+                ? "Mostrar Features sin agrupar"
+                : "Agrupar Features por épica"
+              : "Activa primero las Features"
+          }"
+        >
+          <span
+            class="
+              product-plan-epic-grouping-switch
+            "
+            aria-hidden="true"
+          >
+            <i></i>
+          </span>
+
+          <strong>
+            Agrupar por épica
+          </strong>
+
+          <em>
+            ${epicGroupingActive ? "ON" : "OFF"}
+          </em>
+        </button>
+
         <button
           type="button"
           data-product-plan-sda-action="
@@ -3727,6 +3884,7 @@ function installProductPlanComparison() {
         >
           Colapsar todo
         </button>
+
         <button
           type="button"
           data-product-plan-sda-action="
@@ -3740,30 +3898,419 @@ function installProductPlanComparison() {
     </section>
   `;
   }
+  function productPlanFeatureEpicKey(feature) {
+    const raw =
+      feature?.raw && typeof feature.raw === "object" ? feature.raw : {};
+
+    const epicKey = String(
+      feature?.epicKey || raw.epicKey || raw.epic_key || "",
+    )
+      .trim()
+      .toUpperCase();
+
+    return epicKey || "SIN-EPICA";
+  }
+
+  function productPlanFeatureEpicName(feature) {
+    const raw =
+      feature?.raw && typeof feature.raw === "object" ? feature.raw : {};
+
+    return String(
+      feature?.epicName || raw.epicName || raw.epic_name || "",
+    ).trim();
+  }
+
+  function productPlanFeatureIsDeployed(feature) {
+    const raw =
+      feature?.raw && typeof feature.raw === "object" ? feature.raw : {};
+
+    const status = String(
+      raw.statusRaw || raw.status || feature?.subtitle || "",
+    )
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+
+    return status === "deployed";
+  }
+
+  function groupProductPlanFeaturesByEpic(features) {
+    const groups = new Map();
+
+    (Array.isArray(features) ? features : []).forEach((feature) => {
+      const epicKey = productPlanFeatureEpicKey(feature);
+
+      const epicName = productPlanFeatureEpicName(feature);
+
+      if (!groups.has(epicKey)) {
+        groups.set(epicKey, {
+          key: epicKey,
+          name: epicName,
+          features: [],
+        });
+      }
+
+      const group = groups.get(epicKey);
+
+      if (!group.name && epicName) {
+        group.name = epicName;
+      }
+
+      group.features.push(feature);
+    });
+
+    return [...groups.values()]
+      .map((group) => {
+        const datedFeatures = group.features.filter(
+          (feature) => feature.startDate && feature.endDate,
+        );
+
+        const startDates = datedFeatures
+          .map((feature) => feature.startDate)
+          .filter(
+            (date) => date instanceof Date && !Number.isNaN(date.getTime()),
+          )
+          .sort((left, right) => left - right);
+
+        const endDates = datedFeatures
+          .map((feature) => feature.endDate)
+          .filter(
+            (date) => date instanceof Date && !Number.isNaN(date.getTime()),
+          )
+          .sort((left, right) => left - right);
+
+        const deployedCount = group.features.filter(
+          productPlanFeatureIsDeployed,
+        ).length;
+
+        return {
+          ...group,
+
+          title:
+            group.name ||
+            (group.key === "SIN-EPICA"
+              ? "Features sin épica"
+              : `Épica ${group.key}`),
+
+          featureCount: group.features.length,
+
+          deployedCount,
+
+          startDate: startDates[0] || null,
+
+          endDate: endDates.at(-1) || null,
+        };
+      })
+      .sort((left, right) => {
+        if (left.key === "SIN-EPICA") {
+          return 1;
+        }
+
+        if (right.key === "SIN-EPICA") {
+          return -1;
+        }
+
+        return String(left.key).localeCompare(String(right.key), "es", {
+          numeric: true,
+          sensitivity: "base",
+        });
+      });
+  }
+  function productPlanExpandedEpicSet(state) {
+    if (
+      !state.expandedEpicGroups ||
+      !(state.expandedEpicGroups instanceof Set)
+    ) {
+      /*
+       * Las Epics arrancan colapsadas.
+       *
+       * Esto mantiene el Flight Plan compacto
+       * cuando la agrupación por Epic está activa.
+       */
+      state.expandedEpicGroups = new Set();
+    }
+
+    return state.expandedEpicGroups;
+  }
+
+  function productPlanEpicCollapseKey(sdaCollapseKey, epicKey) {
+    return [
+      String(sdaCollapseKey || "").trim(),
+      String(epicKey || "SIN-EPICA")
+        .trim()
+        .toUpperCase(),
+    ].join("::");
+  }
+
+  function toggleProductPlanEpicGroup(element) {
+    const context =
+      typeof roadmapWorkspaceParseRoute === "function"
+        ? roadmapWorkspaceParseRoute()
+        : null;
+
+    const programId = String(context?.programId || "").trim();
+
+    const productId = normalizeProduct(context?.productId);
+
+    if (
+      !isProductPlanProgram(programId) ||
+      !productId ||
+      productId === ALL_ID
+    ) {
+      return;
+    }
+
+    const collapseKey = String(
+      element?.dataset?.productPlanEpicToggle || "",
+    ).trim();
+
+    if (!collapseKey) {
+      return;
+    }
+
+    const state = comparisonState(programId, productId);
+
+    const expanded = productPlanExpandedEpicSet(state);
+
+    if (expanded.has(collapseKey)) {
+      expanded.delete(collapseKey);
+    } else {
+      expanded.add(collapseKey);
+    }
+
+    rerenderComparison();
+  }
+  function renderProductPlanEpicGroup(group, year, state, sdaCollapseKey) {
+    const isUnassigned = group.key === "SIN-EPICA";
+
+    const epicCollapseKey = productPlanEpicCollapseKey(
+      sdaCollapseKey,
+      group.key,
+    );
+
+    const expanded = productPlanExpandedEpicSet(state).has(epicCollapseKey);
+
+    const hasPlanningDates = Boolean(group.startDate && group.endDate);
+
+    const layout = hasPlanningDates
+      ? rowLayout(
+          {
+            startDate: group.startDate,
+
+            endDate: group.endDate,
+          },
+          year,
+        )
+      : null;
+
+    const epicTitle = isUnassigned
+      ? "Features sin épica"
+      : group.name || group.key;
+
+    const planningLabel = hasPlanningDates
+      ? `${formatShortDate(group.startDate)} → ${formatShortDate(
+          group.endDate,
+        )}`
+      : "Sin planificación temporal";
+
+    const timelineBar = hasPlanningDates
+      ? `
+        <span
+          class="
+            product-plan-bar
+            product-plan-bar-epic
+          "
+          style="
+            left:${layout.left}%;
+            width:${layout.width}%;
+          "
+          title="${escapeHtml(
+            [epicTitle, `${group.featureCount} Features`, planningLabel].join(
+              " · ",
+            ),
+          )}"
+        >
+          <span>
+            ${escapeHtml(isUnassigned ? "Sin épica" : group.key)}
+            ·
+            ${group.featureCount}
+            Features
+          </span>
+        </span>
+      `
+      : `
+        <span
+          class="
+            product-plan-sda-hidden
+          "
+        >
+          Sin planificación temporal
+        </span>
+      `;
+
+    return `
+    <section
+      class="
+        product-plan-epic-group
+        ${expanded ? "is-expanded" : "is-collapsed"}
+      "
+      data-product-plan-epic-group="${escapeHtml(epicCollapseKey)}"
+    >
+      <article
+        class="
+          product-plan-row
+          product-plan-linked-row
+          product-plan-linked-epic
+        "
+        data-product-plan-epic-toggle="${escapeHtml(epicCollapseKey)}"
+        role="button"
+        tabindex="0"
+        aria-expanded="${expanded ? "true" : "false"}"
+        title="${expanded ? "Ocultar Features" : "Mostrar Features"}"
+      >
+        <div
+          class="
+            product-plan-row-info
+          "
+        >
+          <div
+            class="
+              product-plan-row-topline
+            "
+          >
+            <span
+              class="
+                product-plan-linked-kind
+              "
+            >
+              ${isUnassigned ? "SIN ÉPICA" : "EPIC"}
+            </span>
+
+            ${
+              !isUnassigned
+                ? `
+                  <span
+                    class="
+                      product-plan-source-key
+                    "
+                  >
+                    ${escapeHtml(group.key)}
+                  </span>
+                `
+                : ""
+            }
+
+            <span
+              class="
+                product-plan-epic-expand-indicator
+              "
+              aria-hidden="true"
+            >
+              ⌄
+            </span>
+          </div>
+
+          <strong
+            title="${escapeHtml(epicTitle)}"
+          >
+            ${escapeHtml(epicTitle)}
+          </strong>
+
+          <small>
+            ${group.featureCount}
+            ${group.featureCount === 1 ? "Feature" : "Features"}
+            ·
+            ${group.deployedCount}
+            deployed
+          </small>
+        </div>
+
+        <div
+          class="
+            product-plan-row-track
+          "
+        >
+          ${renderTodayLine(year)}
+
+          ${timelineBar}
+        </div>
+      </article>
+
+      ${
+        expanded
+          ? `
+            <div
+              class="
+                product-plan-epic-features
+              "
+            >
+              ${group.features
+                .map((feature) =>
+                  renderProductPlanLinkedRow(feature, year, "features"),
+                )
+                .join("")}
+            </div>
+          `
+          : ""
+      }
+    </section>
+  `;
+  }
   function renderProductPlanSdaGroup(group, year, state, relationshipsReady) {
     const sda = group.sda;
+
     const msas = Array.isArray(group.msas) ? group.msas : [];
+
     const features = Array.isArray(group.features) ? group.features : [];
+
     const visibleMsas = state.sources.msa ? msas : [];
+
     const visibleFeatures = state.sources.features ? features : [];
+
+    const groupByEpic =
+      state.groupFeaturesByEpic === true && state.sources.features === true;
+
+    const epicGroups = groupByEpic
+      ? groupProductPlanFeaturesByEpic(visibleFeatures)
+      : [];
+
+    const epicCount = epicGroups.filter(
+      (epic) => epic.key !== "SIN-EPICA",
+    ).length;
+
     const hasVisibleChildren = visibleMsas.length || visibleFeatures.length;
+
     const collapseKey = productPlanSdaCollapseKey(sda);
+
     const expandedSet = productPlanExpandedSdaSet(state);
-    /*
-     * Por defecto todos los grupos están
-     * colapsados porque el Set comienza vacío.
-     */
+
     const expanded = collapseKey ? expandedSet.has(collapseKey) : false;
+
     const deliverableId =
       typeof productPlanSdaDeliverableId === "function"
         ? productPlanSdaDeliverableId(sda)
         : "";
+
     const deliverableLabel = deliverableId
       ? `D${deliverableId}`
       : sda.sourceKey || "SDA";
+
     const description = String(
       sda.subtitle || sda.raw?.goal || sda.raw?.description || "",
     ).trim();
+
+    const featureRowsHtml = groupByEpic
+      ? epicGroups
+          .map((epicGroup) =>
+            renderProductPlanEpicGroup(epicGroup, year, state, collapseKey),
+          )
+          .join("")
+      : visibleFeatures
+          .map((row) => renderProductPlanLinkedRow(row, year, "features"))
+          .join("");
+
     return `
     <section
       class="
@@ -3793,15 +4340,18 @@ function installProductPlanComparison() {
             <span>
               SDA DELIVERABLE
             </span>
+
             <em>
               ${escapeHtml(deliverableLabel)}
             </em>
           </div>
+
           <strong
             title="${escapeHtml(sda.title)}"
           >
             ${escapeHtml(sda.title)}
           </strong>
+
           ${
             description
               ? `
@@ -3814,6 +4364,7 @@ function installProductPlanComparison() {
               : ""
           }
         </div>
+
         <div
           class="
             product-plan-sda-group-actions
@@ -3828,11 +4379,24 @@ function installProductPlanComparison() {
               ${msas.length}
               ${msas.length === 1 ? "MSA" : "MSAs"}
             </span>
+
+            ${
+              groupByEpic
+                ? `
+                  <span>
+                    ${epicCount}
+                    ${epicCount === 1 ? "Epic" : "Epics"}
+                  </span>
+                `
+                : ""
+            }
+
             <span>
               ${features.length}
               ${features.length === 1 ? "Feature" : "Features"}
             </span>
           </div>
+
           <button
             type="button"
             class="
@@ -3853,25 +4417,28 @@ function installProductPlanComparison() {
           </button>
         </div>
       </header>
+
       ${renderProductPlanSdaAnchor(sda, year, state.sources.sda)}
+
       ${
         expanded && relationshipsReady && hasVisibleChildren
           ? `
             <div
               class="
                 product-plan-linked-rows
+                ${groupByEpic ? "is-grouped-by-epic" : ""}
               "
             >
               ${visibleMsas
                 .map((row) => renderProductPlanLinkedRow(row, year, "msa"))
                 .join("")}
-              ${visibleFeatures
-                .map((row) => renderProductPlanLinkedRow(row, year, "features"))
-                .join("")}
+
+              ${featureRowsHtml}
             </div>
           `
           : ""
       }
+
       ${
         expanded &&
         relationshipsReady &&
