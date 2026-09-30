@@ -12117,7 +12117,76 @@ function getManagementRoadmapLineById(lineId) {
     ) || null
   );
 }
+function groupManagementFeaturesByEpic(features) {
+  const groups = new Map();
 
+  (Array.isArray(features) ? features : []).forEach((feature) => {
+    if (!feature || typeof feature !== "object") return;
+
+    const epic =
+      feature.epic && typeof feature.epic === "object" ? feature.epic : null;
+
+    const parent =
+      feature.parent && typeof feature.parent === "object"
+        ? feature.parent
+        : null;
+
+    const parentType = String(
+      parent?.issueType?.name || parent?.issueType || parent?.type || "",
+    ).trim();
+
+    const parentIsEpic = /^(epic|épica)$/i.test(parentType);
+
+    const firstText = (...values) =>
+      values.map((value) => String(value ?? "").trim()).find(Boolean) || "";
+
+    const epicKey = firstText(
+      feature.epicKey,
+      feature.epic_key,
+      feature.jiraEpicKey,
+      feature.parentEpicKey,
+      feature.epicId,
+      feature.epic_id,
+      epic?.key,
+      epic?.jiraKey,
+      epic?.id,
+      parentIsEpic ? parent.key || parent.id : "",
+    );
+
+    const epicTitle = firstText(
+      feature.epicName,
+      feature.epic_name,
+      feature.epicSummary,
+      feature.epic_summary,
+      epic?.name,
+      epic?.summary,
+      epic?.title,
+      typeof feature.epic === "string" ? feature.epic : "",
+      parentIsEpic ? parent.summary || parent.name : "",
+    );
+
+    const identifier = epicKey || epicTitle;
+
+    // No contabilizar épicas sin identificación en JIRA.
+    if (!identifier) return;
+
+    const mapKey = identifier.toLocaleLowerCase("es");
+
+    if (!groups.has(mapKey)) {
+      groups.set(mapKey, {
+        key: epicKey || identifier,
+        title: epicTitle || epicKey,
+        features: [],
+      });
+    }
+
+    groups.get(mapKey).features.push(feature);
+  });
+
+  return [...groups.values()].sort((a, b) =>
+    a.title.localeCompare(b.title, "es"),
+  );
+}
 function getManagementRoadmapProgressData(executiveLineId) {
   const links = getManagementRoadmapLinksForLine(executiveLineId);
 
@@ -12159,7 +12228,6 @@ function getManagementRoadmapProgressData(executiveLineId) {
     progress,
   };
 }
-
 function renderManagementRoadmapProgress(executiveLineId) {
   const progress = getManagementRoadmapProgressData(executiveLineId);
 
@@ -12234,9 +12302,16 @@ function renderManagementRoadmapProgress(executiveLineId) {
       </div>
 
       <small>
-        ${progress.epicCount}
-        ${progress.epicCount === 1 ? "épica" : "épicas"}
-        · deployed
+        ${
+          progress.epicCount > 0
+            ? `
+              ${progress.epicCount}
+              ${progress.epicCount === 1 ? "épica" : "épicas"}
+              ·
+            `
+            : ""
+        }
+        Features desplegadas
       </small>
     </div>
   `;
