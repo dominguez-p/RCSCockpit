@@ -6915,3 +6915,2739 @@ PRODUCT PLAN · EPIC COLLAPSE
   .product-plan-row-info {
   padding-left: 82px;
 }
+/* =========================================================
+   MANAGEMENT ROADMAP · EXECUTIVE DELIVERY TIMELINE
+   ========================================================= */
+
+.management-roadmap-board-wrap {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.management-roadmap-board {
+  min-width: 1100px;
+}
+
+.management-roadmap-board-header,
+.management-roadmap-row {
+  grid-template-columns: minmax(360px, 405px) minmax(695px, 1fr);
+  min-width: 0;
+}
+
+.management-roadmap-board-header .management-roadmap-board-left {
+  padding: 20px 24px;
+  background: #f7faff;
+}
+
+.management-roadmap-board-title {
+  font-size: 2rem;
+}
+
+.management-roadmap-board-month {
+  min-height: 78px;
+}
+
+.management-roadmap-row {
+  min-height: 188px;
+}
+
+.management-roadmap-row-left {
+  justify-content: flex-start;
+  padding: 17px 22px 18px 24px;
+  gap: 9px;
+  border-left: 5px solid #d9e4f7;
+}
+
+.management-roadmap-row-badges {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.management-roadmap-row-badges .management-deliverables-category {
+  margin: 0;
+}
+
+.management-roadmap-row-badges .management-roadmap-status-pill {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+
+.management-roadmap-status-pill.is-replanned,
+.management-roadmap-status-pill.is-attention {
+  background: #fff1c9;
+  border-color: #efce83;
+  color: #8c5b00;
+}
+
+.management-roadmap-status-pill.is-risk {
+  background: #ffe3a8;
+  border-color: #f2ce6f;
+  color: #8a5b00;
+}
+
+.management-roadmap-status-pill.is-discarded {
+  background: #ffe4e4;
+  border-color: #efb4b4;
+  color: #a12b2b;
+}
+
+.management-roadmap-row-title {
+  font-size: 1.38rem;
+  line-height: 1.18;
+}
+
+.management-roadmap-row-references {
+  color: #56749c;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.management-roadmap-row-comment {
+  margin: 0;
+  color: #526685;
+  font-size: 12px;
+  line-height: 1.36;
+}
+
+.management-roadmap-row-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: auto;
+}
+
+.management-roadmap-row-dates > span {
+  display: grid;
+  gap: 3px;
+  padding: 7px 10px;
+  border: 1px solid #dde7f5;
+  border-radius: 9px;
+  background: #f8fbff;
+}
+
+.management-roadmap-row-dates small {
+  font-size: 9px;
+  color: #6681a4;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 900;
+}
+
+.management-roadmap-row-dates strong {
+  color: #113c89;
+  font-size: 12px;
+}
+
+.management-roadmap-row-progress-line {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: #0a4d9e;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.management-roadmap-row-progress-line small {
+  color: #70819b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.management-roadmap-row-timeline,
+.management-roadmap-row-bars {
+  min-height: 188px;
+}
+
+.management-roadmap-row-timeline {
+  background: #fcfdff;
+}
+
+.management-roadmap-row-bars {
+  position: relative;
+}
+
+.management-roadmap-bar,
+.management-roadmap-bar.is-features,
+.management-roadmap-bar.is-sda {
+  top: 50%;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #e6f1f8;
+  border: 1px solid #a9d7e7;
+  overflow: hidden;
+}
+
+.management-roadmap-bar.is-sda {
+  background: #dce0e7;
+  border-color: #bdc5d1;
+}
+
+.management-roadmap-bar.is-milestone {
+  min-width: 12px;
+}
+
+.management-roadmap-bar-fill {
+  position: absolute;
+  z-index: 0;
+  inset: 0 auto 0 0;
+  display: block;
+  background: #35b8bb;
+  transition: width 200ms ease;
+}
+
+.management-roadmap-bar-label {
+  position: relative;
+  z-index: 1;
+  font-family: Inter, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  color: #092c60;
+  text-overflow: clip;
+}
+
+.management-roadmap-today-line {
+  z-index: 3;
+}
+
+.management-roadmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  padding: 12px 6px 0;
+  color: #53698b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.management-roadmap-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.management-roadmap-legend i {
+  display: inline-block;
+  width: 17px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.management-roadmap-legend-features {
+  background: #35b8bb;
+}
+
+.management-roadmap-legend-sda {
+  background: #dce0e7;
+}
+
+.management-roadmap-legend .management-roadmap-legend-today {
+  width: 0;
+  height: 15px;
+  border-left: 2px dashed #ffb04c;
+  border-radius: 0;
+}
+
+@media (max-width: 1480px) {
+  .management-roadmap-board-header,
+  .management-roadmap-row {
+    min-width: 0;
+  }
+}
+/* MANAGEMENT ROADMAP · ANUAL Y TRIMESTRAL */
+
+.mgq-view {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.mgq-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid #dce6f6;
+  border-radius: 15px;
+  background: #f7faff;
+}
+
+.mgq-controls > div:first-child {
+  display: grid;
+  flex: 1 1 260px;
+  gap: 4px;
+}
+
+.mgq-controls > div:first-child strong {
+  font-size: 15px;
+  color: #001391;
+}
+
+.mgq-controls > div:first-child small {
+  font-size: 11px;
+  color: #566d90;
+}
+
+.mgq-year-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #173f84;
+}
+
+.mgq-year-label select {
+  min-height: 36px;
+  border: 1px solid #ccdaee;
+  border-radius: 9px;
+  padding: 5px 12px;
+  color: #001391;
+  background: #fff;
+  font: inherit;
+}
+
+.mgq-quarter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #e9effa;
+}
+
+.mgq-quarter-button {
+  border: 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #345489;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mgq-quarter-button:hover {
+  background: #dbe7fc;
+}
+
+.mgq-quarter-button.is-active {
+  background: #001391;
+  color: #fff;
+  box-shadow: 0 2px 6px #00139122;
+}
+
+.mgq-period-summary {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  padding: 3px 5px;
+  color: #5d7394;
+  font-size: 12px;
+}
+
+.mgq-period-summary strong {
+  font-size: 14px;
+  color: #001391;
+}
+
+.mgq-view .management-roadmap-board-wrap {
+  overflow-x: auto;
+  margin: 0;
+}
+
+.mgq-board {
+  min-width: 1100px;
+  border-radius: 15px;
+}
+
+.mgq-board .management-roadmap-board-header,
+.mgq-board .management-roadmap-row {
+  grid-template-columns:
+    minmax(370px, 430px)
+    minmax(680px, 1fr);
+  min-width: 1100px;
+}
+
+.mgq-board .management-roadmap-board-left {
+  padding: 16px 22px;
+}
+
+.mgq-board .management-roadmap-board-title {
+  font-size: 27px;
+}
+
+.mgq-board .management-roadmap-board-months {
+  grid-template-columns: repeat(var(--mgq-months), minmax(0, 1fr));
+}
+
+.mgq-board .management-roadmap-board-month {
+  min-height: 62px;
+  font-size: 13px;
+}
+
+.mgq-board .management-roadmap-row {
+  min-height: var(--mgq-height);
+}
+
+.mgq-board .management-roadmap-row-left {
+  padding: 17px 18px 18px 23px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+  border-left: 4px solid #d4e0f5;
+}
+
+.mgq-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.mgq-tags .management-deliverables-category {
+  margin: 0;
+}
+
+.mgq-tags .management-roadmap-status-pill {
+  font-size: 10px;
+  padding: 5px 9px;
+}
+
+.mgq-tags .management-roadmap-status-pill.is-replanned {
+  color: #956000;
+  background: #fff0c5;
+  border-color: #f0d58e;
+}
+
+.mgq-board .management-roadmap-row-title {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.18;
+}
+
+.mgq-deliverables {
+  display: grid;
+  gap: 5px;
+}
+
+.mgq-deliverables > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 5px;
+  color: #234b86;
+  line-height: 1.2;
+  font-size: 11px;
+}
+
+.mgq-deliverables b {
+  white-space: nowrap;
+}
+
+.mgq-deliverables small {
+  grid-column: 1 / -1;
+  color: #6781a2;
+  font-size: 10px;
+}
+
+.mgq-board .management-roadmap-row-comment {
+  margin: 0;
+  color: #5b718e;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.mgq-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.mgq-dates > span {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #e0e8f5;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #f9fbff;
+}
+
+.mgq-dates small {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6d83a2;
+}
+
+.mgq-dates b {
+  font-size: 12px;
+  color: #001391;
+}
+
+.mgq-progress-label {
+  font-size: 11px;
+  color: #3268a7;
+  font-weight: 900;
+}
+
+.mgq-board .management-roadmap-row-timeline {
+  min-height: var(--mgq-height);
+  overflow: hidden;
+  background: #fcfdff;
+}
+
+.mgq-board .management-roadmap-row-grid {
+  z-index: 0;
+}
+
+.mgq-board .management-roadmap-row-grid-cell {
+  border-left: 1px dashed #d6e1f0;
+}
+
+.mgq-board .management-roadmap-today-line {
+  z-index: 5;
+}
+
+.mgq-feature-strips {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--mgq-quarters), minmax(0, 1fr));
+  gap: 0;
+}
+
+.mgq-feature-strip {
+  min-height: 24px;
+  display: grid;
+  place-items: center;
+  margin: 0 4px;
+  overflow: hidden;
+  border-radius: 7px;
+  color: transparent;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.mgq-feature-strip.has-data {
+  color: #0f5382;
+  border: 1px solid #c7e2ef;
+  background: #e8f7fb;
+}
+
+.mgq-feature-strip.has-sda {
+  color: #576c89;
+  border: 1px solid #d3dce8;
+  background: #f0f2f6;
+}
+
+.mgq-sda-tracks {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  top: 53px;
+  bottom: 16px;
+}
+
+.mgq-sda-bar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  height: 29px;
+  min-width: 12px;
+  padding: 0 8px;
+  background: #d8dfe8;
+  border: 1px solid #b1bfd0;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px #0a2b5e17;
+  overflow: hidden;
+}
+
+.mgq-sda-bar span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  font-weight: 900;
+  color: #3b506e;
+}
+
+.mgq-feature-only {
+  position: absolute;
+  top: 0;
+  display: flex;
+  align-items: center;
+  height: 29px;
+  min-width: 12px;
+  padding: 0 8px;
+  background: #e1f3f8;
+  border: 1px dashed #379ebc;
+  border-radius: 6px;
+  color: #125e87;
+  font-size: 10px;
+  font-weight: 900;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.mgq-no-plan {
+  padding: 8px 16px;
+  color: #73829a;
+  font-size: 12px;
+}
+
+.mgq-quarter-progress {
+  position: absolute;
+  z-index: 2;
+  bottom: 10px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mgq-quarter-progress > div {
+  width: 100px;
+  height: 7px;
+  border-radius: 20px;
+  background: #e0e9f4;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.mgq-quarter-progress > div > span {
+  display: block;
+  height: 100%;
+  background: #27b4b8;
+  border-radius: 20px;
+}
+
+.mgq-quarter-progress small {
+  color: #0e6a86;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.mgq-empty {
+  grid-column: 1 / -1;
+  padding: 28px;
+  color: #617592;
+  font-size: 13px;
+}
+
+.mgq-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+  font-size: 11px;
+  color: #587092;
+}
+
+.mgq-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mgq-legend i {
+  display: inline-block;
+  width: 19px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.mgq-legend .mgq-legend-sda {
+  background: #d8dfe8;
+  border: 1px solid #b1bfd0;
+}
+
+.mgq-legend .mgq-legend-feature {
+  background: #e8f7fb;
+  border: 1px solid #80bdd4;
+}
+
+.mgq-legend .mgq-legend-today {
+  height: 16px;
+  width: 0;
+  border-left: 2px dashed #ffb04c;
+}
+
+.mgq-warning {
+  max-width: 970px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #52698b;
+}
+
+@media (max-width: 760px) {
+  .mgq-controls {
+    align-items: flex-start;
+  }
+
+  .mgq-quarter-group {
+    width: 100%;
+  }
+
+  .mgq-quarter-button {
+    flex: 1;
+  }
+}
+/* =========================================================
+   MANAGEMENT ROADMAP
+   JERARQUÍA SDA → FEATURES
+   ========================================================= */
+
+.mgqh-view .management-roadmap-board-wrap {
+  overflow-x: auto;
+  margin: 0;
+}
+
+.mgqh-board {
+  min-width: 1150px;
+  overflow: hidden;
+}
+
+.mgqh-board .management-roadmap-board-header {
+  display: grid;
+  grid-template-columns:
+    minmax(370px, 430px)
+    minmax(720px, 1fr);
+  min-width: 1150px;
+}
+
+.mgqh-board .management-roadmap-board-months {
+  grid-template-columns: repeat(var(--mgqh-months), minmax(0, 1fr));
+}
+
+.mgqh-board .management-roadmap-board-month {
+  min-height: 64px;
+  font-size: 13px;
+}
+
+.mgqh-deliverable-group {
+  display: grid;
+  border-bottom: 3px solid #dce5f3;
+}
+
+.mgqh-deliverable-group:last-child {
+  border-bottom: 0;
+}
+
+/* CABECERA DEL ENTREGABLE EJECUTIVO */
+
+.mgqh-executive-header {
+  display: grid;
+  gap: 7px;
+  padding: 17px 21px;
+  background: #f7faff;
+  border-bottom: 1px solid #dce5f3;
+}
+
+.mgqh-executive-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.mgqh-executive-tags .management-roadmap-status-pill {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.mgqh-executive-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.mgqh-executive-heading h4 {
+  margin: 0;
+  color: #001391;
+  font-family: Georgia, serif;
+  font-size: 22px;
+}
+
+.mgqh-executive-heading > span {
+  color: #2867a3;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.mgqh-executive-header p {
+  margin: 0;
+  color: #5d718e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* ESTRUCTURA DE DOS COLUMNAS */
+
+.mgqh-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(370px, 430px)
+    minmax(720px, 1fr);
+}
+
+.mgqh-sda-block {
+  border-bottom: 1px solid #dce5f3;
+}
+
+.mgqh-sda-block:last-child {
+  border-bottom: 0;
+}
+
+/* PLAN SDA SUPERIOR */
+
+.mgqh-plan-row {
+  min-height: 91px;
+  background: #f0f5fc;
+}
+
+.mgqh-plan-info {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 5px;
+  padding: 14px 20px;
+  border-left: 5px solid #527aa9;
+}
+
+.mgqh-plan-badge {
+  display: inline-flex;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: #dce6f2;
+  color: #31577f;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.mgqh-plan-info strong {
+  color: #001391;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.mgqh-plan-info small {
+  color: #5b7394;
+  font-size: 11px;
+}
+
+.mgqh-time-plot {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid #e0e8f3;
+}
+
+.mgqh-plan-track {
+  min-height: 91px;
+}
+
+.mgqh-time-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(to right, #dce5f0 1px, transparent 1px);
+  background-size: calc(100% / var(--mgqh-months)) 100%;
+  z-index: 0;
+}
+
+.mgqh-today-line {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed #ffb04c;
+  pointer-events: none;
+}
+
+.mgqh-sda-bar {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  min-width: 9px;
+  height: 31px;
+  padding: 0 10px;
+  background: #c7d5e6;
+  border: 1px solid #8fa9c7;
+  border-radius: 6px;
+  box-shadow: 0 2px 5px #173f791a;
+  overflow: hidden;
+}
+
+.mgqh-sda-bar span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #193e70;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.mgqh-outside-period {
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  transform: translateY(-50%);
+  color: #8191a8;
+  font-size: 11px;
+}
+
+/* CABECERA DEL DETALLE */
+
+.mgqh-feature-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 15px;
+  padding: 10px 20px 10px 32px;
+  border-top: 1px solid #e0e8f3;
+  border-bottom: 1px solid #e0e8f3;
+  background: #ffffff;
+}
+
+.mgqh-feature-heading span:first-child {
+  color: #174984;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.mgqh-feature-heading span:last-child {
+  color: #4285a2;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+/* FILAS INDIVIDUALES DE FEATURES */
+
+.mgqh-feature-row {
+  min-height: 55px;
+  background: #ffffff;
+  border-bottom: 1px solid #edf1f7;
+}
+
+.mgqh-feature-info {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 10px 15px 10px 45px;
+}
+
+.mgqh-feature-info strong {
+  color: #274c7e;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.mgqh-feature-info small {
+  color: #7a8da6;
+  font-size: 10px;
+}
+
+.mgqh-feature-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: #7387a3;
+  font-size: 10px;
+}
+
+.mgqh-feature-status {
+  display: inline-flex;
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 900;
+  background: #e8eef6;
+  color: #526985;
+}
+
+.mgqh-feature-status.is-deployed {
+  background: #e0f5ef;
+  color: #117657;
+}
+
+.mgqh-feature-status.is-discarded {
+  background: #ffe9e9;
+  color: #a83434;
+}
+
+.mgqh-feature-track {
+  min-height: 55px;
+}
+
+.mgqh-feature-bar {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 8px;
+  height: 17px;
+  border-radius: 4px;
+  border: 1px solid #67b7c4;
+  background: #8bced8;
+  box-shadow: 0 1px 3px #14618a22;
+}
+
+.mgqh-feature-bar.is-deployed {
+  background: #22a98b;
+  border-color: #168468;
+}
+
+.mgqh-feature-bar.is-discarded {
+  background: #c9d0da;
+  border-color: #a6b1c0;
+}
+
+/* FEATURES SIN PLANIFICACIÓN EN EL PERIODO */
+
+.mgqh-no-features {
+  min-height: 52px;
+  color: #7587a0;
+  font-size: 11px;
+  background: #fcfdff;
+}
+
+.mgqh-no-features > div {
+  display: flex;
+  align-items: center;
+  padding: 12px 18px;
+}
+
+.mgqh-no-features > div:first-child {
+  padding-left: 45px;
+  font-weight: 800;
+}
+
+.mgqh-no-features > div:last-child {
+  border-left: 1px solid #e0e8f3;
+}
+
+.mgqh-undated-heading {
+  padding: 10px 20px 10px 45px;
+  background: #f9fbfe;
+  color: #697e9b;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.mgqh-feature-row.is-undated {
+  opacity: 0.76;
+}
+
+.mgqh-undated-label {
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: #8b96a8;
+}
+
+/* PIE DE CADA ENTREGABLE SDA */
+
+.mgqh-sda-footer {
+  padding: 9px 18px 9px 45px;
+  background: #f7faff;
+  color: #6b7e99;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+/* ESTADOS VACÍOS Y LEYENDA */
+
+.mgqh-empty {
+  padding: 22px;
+  color: #71819a;
+  font-size: 12px;
+}
+
+.mgqh-legend-plan {
+  background: #c7d5e6;
+  border: 1px solid #8fa9c7;
+}
+
+.mgqh-legend-feature {
+  background: #8bced8;
+  border: 1px solid #67b7c4;
+}
+
+.mgqh-legend-deployed {
+  background: #22a98b;
+  border: 1px solid #168468;
+}
+
+@media (max-width: 760px) {
+  .mgqh-executive-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+/* =========================================================
+   MANAGEMENT ROADMAP
+   SDA + FEATURES AGREGADAS
+   ========================================================= */
+
+.mgqa-view .management-roadmap-board-wrap {
+  margin: 0;
+  overflow-x: auto;
+}
+
+.mgqa-board {
+  min-width: 1120px;
+  overflow: hidden;
+}
+
+.mgqa-board .management-roadmap-board-header,
+.mgqa-line {
+  display: grid;
+  grid-template-columns:
+    minmax(360px, 420px)
+    minmax(700px, 1fr);
+  min-width: 1120px;
+}
+
+.mgqa-board .management-roadmap-board-body {
+  display: block;
+}
+
+.mgqa-board .management-roadmap-board-months {
+  grid-template-columns: repeat(var(--mgqa-months), minmax(0, 1fr));
+}
+
+.mgqa-board .management-roadmap-board-month {
+  min-height: 66px;
+  font-size: 13px;
+}
+
+/* Entregable ejecutivo */
+
+.mgqa-executive {
+  border-bottom: 3px solid #d8e3f2;
+}
+
+.mgqa-executive:last-child {
+  border-bottom: 0;
+}
+
+.mgqa-executive-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 15px 20px;
+  background: #f6f9fe;
+  border-bottom: 1px solid #dce6f4;
+}
+
+.mgqa-executive-header h4 {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: #001391;
+  font-family: Georgia, serif;
+  font-size: 21px;
+}
+
+.mgqa-executive-header p {
+  flex-basis: 100%;
+  margin: 0;
+  color: #5c708d;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.mgqa-executive-header .management-roadmap-status-pill {
+  padding: 5px 9px;
+  font-size: 10px;
+}
+
+/* Pareja SDA + features */
+
+.mgqa-sda-pair {
+  border-bottom: 1px solid #e1e9f3;
+}
+
+.mgqa-sda-pair:last-child {
+  border-bottom: 0;
+}
+
+.mgqa-line {
+  align-items: stretch;
+}
+
+.mgqa-plan-line {
+  min-height: 84px;
+  background: #edf3fc;
+}
+
+.mgqa-aggregate-line {
+  min-height: 116px;
+  background: #fff;
+  border-top: 1px solid #dce7f5;
+}
+
+.mgqa-line-info {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 5px;
+  padding: 13px 18px;
+}
+
+.mgqa-plan-line .mgqa-line-info {
+  border-left: 4px solid #0c3b83;
+}
+
+.mgqa-row-type {
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: #d9e6f6;
+  color: #17447d;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.mgqa-line-info > strong {
+  color: #001391;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.mgqa-line-info > small {
+  color: #627d9e;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+/* Cronograma común */
+
+.mgqa-time-plot {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid #dfe8f4;
+}
+
+.mgqa-plan-plot {
+  min-height: 84px;
+}
+
+.mgqa-feature-plot {
+  min-height: 116px;
+}
+
+.mgqa-time-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(to right, #dce6f3 1px, transparent 1px);
+  background-size: calc(100% / var(--mgqa-months)) 100%;
+  pointer-events: none;
+}
+
+.mgqa-today {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  bottom: 0;
+  border-left: 2px dashed #ffb04c;
+  pointer-events: none;
+}
+
+/* Plan SDA: azul corporativo */
+
+.mgqa-sda-bar {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  min-width: 9px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 5px;
+  background: #0c3b83;
+  overflow: hidden;
+}
+
+.mgqa-sda-bar span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+/* Features: información agregada */
+
+.mgqa-aggregate-info {
+  gap: 10px;
+  padding-left: 30px;
+}
+
+.mgqa-aggregate-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.mgqa-aggregate-title strong {
+  color: #17477d;
+  font-size: 12px;
+}
+
+.mgqa-aggregate-title b {
+  color: #001391;
+  font-size: 14px;
+}
+
+.mgqa-dates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.mgqa-dates > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid #e1e9f4;
+  border-radius: 7px;
+  background: #f8fbff;
+}
+
+.mgqa-dates small {
+  color: #7084a0;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.mgqa-dates b {
+  color: #173e7e;
+  font-size: 11px;
+}
+
+.mgqa-status-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  width: 100%;
+}
+
+/* Paleta de estados */
+
+.mgqa-deployed {
+  --mgqa-state: #229b60;
+}
+
+.mgqa-new {
+  --mgqa-state: #a8adb5;
+}
+
+.mgqa-in-progress {
+  --mgqa-state: #72bceb;
+}
+
+.mgqa-discarded {
+  --mgqa-state: #c93d43;
+}
+
+.mgqa-other {
+  --mgqa-state: #242424;
+}
+
+.mgqa-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border-left: 4px solid var(--mgqa-state);
+  border-radius: 4px;
+  background: #f2f5fa;
+  color: #354a67;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+/* Barra agregada */
+
+.mgqa-aggregate-bar {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 2px;
+  min-width: 10px;
+  height: 25px;
+  padding: 2px;
+  border: 1px solid #cad7e8;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 2px 5px #183c6f12;
+}
+
+.mgqa-bar-segment {
+  display: block;
+  flex-basis: 0;
+  min-width: 0;
+  height: 100%;
+  background: var(--mgqa-state);
+}
+
+.mgqa-bar-segment:first-child {
+  border-radius: 3px 0 0 3px;
+}
+
+.mgqa-bar-segment:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.mgqa-no-date {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: #7588a3;
+  font-size: 11px;
+}
+
+.mgqa-empty-note {
+  color: #71819b;
+  font-size: 10px;
+}
+
+.mgqa-unlinked {
+  padding: 22px;
+  color: #71819b;
+  font-size: 12px;
+}
+
+/* Leyenda */
+
+.mgqa-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 3px 5px;
+  color: #516b8d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mgqa-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mgqa-legend i {
+  display: inline-block;
+  width: 18px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--mgqa-state);
+}
+
+.mgqa-legend .mgqa-legend-sda {
+  background: #0c3b83;
+}
+
+@media (max-width: 760px) {
+  .mgqa-aggregate-title {
+    align-items: flex-start;
+  }
+}
+/* =========================================================
+   MANAGEMENT ROADMAP
+   SDA + FEATURES AGREGADAS Y DESPLEGABLES
+   ========================================================= */
+
+.mgqar-view .management-roadmap-board-wrap {
+  margin: 0;
+  overflow-x: auto;
+}
+
+.mgqar-board {
+  min-width: 1130px;
+  overflow: hidden;
+}
+
+.mgqar-board .management-roadmap-board-header,
+.mgqar-line,
+.mgqar-detail-row {
+  display: grid;
+  grid-template-columns:
+    minmax(350px, 405px)
+    minmax(750px, 1fr);
+  min-width: 1130px;
+}
+
+.mgqar-board .management-roadmap-board-body {
+  display: block;
+}
+
+.mgqar-board .management-roadmap-board-months {
+  grid-template-columns: repeat(var(--mgqar-months), minmax(0, 1fr));
+}
+
+.mgqar-board .management-roadmap-board-month {
+  min-height: 61px;
+  font-size: 13px;
+}
+
+/* Cabecera ejecutiva compacta */
+
+.mgqar-executive {
+  border-bottom: 3px solid #dce6f3;
+}
+
+.mgqar-executive:last-child {
+  border-bottom: 0;
+}
+
+.mgqar-executive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 14px 19px;
+  background: #f6f9fe;
+  border-bottom: 1px solid #dce6f3;
+}
+
+.mgqar-executive-header > div {
+  display: grid;
+  gap: 7px;
+}
+
+.mgqar-executive-header h4 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 20px;
+  color: #001391;
+}
+
+.mgqar-executive-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.mgqar-executive-tags .management-roadmap-status-pill {
+  padding: 4px 9px;
+  font-size: 10px;
+}
+
+.mgqar-notes {
+  font-size: 11px;
+  color: #526f96;
+}
+
+.mgqar-notes summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.mgqar-notes p {
+  max-width: 650px;
+  margin: 9px 0 0;
+  line-height: 1.45;
+}
+
+.mgqar-notes[open] {
+  flex-basis: 100%;
+}
+
+/* Dos líneas por entregable SDA */
+
+.mgqar-sda-pair {
+  border-bottom: 1px solid #e0e8f4;
+}
+
+.mgqar-sda-pair:last-child {
+  border-bottom: 0;
+}
+
+.mgqar-line {
+  align-items: stretch;
+}
+
+.mgqar-plan-line {
+  min-height: 95px;
+  background: #edf3fc;
+}
+
+.mgqar-plan-info {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 6px;
+  padding: 12px 18px;
+  border-left: 4px solid #103b83;
+}
+
+.mgqar-line-caption {
+  color: #5578a5;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.mgqar-plan-info strong {
+  color: #001391;
+  font-size: 14px;
+}
+
+.mgqar-plan-info small {
+  color: #60799a;
+  font-size: 11px;
+}
+
+/* Cuadrícula temporal */
+
+.mgqar-time-plot {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid #dce6f3;
+}
+
+.mgqar-plan-plot {
+  min-height: 95px;
+}
+
+.mgqar-time-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(to right, #dbe5f2 1px, transparent 1px);
+  background-size: calc(100% / var(--mgqar-months)) 100%;
+  pointer-events: none;
+}
+
+.mgqar-today {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  bottom: 0;
+  border-left: 2px dashed #ffb04c;
+  pointer-events: none;
+}
+
+/* Nombre e identificador del entregable SDA */
+
+.mgqar-plan-caption {
+  position: absolute;
+  top: 11px;
+  left: 13px;
+  right: 13px;
+  z-index: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #264d82;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.mgqar-sda-bar {
+  position: absolute;
+  top: 48px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  min-width: 8px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 5px;
+  background: #103b83;
+  box-shadow: 0 2px 5px #173f791c;
+  overflow: hidden;
+}
+
+.mgqar-sda-bar span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.mgqar-no-date {
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  transform: translateY(-50%);
+  color: #7387a3;
+  font-size: 11px;
+}
+
+/* Línea agregada interactiva */
+
+.mgqar-disclosure {
+  background: #fff;
+}
+
+.mgqar-disclosure > summary {
+  display: grid;
+  list-style: none;
+  cursor: pointer;
+}
+
+.mgqar-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mgqar-aggregate-summary {
+  min-height: 129px;
+  border-top: 1px solid #dce6f3;
+  transition: background 150ms ease;
+}
+
+.mgqar-aggregate-summary:hover {
+  background: #f7fbff;
+}
+
+.mgqar-aggregate-summary:focus-visible {
+  outline: 2px solid #1464c9;
+  outline-offset: -2px;
+}
+
+.mgqar-disclosure[open] > summary {
+  background: #f3f8ff;
+}
+
+.mgqar-aggregate-info {
+  display: grid;
+  align-content: center;
+  gap: 11px;
+  padding: 13px 17px 13px 29px;
+}
+
+.mgqar-aggregate-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.mgqar-aggregate-heading strong {
+  color: #194b83;
+  font-size: 13px;
+}
+
+.mgqar-progress {
+  color: #001391;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.mgqar-compact-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.mgqar-compact-dates > span {
+  display: grid;
+  gap: 4px;
+  padding: 7px 9px;
+  border: 1px solid #e2eaf5;
+  border-radius: 7px;
+  background: #fafcff;
+}
+
+.mgqar-compact-dates small {
+  color: #7186a3;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.mgqar-compact-dates b {
+  color: #214780;
+  font-size: 11px;
+}
+
+.mgqar-expand-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #1160aa;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.mgqar-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border: 1px solid #b8cce5;
+  border-radius: 5px;
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 150ms ease;
+}
+
+.mgqar-disclosure[open] .mgqar-chevron {
+  transform: rotate(90deg);
+}
+
+/* Tiempo de features y distribución por estado */
+
+.mgqar-aggregate-plot {
+  min-height: 129px;
+}
+
+.mgqar-feature-time-bar {
+  position: absolute;
+  z-index: 2;
+  top: 24px;
+  min-width: 8px;
+  height: 16px;
+  border: 1px solid #5fa3cf;
+  border-radius: 4px;
+  background: #a4d3f1;
+}
+
+.mgqar-no-features {
+  position: absolute;
+  top: 23px;
+  left: 13px;
+  color: #69819d;
+  font-size: 11px;
+}
+
+/* Cinco colores y textos legibles */
+
+.mgqar-deployed {
+  --mgqar-color: #229b60;
+  --mgqar-text: #ffffff;
+}
+
+.mgqar-new {
+  --mgqar-color: #a8adb5;
+  --mgqar-text: #182c42;
+}
+
+.mgqar-in-progress {
+  --mgqar-color: #72bceb;
+  --mgqar-text: #102b45;
+}
+
+.mgqar-discarded {
+  --mgqar-color: #c93d43;
+  --mgqar-text: #ffffff;
+}
+
+.mgqar-other {
+  --mgqar-color: #242424;
+  --mgqar-text: #ffffff;
+}
+
+.mgqar-status-strip {
+  position: absolute;
+  z-index: 3;
+  right: 13px;
+  bottom: 13px;
+  left: 13px;
+  display: flex;
+  gap: 3px;
+  height: 38px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  border-radius: 6px;
+}
+
+.mgqar-state-segment {
+  display: flex;
+  flex-basis: 0;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 6px;
+  min-width: 118px;
+  padding: 0 10px;
+  background: var(--mgqar-color);
+  color: var(--mgqar-text);
+  white-space: nowrap;
+}
+
+.mgqar-state-segment strong {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.mgqar-state-segment b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: #ffffff33;
+  font-size: 11px;
+}
+
+/* Detalle desplegado */
+
+.mgqar-expanded {
+  border-top: 2px solid #c4d8ee;
+  background: #fff;
+}
+
+.mgqar-expanded > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 11px 19px 11px 34px;
+  background: #edf5ff;
+}
+
+.mgqar-expanded > header strong {
+  color: #174780;
+  font-size: 12px;
+}
+
+.mgqar-expanded > header span {
+  color: #607c9e;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.mgqar-detail-row {
+  min-height: 65px;
+  border-bottom: 1px solid #e8eef6;
+}
+
+.mgqar-detail-row:last-child {
+  border-bottom: 0;
+}
+
+.mgqar-detail-info {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 11px 15px 11px 46px;
+}
+
+.mgqar-detail-info > strong {
+  color: #244d7d;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.mgqar-detail-info > small {
+  color: #6b829f;
+  font-size: 10px;
+}
+
+.mgqar-detail-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: #607a9a;
+  font-size: 10px;
+}
+
+.mgqar-status-tag {
+  display: inline-flex;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: var(--mgqar-color);
+  color: var(--mgqar-text);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.mgqar-scope-tag {
+  padding: 3px 6px;
+  border: 1px solid #d8e2ef;
+  border-radius: 5px;
+  background: #f4f7fb;
+  color: #69819e;
+  font-size: 9px;
+}
+
+.mgqar-detail-plot {
+  min-height: 65px;
+}
+
+.mgqar-detail-bar {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 7px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--mgqar-color);
+}
+
+.mgqar-detail-placeholder {
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  transform: translateY(-50%);
+  color: #7b8da6;
+  font-size: 10px;
+}
+
+.mgqar-detail-empty,
+.mgqar-empty {
+  padding: 20px;
+  color: #7285a0;
+  font-size: 12px;
+}
+
+/* Leyenda */
+
+.mgqar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 3px 5px;
+  color: #526e90;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mgqar-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mgqar-legend i {
+  display: inline-block;
+  width: 18px;
+  height: 11px;
+  border-radius: 2px;
+  background: var(--mgqar-color);
+}
+/* =========================================================
+   MANAGEMENT ROADMAP
+   BARRA AGREGADA ALINEADA CON SUS FEATURES
+   ========================================================= */
+
+.mgqar-view .mgqar-aggregate-plot .mgqar-status-strip {
+  position: absolute;
+  top: 50%;
+  bottom: auto;
+  right: auto;
+  transform: translateY(-50%);
+
+  height: 36px;
+  margin: 0;
+
+  display: flex;
+  gap: 2px;
+
+  border-radius: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+
+  z-index: 3;
+}
+
+.mgqar-view .mgqar-state-segment {
+  min-width: 118px;
+  padding: 0 8px;
+}
+
+.mgqar-view .mgqar-state-segment strong {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.mgqar-view .mgqar-state-segment b {
+  flex-shrink: 0;
+}
+/* =========================================================
+   MANAGEMENT ROADMAP
+   UNA BARRA SDA + TARTA DE FEATURES
+   ========================================================= */
+
+.mgqv-view .management-roadmap-board-wrap {
+  margin: 0;
+  overflow-x: auto;
+}
+
+.mgqv-board {
+  min-width: 1200px;
+  overflow: hidden;
+}
+
+.mgqv-board .management-roadmap-board-header,
+.mgqv-sda-row,
+.mgqv-feature-row {
+  display: grid;
+  grid-template-columns:
+    265px
+    minmax(705px, 1fr)
+    225px;
+  min-width: 1200px;
+}
+
+.mgqv-board .management-roadmap-board-body {
+  display: block;
+}
+
+.mgqv-board .management-roadmap-board-months {
+  grid-template-columns: repeat(var(--mgqv-months), minmax(0, 1fr));
+}
+
+.mgqv-board .management-roadmap-board-month {
+  min-height: 65px;
+  font-size: 13px;
+}
+
+.mgqv-status-header {
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  background: #eef4fc;
+  color: #001391;
+  font-family: Georgia, serif;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Cabecera ejecutiva */
+
+.mgqv-executive {
+  border-bottom: 3px solid #dce5f2;
+}
+
+.mgqv-executive-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 13px 18px;
+  background: #f7faff;
+  border-bottom: 1px solid #dce6f3;
+}
+
+.mgqv-executive-header > div {
+  display: grid;
+  gap: 6px;
+}
+
+.mgqv-executive-header h4 {
+  margin: 0;
+  color: #001391;
+  font-family: Georgia, serif;
+  font-size: 20px;
+}
+
+.mgqv-executive-tags {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.mgqv-executive-tags .management-roadmap-status-pill {
+  padding: 4px 9px;
+  font-size: 10px;
+}
+
+.mgqv-notes {
+  color: #526c91;
+  font-size: 11px;
+}
+
+.mgqv-notes summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.mgqv-notes p {
+  max-width: 750px;
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.mgqv-notes[open] {
+  flex-basis: 100%;
+}
+
+/* Una sola fila por entregable SDA */
+
+.mgqv-sda-group {
+  border-bottom: 1px solid #dce5f2;
+}
+
+.mgqv-sda-group > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.mgqv-sda-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mgqv-sda-group > summary:focus-visible {
+  outline: 2px solid #1464c9;
+  outline-offset: -2px;
+}
+
+.mgqv-sda-row {
+  min-height: 152px;
+  background: #fff;
+  transition: background 150ms ease;
+}
+
+.mgqv-sda-row:hover {
+  background: #f7fbff;
+}
+
+.mgqv-sda-group[open] > summary {
+  background: #f4f9ff;
+}
+
+.mgqv-sda-info {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 9px;
+  padding: 16px;
+  border-left: 4px solid #123d82;
+}
+
+.mgqv-sda-info > strong {
+  color: #001391;
+  font-size: 14px;
+}
+
+.mgqv-sda-info > small {
+  color: #66809f;
+  font-size: 11px;
+}
+
+.mgqv-expand-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #1464a5;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.mgqv-chevron {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border: 1px solid #b4c9e4;
+  border-radius: 5px;
+  font-size: 20px;
+  transition: transform 150ms ease;
+}
+
+.mgqv-sda-group[open] .mgqv-chevron {
+  transform: rotate(90deg);
+}
+
+/* Barra de planificación SDA */
+
+.mgqv-sda-timeline,
+.mgqv-feature-timeline {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid #e0e8f3;
+}
+
+.mgqv-time-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(to right, #dce5f0 1px, transparent 1px);
+  background-size: calc(100% / var(--mgqv-months)) 100%;
+}
+
+.mgqv-today {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  bottom: 0;
+  border-left: 2px dashed #ffb04c;
+  pointer-events: none;
+}
+
+.mgqv-bar-caption {
+  position: absolute;
+  top: 24px;
+  left: 14px;
+  right: 14px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #264d82;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mgqv-sda-bar {
+  position: absolute;
+  top: 76px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 10px;
+  height: 35px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: #123d82;
+  box-shadow: 0 2px 6px #123d8220;
+  overflow: hidden;
+}
+
+.mgqv-sda-bar > span:first-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.mgqv-bar-chevron {
+  flex-shrink: 0;
+  color: #fff;
+  font-size: 12px;
+}
+
+.mgqv-no-plan {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: #778aa5;
+  font-size: 11px;
+}
+
+/* Colores de los estados */
+
+.mgqv-deployed {
+  --mgqv-color: #229b60;
+  --mgqv-text: #ffffff;
+}
+
+.mgqv-new {
+  --mgqv-color: #a8adb5;
+  --mgqv-text: #182c42;
+}
+
+.mgqv-in-progress {
+  --mgqv-color: #72bceb;
+  --mgqv-text: #102b45;
+}
+
+.mgqv-discarded {
+  --mgqv-color: #c93d43;
+  --mgqv-text: #ffffff;
+}
+
+.mgqv-other {
+  --mgqv-color: #242424;
+  --mgqv-text: #ffffff;
+}
+
+/* Columna del gráfico de tarta */
+
+.mgqv-pie-column {
+  display: grid;
+  grid-template-columns: 75px 1fr;
+  align-content: center;
+  align-items: center;
+  gap: 7px 9px;
+  min-width: 0;
+  padding: 13px;
+  border-left: 1px solid #dce5f1;
+  background: #fafcff;
+}
+
+.mgqv-pie {
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #dbe5f2;
+}
+
+.mgqv-pie-empty {
+  background: #e5e9f0;
+}
+
+.mgqv-pie-info {
+  display: grid;
+  gap: 4px;
+}
+
+.mgqv-pie-info strong {
+  color: #001391;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.mgqv-pie-info small,
+.mgqv-pie-empty-label {
+  color: #637a99;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.mgqv-pie-counts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 8px;
+}
+
+.mgqv-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #435b7d;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.mgqv-count i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--mgqv-color);
+}
+
+.mgqv-count b {
+  font-size: 10px;
+}
+
+.mgqv-feature-dates {
+  grid-column: 1 / -1;
+  color: #6a809c;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+/* Detalle desplegado */
+
+.mgqv-expanded {
+  border-top: 2px solid #bbd0eb;
+  background: #fff;
+}
+
+.mgqv-expanded > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 18px;
+  background: #eaf3ff;
+}
+
+.mgqv-expanded > header strong {
+  color: #194c85;
+  font-size: 12px;
+}
+
+.mgqv-expanded > header span {
+  color: #65809e;
+  font-size: 10px;
+}
+
+.mgqv-feature-row {
+  min-height: 68px;
+  border-bottom: 1px solid #e8eef6;
+}
+
+.mgqv-feature-info {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 10px 15px 10px 28px;
+}
+
+.mgqv-feature-info > strong {
+  color: #244d7c;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.mgqv-feature-info > small {
+  color: #7388a4;
+  font-size: 10px;
+}
+
+.mgqv-feature-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: #607a9a;
+  font-size: 10px;
+}
+
+.mgqv-status-tag {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: var(--mgqv-color);
+  color: var(--mgqv-text);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.mgqv-scope-tag {
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: #edf2f8;
+  color: #647b9a;
+  font-size: 9px;
+}
+
+.mgqv-feature-bar {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  min-width: 7px;
+  height: 17px;
+  border-radius: 4px;
+  background: var(--mgqv-color);
+}
+
+.mgqv-feature-placeholder {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: #8191a8;
+  font-size: 10px;
+}
+
+.mgqv-feature-status-cell {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-left: 1px solid #e0e8f3;
+}
+
+.mgqv-empty {
+  padding: 22px;
+  color: #7185a1;
+  font-size: 12px;
+}
+
+/* Leyenda */
+
+.mgqv-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 19px;
+  padding: 4px;
+  font-size: 11px;
+  color: #516b8e;
+}
+
+.mgqv-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.mgqv-legend i {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--mgqv-color);
+}
+/* =========================================================
+   MANAGEMENT ROADMAP
+   JERARQUÍA VISUAL: CATEGORÍA Y ENTREGABLE
+   ========================================================= */
+
+.mgqv-board .mgqv-executive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 26px;
+
+  background: linear-gradient(110deg, #edf4ff 0%, #ffffff 75%);
+
+  border-left: 6px solid #001391;
+  border-bottom: 2px solid #cbdcf4;
+}
+
+.mgqv-board .mgqv-executive-header > div:first-child {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* La categoría pasa a la primera posición */
+
+.mgqv-board .mgqv-executive-tags {
+  order: -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Etiqueta de categoría destacada */
+
+.mgqv-board .mgqv-executive-tags .management-deliverables-category {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: fit-content;
+  min-height: 34px;
+  margin: 0;
+  padding: 8px 15px;
+
+  border-radius: 7px;
+  border: 0;
+
+  background: #087d91;
+  color: #ffffff;
+
+  font-family: Inter, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.025em;
+
+  box-shadow: 0 3px 8px rgba(8, 125, 145, 0.15);
+}
+
+/* Categorías diferenciadas */
+
+.mgqv-board
+  .mgqv-executive-tags
+  .management-deliverables-category.is-knowledge {
+  background: #087d91;
+  color: #ffffff;
+}
+
+.mgqv-board .mgqv-executive-tags .management-deliverables-category.is-sales {
+  background: #417fc5;
+  color: #ffffff;
+}
+
+.mgqv-board
+  .mgqv-executive-tags
+  .management-deliverables-category.is-sales-agent {
+  background: #6755c4;
+  color: #ffffff;
+}
+
+/* El estado queda en segundo plano */
+
+.mgqv-board .mgqv-executive-tags .management-roadmap-status-pill {
+  min-height: 26px;
+  padding: 5px 11px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Nombre del entregable: elemento principal */
+
+.mgqv-board .mgqv-executive-header h4 {
+  order: 0;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0;
+
+  font-family: Georgia, serif;
+  font-size: clamp(25px, 2.2vw, 34px);
+  font-weight: 800;
+  line-height: 1.16;
+  letter-spacing: -0.025em;
+  color: #001b70;
+
+  overflow-wrap: break-word;
+}
+
+/* Observaciones discretas a la derecha */
+
+.mgqv-board .mgqv-notes {
+  margin-left: auto;
+  align-self: center;
+  font-size: 11px;
+}
+
+/* Separación entre entregables ejecutivos */
+
+.mgqv-board .mgqv-executive {
+  border-bottom: 5px solid #dce6f3;
+}
+
+@media (max-width: 760px) {
+  .mgqv-board .mgqv-executive-header {
+    padding: 18px;
+  }
+
+  .mgqv-board .mgqv-executive-header h4 {
+    font-size: 26px;
+  }
+}

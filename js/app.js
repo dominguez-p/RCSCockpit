@@ -11268,9 +11268,18 @@ function getManagementRoadmapSnapshotState() {
     window.RCS_MANAGEMENT_ROADMAP_SNAPSHOT = {
       productId: "blue-buddy",
       countryId: "ES",
+      year: null,
+      quarter: "ALL",
     };
   }
-  return window.RCS_MANAGEMENT_ROADMAP_SNAPSHOT;
+
+  const state = window.RCS_MANAGEMENT_ROADMAP_SNAPSHOT;
+
+  if (!["ALL", "Q1", "Q2", "Q3", "Q4"].includes(state.quarter)) {
+    state.quarter = "ALL";
+  }
+
+  return state;
 }
 
 function setManagementRoadmapSnapshotProduct(productId) {
@@ -14793,217 +14802,1054 @@ function getManagementRoadmapQuarterMonthRange(quarter) {
   );
 }
 
-function getManagementRoadmapTimelineSegments(row) {
-  const quarters = ["Q1", "Q2", "Q3", "Q4"];
-  return quarters
-    .map((quarter) => {
-      const data = getManagementRoadmapQuarterData(row, quarter);
-      const monthRange = getManagementRoadmapQuarterMonthRange(quarter);
+/* MANAGEMENT ROADMAP · SDA + VISTA ANUAL / TRIMESTRAL */
 
-      if (!monthRange || !data.hasAssociation) {
-        return null;
-      }
+function mgqParseDate(value) {
+  if (!value) return null;
 
-      if (!data.totalFeatures && !data.sdaPlanned) {
-        return null;
-      }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
 
-      const left = (monthRange.start / 12) * 100;
-      const width = ((monthRange.end - monthRange.start + 1) / 12) * 100;
+  const text = String(value).trim();
+  const spanish = text.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
 
-      let label = "Plan SDA";
-      if (data.totalFeatures > 0) {
-        label = `${quarter} · ${data.deployedFeatures}/${data.totalFeatures}`;
-      }
+  if (spanish) {
+    const date = new Date(Date.UTC(+spanish[3], +spanish[2] - 1, +spanish[1]));
 
-      return {
-        quarter,
-        left,
-        width,
-        status: data.status,
-        label,
-        summary:
-          data.totalFeatures > 0
-            ? `${data.deployedFeatures} de ${data.totalFeatures} Features desplegadas`
-            : `Planificación SDA en ${quarter}`,
-      };
-    })
+    return date.getUTCDate() === +spanish[1] &&
+      date.getUTCMonth() === +spanish[2] - 1
+      ? date
+      : null;
+  }
+
+  const parsed = Date.parse(text);
+
+  return Number.isFinite(parsed) ? new Date(parsed) : null;
+}
+
+function mgqQuarterPoint(value, fallbackYear, edge = "start") {
+  const text = String(value || "")
+    .toUpperCase()
+    .trim();
+  const quarter = getManagementRoadmapQuarterFromText(text);
+
+  if (!quarter) return null;
+
+  const fullYear = text.match(/20\d{2}/);
+  const shortYear = text.match(/[1-4]Q\s*(\d{2})(?!\d)/);
+
+  const year = fullYear
+    ? +fullYear[0]
+    : shortYear
+      ? 2000 + +shortYear[1]
+      : +fallbackYear;
+
+  if (!Number.isInteger(year) || year < 2020 || year > 2100) {
+    return null;
+  }
+
+  const index = getManagementRoadmapQuarterIndex(quarter);
+
+  return edge === "end"
+    ? new Date(Date.UTC(year, index * 3 + 3, 1) - 1)
+    : new Date(Date.UTC(year, index * 3, 1));
+}
+
+function mgqTokens(value) {
+  return (
+    String(value || "").match(
+      /(?:20\d{2}\s*[-/]?\s*Q[1-4]|Q[1-4]\s*(?:20\d{2})|[1-4]Q(?:20)?\d{2})/gi,
+    ) || []
+  );
+}
+
+function mgqRange(start, end) {
+  if (!start && !end) return null;
+
+  const first = start || end;
+  const last = end || start;
+
+  return first.getTime() <= last.getTime() ? { start: first, end: last } : null;
+}
+
+function mgqSdaRange(deliverable, fallbackYear) {
+  if (!deliverable) return null;
+
+  const year = Number(deliverable.year) || fallbackYear;
+
+  const start =
+    mgqQuarterPoint(deliverable.startQuarter, year, "start") ||
+    mgqParseDate(deliverable.startDate || deliverable.developmentStartDate);
+
+  const end =
+    mgqQuarterPoint(deliverable.endQuarter, year, "end") ||
+    mgqParseDate(
+      deliverable.clientDate ||
+        deliverable.productionDate ||
+        deliverable.developmentEndDate ||
+        deliverable.targetDate,
+    );
+
+  return mgqRange(start, end);
+}
+
+function mgqFeatureRange(feature, fallbackYear) {
+  const piTokens = mgqTokens(
+    [feature.programIncrement, feature.piEstimate].filter(Boolean).join(" "),
+  );
+
+  const starts = piTokens
+    .map((token) => mgqQuarterPoint(token, fallbackYear, "start"))
     .filter(Boolean);
+
+  const ends = piTokens
+    .map((token) => mgqQuarterPoint(token, fallbackYear, "end"))
+    .filter(Boolean);
+
+  const start =
+    mgqParseDate(feature.startDate) ||
+    (starts.length
+      ? new Date(Math.min(...starts.map((date) => date.getTime())))
+      : null);
+
+  const end =
+    mgqParseDate(feature.targetDate || feature.endDate) ||
+    (ends.length
+      ? new Date(Math.max(...ends.map((date) => date.getTime())))
+      : null);
+
+  return mgqRange(start, end);
 }
 
-function renderManagementRoadmapStatusPanel(row) {
-  return `
-    <div class="management-roadmap-status-panel">
-      <span
-        class="
-          management-roadmap-status-pill
-          ${getManagementRoadmapStatusClass(row)}
-        "
-      >
-        ${rcsEsc(row.statusLabel || "Sin estado")}
-      </span>
-      <div class="management-roadmap-status-progress">
-        ${renderManagementRoadmapProgress(row.id)}
-      </div>
-      <div class="management-roadmap-status-comments">
-        <strong>
-          Estatus
-        </strong>
-        <p>
-          ${rcsEsc(row.comments || "Sin comentarios")}
-        </p>
-      </div>
-    </div>
-  `;
+function mgqOverlap(range, start, end) {
+  return Boolean(range && range.start <= end && range.end >= start);
 }
 
+function mgqSdaItems(row) {
+  const seen = new Set();
+
+  return getManagementRoadmapLinksForLine(row.id).flatMap((link) => {
+    const id =
+      `${normalizeManagementSdaId(link.sdaId)}:` +
+      normalizeManagementDeliverableId(link.deliverableId);
+
+    if (seen.has(id)) return [];
+
+    seen.add(id);
+
+    const deliverable = getManagementSdaDeliverable(link);
+
+    return [
+      {
+        id,
+        code: normalizeManagementSdaId(link.sdaId),
+        name:
+          deliverable?.name ||
+          normalizeManagementDeliverableId(link.deliverableId),
+        range: mgqSdaRange(deliverable, Number(row.year)),
+        endQuarter: deliverable?.endQuarter || "",
+        clientDate: deliverable?.clientDate || "",
+      },
+    ];
+  });
+}
+
+function mgqFeatureItems(row) {
+  return getManagementFeaturesForLine(row.id).map((feature) => ({
+    feature,
+    range: mgqFeatureRange(feature, Number(row.year)),
+  }));
+}
+
+function mgqYears(rows) {
+  const years = new Set();
+
+  rows.forEach((row) => {
+    if (Number(row.year) >= 2020) {
+      years.add(Number(row.year));
+    }
+
+    const ranges = [
+      ...mgqSdaItems(row).map((item) => item.range),
+      ...mgqFeatureItems(row).map((item) => item.range),
+    ];
+
+    ranges.filter(Boolean).forEach((range) => {
+      const first = range.start.getUTCFullYear();
+      const last = range.end.getUTCFullYear();
+
+      if (last - first < 8) {
+        for (let year = first; year <= last; year++) {
+          years.add(year);
+        }
+      }
+    });
+  });
+
+  return [...years].sort((a, b) => a - b);
+}
+
+function mgqPeriod(year, quarter) {
+  const index =
+    quarter === "ALL" ? 0 : getManagementRoadmapQuarterIndex(quarter);
+
+  const months = quarter === "ALL" ? 12 : 3;
+
+  const start = new Date(Date.UTC(year, index * 3, 1));
+
+  const endExclusive = new Date(Date.UTC(year, index * 3 + months, 1));
+
+  return {
+    start,
+    end: new Date(endExclusive.getTime() - 1),
+    endExclusive,
+    startMonth: index * 3,
+    months,
+  };
+}
+
+function mgqPosition(date, period) {
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      ((date.getTime() - period.start.getTime()) * 100) /
+        (period.endExclusive.getTime() - period.start.getTime()),
+    ),
+  );
+}
+
+function mgqSegment(range, period) {
+  if (!mgqOverlap(range, period.start, period.end)) {
+    return null;
+  }
+
+  const left = mgqPosition(
+    new Date(Math.max(range.start.getTime(), period.start.getTime())),
+    period,
+  );
+
+  const right = mgqPosition(
+    new Date(Math.min(range.end.getTime() + 1, period.endExclusive.getTime())),
+    period,
+  );
+
+  return {
+    left,
+    width: Math.min(100 - left, Math.max(1.4, right - left)),
+  };
+}
+
+function mgqDateLabel(date) {
+  return date
+    ? date.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : "Sin fecha";
+}
+
+function mgqQuarterLabel(date) {
+  return date
+    ? `Q${Math.floor(date.getUTCMonth() / 3) + 1} ` + date.getUTCFullYear()
+    : "Sin fecha";
+}
+
+function mgqRowData(row, period, quarter) {
+  const sdas = mgqSdaItems(row);
+  const features = mgqFeatureItems(row);
+
+  const plannedSdas = sdas.filter((item) =>
+    mgqOverlap(item.range, period.start, period.end),
+  );
+
+  const quarterFeatures = features.filter((item) =>
+    mgqOverlap(item.range, period.start, period.end),
+  );
+
+  const hasPlanning = Boolean(plannedSdas.length || quarterFeatures.length);
+
+  const sourceRanges = sdas.map((item) => item.range).filter(Boolean);
+
+  const featureRanges = features.map((item) => item.range).filter(Boolean);
+
+  const starts = (sourceRanges.length ? sourceRanges : featureRanges).map(
+    (item) => item.start,
+  );
+
+  const ends = (sourceRanges.length ? sourceRanges : featureRanges).map(
+    (item) => item.end,
+  );
+
+  const start = starts.length
+    ? new Date(Math.min(...starts.map((date) => date.getTime())))
+    : null;
+
+  const end = ends.length
+    ? new Date(Math.max(...ends.map((date) => date.getTime())))
+    : null;
+
+  const deployed = quarterFeatures.filter((item) =>
+    isManagementFeatureDeployed(item.feature),
+  ).length;
+
+  const total = quarterFeatures.length;
+
+  const percent = total ? Math.round((deployed * 100) / total) : null;
+
+  return {
+    sdas,
+    features,
+    plannedSdas,
+    quarterFeatures,
+    hasPlanning,
+    start,
+    end,
+    deployed,
+    total,
+    percent,
+  };
+}
+
+function mgqQuarterStats(row, year, quarter) {
+  const data = mgqRowData(row, mgqPeriod(year, quarter), quarter);
+
+  return data.total
+    ? `${data.deployed}/${data.total} · ${data.percent}%`
+    : data.plannedSdas.length
+      ? "Plan SDA"
+      : "";
+}
 function renderManagementRoadmapBoard(programId, productId, countryId) {
   const rows = getManagementRoadmapRows(programId, productId, countryId);
 
   if (!rows.length) {
     return `
-      <div class="management-deliverables-table-wrap">
-        <div class="management-deliverables-empty">
-          No hay deliverables configurados para
-          ${rcsEsc(getManagementRoadmapProductLabel(productId))}
-          en
-          ${rcsEsc(getManagementRoadmapCountrySelectorLabel(countryId))}.
+      <div class="management-deliverables-empty">
+        No hay entregables configurados para este producto y país.
+      </div>
+    `;
+  }
+
+  const state = getManagementRoadmapSnapshotState();
+  const years = mgqYears(rows);
+  const currentYear = new Date().getFullYear();
+
+  if (!years.length) years.push(currentYear);
+
+  if (!years.includes(Number(state.year))) {
+    state.year = years.includes(currentYear) ? currentYear : years[0];
+  }
+
+  if (!["ALL", "Q1", "Q2", "Q3", "Q4"].includes(state.quarter)) {
+    state.quarter = "ALL";
+  }
+
+  const year = Number(state.year);
+  const quarter = state.quarter;
+  const period = mgqPeriod(year, quarter);
+
+  const periodLabel = quarter === "ALL" ? `Año ${year}` : `${quarter} ${year}`;
+
+  const months = getManagementRoadmapMonthLabels().slice(
+    period.startMonth,
+    period.startMonth + period.months,
+  );
+
+  const statusTypes = [
+    { key: "deployed", label: "Deployed", color: "#229B60" },
+    { key: "new", label: "New", color: "#A8ADB5" },
+    { key: "in-progress", label: "In Progress", color: "#72BCEB" },
+    { key: "discarded", label: "Discarded", color: "#C93D43" },
+    { key: "other", label: "Otros", color: "#242424" },
+  ];
+
+  function featureStatus(feature) {
+    if (isManagementFeatureDeployed(feature)) {
+      return "deployed";
+    }
+
+    const raw = String(
+      feature.statusRaw ||
+        feature.currentStatusRaw ||
+        getManagementFeatureDisplayStatus(feature),
+    )
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+    if (raw === "new") return "new";
+    if (raw === "inprogress") return "in-progress";
+    if (raw === "discarded") return "discarded";
+
+    return "other";
+  }
+
+  const now = new Date();
+
+  const today =
+    now >= period.start && now <= period.end ? mgqPosition(now, period) : null;
+
+  function renderTimeGrid() {
+    return `
+      <span class="mgqv-time-grid" aria-hidden="true"></span>
+      ${
+        today === null
+          ? ""
+          : `
+            <span
+              class="mgqv-today"
+              style="left:${today.toFixed(3)}%"
+              title="Hoy"
+              aria-hidden="true"
+            ></span>
+          `
+      }
+    `;
+  }
+
+  function renderPie(counts, total) {
+    if (!total) {
+      return `
+        <div class="mgqv-pie mgqv-pie-empty"
+             role="img"
+             aria-label="Sin features planificadas en el periodo">
+        </div>
+      `;
+    }
+
+    let cursor = 0;
+
+    const slices = statusTypes
+      .filter((type) => counts[type.key] > 0)
+      .map((type) => {
+        const from = cursor;
+        cursor += (counts[type.key] / total) * 100;
+
+        return `${type.color} ${from.toFixed(3)}% ` + `${cursor.toFixed(3)}%`;
+      });
+
+    const description = statusTypes
+      .filter((type) => counts[type.key])
+      .map((type) => `${type.label}: ${counts[type.key]}`)
+      .join(". ");
+
+    return `
+      <div
+        class="mgqv-pie"
+        style="background:conic-gradient(${slices.join(",")})"
+        role="img"
+        aria-label="${rcsEsc(description)}"
+        title="${rcsEsc(description)}"
+      ></div>
+    `;
+  }
+
+  function renderFeatureDetail(item, scope) {
+    const { feature, range } = item;
+
+    const id = getManagementFeatureDisplayId(feature);
+    const name = getManagementFeatureDisplayTitle(feature);
+    const status = featureStatus(feature);
+
+    const rawStatus =
+      String(
+        feature.statusRaw ||
+          feature.currentStatusRaw ||
+          getManagementFeatureDisplayStatus(feature),
+      ).trim() || "Sin estado";
+
+    const actualEnd = isManagementFeatureDeployed(feature)
+      ? mgqParseDate(feature.resolvedAt)
+      : null;
+
+    const startLabel = range ? mgqDateLabel(range.start) : "Sin fecha";
+
+    const endLabel = actualEnd
+      ? mgqDateLabel(actualEnd)
+      : range
+        ? mgqDateLabel(range.end)
+        : "Sin fecha";
+
+    const segment = scope === "current" ? mgqSegment(range, period) : null;
+
+    return `
+      <div class="mgqv-feature-row">
+        <div class="mgqv-feature-info">
+          <strong>${rcsEsc(name)}</strong>
+
+          <div class="mgqv-feature-meta">
+            ${id ? `<span>${rcsEsc(id)}</span>` : ""}
+
+            <span class="mgqv-status-tag mgqv-${status}">
+              ${rcsEsc(rawStatus)}
+            </span>
+
+            ${
+              scope !== "current"
+                ? `
+                  <span class="mgqv-scope-tag">
+                    ${
+                      scope === "undated"
+                        ? "Sin Q asignado"
+                        : "Fuera del periodo"
+                    }
+                  </span>
+                `
+                : ""
+            }
+          </div>
+
+          <small>
+            Inicio: ${rcsEsc(startLabel)}
+            ·
+            ${actualEnd ? "Fin registrado" : "Fin estimado"}:
+            ${rcsEsc(endLabel)}
+          </small>
+        </div>
+
+        <div class="mgqv-feature-timeline">
+          ${renderTimeGrid()}
+
+          ${
+            segment
+              ? `
+                <div
+                  class="mgqv-feature-bar mgqv-${status}"
+                  style="
+                    left:${segment.left.toFixed(3)}%;
+                    width:${segment.width.toFixed(3)}%;
+                  "
+                  title="${rcsEsc(`${name}: ${startLabel} - ${endLabel}`)}"
+                ></div>
+              `
+              : `
+                <span class="mgqv-feature-placeholder">
+                  ${
+                    scope === "undated"
+                      ? "Sin planificación temporal"
+                      : "Planificada fuera del periodo"
+                  }
+                </span>
+              `
+          }
+        </div>
+
+        <div class="mgqv-feature-status-cell">
+          <span class="mgqv-status-tag mgqv-${status}">
+            ${rcsEsc(rawStatus)}
+          </span>
         </div>
       </div>
     `;
   }
 
-  const months = getManagementRoadmapMonthLabels();
-  const timelineYear = Number(rows[0]?.year) || new Date().getFullYear();
-  const now = new Date();
-  const showTodayLine = timelineYear === now.getFullYear();
-  const todayLinePosition = showTodayLine
-    ? (((now.getMonth() + now.getDate() / 31) / 12) * 100).toFixed(2)
-    : null;
+  const visibleRows = rows
+    .map((row) => {
+      const features = mgqFeatureItems(row);
+      const sdas = mgqSdaItems(row);
+
+      const groups = sdas
+        .map((sda) => {
+          const deliverableId = sda.id.slice(sda.code.length + 1);
+
+          const associated = features.filter(({ feature }) =>
+            managementFeatureMatchesDeliverable(feature, {
+              sdaId: sda.code,
+              deliverableId,
+            }),
+          );
+
+          const selected = associated.filter(({ range }) =>
+            mgqOverlap(range, period.start, period.end),
+          );
+
+          const undated = associated.filter(({ range }) => !range);
+
+          const outside = associated.filter(
+            ({ range }) =>
+              range && !mgqOverlap(range, period.start, period.end),
+          );
+
+          const visible =
+            mgqOverlap(sda.range, period.start, period.end) ||
+            selected.length > 0 ||
+            (quarter === "ALL" && Number(row.year) === year && !sda.range);
+
+          const counts = Object.fromEntries(
+            statusTypes.map((type) => [type.key, 0]),
+          );
+
+          selected.forEach(({ feature }) => {
+            counts[featureStatus(feature)]++;
+          });
+
+          const starts = selected.map(({ range }) => range.start.getTime());
+
+          const ends = selected.map(({ range }) => range.end.getTime());
+
+          const start = starts.length ? new Date(Math.min(...starts)) : null;
+
+          const estimatedEnd = ends.length ? new Date(Math.max(...ends)) : null;
+
+          const allDeployed =
+            selected.length > 0 &&
+            selected.every(({ feature }) =>
+              isManagementFeatureDeployed(feature),
+            );
+
+          const resolved = selected.map(({ feature }) =>
+            mgqParseDate(feature.resolvedAt),
+          );
+
+          const actualEnd =
+            allDeployed && resolved.every(Boolean)
+              ? new Date(Math.max(...resolved.map((date) => date.getTime())))
+              : null;
+
+          return {
+            sda,
+            deliverableId,
+            associated,
+            selected,
+            undated,
+            outside,
+            visible,
+            counts,
+            start,
+            end: actualEnd || estimatedEnd,
+            actualEnd,
+            deployed: counts.deployed,
+            percent: selected.length
+              ? Math.round((counts.deployed / selected.length) * 100)
+              : null,
+          };
+        })
+        .filter((group) => group.visible);
+
+      return { row, groups };
+    })
+    .filter(
+      ({ row, groups }) =>
+        groups.length > 0 ||
+        (quarter === "ALL" &&
+          Number(row.year) === year &&
+          !mgqSdaItems(row).length),
+    );
+
+  const visibleSdas = visibleRows.reduce(
+    (total, item) => total + item.groups.length,
+    0,
+  );
 
   return `
-    <div class="management-roadmap-board-wrap">
-      <div class="management-roadmap-board">
-        <div class="management-roadmap-board-header">
-          <div class="management-roadmap-board-left">
-            <div class="management-roadmap-board-title">
-              Roadmap
-            </div>
-            <div class="management-roadmap-board-subtitle">
-              ${rcsEsc(getManagementRoadmapProductLabel(productId))}
-              ·
-              ${rcsEsc(getManagementRoadmapCountrySelectorLabel(countryId))}
-              ·
-              ${rcsEsc(String(timelineYear))}
-            </div>
-          </div>
-          <div class="management-roadmap-board-months">
-            ${months
-              .map(
-                (month) => `
-                  <div class="management-roadmap-board-month">
-                    ${rcsEsc(month)}
-                  </div>
-                `,
-              )
-              .join("")}
-          </div>
-          <div class="management-roadmap-board-status-title">
-            Estatus
-          </div>
+    <section class="mgq-view mgqv-view">
+
+      <div class="mgq-controls">
+        <div>
+          <strong>Horizonte de entregables</strong>
+          <small>
+            Planificación SDA y distribución de features por estado.
+          </small>
         </div>
 
-        <div class="management-roadmap-board-body">
-          ${rows
-            .map((row) => {
-              const segments = getManagementRoadmapTimelineSegments(row);
+        <label class="mgq-year-label">
+          Año
+          <select
+            data-mgq-year
+            aria-label="Seleccionar año"
+          >
+            ${years
+              .map(
+                (option) => `
+              <option
+                value="${option}"
+                ${option === year ? "selected" : ""}
+              >
+                ${option}
+              </option>
+            `,
+              )
+              .join("")}
+          </select>
+        </label>
 
-              return `
-                <article
-                  class="management-roadmap-row"
-                  data-management-roadmap-line="${rcsEsc(row.id)}"
-                >
-                  <div class="management-roadmap-row-left">
-                    ${renderManagementRoadmapCategory(row)}
-                    <div class="management-roadmap-row-title">
-                      ${rcsEsc(row.title)}
-                    </div>
-                    <div class="management-roadmap-row-meta">
-                      ${rcsEsc(getManagementRoadmapCountrySelectorLabel(countryId))}
-                    </div>
-                  </div>
-
-                  <div class="management-roadmap-row-timeline">
-                    <div class="management-roadmap-row-grid">
-                      ${months
-                        .map(
-                          (_, index) => `
-                            <span
-                              class="management-roadmap-row-grid-cell"
-                              aria-hidden="true"
-                              style="left:${((index / 12) * 100).toFixed(2)}%;"
-                            ></span>
-                          `,
-                        )
-                        .join("")}
-                    </div>
-
-                    ${
-                      showTodayLine
-                        ? `
-                          <span
-                            class="management-roadmap-today-line"
-                            style="left:${todayLinePosition}%;"
-                            aria-hidden="true"
-                          ></span>
-                        `
-                        : ""
-                    }
-
-                    <div class="management-roadmap-row-bars">
-                      ${
-                        segments.length
-                          ? segments
-                              .map(
-                                (segment) => `
-                                  <div
-                                    class="
-                                      management-roadmap-bar
-                                      is-${rcsEsc(segment.status)}
-                                    "
-                                    style="
-                                      left:${segment.left}%;
-                                      width:${segment.width}%;
-                                    "
-                                    title="${rcsEsc(segment.summary)}"
-                                  >
-                                    <span class="management-roadmap-bar-label">
-                                      ${rcsEsc(segment.label)}
-                                    </span>
-                                  </div>
-                                `,
-                              )
-                              .join("")
-                          : `
-                            <div class="management-roadmap-row-empty">
-                              Sin planificación temporal
-                            </div>
-                          `
-                      }
-                    </div>
-                  </div>
-
-                  ${renderManagementRoadmapStatusPanel(row)}
-                </article>
-              `;
-            })
+        <div
+          class="mgq-quarter-group"
+          role="group"
+          aria-label="Seleccionar trimestre"
+        >
+          ${["ALL", "Q1", "Q2", "Q3", "Q4"]
+            .map(
+              (option) => `
+              <button
+                type="button"
+                class="
+                  mgq-quarter-button
+                  ${quarter === option ? "is-active" : ""}
+                "
+                data-mgq-quarter="${option}"
+                aria-pressed="${quarter === option}"
+              >
+                ${option === "ALL" ? "Año completo" : option}
+              </button>
+            `,
+            )
             .join("")}
         </div>
       </div>
-    </div>
+
+      <div class="mgq-period-summary">
+        <strong>${rcsEsc(periodLabel)}</strong>
+        <span>${visibleSdas} entregables SDA visibles</span>
+      </div>
+
+      <div class="management-roadmap-board-wrap">
+        <div
+          class="management-roadmap-board mgqv-board"
+          style="--mgqv-months:${months.length}"
+        >
+
+          <div class="management-roadmap-board-header">
+
+            <div class="management-roadmap-board-left">
+              <div class="management-roadmap-board-title">
+                Entregables
+              </div>
+              <div class="management-roadmap-board-subtitle">
+                ${rcsEsc(getManagementRoadmapProductLabel(productId))}
+                ·
+                ${rcsEsc(getManagementRoadmapCountrySelectorLabel(countryId))}
+                ·
+                ${rcsEsc(periodLabel)}
+              </div>
+            </div>
+
+            <div class="management-roadmap-board-months">
+              ${months
+                .map(
+                  (month) => `
+                <div class="management-roadmap-board-month">
+                  ${rcsEsc(month)}
+                </div>
+              `,
+                )
+                .join("")}
+            </div>
+
+            <div class="mgqv-status-header">
+              Estados de features
+            </div>
+          </div>
+
+          <div class="management-roadmap-board-body">
+
+            ${
+              visibleRows.length
+                ? visibleRows
+                    .map(
+                      ({ row, groups }) => `
+                    <section class="mgqv-executive">
+
+                      <header class="mgqv-executive-header">
+                        <div>
+                          <h4>${rcsEsc(row.title)}</h4>
+
+                          <div class="mgqv-executive-tags">
+                            ${renderManagementRoadmapCategory(row)}
+
+                            <span
+                              class="
+                                management-roadmap-status-pill
+                                ${rcsEsc(getManagementRoadmapStatusClass(row))}
+                              "
+                            >
+                              ${rcsEsc(row.statusLabel || "Sin estado")}
+                            </span>
+                          </div>
+                        </div>
+
+                        ${
+                          row.comments
+                            ? `
+                              <details class="mgqv-notes">
+                                <summary>Observaciones</summary>
+                                <p>${rcsEsc(row.comments)}</p>
+                              </details>
+                            `
+                            : ""
+                        }
+                      </header>
+
+                      ${
+                        groups.length
+                          ? groups
+                              .map((group) => {
+                                const {
+                                  sda,
+                                  deliverableId,
+                                  associated,
+                                  selected,
+                                  undated,
+                                  outside,
+                                  counts,
+                                  start,
+                                  end,
+                                  actualEnd,
+                                  deployed,
+                                  percent,
+                                } = group;
+
+                                const sdaSegment = mgqSegment(
+                                  sda.range,
+                                  period,
+                                );
+
+                                const name = `${sda.name} (${deliverableId})`;
+
+                                const planStart = sda.range
+                                  ? mgqQuarterLabel(sda.range.start)
+                                  : "Sin fecha";
+
+                                const planEnd = sda.range
+                                  ? mgqQuarterLabel(sda.range.end)
+                                  : "Sin fecha";
+
+                                const statusSummary = statusTypes
+                                  .filter((type) => counts[type.key])
+                                  .map(
+                                    (type) => `
+                                    <span class="mgqv-count">
+                                      <i class="mgqv-${type.key}"></i>
+                                      ${type.label}
+                                      <b>${counts[type.key]}</b>
+                                    </span>
+                                  `,
+                                  )
+                                  .join("");
+
+                                const details = [
+                                  ...selected.map((item) => ({
+                                    item,
+                                    scope: "current",
+                                  })),
+                                  ...undated.map((item) => ({
+                                    item,
+                                    scope: "undated",
+                                  })),
+                                  ...outside.map((item) => ({
+                                    item,
+                                    scope: "outside",
+                                  })),
+                                ];
+
+                                return `
+                                <details class="mgqv-sda-group">
+
+                                  <!-- ÚNICA FILA SDA -->
+
+                                  <summary class="mgqv-sda-row">
+
+                                    <div class="mgqv-sda-info">
+                                      <strong>
+                                        SDA ${rcsEsc(sda.code)}
+                                      </strong>
+
+                                      <small>
+                                        ${rcsEsc(planStart)}
+                                        →
+                                        ${rcsEsc(planEnd)}
+                                      </small>
+
+                                      <span class="mgqv-expand-action">
+                                        <span class="mgqv-chevron">
+                                          ›
+                                        </span>
+
+                                        ${
+                                          associated.length
+                                            ? `Ver ${associated.length} features`
+                                            : "Sin features creadas"
+                                        }
+                                      </span>
+                                    </div>
+
+                                    <!-- BARRA SDA DESPLEGABLE -->
+
+                                    <div class="mgqv-sda-timeline">
+                                      ${renderTimeGrid()}
+
+                                      <span class="mgqv-bar-caption">
+                                        ${rcsEsc(name)}
+                                      </span>
+
+                                      ${
+                                        sdaSegment
+                                          ? `
+                                            <div
+                                              class="mgqv-sda-bar"
+                                              style="
+                                                left:${sdaSegment.left.toFixed(3)}%;
+                                                width:${sdaSegment.width.toFixed(3)}%;
+                                              "
+                                              title="${rcsEsc(name)} · Pulsar para ver features"
+                                            >
+                                              <span>
+                                                ${rcsEsc(name)}
+                                              </span>
+                                              <span class="mgqv-bar-chevron">
+                                                ▾
+                                              </span>
+                                            </div>
+                                          `
+                                          : `
+                                            <span class="mgqv-no-plan">
+                                              ${
+                                                sda.range
+                                                  ? "Plan SDA fuera del periodo"
+                                                  : "Sin fechas SDA"
+                                              }
+                                            </span>
+                                          `
+                                      }
+                                    </div>
+
+                                    <!-- NUEVA COLUMNA: TARTA -->
+
+                                    <div class="mgqv-pie-column">
+
+                                      ${renderPie(counts, selected.length)}
+
+                                      <div class="mgqv-pie-info">
+                                        ${
+                                          selected.length
+                                            ? `
+                                              <strong>
+                                                ${percent}%
+                                              </strong>
+                                              <small>
+                                                ${deployed}/${selected.length}
+                                                desplegadas
+                                              </small>
+                                            `
+                                            : `
+                                              <span class="mgqv-pie-empty-label">
+                                                Sin features
+                                                del periodo
+                                              </span>
+                                            `
+                                        }
+                                      </div>
+
+                                      ${
+                                        selected.length
+                                          ? `
+                                            <div class="mgqv-pie-counts">
+                                              ${statusSummary}
+                                            </div>
+
+                                            <small class="mgqv-feature-dates">
+                                              Features:
+                                              ${rcsEsc(mgqDateLabel(start))}
+                                              →
+                                              ${rcsEsc(mgqDateLabel(end))}
+                                              ${
+                                                actualEnd
+                                                  ? "(fin registrado)"
+                                                  : "(fin estimado)"
+                                              }
+                                            </small>
+                                          `
+                                          : ""
+                                      }
+                                    </div>
+                                  </summary>
+
+                                  <!-- DETALLE QUE ABRE LA SDA -->
+
+                                  <div class="mgqv-expanded">
+
+                                    <header>
+                                      <strong>
+                                        Features · ${rcsEsc(sda.name)}
+                                      </strong>
+
+                                      <span>
+                                        ${selected.length}
+                                        en ${rcsEsc(periodLabel)}
+                                        ·
+                                        ${associated.length}
+                                        vinculadas en total
+                                      </span>
+                                    </header>
+
+                                    ${
+                                      details.length
+                                        ? details
+                                            .map(({ item, scope }) =>
+                                              renderFeatureDetail(item, scope),
+                                            )
+                                            .join("")
+                                        : `
+                                          <p class="mgqv-empty">
+                                            Todavía no hay features vinculadas
+                                            a este entregable SDA.
+                                          </p>
+                                        `
+                                    }
+                                  </div>
+                                </details>
+                              `;
+                              })
+                              .join("")
+                          : `
+                            <div class="mgqv-empty">
+                              Sin asociación con entregables SDA.
+                            </div>
+                          `
+                      }
+                    </section>
+                  `,
+                    )
+                    .join("")
+                : `
+                  <div class="mgqv-empty">
+                    No hay entregables SDA planificados para
+                    ${rcsEsc(periodLabel)}.
+                  </div>
+                `
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="mgqv-legend">
+        ${statusTypes
+          .map(
+            (type) => `
+          <span>
+            <i class="mgqv-${type.key}"></i>
+            ${type.label}
+          </span>
+        `,
+          )
+          .join("")}
+      </div>
+
+      <p class="mgq-warning">
+        La barra SDA representa el horizonte del entregable.
+        La tarta contabiliza únicamente las features conocidas
+        y planificadas en ${rcsEsc(periodLabel)}.
+        El porcentaje no representa el avance total del
+        entregable SDA. Los estados JIRA mostrados son actuales.
+      </p>
+    </section>
   `;
 }
-
 function renderManagementRoadmapSnapshotEditorTable(
   programId,
   productId,
@@ -15227,6 +16073,24 @@ function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
 }
 
 function bindManagementRoadmapLineEditors(programId) {
+  const yearSelector = document.querySelector("[data-mgq-year]");
+
+  if (yearSelector) {
+    yearSelector.addEventListener("change", () => {
+      getManagementRoadmapSnapshotState().year = Number(yearSelector.value);
+
+      renderManagementRoadmapView(programId);
+    });
+  }
+
+  document.querySelectorAll("[data-mgq-quarter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      getManagementRoadmapSnapshotState().quarter = button.dataset.mgqQuarter;
+
+      renderManagementRoadmapView(programId);
+    });
+  });
+
   document
     .querySelectorAll("[data-management-roadmap-edit-line]")
     .forEach((button) => {
@@ -15234,9 +16098,9 @@ function bindManagementRoadmapLineEditors(programId) {
         const lineId = String(
           button.dataset.managementRoadmapEditLine || "",
         ).trim();
-        if (!lineId) {
-          return;
-        }
+
+        if (!lineId) return;
+
         renderManagementRoadmapLineEditorPanel(programId, lineId);
       });
     });
