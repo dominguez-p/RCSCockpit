@@ -12643,10 +12643,60 @@ function getManagementRoadmapFeaturesForLinks(links) {
 }
 
 function getManagementRoadmapDraftProgress(links) {
-  const features = getManagementRoadmapFeaturesForLinks(links);
+  const normalizedLinks = Array.isArray(links) ? links.filter(Boolean) : [];
+
+  /*
+   * =====================================================
+   * BLUE BUDDY GLOBAL STATUS
+   * =====================================================
+   *
+   * La previsualización debe utilizar exactamente
+   * el mismo ámbito geográfico que utilizará después
+   * la celda de la matriz.
+   *
+   * Antes:
+   *
+   *   SDA / Deliverable
+   *          ↓
+   *   todas las Features asociadas
+   *
+   * Eso provocaba que una celda de España mostrase
+   * en la previsualización Features de otros países.
+   *
+   * Ahora:
+   *
+   *   Executive Line
+   *          ↓
+   *   Country
+   *          ↓
+   *   SDA / Deliverable
+   *          ↓
+   *   Features de ese país
+   */
+  const executiveLineId = String(
+    normalizedLinks.find(
+      (link) => link?.executiveLineId && String(link.executiveLineId).trim(),
+    )?.executiveLineId || "",
+  ).trim();
+
+  const line = executiveLineId
+    ? getManagementRoadmapLineById(executiveLineId)
+    : null;
+
+  const isGlobalStatusLine =
+    line &&
+    normalizeRoadmapProduct(line.productId) ===
+      normalizeRoadmapProduct(MANAGEMENT_GLOBAL_STATUS_PRODUCT_ID);
+
+  const features = isGlobalStatusLine
+    ? getManagementGlobalStatusFeaturesForLinks(normalizedLinks, line.country)
+    : getManagementRoadmapFeaturesForLinks(normalizedLinks);
+
   const deployedFeatures = features.filter(isManagementFeatureDeployed);
+
   const featureCount = features.length;
   const deployedCount = deployedFeatures.length;
+
   return {
     features,
     deployedFeatures,
