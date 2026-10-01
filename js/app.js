@@ -11080,6 +11080,10 @@ function normalizeManagementReportSourceType(link) {
     type = "sda-deliverable";
   }
 
+  if (type === "epica" || type === "épica") {
+    type = "epic";
+  }
+
   if (type) {
     return type;
   }
@@ -11111,6 +11115,12 @@ function getManagementReportLinkSourceId(link) {
     const deliverableId = normalizeManagementDeliverableId(link?.deliverableId);
 
     return sdaId && deliverableId ? `${sdaId}::${deliverableId}` : "";
+  }
+
+  if (type === "epic") {
+    return String(link?.sourceId || "")
+      .trim()
+      .toUpperCase();
   }
 
   if (type === "feature") {
@@ -11301,6 +11311,16 @@ function getManagementFeaturesForLine(executiveLineId) {
     if (sourceType === "sda-deliverable") {
       features.forEach((feature, index) => {
         if (managementFeatureMatchesDeliverable(feature, link)) {
+          registerFeature(feature, index);
+        }
+      });
+
+      return;
+    }
+
+    if (sourceType === "epic") {
+      features.forEach((feature, index) => {
+        if (managementFeatureMatchesEpicSource(feature, link)) {
           registerFeature(feature, index);
         }
       });
@@ -12285,6 +12305,55 @@ function groupManagementFeaturesByEpic(features) {
     a.title.localeCompare(b.title, "es"),
   );
 }
+function getManagementFeatureEpicKey(feature) {
+  if (!feature || typeof feature !== "object") {
+    return "";
+  }
+
+  const epic =
+    feature.epic && typeof feature.epic === "object" ? feature.epic : null;
+
+  const parent =
+    feature.parent && typeof feature.parent === "object"
+      ? feature.parent
+      : null;
+
+  const parentType = String(
+    parent?.issueType?.name || parent?.issueType || parent?.type || "",
+  ).trim();
+
+  const parentIsEpic = /^(epic|épica)$/i.test(parentType);
+
+  const firstText = (...values) =>
+    values.map((value) => String(value ?? "").trim()).find(Boolean) || "";
+
+  return firstText(
+    feature.epicKey,
+    feature.epic_key,
+    feature.jiraEpicKey,
+    feature.parentEpicKey,
+    feature.epicId,
+    feature.epic_id,
+    epic?.key,
+    epic?.jiraKey,
+    epic?.id,
+    parentIsEpic ? parent.key || parent.id : "",
+  )
+    .trim()
+    .toUpperCase();
+}
+
+function managementFeatureMatchesEpicSource(feature, link) {
+  const expectedEpicKey = getManagementReportLinkSourceId(link)
+    .trim()
+    .toUpperCase();
+
+  if (!expectedEpicKey) {
+    return false;
+  }
+
+  return getManagementFeatureEpicKey(feature) === expectedEpicKey;
+}
 function getManagementRoadmapProgressData(executiveLineId) {
   const links = getManagementRoadmapLinksForLine(executiveLineId);
 
@@ -12711,23 +12780,73 @@ function getManagementRoadmapFeaturesForLinks(links) {
   const features = Array.isArray(DATA?.jiraWorkspaceFeatures)
     ? DATA.jiraWorkspaceFeatures
     : [];
+
   const result = new Map();
-  (Array.isArray(links) ? links : []).forEach((link) => {
-    features.forEach((feature, index) => {
-      if (!managementFeatureMatchesDeliverable(feature, link)) {
-        return;
-      }
-      const key = String(
+
+  const registerFeature = (feature, fallbackKey) => {
+    const key = String(
+      feature?.jiraKey ||
         feature?.id ||
-          feature?.featureId ||
-          feature?.feature_id ||
-          feature?.key ||
-          feature?.jiraKey ||
+        feature?.featureId ||
+        feature?.feature_id ||
+        feature?.key ||
+        fallbackKey,
+    )
+      .trim()
+      .toUpperCase();
+
+    if (!key) {
+      return;
+    }
+
+    result.set(key, feature);
+  };
+
+  (Array.isArray(links) ? links : []).forEach((link) => {
+    const sourceType = normalizeManagementReportSourceType(link);
+
+    if (sourceType === "sda-deliverable") {
+      features.forEach((feature, index) => {
+        if (!managementFeatureMatchesDeliverable(feature, link)) {
+          return;
+        }
+
+        registerFeature(
+          feature,
           `${link.sdaId}-${link.deliverableId}-${index}`,
-      ).trim();
-      result.set(key, feature);
-    });
+        );
+      });
+
+      return;
+    }
+
+    if (sourceType === "epic") {
+      features.forEach((feature, index) => {
+        if (!managementFeatureMatchesEpicSource(feature, link)) {
+          return;
+        }
+
+        registerFeature(feature, `${link.sourceId}-${index}`);
+      });
+
+      return;
+    }
+
+    if (sourceType === "feature") {
+      const expectedKey = getManagementReportLinkSourceId(link).toUpperCase();
+
+      const feature = features.find(
+        (item) =>
+          String(getManagementFeatureDisplayId(item)).trim().toUpperCase() ===
+          expectedKey,
+      );
+
+      if (feature) {
+        registerFeature(feature, expectedKey);
+      }
+    }
   });
+
   return [...result.values()];
 }
 
@@ -13177,7 +13296,7 @@ function buildManagementRoadmapPersistableLinks(links) {
         ? normalizeManagementDeliverableId(link?.deliverableId)
         : "";
 
-    let sourceId = getManagementReportLinkSourceId({
+    const sourceId = getManagementReportLinkSourceId({
       ...link,
       sdaId,
       deliverableId,
@@ -14419,17 +14538,21 @@ function getManagementRoadmapPersistenceSignature(links) {
       (Array.isArray(links) ? links : [])
         .filter((link) => isManagementRoadmapLinkActive(link))
         .map((link) => {
-          const executiveLineId = String(link.executiveLineId || "")
+          const executiveLineId = String(link?.executiveLineId || "")
             .trim()
             .toLowerCase();
-          const sdaId = normalizeManagementSdaId(link.sdaId);
-          const deliverableId = normalizeManagementDeliverableId(
-            link.deliverableId,
-          );
-          if (!executiveLineId || !sdaId || !deliverableId) {
+
+          const sourceType = normalizeManagementReportSourceType(link);
+
+          const sourceId = getManagementReportLinkSourceId(link)
+            .trim()
+            .toUpperCase();
+
+          if (!executiveLineId || !sourceType || !sourceId) {
             return "";
           }
-          return [executiveLineId, sdaId, deliverableId].join("::");
+
+          return [executiveLineId, sourceType, sourceId].join("::");
         })
         .filter(Boolean),
     ),
@@ -14482,7 +14605,55 @@ function getManagementReportFeatureCatalog(line) {
       ),
     );
 }
+function getManagementReportEpicCatalog(line) {
+  const features = getManagementReportFeatureCatalog(line);
 
+  return groupManagementFeaturesByEpic(features)
+    .map((epic) => {
+      const sourceFeature = epic.features.find(Boolean) || {};
+
+      const epicObject =
+        sourceFeature.epic && typeof sourceFeature.epic === "object"
+          ? sourceFeature.epic
+          : null;
+
+      const parent =
+        sourceFeature.parent && typeof sourceFeature.parent === "object"
+          ? sourceFeature.parent
+          : null;
+
+      const description = String(
+        sourceFeature.epicDescription ||
+          sourceFeature.epic_description ||
+          epicObject?.description ||
+          parent?.description ||
+          "",
+      ).trim();
+
+      const deployed = epic.features.filter(isManagementFeatureDeployed).length;
+
+      return {
+        id: String(epic.key || "")
+          .trim()
+          .toUpperCase(),
+
+        title: String(epic.title || epic.key || "").trim(),
+
+        description: description || "Sin descripción disponible.",
+
+        featureCount: epic.features.length,
+
+        deployedCount: deployed,
+
+        progress: epic.features.length
+          ? Math.round((deployed / epic.features.length) * 100)
+          : null,
+
+        features: epic.features,
+      };
+    })
+    .filter((epic) => Boolean(epic.id));
+}
 function getManagementReportStaffingCatalog(programId, line) {
   const product = getStaffingProductData(programId, line.productId);
 
@@ -14633,12 +14804,18 @@ async function renderManagementReportSourcesPanel(
 
   const featureCatalog = getManagementReportFeatureCatalog(line);
 
+  const epicCatalog = getManagementReportEpicCatalog(line);
+
   const staffingCatalog = getManagementReportStaffingCatalog(programId, line);
 
   const preview = getManagementRoadmapDraftProgress(state.draftLinks);
 
   const selectedSdaCount = state.draftLinks.filter(
     (link) => normalizeManagementReportSourceType(link) === "sda-deliverable",
+  ).length;
+
+  const selectedEpicCount = state.draftLinks.filter(
+    (link) => normalizeManagementReportSourceType(link) === "epic",
   ).length;
 
   const selectedFeatureCount = state.draftLinks.filter(
@@ -14654,12 +14831,6 @@ async function renderManagementReportSourcesPanel(
   overlay.id = "managementRoadmapMappingOverlay";
 
   overlay.className = "management-roadmap-mapping-overlay";
-
-  /*
-   * =====================================================
-   * SDA
-   * =====================================================
-   */
 
   const renderSda = () =>
     sdaCatalog
@@ -14718,9 +14889,7 @@ async function renderManagementReportSourcesPanel(
                     </strong>
 
                     <small
-                      class="
-                        management-report-source-identifiers
-                      "
+                      class="management-report-source-identifiers"
                     >
                       SDA ${rcsEsc(sda.id)}
                       ·
@@ -14746,9 +14915,7 @@ async function renderManagementReportSourcesPanel(
             </h4>
 
             <small
-              class="
-                management-report-source-group-id
-              "
+              class="management-report-source-group-id"
             >
               SDA ${rcsEsc(sda.id)}
             </small>
@@ -14759,11 +14926,67 @@ async function renderManagementReportSourcesPanel(
       })
       .join("");
 
-  /*
-   * =====================================================
-   * FEATURES
-   * =====================================================
-   */
+  const renderEpics = () =>
+    epicCatalog
+      .map((epic) => {
+        const candidate = {
+          sourceType: "epic",
+          sourceId: epic.id,
+          sdaId: "",
+          deliverableId: "",
+          featureId: "",
+          staffingId: "",
+        };
+
+        const checked = managementReportDraftHasSource(
+          state.draftLinks,
+          candidate,
+        );
+
+        const searchText = normalizeManagementReportSearchText(
+          [epic.id, epic.title, epic.description].join(" "),
+        );
+
+        return `
+          <label
+            class="management-report-source-card"
+            data-management-report-search-item
+            data-search-type="epic"
+            data-search-text="${rcsEsc(searchText)}"
+          >
+            <input
+              type="checkbox"
+              data-management-report-source-toggle
+              data-source-type="epic"
+              data-source-id="${rcsEsc(epic.id)}"
+              ${checked ? "checked" : ""}
+            />
+
+            <span>
+              <strong>
+                ${rcsEsc(epic.id)}
+                ·
+                ${rcsEsc(epic.title)}
+              </strong>
+
+              <small>
+                ${rcsEsc(epic.description)}
+              </small>
+
+              <em>
+                ${epic.featureCount}
+                ${epic.featureCount === 1 ? "feature" : "features"}
+                ·
+                ${epic.deployedCount}
+                deployed
+                ·
+                ${epic.progress === null ? "—" : `${epic.progress}%`}
+              </em>
+            </span>
+          </label>
+        `;
+      })
+      .join("");
 
   const renderFeatures = () =>
     featureCatalog
@@ -14805,6 +15028,7 @@ async function renderManagementReportSourcesPanel(
             status,
             feature.sdaId,
             feature.deliverableId,
+            getManagementFeatureEpicKey(feature),
           ].join(" "),
         );
 
@@ -14843,12 +15067,6 @@ async function renderManagementReportSourcesPanel(
         `;
       })
       .join("");
-
-  /*
-   * =====================================================
-   * STAFFING
-   * =====================================================
-   */
 
   const renderStaffing = () =>
     staffingCatalog
@@ -14908,23 +15126,15 @@ async function renderManagementReportSourcesPanel(
       })
       .join("");
 
-  /*
-   * =====================================================
-   * BUSCADOR
-   * =====================================================
-   */
+  const searchableTabs = ["sda", "epic", "feature"];
 
-  const searchHtml = ["sda", "feature"].includes(state.reportSourceTab)
+  const searchHtml = searchableTabs.includes(state.reportSourceTab)
     ? `
         <div
-          class="
-            management-report-source-search
-          "
+          class="management-report-source-search"
         >
           <span
-            class="
-              management-report-source-search-icon
-            "
+            class="management-report-source-search-icon"
             aria-hidden="true"
           >
             ⌕
@@ -14937,21 +15147,23 @@ async function renderManagementReportSourcesPanel(
             placeholder="${
               state.reportSourceTab === "sda"
                 ? "Buscar SDA o entregable..."
-                : "Buscar feature por ID, nombre o descripción..."
+                : state.reportSourceTab === "epic"
+                  ? "Buscar épica por ID, nombre o descripción..."
+                  : "Buscar feature por ID, nombre o descripción..."
             }"
             aria-label="${
               state.reportSourceTab === "sda"
                 ? "Buscar SDA o entregable"
-                : "Buscar feature"
+                : state.reportSourceTab === "epic"
+                  ? "Buscar épica"
+                  : "Buscar feature"
             }"
             data-management-report-source-search
           />
 
           <button
             type="button"
-            class="
-              management-report-source-search-clear
-            "
+            class="management-report-source-search-clear"
             data-management-report-source-search-clear
             hidden
             aria-label="Limpiar búsqueda"
@@ -14961,19 +15173,11 @@ async function renderManagementReportSourcesPanel(
         </div>
 
         <div
-          class="
-            management-report-source-search-result
-          "
+          class="management-report-source-search-result"
           data-management-report-source-search-result
         ></div>
       `
     : "";
-
-  /*
-   * =====================================================
-   * PANEL
-   * =====================================================
-   */
 
   overlay.innerHTML = `
     <aside
@@ -14985,15 +15189,11 @@ async function renderManagementReportSourcesPanel(
       aria-modal="true"
     >
       <header
-        class="
-          management-roadmap-mapping-header
-        "
+        class="management-roadmap-mapping-header"
       >
         <div>
           <span
-            class="
-              management-roadmap-mapping-eyebrow
-            "
+            class="management-roadmap-mapping-eyebrow"
           >
             Configurar fuentes
           </span>
@@ -15009,9 +15209,7 @@ async function renderManagementReportSourcesPanel(
         </div>
 
         <button
-          class="
-            management-roadmap-mapping-close
-          "
+          class="management-roadmap-mapping-close"
           type="button"
           data-management-roadmap-mapping-cancel
         >
@@ -15020,9 +15218,7 @@ async function renderManagementReportSourcesPanel(
       </header>
 
       <div
-        class="
-          management-report-source-tabs
-        "
+        class="management-report-source-tabs"
       >
         <button
           class="${state.reportSourceTab === "sda" ? "is-active" : ""}"
@@ -15030,9 +15226,16 @@ async function renderManagementReportSourcesPanel(
           data-management-report-source-tab="sda"
         >
           SDA
-          <span>
-            ${selectedSdaCount}
-          </span>
+          <span>${selectedSdaCount}</span>
+        </button>
+
+        <button
+          class="${state.reportSourceTab === "epic" ? "is-active" : ""}"
+          type="button"
+          data-management-report-source-tab="epic"
+        >
+          Épicas
+          <span>${selectedEpicCount}</span>
         </button>
 
         <button
@@ -15041,9 +15244,7 @@ async function renderManagementReportSourcesPanel(
           data-management-report-source-tab="feature"
         >
           Features
-          <span>
-            ${selectedFeatureCount}
-          </span>
+          <span>${selectedFeatureCount}</span>
         </button>
 
         <button
@@ -15052,42 +15253,34 @@ async function renderManagementReportSourcesPanel(
           data-management-report-source-tab="staffing"
         >
           Staffing
-          <span>
-            ${selectedStaffingCount}
-          </span>
+          <span>${selectedStaffingCount}</span>
         </button>
       </div>
 
       <div
-        class="
-          management-roadmap-mapping-body
-        "
+        class="management-roadmap-mapping-body"
       >
         <section
-          class="
-            management-report-source-picker
-          "
+          class="management-report-source-picker"
         >
           ${searchHtml}
 
           <div
-            class="
-              management-report-source-list
-            "
+            class="management-report-source-list"
           >
             ${
               state.reportSourceTab === "sda"
                 ? renderSda()
-                : state.reportSourceTab === "feature"
-                  ? renderFeatures()
-                  : renderStaffing()
+                : state.reportSourceTab === "epic"
+                  ? renderEpics()
+                  : state.reportSourceTab === "feature"
+                    ? renderFeatures()
+                    : renderStaffing()
             }
           </div>
 
           <div
-            class="
-              management-report-source-search-empty
-            "
+            class="management-report-source-search-empty"
             data-management-report-source-search-empty
             hidden
           >
@@ -15096,44 +15289,31 @@ async function renderManagementReportSourcesPanel(
         </section>
 
         <section
-          class="
-            management-report-source-preview
-          "
+          class="management-report-source-preview"
         >
           <h3>
             Previsualización
           </h3>
 
           <div
-            class="
-              management-roadmap-feature-summary
-            "
+            class="management-roadmap-feature-summary"
           >
             <article>
-              <span>
-                Features
-              </span>
-
+              <span>Features</span>
               <strong>
                 ${preview.featureCount}
               </strong>
             </article>
 
             <article>
-              <span>
-                Deployed
-              </span>
-
+              <span>Deployed</span>
               <strong>
                 ${preview.deployedCount}
               </strong>
             </article>
 
             <article>
-              <span>
-                Avance
-              </span>
-
+              <span>Avance</span>
               <strong>
                 ${preview.progress === null ? "—" : `${preview.progress}%`}
               </strong>
@@ -15141,14 +15321,19 @@ async function renderManagementReportSourcesPanel(
           </div>
 
           <div
-            class="
-              management-report-source-preview-counts
-            "
+            class="management-report-source-preview-counts"
           >
             <span>
               SDA
               <strong>
                 ${selectedSdaCount}
+              </strong>
+            </span>
+
+            <span>
+              Épicas
+              <strong>
+                ${selectedEpicCount}
               </strong>
             </span>
 
@@ -15170,9 +15355,7 @@ async function renderManagementReportSourcesPanel(
       </div>
 
       <footer
-        class="
-          management-roadmap-mapping-footer
-        "
+        class="management-roadmap-mapping-footer"
       >
         <div>
           <strong>
@@ -15186,9 +15369,7 @@ async function renderManagementReportSourcesPanel(
         </div>
 
         <div
-          class="
-            management-roadmap-mapping-footer-actions
-          "
+          class="management-roadmap-mapping-footer-actions"
         >
           <button
             class="ghost-button"
@@ -15199,9 +15380,7 @@ async function renderManagementReportSourcesPanel(
           </button>
 
           <button
-            class="
-              management-roadmap-mapping-save
-            "
+            class="management-roadmap-mapping-save"
             type="button"
             data-management-roadmap-mapping-save
           >
@@ -15214,23 +15393,11 @@ async function renderManagementReportSourcesPanel(
 
   document.body.appendChild(overlay);
 
-  /*
-   * =====================================================
-   * CERRAR
-   * =====================================================
-   */
-
   overlay
     .querySelectorAll("[data-management-roadmap-mapping-cancel]")
     .forEach((button) => {
       button.addEventListener("click", closeManagementRoadmapMappingPanel);
     });
-
-  /*
-   * =====================================================
-   * TABS
-   * =====================================================
-   */
 
   overlay
     .querySelectorAll("[data-management-report-source-tab]")
@@ -15244,20 +15411,12 @@ async function renderManagementReportSourcesPanel(
       });
     });
 
-  /*
-   * =====================================================
-   * SELECCIÓN
-   * =====================================================
-   */
-
   overlay
     .querySelectorAll("[data-management-report-source-toggle]")
     .forEach((input) => {
       input.addEventListener("change", () => {
-        const sourceType = input.dataset.sourceType;
-
         const candidate = {
-          sourceType,
+          sourceType: input.dataset.sourceType,
 
           sourceId: input.dataset.sourceId || "",
 
@@ -15279,12 +15438,6 @@ async function renderManagementReportSourcesPanel(
         });
       });
     });
-
-  /*
-   * =====================================================
-   * BUSCADOR
-   * =====================================================
-   */
 
   const searchInput = overlay.querySelector(
     "[data-management-report-source-search]",
@@ -15333,9 +15486,7 @@ async function renderManagementReportSourcesPanel(
       .querySelectorAll("[data-management-report-search-group]")
       .forEach((group) => {
         const visibleCards = group.querySelectorAll(
-          `
-              [data-management-report-search-item]:not([hidden])
-            `,
+          "[data-management-report-search-item]:not([hidden])",
         );
 
         group.hidden = visibleCards.length === 0;
@@ -15379,12 +15530,6 @@ async function renderManagementReportSourcesPanel(
       searchInput.focus();
     });
   }
-
-  /*
-   * =====================================================
-   * GUARDAR
-   * =====================================================
-   */
 
   const saveButton = overlay.querySelector(
     "[data-management-roadmap-mapping-save]",
