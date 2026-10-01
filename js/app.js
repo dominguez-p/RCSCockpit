@@ -11071,16 +11071,74 @@ function getManagementFeatureDeliverableIds(feature) {
   return [...result];
 }
 
-function getManagementRoadmapLinksForLine(executiveLineId) {
+function normalizeManagementReportSourceType(link) {
+  let type = String(link?.sourceType || "")
+    .trim()
+    .toLowerCase();
+
+  if (type === "sda" || type === "deliverable") {
+    type = "sda-deliverable";
+  }
+
+  if (type) {
+    return type;
+  }
+
+  if (
+    normalizeManagementSdaId(link?.sdaId) &&
+    normalizeManagementDeliverableId(link?.deliverableId)
+  ) {
+    return "sda-deliverable";
+  }
+
+  if (String(link?.featureId || "").trim()) {
+    return "feature";
+  }
+
+  if (String(link?.staffingId || "").trim()) {
+    return "staffing";
+  }
+
+  return "";
+}
+
+function getManagementReportLinkSourceId(link) {
+  const type = normalizeManagementReportSourceType(link);
+
+  if (type === "sda-deliverable") {
+    const sdaId = normalizeManagementSdaId(link?.sdaId);
+
+    const deliverableId = normalizeManagementDeliverableId(link?.deliverableId);
+
+    return sdaId && deliverableId ? `${sdaId}::${deliverableId}` : "";
+  }
+
+  if (type === "feature") {
+    return String(link?.sourceId || link?.featureId || "")
+      .trim()
+      .toUpperCase();
+  }
+
+  if (type === "staffing") {
+    return String(link?.sourceId || link?.staffingId || "").trim();
+  }
+
+  return "";
+}
+
+function getManagementReportLinksForLine(executiveLineId) {
   const normalizedLineId = String(executiveLineId || "")
     .trim()
     .toLowerCase();
+
   if (!normalizedLineId) {
     return [];
   }
+
   const links = Array.isArray(DATA?.managementRoadmapLinks)
     ? DATA.managementRoadmapLinks
     : [];
+
   return links.filter((link) => {
     if (
       String(link.executiveLineId || "")
@@ -11089,21 +11147,23 @@ function getManagementRoadmapLinksForLine(executiveLineId) {
     ) {
       return false;
     }
+
     if (!isManagementRoadmapLinkActive(link)) {
       return false;
     }
-    /*
-     * Para considerar una relación
-     * operativa necesitamos:
-     *
-     * - SDA
-     * - Deliverable
-     */
-    return Boolean(
-      normalizeManagementSdaId(link.sdaId) &&
-      normalizeManagementDeliverableId(link.deliverableId),
-    );
+
+    const type = normalizeManagementReportSourceType(link);
+
+    const sourceId = getManagementReportLinkSourceId(link);
+
+    return Boolean(type && sourceId);
   });
+}
+
+function getManagementRoadmapLinksForLine(executiveLineId) {
+  return getManagementReportLinksForLine(executiveLineId).filter(
+    (link) => normalizeManagementReportSourceType(link) === "sda-deliverable",
+  );
 }
 
 function normalizeManagementComparableText(value) {
@@ -11203,37 +11263,66 @@ function managementFeatureMatchesDeliverable(feature, link) {
 }
 
 function getManagementFeaturesForLine(executiveLineId) {
-  const links = getManagementRoadmapLinksForLine(executiveLineId);
+  const links = getManagementReportLinksForLine(executiveLineId);
+
   if (!links.length) {
     return [];
   }
+
   const features = Array.isArray(DATA?.jiraWorkspaceFeatures)
     ? DATA.jiraWorkspaceFeatures
     : [];
+
   const result = new Map();
+
+  const registerFeature = (feature, fallbackIndex) => {
+    const featureKey = String(
+      feature?.jiraKey ||
+        feature?.sourceFeatureKey ||
+        feature?.featureId ||
+        feature?.id ||
+        `FEATURE-${fallbackIndex}`,
+    )
+      .trim()
+      .toUpperCase();
+
+    if (!featureKey) {
+      return;
+    }
+
+    if (!result.has(featureKey)) {
+      result.set(featureKey, feature);
+    }
+  };
+
   links.forEach((link) => {
-    features.forEach((feature) => {
-      if (!managementFeatureMatchesDeliverable(feature, link)) {
-        return;
+    const sourceType = normalizeManagementReportSourceType(link);
+
+    if (sourceType === "sda-deliverable") {
+      features.forEach((feature, index) => {
+        if (managementFeatureMatchesDeliverable(feature, link)) {
+          registerFeature(feature, index);
+        }
+      });
+
+      return;
+    }
+
+    if (sourceType === "feature") {
+      const expectedKey = getManagementReportLinkSourceId(link).toUpperCase();
+
+      const feature = features.find(
+        (item) =>
+          String(getManagementFeatureDisplayId(item)).trim().toUpperCase() ===
+          expectedKey,
+      );
+
+      if (feature) {
+        registerFeature(feature, 0);
       }
-      const featureKey = String(
-        feature.jiraKey || feature.sourceFeatureKey || feature.id || "",
-      )
-        .trim()
-        .toUpperCase();
-      if (!featureKey) {
-        return;
-      }
-      /*
-       * Una Feature se cuenta
-       * una única vez aunque
-       * encuentre varias relaciones.
-       */
-      if (!result.has(featureKey)) {
-        result.set(featureKey, feature);
-      }
-    });
+    }
   });
+
   return [...result.values()];
 }
 
@@ -12768,7 +12857,97 @@ function isManagementRoadmapDraftDirty() {
     getManagementRoadmapLinksSignature(state.originalLinks)
   );
 }
+async function verifyManagementRoadmapLinksInBackground(
+  programId,
+  expectedLinks,
+) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
 
+  const expectedPersistableLinks =
+    buildManagementRoadmapPersistableLinks(expectedLinks);
+
+  const expectedSignature = getManagementRoadmapPersistenceSignature(
+    expectedPersistableLinks,
+  );
+
+  try {
+    const persistedConfig =
+      await loadManagementRoadmapConfig(normalizedProgramId);
+
+    const persistedLinks = buildManagementRoadmapPersistableLinks(
+      persistedConfig.managementRoadmapLinks,
+    );
+
+    const persistedSignature =
+      getManagementRoadmapPersistenceSignature(persistedLinks);
+
+    if (expectedSignature !== persistedSignature) {
+      throw new Error(
+        "Las fuentes recuperadas no coinciden con las guardadas.",
+      );
+    }
+
+    /*
+     * Puede haberse producido otro guardado
+     * mientras esta verificación estaba en curso.
+     *
+     * En ese caso no sobrescribimos DATA con
+     * una fotografía anterior.
+     */
+    const currentLocalLinks = buildManagementRoadmapPersistableLinks(
+      DATA?.managementRoadmapLinks,
+    );
+
+    const currentLocalSignature =
+      getManagementRoadmapPersistenceSignature(currentLocalLinks);
+
+    if (currentLocalSignature !== expectedSignature) {
+      return;
+    }
+
+    DATA.managementRoadmapLinks = persistedLinks;
+
+    DATA.managementRoadmapLines = buildManagementRoadmapPersistableLines(
+      persistedConfig.managementRoadmapLines,
+    );
+
+    if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+      const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
+      PROGRAM_DATA_CACHE.set(normalizedProgramId, {
+        ...cached,
+
+        managementRoadmapLinks: DATA.managementRoadmapLinks,
+
+        managementRoadmapLines: DATA.managementRoadmapLines,
+      });
+    }
+
+    console.info("[Management Reports] Guardado verificado en segundo plano.");
+  } catch (error) {
+    console.error(
+      "[Management Reports] No se ha podido verificar el guardado",
+      error,
+    );
+
+    const currentSignature = getManagementRoadmapPersistenceSignature(
+      buildManagementRoadmapPersistableLinks(DATA?.managementRoadmapLinks),
+    );
+
+    /*
+     * Sólo avisamos si el usuario sigue
+     * trabajando sobre exactamente el guardado
+     * que acaba de fallar.
+     */
+    if (currentSignature === expectedSignature) {
+      window.alert(
+        "El cambio se ha enviado, pero no se ha podido verificar su persistencia. Recarga la página antes de seguir modificando este entregable.",
+      );
+    }
+  }
+}
 async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
   const state = getManagementRoadmapMappingEditorState();
 
@@ -12800,6 +12979,7 @@ async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
 
   if (saveButton) {
     saveButton.disabled = true;
+
     saveButton.textContent = "Guardando...";
   }
 
@@ -12810,7 +12990,7 @@ async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
       </strong>
 
       <span>
-        Actualizando Management Roadmap Links...
+        Actualizando las fuentes del informe...
       </span>
     `;
   }
@@ -12829,25 +13009,33 @@ async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
 
     const nextLinks = buildManagementRoadmapPersistableLinks([
       ...unrelatedLinks,
+
       ...cloneManagementRoadmapLinks(state.draftLinks),
     ]);
 
     /*
-     * =====================================================
+     * ===================================================
      * WRITE
-     * =====================================================
+     * ===================================================
      */
+
     const endpoint = new URL(source.driveJsonUrl, window.location.href);
 
     endpoint.searchParams.delete("callback");
+
     endpoint.searchParams.delete("_");
+
     endpoint.searchParams.delete("dataset");
+
     endpoint.searchParams.delete("action");
 
     await fetch(endpoint.toString(), {
       method: "POST",
+
       mode: "no-cors",
+
       credentials: "include",
+
       cache: "no-store",
 
       headers: {
@@ -12861,54 +13049,18 @@ async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
       }),
     });
 
-    await new Promise((resolve) => window.setTimeout(resolve, 500));
-
     /*
-     * =====================================================
-     * DIRECT READ-BACK
-     * =====================================================
+     * ===================================================
+     * ACTUALIZACIÓN OPTIMISTA LOCAL
+     * ===================================================
+     *
+     * El POST ya ha terminado.
+     *
+     * No bloqueamos al usuario esperando
+     * una segunda ejecución de Apps Script.
      */
-    const persistedConfig =
-      await loadManagementRoadmapConfig(normalizedProgramId);
 
-    const persistedLinks = buildManagementRoadmapPersistableLinks(
-      persistedConfig.managementRoadmapLinks,
-    );
-
-    /*
-     * =====================================================
-     * VERIFY
-     * =====================================================
-     */
-    const expectedSignature =
-      getManagementRoadmapPersistenceSignature(nextLinks);
-
-    const persistedSignature =
-      getManagementRoadmapPersistenceSignature(persistedLinks);
-
-    if (expectedSignature !== persistedSignature) {
-      console.error("[Management Roadmap] Persistencia de links distinta", {
-        expectedSignature,
-        persistedSignature,
-        expectedLinks: nextLinks,
-        persistedLinks,
-      });
-
-      throw new Error(
-        "Las relaciones SDA escritas en Management Roadmap Links no coinciden con las enviadas.",
-      );
-    }
-
-    /*
-     * =====================================================
-     * DATA
-     * =====================================================
-     */
-    DATA.managementRoadmapLinks = persistedLinks;
-
-    DATA.managementRoadmapLines = buildManagementRoadmapPersistableLines(
-      persistedConfig.managementRoadmapLines,
-    );
+    DATA.managementRoadmapLinks = nextLinks;
 
     if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
       const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
@@ -12916,23 +13068,47 @@ async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
       PROGRAM_DATA_CACHE.set(normalizedProgramId, {
         ...cached,
 
-        managementRoadmapLinks: DATA.managementRoadmapLinks,
-
-        managementRoadmapLines: DATA.managementRoadmapLines,
+        managementRoadmapLinks: nextLinks,
       });
     }
 
     state.originalLinks = cloneManagementRoadmapLinks(state.draftLinks);
 
+    /*
+     * Cerramos inmediatamente el panel.
+     */
     closeManagementRoadmapMappingPanel();
 
-    await render();
+    /*
+     * No hacemos render() global.
+     *
+     * Sólo reconstruimos este informe.
+     */
+    renderManagementRoadmapView(normalizedProgramId);
+
+    /*
+     * ===================================================
+     * VERIFICACIÓN NO BLOQUEANTE
+     * ===================================================
+     *
+     * La lectura contra Sheets continúa existiendo,
+     * pero ya no forma parte del tiempo que espera
+     * el usuario.
+     */
+
+    window.setTimeout(() => {
+      void verifyManagementRoadmapLinksInBackground(
+        normalizedProgramId,
+        nextLinks,
+      );
+    }, 100);
   } catch (error) {
-    console.error("[Management Roadmap] Error guardando relaciones", error);
+    console.error("[Management Reports] Error guardando fuentes", error);
 
     if (saveButton) {
       saveButton.disabled = false;
-      saveButton.textContent = "Guardar";
+
+      saveButton.textContent = "Guardar fuentes";
     }
 
     if (statusElement) {
@@ -12981,29 +13157,60 @@ function applyManagementRoadmapPersistenceUi(root = document) {
 
 function buildManagementRoadmapPersistableLinks(links) {
   const result = new Map();
+
   (Array.isArray(links) ? links : []).forEach((link) => {
     const executiveLineId = String(link?.executiveLineId || "").trim();
-    const sdaId = normalizeManagementSdaId(link?.sdaId);
-    const deliverableId = normalizeManagementDeliverableId(link?.deliverableId);
-    /*
-     * No publicamos mappings incompletos.
-     */
-    if (!executiveLineId || !sdaId || !deliverableId) {
+
+    const sourceType = normalizeManagementReportSourceType(link);
+
+    if (!executiveLineId || !sourceType) {
       return;
     }
-    const normalizedLink = {
-      executiveLineId,
+
+    const sdaId =
+      sourceType === "sda-deliverable"
+        ? normalizeManagementSdaId(link?.sdaId)
+        : "";
+
+    const deliverableId =
+      sourceType === "sda-deliverable"
+        ? normalizeManagementDeliverableId(link?.deliverableId)
+        : "";
+
+    let sourceId = getManagementReportLinkSourceId({
+      ...link,
       sdaId,
       deliverableId,
+    });
+
+    if (!sourceId) {
+      return;
+    }
+
+    const featureId = sourceType === "feature" ? sourceId.toUpperCase() : "";
+
+    const staffingId = sourceType === "staffing" ? sourceId : "";
+
+    const normalizedLink = {
+      executiveLineId,
+      sourceType,
+      sourceId,
+      sdaId,
+      deliverableId,
+      featureId,
+      staffingId,
       active: true,
     };
+
     const key = [
       executiveLineId.toLowerCase(),
-      String(sdaId).toUpperCase(),
-      String(deliverableId).toUpperCase(),
+      sourceType,
+      sourceId.toUpperCase(),
     ].join("::");
+
     result.set(key, normalizedLink);
   });
+
   return [...result.values()];
 }
 
@@ -14237,7 +14444,966 @@ function removeManagementRoadmapMappingOverlay() {
     overlay.remove();
   }
 }
+function getManagementReportFeatureCatalog(line) {
+  const source = Array.isArray(DATA?.jiraWorkspaceFeatures)
+    ? DATA.jiraWorkspaceFeatures
+    : [];
 
+  const allowedProducts = getManagementRoadmapSdaSourceProducts(line.productId);
+
+  return source
+    .filter((feature) => {
+      const productId = normalizeRoadmapProduct(
+        feature?.productId || feature?.product || "",
+      );
+
+      if (productId && !allowedProducts.has(productId)) {
+        return false;
+      }
+
+      const country = String(feature?.country || "")
+        .trim()
+        .toUpperCase();
+
+      if (
+        country &&
+        line.country &&
+        country !== String(line.country).trim().toUpperCase()
+      ) {
+        return false;
+      }
+
+      return Boolean(getManagementFeatureDisplayId(feature));
+    })
+    .sort((left, right) =>
+      getManagementFeatureDisplayTitle(left).localeCompare(
+        getManagementFeatureDisplayTitle(right),
+        "es",
+      ),
+    );
+}
+
+function getManagementReportStaffingCatalog(programId, line) {
+  const product = getStaffingProductData(programId, line.productId);
+
+  if (!product || !Array.isArray(product.periods)) {
+    return [];
+  }
+
+  const snapshot = getManagementRoadmapSnapshotState();
+
+  const year = Number(snapshot.year || line.year);
+
+  const quarter = snapshot.quarter || "ALL";
+
+  const periods = product.periods.filter(
+    (period) =>
+      Number(period.year) === year &&
+      (quarter === "ALL" ||
+        String(period.quarter).trim().toUpperCase() === quarter),
+  );
+
+  const result = new Map();
+
+  periods.forEach((period) => {
+    (period.scrums || []).forEach((scrum) => {
+      const id = String(scrum.name || "").trim();
+
+      if (!id) {
+        return;
+      }
+
+      if (!result.has(id)) {
+        result.set(id, {
+          id,
+          name: id,
+          periods: [],
+          totalFte: 0,
+          assignedFte: 0,
+          openFte: 0,
+          positions: 0,
+        });
+      }
+
+      const item = result.get(id);
+
+      item.periods.push(String(period.period || ""));
+
+      item.totalFte += Number(scrum.totalFte || 0);
+
+      item.assignedFte += Number(scrum.assignedFte || 0);
+
+      item.openFte += Number(scrum.openFte || 0);
+
+      item.positions += Number(scrum.positions || 0);
+    });
+  });
+
+  return [...result.values()].sort((left, right) =>
+    left.name.localeCompare(right.name, "es"),
+  );
+}
+
+function getManagementReportSourceLinkKey(link) {
+  return [
+    normalizeManagementReportSourceType(link),
+    getManagementReportLinkSourceId(link),
+  ].join("::");
+}
+
+function managementReportDraftHasSource(links, candidate) {
+  const key = getManagementReportSourceLinkKey(candidate);
+
+  return (links || []).some(
+    (link) => getManagementReportSourceLinkKey(link) === key,
+  );
+}
+
+function toggleManagementReportDraftSource(line, candidate, checked) {
+  const state = getManagementRoadmapMappingEditorState();
+
+  const key = getManagementReportSourceLinkKey(candidate);
+
+  if (checked) {
+    if (!managementReportDraftHasSource(state.draftLinks, candidate)) {
+      state.draftLinks.push({
+        executiveLineId: line.id,
+        programId: line.programId,
+        productId: line.productId,
+        country: line.country,
+        ...candidate,
+        active: true,
+      });
+    }
+
+    return;
+  }
+
+  state.draftLinks = state.draftLinks.filter(
+    (link) => getManagementReportSourceLinkKey(link) !== key,
+  );
+}
+
+function getManagementReportSourceDescription(value) {
+  const text = String(value || "").trim();
+
+  return text || "Sin descripción disponible.";
+}
+
+async function renderManagementReportSourcesPanel(
+  programId,
+  executiveLineId,
+  options = {},
+) {
+  const line = getManagementRoadmapLineById(executiveLineId);
+
+  if (!line) {
+    return;
+  }
+
+  const state = getManagementRoadmapMappingEditorState();
+
+  const sameLine = state.selectedLineId === executiveLineId;
+
+  if (!options.preserveDraft || !sameLine) {
+    const existing = getManagementReportLinksForLine(executiveLineId);
+
+    state.selectedLineId = executiveLineId;
+
+    state.originalLinks = cloneManagementRoadmapLinks(existing);
+
+    state.draftLinks = cloneManagementRoadmapLinks(existing);
+
+    state.reportSourceTab = "sda";
+  }
+
+  state.reportSourceTab = String(options.tab || state.reportSourceTab || "sda");
+
+  removeManagementRoadmapMappingOverlay();
+
+  if (!STAFFING_DATA_CACHE.has(String(programId).trim().toLowerCase())) {
+    try {
+      await loadStaffingData(programId);
+    } catch (error) {
+      console.warn("[Management Reports] Staffing no disponible", error);
+    }
+  }
+
+  const sdaCatalog = getManagementRoadmapSdaCatalog(programId, line.productId);
+
+  const featureCatalog = getManagementReportFeatureCatalog(line);
+
+  const staffingCatalog = getManagementReportStaffingCatalog(programId, line);
+
+  const preview = getManagementRoadmapDraftProgress(state.draftLinks);
+
+  const selectedSdaCount = state.draftLinks.filter(
+    (link) => normalizeManagementReportSourceType(link) === "sda-deliverable",
+  ).length;
+
+  const selectedFeatureCount = state.draftLinks.filter(
+    (link) => normalizeManagementReportSourceType(link) === "feature",
+  ).length;
+
+  const selectedStaffingCount = state.draftLinks.filter(
+    (link) => normalizeManagementReportSourceType(link) === "staffing",
+  ).length;
+
+  const overlay = document.createElement("div");
+
+  overlay.id = "managementRoadmapMappingOverlay";
+
+  overlay.className = "management-roadmap-mapping-overlay";
+
+  /*
+   * =====================================================
+   * SDA
+   * =====================================================
+   */
+
+  const renderSda = () =>
+    sdaCatalog
+      .map((sda) => {
+        const deliverables = sda.deliverables
+          .map((item) => {
+            const candidate = {
+              sourceType: "sda-deliverable",
+
+              sourceId: `${sda.id}::${item.id}`,
+
+              sdaId: sda.id,
+
+              deliverableId: item.id,
+
+              featureId: "",
+
+              staffingId: "",
+            };
+
+            const checked = managementReportDraftHasSource(
+              state.draftLinks,
+              candidate,
+            );
+
+            const description = getManagementReportSourceDescription(
+              item.source?.description ||
+                item.source?.goal ||
+                item.source?.rationale,
+            );
+
+            const searchText = normalizeManagementReportSearchText(
+              [sda.id, sda.label, item.id, item.label, description].join(" "),
+            );
+
+            return `
+                <label
+                  class="management-report-source-card"
+                  data-management-report-search-item
+                  data-search-type="sda"
+                  data-search-text="${rcsEsc(searchText)}"
+                >
+                  <input
+                    type="checkbox"
+                    data-management-report-source-toggle
+                    data-source-type="sda-deliverable"
+                    data-source-id="${rcsEsc(candidate.sourceId)}"
+                    data-sda-id="${rcsEsc(sda.id)}"
+                    data-deliverable-id="${rcsEsc(item.id)}"
+                    ${checked ? "checked" : ""}
+                  />
+
+                  <span>
+                    <strong>
+                      ${rcsEsc(item.label)}
+                    </strong>
+
+                    <small
+                      class="
+                        management-report-source-identifiers
+                      "
+                    >
+                      SDA ${rcsEsc(sda.id)}
+                      ·
+                      ${rcsEsc(item.id)}
+                    </small>
+
+                    <small>
+                      ${rcsEsc(description)}
+                    </small>
+                  </span>
+                </label>
+              `;
+          })
+          .join("");
+
+        return `
+          <section
+            class="management-report-source-group"
+            data-management-report-search-group
+          >
+            <h4>
+              ${rcsEsc(sda.label)}
+            </h4>
+
+            <small
+              class="
+                management-report-source-group-id
+              "
+            >
+              SDA ${rcsEsc(sda.id)}
+            </small>
+
+            ${deliverables}
+          </section>
+        `;
+      })
+      .join("");
+
+  /*
+   * =====================================================
+   * FEATURES
+   * =====================================================
+   */
+
+  const renderFeatures = () =>
+    featureCatalog
+      .map((feature) => {
+        const id = getManagementFeatureDisplayId(feature);
+
+        const title = getManagementFeatureDisplayTitle(feature);
+
+        const description = getManagementReportSourceDescription(
+          feature.description,
+        );
+
+        const status = getManagementFeatureDisplayStatus(feature);
+
+        const candidate = {
+          sourceType: "feature",
+
+          sourceId: id,
+
+          sdaId: "",
+
+          deliverableId: "",
+
+          featureId: id,
+
+          staffingId: "",
+        };
+
+        const checked = managementReportDraftHasSource(
+          state.draftLinks,
+          candidate,
+        );
+
+        const searchText = normalizeManagementReportSearchText(
+          [
+            id,
+            title,
+            description,
+            status,
+            feature.sdaId,
+            feature.deliverableId,
+          ].join(" "),
+        );
+
+        return `
+          <label
+            class="management-report-source-card"
+            data-management-report-search-item
+            data-search-type="feature"
+            data-search-text="${rcsEsc(searchText)}"
+          >
+            <input
+              type="checkbox"
+              data-management-report-source-toggle
+              data-source-type="feature"
+              data-source-id="${rcsEsc(id)}"
+              data-feature-id="${rcsEsc(id)}"
+              ${checked ? "checked" : ""}
+            />
+
+            <span>
+              <strong>
+                ${rcsEsc(id)}
+                ·
+                ${rcsEsc(title)}
+              </strong>
+
+              <small>
+                ${rcsEsc(description)}
+              </small>
+
+              <em>
+                ${rcsEsc(status)}
+              </em>
+            </span>
+          </label>
+        `;
+      })
+      .join("");
+
+  /*
+   * =====================================================
+   * STAFFING
+   * =====================================================
+   */
+
+  const renderStaffing = () =>
+    staffingCatalog
+      .map((item) => {
+        const candidate = {
+          sourceType: "staffing",
+
+          sourceId: item.id,
+
+          sdaId: "",
+
+          deliverableId: "",
+
+          featureId: "",
+
+          staffingId: item.id,
+        };
+
+        const checked = managementReportDraftHasSource(
+          state.draftLinks,
+          candidate,
+        );
+
+        return `
+          <label
+            class="management-report-source-card"
+          >
+            <input
+              type="checkbox"
+              data-management-report-source-toggle
+              data-source-type="staffing"
+              data-source-id="${rcsEsc(item.id)}"
+              data-staffing-id="${rcsEsc(item.id)}"
+              ${checked ? "checked" : ""}
+            />
+
+            <span>
+              <strong>
+                ${rcsEsc(item.name)}
+              </strong>
+
+              <small>
+                ${rcsEsc(item.periods.join(", "))}
+                ·
+                ${item.positions}
+                posiciones
+                ·
+                ${formatFlightDeckStaffingFte(item.totalFte)}
+                FTE
+                ·
+                ${formatFlightDeckStaffingFte(item.openFte)}
+                FTE pendientes
+              </small>
+            </span>
+          </label>
+        `;
+      })
+      .join("");
+
+  /*
+   * =====================================================
+   * BUSCADOR
+   * =====================================================
+   */
+
+  const searchHtml = ["sda", "feature"].includes(state.reportSourceTab)
+    ? `
+        <div
+          class="
+            management-report-source-search
+          "
+        >
+          <span
+            class="
+              management-report-source-search-icon
+            "
+            aria-hidden="true"
+          >
+            ⌕
+          </span>
+
+          <input
+            type="search"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="${
+              state.reportSourceTab === "sda"
+                ? "Buscar SDA o entregable..."
+                : "Buscar feature por ID, nombre o descripción..."
+            }"
+            aria-label="${
+              state.reportSourceTab === "sda"
+                ? "Buscar SDA o entregable"
+                : "Buscar feature"
+            }"
+            data-management-report-source-search
+          />
+
+          <button
+            type="button"
+            class="
+              management-report-source-search-clear
+            "
+            data-management-report-source-search-clear
+            hidden
+            aria-label="Limpiar búsqueda"
+          >
+            ×
+          </button>
+        </div>
+
+        <div
+          class="
+            management-report-source-search-result
+          "
+          data-management-report-source-search-result
+        ></div>
+      `
+    : "";
+
+  /*
+   * =====================================================
+   * PANEL
+   * =====================================================
+   */
+
+  overlay.innerHTML = `
+    <aside
+      class="
+        management-roadmap-mapping-panel
+        management-report-source-panel
+      "
+      role="dialog"
+      aria-modal="true"
+    >
+      <header
+        class="
+          management-roadmap-mapping-header
+        "
+      >
+        <div>
+          <span
+            class="
+              management-roadmap-mapping-eyebrow
+            "
+          >
+            Configurar fuentes
+          </span>
+
+          <h2>
+            ${rcsEsc(line.title)}
+          </h2>
+
+          <p>
+            Selecciona la información que
+            alimentará este entregable.
+          </p>
+        </div>
+
+        <button
+          class="
+            management-roadmap-mapping-close
+          "
+          type="button"
+          data-management-roadmap-mapping-cancel
+        >
+          ×
+        </button>
+      </header>
+
+      <div
+        class="
+          management-report-source-tabs
+        "
+      >
+        <button
+          class="${state.reportSourceTab === "sda" ? "is-active" : ""}"
+          type="button"
+          data-management-report-source-tab="sda"
+        >
+          SDA
+          <span>
+            ${selectedSdaCount}
+          </span>
+        </button>
+
+        <button
+          class="${state.reportSourceTab === "feature" ? "is-active" : ""}"
+          type="button"
+          data-management-report-source-tab="feature"
+        >
+          Features
+          <span>
+            ${selectedFeatureCount}
+          </span>
+        </button>
+
+        <button
+          class="${state.reportSourceTab === "staffing" ? "is-active" : ""}"
+          type="button"
+          data-management-report-source-tab="staffing"
+        >
+          Staffing
+          <span>
+            ${selectedStaffingCount}
+          </span>
+        </button>
+      </div>
+
+      <div
+        class="
+          management-roadmap-mapping-body
+        "
+      >
+        <section
+          class="
+            management-report-source-picker
+          "
+        >
+          ${searchHtml}
+
+          <div
+            class="
+              management-report-source-list
+            "
+          >
+            ${
+              state.reportSourceTab === "sda"
+                ? renderSda()
+                : state.reportSourceTab === "feature"
+                  ? renderFeatures()
+                  : renderStaffing()
+            }
+          </div>
+
+          <div
+            class="
+              management-report-source-search-empty
+            "
+            data-management-report-source-search-empty
+            hidden
+          >
+            No hay resultados para esta búsqueda.
+          </div>
+        </section>
+
+        <section
+          class="
+            management-report-source-preview
+          "
+        >
+          <h3>
+            Previsualización
+          </h3>
+
+          <div
+            class="
+              management-roadmap-feature-summary
+            "
+          >
+            <article>
+              <span>
+                Features
+              </span>
+
+              <strong>
+                ${preview.featureCount}
+              </strong>
+            </article>
+
+            <article>
+              <span>
+                Deployed
+              </span>
+
+              <strong>
+                ${preview.deployedCount}
+              </strong>
+            </article>
+
+            <article>
+              <span>
+                Avance
+              </span>
+
+              <strong>
+                ${preview.progress === null ? "—" : `${preview.progress}%`}
+              </strong>
+            </article>
+          </div>
+
+          <div
+            class="
+              management-report-source-preview-counts
+            "
+          >
+            <span>
+              SDA
+              <strong>
+                ${selectedSdaCount}
+              </strong>
+            </span>
+
+            <span>
+              Features directas
+              <strong>
+                ${selectedFeatureCount}
+              </strong>
+            </span>
+
+            <span>
+              Staffing
+              <strong>
+                ${selectedStaffingCount}
+              </strong>
+            </span>
+          </div>
+        </section>
+      </div>
+
+      <footer
+        class="
+          management-roadmap-mapping-footer
+        "
+      >
+        <div>
+          <strong>
+            Fuentes del informe
+          </strong>
+
+          <span>
+            Los cambios se guardarán en
+            Management Roadmap Links.
+          </span>
+        </div>
+
+        <div
+          class="
+            management-roadmap-mapping-footer-actions
+          "
+        >
+          <button
+            class="ghost-button"
+            type="button"
+            data-management-roadmap-mapping-cancel
+          >
+            Cancelar
+          </button>
+
+          <button
+            class="
+              management-roadmap-mapping-save
+            "
+            type="button"
+            data-management-roadmap-mapping-save
+          >
+            Guardar fuentes
+          </button>
+        </div>
+      </footer>
+    </aside>
+  `;
+
+  document.body.appendChild(overlay);
+
+  /*
+   * =====================================================
+   * CERRAR
+   * =====================================================
+   */
+
+  overlay
+    .querySelectorAll("[data-management-roadmap-mapping-cancel]")
+    .forEach((button) => {
+      button.addEventListener("click", closeManagementRoadmapMappingPanel);
+    });
+
+  /*
+   * =====================================================
+   * TABS
+   * =====================================================
+   */
+
+  overlay
+    .querySelectorAll("[data-management-report-source-tab]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        renderManagementReportSourcesPanel(programId, executiveLineId, {
+          preserveDraft: true,
+
+          tab: button.dataset.managementReportSourceTab,
+        });
+      });
+    });
+
+  /*
+   * =====================================================
+   * SELECCIÓN
+   * =====================================================
+   */
+
+  overlay
+    .querySelectorAll("[data-management-report-source-toggle]")
+    .forEach((input) => {
+      input.addEventListener("change", () => {
+        const sourceType = input.dataset.sourceType;
+
+        const candidate = {
+          sourceType,
+
+          sourceId: input.dataset.sourceId || "",
+
+          sdaId: input.dataset.sdaId || "",
+
+          deliverableId: input.dataset.deliverableId || "",
+
+          featureId: input.dataset.featureId || "",
+
+          staffingId: input.dataset.staffingId || "",
+        };
+
+        toggleManagementReportDraftSource(line, candidate, input.checked);
+
+        renderManagementReportSourcesPanel(programId, executiveLineId, {
+          preserveDraft: true,
+
+          tab: state.reportSourceTab,
+        });
+      });
+    });
+
+  /*
+   * =====================================================
+   * BUSCADOR
+   * =====================================================
+   */
+
+  const searchInput = overlay.querySelector(
+    "[data-management-report-source-search]",
+  );
+
+  const clearSearchButton = overlay.querySelector(
+    "[data-management-report-source-search-clear]",
+  );
+
+  const searchResult = overlay.querySelector(
+    "[data-management-report-source-search-result]",
+  );
+
+  const emptySearch = overlay.querySelector(
+    "[data-management-report-source-search-empty]",
+  );
+
+  const applySearch = () => {
+    if (!searchInput) {
+      return;
+    }
+
+    const query = normalizeManagementReportSearchText(searchInput.value);
+
+    let visibleItems = 0;
+
+    const items = overlay.querySelectorAll(
+      "[data-management-report-search-item]",
+    );
+
+    items.forEach((item) => {
+      const searchText = normalizeManagementReportSearchText(
+        item.dataset.searchText,
+      );
+
+      const visible = !query || searchText.includes(query);
+
+      item.hidden = !visible;
+
+      if (visible) {
+        visibleItems += 1;
+      }
+    });
+
+    overlay
+      .querySelectorAll("[data-management-report-search-group]")
+      .forEach((group) => {
+        const visibleCards = group.querySelectorAll(
+          `
+              [data-management-report-search-item]:not([hidden])
+            `,
+        );
+
+        group.hidden = visibleCards.length === 0;
+      });
+
+    if (clearSearchButton) {
+      clearSearchButton.hidden = !query;
+    }
+
+    if (searchResult) {
+      searchResult.textContent = query
+        ? `${visibleItems} ${visibleItems === 1 ? "resultado" : "resultados"}`
+        : "";
+    }
+
+    if (emptySearch) {
+      emptySearch.hidden = !query || visibleItems > 0;
+    }
+  };
+
+  if (searchInput) {
+    searchInput.addEventListener("input", applySearch);
+
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && searchInput.value) {
+        searchInput.value = "";
+
+        applySearch();
+
+        event.stopPropagation();
+      }
+    });
+  }
+
+  if (clearSearchButton && searchInput) {
+    clearSearchButton.addEventListener("click", () => {
+      searchInput.value = "";
+
+      applySearch();
+
+      searchInput.focus();
+    });
+  }
+
+  /*
+   * =====================================================
+   * GUARDAR
+   * =====================================================
+   */
+
+  const saveButton = overlay.querySelector(
+    "[data-management-roadmap-mapping-save]",
+  );
+
+  if (saveButton) {
+    saveButton.addEventListener("click", () =>
+      saveManagementRoadmapDraftLinks(programId, executiveLineId),
+    );
+  }
+}
+function normalizeManagementReportSearchText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
 function renderManagementRoadmapMappingPanel(
   programId,
   executiveLineId,
@@ -16109,20 +17275,110 @@ function renderManagementRoadmapSnapshotEditorTable(
   `;
 }
 function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
-  const mappingState = getManagementRoadmapMappingUiState();
-
-  if (mappingState.enabled) {
-    return renderManagementRoadmapSnapshotEditorTable(
-      programId,
-      productId,
-      countryId,
-    );
-  }
-
   return renderManagementRoadmapBoard(programId, productId, countryId);
 }
+function applyManagementRoadmapInlineConfiguration(programId) {
+  const mappingState = getManagementRoadmapMappingUiState();
 
+  if (!mappingState.enabled) {
+    return;
+  }
+
+  const snapshot = getManagementRoadmapSnapshotState();
+
+  const rows = getManagementRoadmapRows(
+    programId,
+    snapshot.productId,
+    snapshot.countryId,
+  );
+
+  const controls = document.querySelector(".mgq-controls");
+
+  if (
+    controls &&
+    !controls.querySelector("[data-management-roadmap-create-line]")
+  ) {
+    const actions = document.createElement("div");
+
+    actions.className = "management-report-inline-config-main";
+
+    actions.innerHTML = `
+      <button
+        class="management-roadmap-line-create-button"
+        type="button"
+        data-management-roadmap-create-line
+      >
+        + Nuevo entregable
+      </button>
+    `;
+
+    controls.appendChild(actions);
+  }
+
+  document.querySelectorAll(".mgqv-executive").forEach((section) => {
+    const heading = section.querySelector(".mgqv-executive-header h4");
+
+    const title = String(heading?.textContent || "").trim();
+
+    const row = rows.find((candidate) => candidate.title === title);
+
+    if (!row) {
+      return;
+    }
+
+    section.dataset.managementRoadmapLine = row.id;
+
+    const header = section.querySelector(".mgqv-executive-header");
+
+    if (
+      !header ||
+      header.querySelector(".management-report-inline-config-actions")
+    ) {
+      return;
+    }
+
+    const actions = document.createElement("div");
+
+    actions.className = "management-report-inline-config-actions";
+
+    actions.innerHTML = `
+        <button
+          class="management-report-inline-config-button"
+          type="button"
+          data-management-roadmap-edit-line="${rcsEsc(row.id)}"
+        >
+          Editar
+        </button>
+
+        <button
+          class="
+            management-report-inline-config-button
+            is-primary
+          "
+          type="button"
+          data-management-report-sources="${rcsEsc(row.id)}"
+        >
+          Fuentes
+        </button>
+      `;
+
+    header.appendChild(actions);
+  });
+
+  document
+    .querySelectorAll("[data-management-report-sources]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        renderManagementReportSourcesPanel(
+          programId,
+          button.dataset.managementReportSources,
+        );
+      });
+    });
+}
 function bindManagementRoadmapLineEditors(programId) {
+  applyManagementRoadmapInlineConfiguration(programId);
+
   const yearSelector = document.querySelector("[data-mgq-year]");
 
   if (yearSelector) {
@@ -16149,7 +17405,9 @@ function bindManagementRoadmapLineEditors(programId) {
           button.dataset.managementRoadmapEditLine || "",
         ).trim();
 
-        if (!lineId) return;
+        if (!lineId) {
+          return;
+        }
 
         renderManagementRoadmapLineEditorPanel(programId, lineId);
       });

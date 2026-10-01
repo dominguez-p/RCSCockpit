@@ -9651,3 +9651,530 @@ PRODUCT PLAN · EPIC COLLAPSE
     font-size: 26px;
   }
 }
+/* =========================================================
+   MANAGEMENT REPORTS · INLINE CONFIGURATION
+   ========================================================= */
+
+.management-report-inline-config-main {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.management-report-inline-config-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+
+.management-report-inline-config-button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #c7d6eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0c3b83;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.management-report-inline-config-button:hover {
+  border-color: #1464c9;
+  background: #f0f6ff;
+}
+
+.management-report-inline-config-button.is-primary {
+  border-color: #001391;
+  background: #001391;
+  color: #ffffff;
+}
+
+.management-report-source-panel {
+  width: min(720px, 92vw);
+}
+
+.management-report-source-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #dce5f2;
+  background: #f7faff;
+}
+
+.management-report-source-tabs button {
+  min-height: 40px;
+  border: 1px solid #d2deef;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #536b8e;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.management-report-source-tabs button.is-active {
+  border-color: #001391;
+  background: #001391;
+  color: #ffffff;
+}
+
+.management-report-source-tabs button span {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 20px;
+  margin-left: 5px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #e9f0fa;
+  color: #244b82;
+  font-size: 9px;
+}
+
+.management-report-source-tabs button.is-active span {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.management-report-source-picker {
+  display: grid;
+  gap: 13px;
+}
+
+.management-report-source-group {
+  display: grid;
+  gap: 7px;
+}
+
+.management-report-source-group h4 {
+  margin: 0;
+  color: #001391;
+  font-size: 13px;
+}
+
+.management-report-source-card {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border: 1px solid #dce6f2;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.management-report-source-card:hover {
+  border-color: #9ebbe0;
+  background: #f8fbff;
+}
+
+.management-report-source-card input {
+  margin-top: 3px;
+}
+
+.management-report-source-card > span {
+  display: grid;
+  gap: 5px;
+}
+
+.management-report-source-card strong {
+  color: #234a80;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.management-report-source-card small {
+  color: #637a98;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.management-report-source-card em {
+  color: #2c719b;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.management-report-source-preview {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #d5e1f1;
+  border-radius: 12px;
+  background: #f5f9ff;
+}
+
+.management-report-source-preview h3 {
+  margin: 0;
+  color: #001391;
+  font-size: 15px;
+}
+
+.management-report-source-preview-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.management-report-source-preview-counts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #607895;
+  font-size: 10px;
+}
+
+.management-report-source-preview-counts strong {
+  color: #001391;
+}
+/* =========================================================
+   MANAGEMENT REPORTS · SOURCE SEARCH
+   ========================================================= */
+
+.management-report-source-search {
+  position: sticky;
+  z-index: 8;
+  top: 0;
+
+  display: grid;
+  grid-template-columns: 24px 1fr 28px;
+  align-items: center;
+
+  min-height: 46px;
+  margin-bottom: 8px;
+  padding: 0 10px;
+
+  border: 1px solid #c9d8eb;
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  box-shadow: 0 5px 14px rgba(21, 57, 101, 0.08);
+}
+
+.management-report-source-search:focus-within {
+  border-color: #1464c9;
+
+  box-shadow: 0 0 0 3px rgba(20, 100, 201, 0.1);
+}
+
+.management-report-source-search-icon {
+  color: #51749d;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.management-report-source-search input {
+  width: 100%;
+  min-width: 0;
+
+  padding: 10px 5px;
+
+  border: 0;
+  outline: 0;
+
+  background: transparent;
+
+  color: #163d72;
+
+  font: inherit;
+  font-size: 12px;
+}
+
+.management-report-source-search input::placeholder {
+  color: #8b9bb0;
+}
+
+.management-report-source-search-clear {
+  display: grid;
+  place-items: center;
+
+  width: 27px;
+  height: 27px;
+  padding: 0;
+
+  border: 0;
+  border-radius: 50%;
+
+  background: #edf3fa;
+  color: #355d8b;
+
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.management-report-source-search-clear:hover {
+  background: #dfeaf7;
+}
+
+.management-report-source-search-result {
+  min-height: 15px;
+  margin: -1px 3px 8px;
+
+  color: #6b829f;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.management-report-source-search-empty {
+  padding: 24px 16px;
+
+  border: 1px dashed #cbd8e8;
+  border-radius: 10px;
+
+  color: #7186a1;
+  text-align: center;
+
+  font-size: 11px;
+}
+
+.management-report-source-identifiers,
+.management-report-source-group-id {
+  color: #7590af;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.management-report-source-group-id {
+  display: block;
+  margin-top: -4px;
+  margin-bottom: 3px;
+}
+/* =========================================================
+   MANAGEMENT REPORTS · SOURCE SEARCH FIX
+   ========================================================= */
+
+/*
+ * El atributo hidden debe prevalecer sobre los estilos
+ * display:grid de las tarjetas y grupos.
+ */
+.management-report-source-card[hidden],
+.management-report-source-group[hidden],
+.management-report-source-search-empty[hidden],
+.management-report-source-search-clear[hidden] {
+  display: none !important;
+}
+
+/*
+ * Evitar la X nativa de Chrome en input[type="search"].
+ * Conservamos únicamente nuestro botón de limpiar.
+ */
+.management-report-source-search
+  input[type="search"]::-webkit-search-cancel-button {
+  display: none;
+  -webkit-appearance: none;
+}
+
+/*
+ * Asegurar que los grupos SDA sólo ocupan espacio
+ * cuando contienen resultados visibles.
+ */
+.management-report-source-group {
+  display: grid;
+  gap: 7px;
+}
+
+.management-report-source-list {
+  display: grid;
+  gap: 8px;
+}
+/* =========================================================
+   MANAGEMENT REPORTS
+   FIX SOURCE TABS HEIGHT
+   ========================================================= */
+
+.management-report-source-panel .management-report-source-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: 42px;
+
+  align-items: center;
+
+  width: 100%;
+  height: auto;
+  min-height: 58px;
+  max-height: 58px;
+
+  padding: 8px 12px;
+
+  gap: 6px;
+
+  flex: 0 0 auto;
+
+  overflow: hidden;
+}
+
+.management-report-source-panel .management-report-source-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  max-height: 42px;
+
+  margin: 0;
+  padding: 0 12px;
+
+  align-self: center;
+
+  border: 1px solid #d2deef;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #536b8e;
+
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.management-report-source-panel
+  .management-report-source-tabs
+  button.is-active {
+  border-color: #001391;
+  background: #001391;
+  color: #ffffff;
+}
+
+.management-report-source-panel .management-report-source-tabs button span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 20px;
+  height: 20px;
+
+  margin: 0;
+  padding: 0 6px;
+
+  border-radius: 999px;
+
+  background: #e9f0fa;
+  color: #244b82;
+
+  font-size: 9px;
+  line-height: 1;
+}
+
+.management-report-source-panel
+  .management-report-source-tabs
+  button.is-active
+  span {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+/* =========================================================
+   MANAGEMENT REPORTS
+   SOURCE PANEL · VERTICAL LAYOUT
+   ========================================================= */
+
+/*
+ * El cuerpo utiliza todo el espacio disponible.
+ * La previsualización permanece abajo.
+ */
+.management-report-source-panel .management-roadmap-mapping-body {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+
+  min-height: 0;
+  overflow: hidden;
+}
+
+/*
+ * Las fuentes empiezan siempre inmediatamente
+ * debajo de las pestañas.
+ */
+.management-report-source-panel .management-report-source-picker {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-content: flex-start;
+
+  min-height: 0;
+
+  gap: 13px;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/*
+ * La lista nunca se estira para ocupar
+ * verticalmente el espacio disponible.
+ */
+.management-report-source-panel .management-report-source-list {
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+
+  flex: 0 0 auto;
+
+  gap: 8px;
+}
+
+/*
+ * Lo mismo para las agrupaciones de SDA.
+ */
+.management-report-source-panel .management-report-source-group {
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+
+  gap: 7px;
+}
+
+/*
+ * La previsualización queda estable en la
+ * parte inferior del cuerpo del panel.
+ */
+.management-report-source-panel .management-report-source-preview {
+  flex: 0 0 auto;
+
+  margin-top: 12px;
+}
+/* =========================================================
+   MANAGEMENT REPORTS
+   SOURCE PANEL · FOUR ROW LAYOUT FIX
+   ========================================================= */
+
+/*
+ * El panel genérico estaba diseñado para:
+ *
+ *   header
+ *   body
+ *   footer
+ *
+ * En configuración de fuentes tenemos:
+ *
+ *   header
+ *   tabs
+ *   body
+ *   footer
+ *
+ * Por tanto necesitamos cuatro filas explícitas.
+ */
+.management-roadmap-mapping-panel.management-report-source-panel {
+  grid-template-rows:
+    auto
+    auto
+    minmax(0, 1fr)
+    auto;
+}
