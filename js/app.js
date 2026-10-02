@@ -6989,13 +6989,16 @@ function renderCurrentRoute(
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
+
   const singleProductFlightDeck = {
     blue: "blue",
     rosetta: "nbc",
   };
+
   const usesProductFlightDeck = ["aixbanker", "blue", "rosetta"].includes(
     normalizedProgramId,
   );
+
   /*
    * =====================================================
    * PROGRAMA
@@ -7007,6 +7010,7 @@ function renderCurrentRoute(
         String(productId || "").trim() ||
         singleProductFlightDeck[normalizedProgramId] ||
         null;
+
       if (
         normalizedProgramId === "rosetta" &&
         !String(productId || "").trim() &&
@@ -7015,18 +7019,23 @@ function renderCurrentRoute(
         route(`program/${normalizedProgramId}/${resolvedProductId}`);
         return;
       }
+
       renderAIxBankerHome(normalizedProgramId, resolvedProductId);
+
       if (
         normalizedProgramId === "rosetta" &&
         typeof applyFlightDeckProgramIdentity === "function"
       ) {
         applyFlightDeckProgramIdentity(normalizedProgramId);
       }
+
       return;
     }
+
     renderProgram(programId, productId);
     return;
   }
+
   /*
    * =====================================================
    * ROADMAP LEGACY AIxBANKER
@@ -7036,6 +7045,7 @@ function renderCurrentRoute(
     renderAIxBankerRoadmap(programId, productId, quarter);
     return;
   }
+
   /*
    * =====================================================
    * DETALLE ROADMAP
@@ -7051,6 +7061,7 @@ function renderCurrentRoute(
     );
     return;
   }
+
   /*
    * =====================================================
    * DETALLE ACTIVIDAD ROADMAP
@@ -7067,6 +7078,7 @@ function renderCurrentRoute(
     );
     return;
   }
+
   /*
    * =====================================================
    * MAPA FUNCIONAL
@@ -7076,6 +7088,7 @@ function renderCurrentRoute(
     renderFunctional(programId);
     return;
   }
+
   /*
    * =====================================================
    * SISTEMAS
@@ -7085,6 +7098,7 @@ function renderCurrentRoute(
     renderSystems(programId, "systems");
     return;
   }
+
   /*
    * =====================================================
    * ARQUITECTURA
@@ -7094,6 +7108,7 @@ function renderCurrentRoute(
     renderSystems(programId, "architecture");
     return;
   }
+
   /*
    * =====================================================
    * IMPEDIMENTOS
@@ -7103,6 +7118,7 @@ function renderCurrentRoute(
     renderImpediments(programId);
     return;
   }
+
   /*
    * =====================================================
    * DECISIONES
@@ -7112,6 +7128,7 @@ function renderCurrentRoute(
     renderDecisions(programId);
     return;
   }
+
   /*
    * =====================================================
    * MANAGEMENT REPORTS
@@ -7121,6 +7138,7 @@ function renderCurrentRoute(
     renderProjectsView(programId);
     return;
   }
+
   /*
    * =====================================================
    * MANAGEMENT REPORTS · CONTRASTE Y VALIDACIÓN
@@ -7130,6 +7148,7 @@ function renderCurrentRoute(
     renderManagementContrastValidationView(programId);
     return;
   }
+
   /*
    * =====================================================
    * MANAGEMENT REPORTS · DEMOS
@@ -7139,19 +7158,40 @@ function renderCurrentRoute(
     renderManagementDemosView(programId);
     return;
   }
+
   /*
    * =====================================================
-   * MANAGEMENT REPORTS · ROADMAP
+   * MANAGEMENT REPORTS · GLOBAL STATUS
    * =====================================================
    */
   if (routeName === "management-global-status" && programId === "aixbanker") {
     renderManagementGlobalStatusView(programId);
     return;
   }
+
+  /*
+   * =====================================================
+   * MANAGEMENT REPORTS · PASE A ESPECIALISTA
+   * =====================================================
+   */
+  if (
+    routeName === "management-specialist-roadmap" &&
+    programId === "aixbanker"
+  ) {
+    renderManagementSpecialistRoadmapView(programId);
+    return;
+  }
+
+  /*
+   * =====================================================
+   * MANAGEMENT REPORTS · ROADMAP
+   * =====================================================
+   */
   if (routeName === "management-roadmap") {
     renderManagementRoadmapView(programId);
     return;
   }
+
   /*
    * =====================================================
    * MSAS LEGACY
@@ -7161,6 +7201,7 @@ function renderCurrentRoute(
     route(`projects/${programId}`);
     return;
   }
+
   /*
    * =====================================================
    * TEAMS
@@ -7170,6 +7211,7 @@ function renderCurrentRoute(
     renderTeamsView(programId);
     return;
   }
+
   /*
    * =====================================================
    * FALLBACK
@@ -7495,14 +7537,24 @@ function routeRequiresJiraFeaturesData(context) {
   if (!context) {
     return false;
   }
+
   const routeName = String(context.routeName || "")
     .trim()
     .toLowerCase();
+
   const programId = String(context.programId || "")
     .trim()
     .toLowerCase();
+
   const supportedPrograms = new Set(["aixbanker", "blue", "rosetta"]);
-  return routeName === "management-roadmap" && supportedPrograms.has(programId);
+
+  return (
+    [
+      "management-roadmap",
+      "management-global-status",
+      "management-specialist-roadmap",
+    ].includes(routeName) && supportedPrograms.has(programId)
+  );
 }
 
 function hasInstalledJiraFeaturesForProgram(programId) {
@@ -7525,7 +7577,13 @@ async function ensureJiraFeaturesDataForRoute(context) {
     .trim()
     .toLowerCase();
 
-  if (!["management-roadmap", "management-global-status"].includes(routeName)) {
+  if (
+    ![
+      "management-roadmap",
+      "management-global-status",
+      "management-specialist-roadmap",
+    ].includes(routeName)
+  ) {
     return;
   }
 
@@ -7545,6 +7603,7 @@ async function ensureJiraFeaturesDataForRoute(context) {
 
   try {
     const jiraData = await loadJiraFeaturesData(programId);
+
     installJiraFeaturesData(programId, jiraData);
   } catch (error) {
     console.error("[Management Reports] Error cargando Features JIRA", error);
@@ -8575,6 +8634,2068 @@ function rcsStatusLabel(status) {
     }[status] || "Pendiente"
   );
 }
+const MANAGEMENT_SPECIALIST_ROADMAPS = {
+  aixbanker: {
+    id: "pase-a-especialista",
+    title: "Pase a Especialista",
+    subtitle:
+      "Roadmap ejecutivo 4Q2026 para la evolución funcional y técnica del pase a especialista.",
+    sourceNote:
+      "Fuente: extracto del Excel compartido para 4Q2026 (Pase a Especialista).",
+    periods: [
+      {
+        id: "S1",
+        label: "S1",
+        range: "23/09 al 13/10",
+      },
+      {
+        id: "S2",
+        label: "S2",
+        range: "14/10 al 03/11",
+      },
+      {
+        id: "S3",
+        label: "S3",
+        range: "04/11 al 17/11",
+      },
+      {
+        id: "S4",
+        label: "S4",
+        range: "18/11 al 01/12",
+      },
+      {
+        id: "S5",
+        label: "S5",
+        range: "02/12 al 16/12",
+      },
+      {
+        id: "S0",
+        label: "S0",
+        range: "16/12 al 22/12",
+      },
+    ],
+    items: [
+      {
+        id: "pae-01",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Go System España",
+        owner: "TL + TL ES",
+        status: "En progreso ⏱",
+        comments: "Revisar fecha de entrega",
+        startPhase: "S2",
+        endPhase: "S2",
+      },
+      {
+        id: "pae-02",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Modificación de la Lambda y la KB",
+        owner: "MLE",
+        status: "Pendiente 📌",
+        comments: "Cuál Lambda?",
+        startPhase: "S2",
+        endPhase: "S3",
+      },
+      {
+        id: "pae-03",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Actualización del retrieval",
+        owner: "DS",
+        status: "Pendiente 📌",
+        comments: "",
+        startPhase: "S2",
+        endPhase: "S3",
+      },
+      {
+        id: "pae-04",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Envío de la cola (modificación respuesta supervisor)",
+        owner: "MLE",
+        status: "Pendiente 📌",
+        comments: "",
+        startPhase: "S3",
+        endPhase: "S3",
+      },
+      {
+        id: "pae-05",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Modificación de la API Conversa",
+        owner: "Back",
+        status: "Pendiente 📌",
+        comments: "",
+        startPhase: "S3",
+        endPhase: "S4",
+      },
+      {
+        id: "pae-06",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Modificaciones en front",
+        owner: "Front SF",
+        status: "Pendiente 📌",
+        comments: "",
+        startPhase: "S3",
+        endPhase: "S4",
+      },
+      {
+        id: "pae-07",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Análisis de colas en FAQs con pase a Humano",
+        owner: "DS",
+        status: "Pendiente 📌",
+        comments: "Validar Asun",
+        startPhase: "S3",
+        endPhase: "S4",
+      },
+      {
+        id: "pae-08",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Análisis de cambios del Supervisor + KA",
+        owner: "DS + MLE",
+        status: "Pendiente 📌",
+        comments: "Validar Asun",
+        startPhase: "S3",
+        endPhase: "S4",
+      },
+      {
+        id: "pae-09",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Sensorización del pase a agente humano para definir KPIs",
+        owner: "DS + BEX",
+        status: "Pendiente 📌",
+        comments: "Validar Asun",
+        startPhase: "S4",
+        endPhase: "S5",
+      },
+      {
+        id: "pae-10",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Enviar en la respuesta del Supervisor los datos requeridos por Front",
+        owner: "MLE",
+        status: "Pendiente 📌",
+        comments: "Validar Asun",
+        startPhase: "S4",
+        endPhase: "S4",
+      },
+      {
+        id: "pae-11",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Respuestas de fallback enviar a las colas correspondientes",
+        owner: "MLE",
+        status: "Pendiente 📌",
+        comments: "Validar Asun",
+        startPhase: "S4",
+        endPhase: "S5",
+      },
+      {
+        id: "pae-12",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Guardar en la KB los nuevos campos que llegan en las FAQs",
+        owner: "MLE",
+        status: "Pendiente 📌",
+        comments: "Validar Asun",
+        startPhase: "S4",
+        endPhase: "S5",
+      },
+      {
+        id: "pae-13",
+        area: "Nuevas Funcionalidades",
+        deliverable: "Pase a Especialista",
+        task: "Validación / experimentación con fallbacks de pase a especialista",
+        owner: "DS",
+        status: "Pendiente 📌",
+        comments: "Validar Asun",
+        startPhase: "S5",
+        endPhase: "S0",
+      },
+    ],
+  },
+};
+
+function normalizeManagementSpecialistRoadmapStatus(value) {
+  const normalized = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+  if (
+    [
+      "done",
+      "closed",
+      "completed",
+      "terminado",
+      "terminada",
+      "hecho",
+      "hecha",
+    ].some((candidate) => normalized.includes(candidate))
+  ) {
+    return "done";
+  }
+
+  if (normalized.includes("review") || normalized.includes("revision")) {
+    return "review";
+  }
+
+  if (normalized.includes("risk") || normalized.includes("riesgo")) {
+    return "at-risk";
+  }
+
+  if (normalized.includes("blocked") || normalized.includes("bloqueado")) {
+    return "blocked";
+  }
+
+  if (
+    normalized.includes("on-track") ||
+    normalized.includes("en progreso") ||
+    normalized.includes("en curso") ||
+    normalized.includes("progress")
+  ) {
+    return "in-progress";
+  }
+
+  return "pending";
+}
+
+function getManagementSpecialistRoadmapStatusMeta(statusKey) {
+  const normalizedStatus =
+    normalizeManagementSpecialistRoadmapStatus(statusKey);
+
+  return (
+    {
+      done: {
+        key: "done",
+        label: "Terminado",
+        status: "done",
+        statusLabel: "Terminado",
+        statusTone: "done",
+        textColor: "#0a7a33",
+        background: "rgba(17, 156, 82, 0.14)",
+        border: "rgba(17, 156, 82, 0.24)",
+      },
+
+      review: {
+        key: "review",
+        label: "Revisión",
+        status: "review",
+        statusLabel: "Revisión",
+        statusTone: "review",
+        textColor: "#8a5b00",
+        background: "rgba(240, 185, 11, 0.18)",
+        border: "rgba(240, 185, 11, 0.28)",
+      },
+
+      "in-progress": {
+        key: "in-progress",
+        label: "En progreso",
+        status: "on-track",
+        statusLabel: "En progreso",
+        statusTone: "",
+        textColor: "#0b4aa2",
+        background: "rgba(59, 130, 246, 0.14)",
+        border: "rgba(59, 130, 246, 0.24)",
+      },
+
+      "at-risk": {
+        key: "at-risk",
+        label: "En riesgo",
+        status: "at-risk",
+        statusLabel: "En riesgo",
+        statusTone: "",
+        textColor: "#8a5b00",
+        background: "rgba(245, 158, 11, 0.16)",
+        border: "rgba(245, 158, 11, 0.28)",
+      },
+
+      blocked: {
+        key: "blocked",
+        label: "Bloqueado",
+        status: "blocked",
+        statusLabel: "Bloqueado",
+        statusTone: "",
+        textColor: "#b42318",
+        background: "rgba(239, 68, 68, 0.12)",
+        border: "rgba(239, 68, 68, 0.24)",
+      },
+
+      pending: {
+        key: "pending",
+        label: "Pendiente",
+        status: "pending",
+        statusLabel: "Pendiente",
+        statusTone: "pending",
+        textColor: "#5f6b7a",
+        background: "rgba(148, 163, 184, 0.14)",
+        border: "rgba(148, 163, 184, 0.24)",
+      },
+    }[normalizedStatus] || {
+      key: "pending",
+      label: "Pendiente",
+      status: "pending",
+      statusLabel: "Pendiente",
+      statusTone: "pending",
+      textColor: "#5f6b7a",
+      background: "rgba(148, 163, 184, 0.14)",
+      border: "rgba(148, 163, 184, 0.24)",
+    }
+  );
+}
+function getManagementSpecialistRoadmapUiState() {
+  if (!window.RCS_MANAGEMENT_SPECIALIST_ROADMAP_UI) {
+    window.RCS_MANAGEMENT_SPECIALIST_ROADMAP_UI = {
+      year: 2026,
+      quarter: "Q4",
+      configMode: false,
+    };
+  }
+
+  const state = window.RCS_MANAGEMENT_SPECIALIST_ROADMAP_UI;
+
+  if (
+    !["ALL", "Q1", "Q2", "Q3", "Q4"].includes(
+      String(state.quarter || "").toUpperCase(),
+    )
+  ) {
+    state.quarter = "Q4";
+  }
+
+  state.year = Number(state.year) || 2026;
+
+  return state;
+}
+
+function getManagementSpecialistRoadmapStatusOptions() {
+  return [
+    getManagementSpecialistRoadmapStatusMeta("pending"),
+    getManagementSpecialistRoadmapStatusMeta("in-progress"),
+    getManagementSpecialistRoadmapStatusMeta("review"),
+    getManagementSpecialistRoadmapStatusMeta("at-risk"),
+    getManagementSpecialistRoadmapStatusMeta("blocked"),
+    getManagementSpecialistRoadmapStatusMeta("done"),
+  ];
+}
+
+function buildManagementSpecialistRoadmapSeedLines(programId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const source = MANAGEMENT_SPECIALIST_ROADMAPS[normalizedProgramId];
+
+  const items = Array.isArray(source?.items) ? source.items : [];
+
+  return items
+    .filter((item) => String(item?.task || "").trim())
+    .map((item, index) => {
+      const statusMeta = getManagementSpecialistRoadmapStatusMeta(item.status);
+
+      return normalizeManagementRoadmapLine(
+        {
+          id: String(item.id || `pae-${index + 1}`).trim(),
+
+          programId: normalizedProgramId,
+
+          productId: "blue-buddy",
+
+          country: "ES",
+
+          year: 2026,
+
+          order: 6000 + index,
+
+          reportId: "pase-a-especialista",
+
+          category: String(item.area || "").trim() || "Nuevas Funcionalidades",
+
+          categoryTone: "info",
+
+          title: String(item.task || "").trim(),
+
+          owner: String(item.owner || "").trim(),
+
+          quarter: "Q4",
+
+          startDate: "",
+
+          endDate: "",
+
+          status: statusMeta.status,
+
+          statusLabel: statusMeta.statusLabel,
+
+          statusTone: statusMeta.statusTone,
+
+          comments: String(item.comments || "").trim(),
+
+          manualValue: "",
+
+          active: true,
+        },
+        6000 + index,
+      );
+    });
+}
+
+function installManagementSpecialistRoadmapSeedLines(programId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const currentLines = Array.isArray(DATA?.managementRoadmapLines)
+    ? DATA.managementRoadmapLines
+    : [];
+
+  const existingSpecialistLines = currentLines.filter(
+    (line) =>
+      String(line?.programId || normalizedProgramId)
+        .trim()
+        .toLowerCase() === normalizedProgramId &&
+      String(line?.reportId || "")
+        .trim()
+        .toLowerCase() === "pase-a-especialista",
+  );
+
+  if (existingSpecialistLines.length) {
+    return currentLines;
+  }
+
+  const seedLines =
+    buildManagementSpecialistRoadmapSeedLines(normalizedProgramId);
+
+  const mergedLines = [...currentLines, ...seedLines];
+
+  DATA.managementRoadmapLines = mergedLines;
+
+  if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+    const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
+    PROGRAM_DATA_CACHE.set(normalizedProgramId, {
+      ...cached,
+      managementRoadmapLines: mergedLines,
+    });
+  }
+
+  return mergedLines;
+}
+
+function getManagementSpecialistRoadmapTasks(programId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  installManagementSpecialistRoadmapSeedLines(normalizedProgramId);
+
+  return getEffectiveManagementExecutiveLines()
+    .filter(
+      (line) =>
+        String(line.programId || "")
+          .trim()
+          .toLowerCase() === normalizedProgramId &&
+        String(line.reportId || "")
+          .trim()
+          .toLowerCase() === "pase-a-especialista",
+    )
+    .sort(
+      (left, right) => Number(left.order || 999) - Number(right.order || 999),
+    );
+}
+
+function buildManagementSpecialistTaskId(title) {
+  const slug = slugifyManagementRoadmapText(title) || "nueva-tarea";
+
+  const baseId = `pase-especialista--${slug}`;
+
+  const existingIds = new Set(
+    getEffectiveManagementExecutiveLines().map((line) =>
+      String(line.id || "")
+        .trim()
+        .toLowerCase(),
+    ),
+  );
+
+  if (!existingIds.has(baseId.toLowerCase())) {
+    return baseId;
+  }
+
+  let suffix = 2;
+
+  let candidate = `${baseId}-${suffix}`;
+
+  while (existingIds.has(candidate.toLowerCase())) {
+    suffix += 1;
+
+    candidate = `${baseId}-${suffix}`;
+  }
+
+  return candidate;
+}
+
+function buildManagementSpecialistRoadmapDraftTask(programId) {
+  const state = getManagementSpecialistRoadmapUiState();
+
+  const tasks = getManagementSpecialistRoadmapTasks(programId);
+
+  const maxOrder = tasks.reduce(
+    (currentMax, task) => Math.max(currentMax, Number(task.order || 0)),
+    6000,
+  );
+
+  return normalizeManagementRoadmapLine(
+    {
+      id: "",
+
+      programId,
+
+      productId: "blue-buddy",
+
+      country: "ES",
+
+      year: state.year,
+
+      order: maxOrder + 1,
+
+      reportId: "pase-a-especialista",
+
+      category: "Nuevas Funcionalidades",
+
+      categoryTone: "info",
+
+      title: "",
+
+      owner: "",
+
+      quarter: state.quarter === "ALL" ? "Q4" : state.quarter,
+
+      startDate: "",
+
+      endDate: "",
+
+      status: "pending",
+
+      statusLabel: "Pendiente",
+
+      statusTone: "pending",
+
+      comments: "",
+
+      active: true,
+    },
+    maxOrder + 1,
+  );
+}
+
+function getManagementSpecialistTaskProgress(task) {
+  const links = getManagementReportLinksForLine(task?.id);
+
+  const features = getManagementRoadmapFeaturesForLinks(links);
+
+  const deployedFeatures = features.filter(isManagementFeatureDeployed);
+
+  const sourceCounts = {
+    sda: links.filter(
+      (link) => normalizeManagementReportSourceType(link) === "sda-deliverable",
+    ).length,
+
+    epic: links.filter(
+      (link) => normalizeManagementReportSourceType(link) === "epic",
+    ).length,
+
+    feature: links.filter(
+      (link) => normalizeManagementReportSourceType(link) === "feature",
+    ).length,
+  };
+
+  return {
+    links,
+
+    features,
+
+    deployedFeatures,
+
+    featureCount: features.length,
+
+    deployedCount: deployedFeatures.length,
+
+    progress: features.length
+      ? Math.round((deployedFeatures.length / features.length) * 100)
+      : null,
+
+    sourceCounts,
+  };
+}
+
+function getManagementSpecialistRoadmapProgress(tasks) {
+  const featureMap = new Map();
+
+  (Array.isArray(tasks) ? tasks : []).forEach((task) => {
+    const progress = getManagementSpecialistTaskProgress(task);
+
+    progress.features.forEach((feature, index) => {
+      const key = String(
+        getManagementFeatureDisplayId(feature) ||
+          feature?.id ||
+          feature?.jiraKey ||
+          `${task.id}-${index}`,
+      )
+        .trim()
+        .toUpperCase();
+
+      if (key) {
+        featureMap.set(key, feature);
+      }
+    });
+  });
+
+  const features = [...featureMap.values()];
+
+  const deployedFeatures = features.filter(isManagementFeatureDeployed);
+
+  return {
+    featureCount: features.length,
+
+    deployedCount: deployedFeatures.length,
+
+    progress: features.length
+      ? Math.round((deployedFeatures.length / features.length) * 100)
+      : null,
+  };
+}
+
+function getManagementSpecialistTaskPlanningRange(task) {
+  const year = Number(task?.year) || 2026;
+
+  const progress = getManagementSpecialistTaskProgress(task);
+
+  const featureRanges = progress.features
+    .map((feature) => mgqFeatureRange(feature, year))
+    .filter(Boolean);
+
+  const sourceStart = featureRanges.length
+    ? new Date(Math.min(...featureRanges.map((range) => range.start.getTime())))
+    : null;
+
+  const sourceEnd = featureRanges.length
+    ? new Date(Math.max(...featureRanges.map((range) => range.end.getTime())))
+    : null;
+
+  const manualStart = mgqParseDate(task?.startDate);
+
+  const manualEnd = mgqParseDate(task?.endDate);
+
+  const start = manualStart || sourceStart;
+
+  const end = manualEnd || sourceEnd;
+
+  return mgqRange(start, end);
+}
+
+function managementSpecialistTaskMatchesQuarter(task, quarter) {
+  const normalizedQuarter = String(quarter || "")
+    .trim()
+    .toUpperCase();
+
+  if (normalizedQuarter === "ALL") {
+    return true;
+  }
+
+  const taskQuarter = String(task?.quarter || "")
+    .trim()
+    .toUpperCase();
+
+  if (taskQuarter) {
+    return taskQuarter === normalizedQuarter;
+  }
+
+  const bounds = getManagementRoadmapQuarterBounds(
+    Number(task?.year) || 2026,
+    normalizedQuarter,
+  );
+
+  const range = getManagementSpecialistTaskPlanningRange(task);
+
+  if (!bounds || !range) {
+    return false;
+  }
+
+  return range.start <= bounds.end && range.end >= bounds.start;
+}
+
+function renderManagementSpecialistTaskEditor(programId, task = null) {
+  closeManagementRoadmapLineEditorPanel();
+
+  closeManagementRoadmapMappingPanel();
+
+  const isCreate = !task;
+
+  const line = task || buildManagementSpecialistRoadmapDraftTask(programId);
+
+  const statusKey = normalizeManagementSpecialistRoadmapStatus(
+    line.statusLabel || line.status,
+  );
+
+  const toInputDate = (value) => {
+    const date = mgqParseDate(value);
+
+    if (!date) {
+      return "";
+    }
+
+    return [
+      date.getUTCFullYear(),
+      String(date.getUTCMonth() + 1).padStart(2, "0"),
+      String(date.getUTCDate()).padStart(2, "0"),
+    ].join("-");
+  };
+
+  const overlay = document.createElement("div");
+
+  overlay.id = "managementRoadmapLineEditorOverlay";
+
+  overlay.className = "management-roadmap-mapping-overlay";
+
+  overlay.innerHTML = `
+    <aside
+      class="management-roadmap-mapping-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="managementSpecialistTaskEditorTitle"
+    >
+      <header
+        class="management-roadmap-mapping-header"
+      >
+        <div>
+          <span
+            class="management-roadmap-mapping-eyebrow"
+          >
+            Configurar Pase a Especialista
+          </span>
+
+          <h2
+            id="managementSpecialistTaskEditorTitle"
+          >
+            ${isCreate ? "Nueva tarea" : rcsEsc(line.title)}
+          </h2>
+
+          <p>
+            Blue Buddy · España · 4Q2026
+          </p>
+        </div>
+
+        <button
+          class="management-roadmap-mapping-close"
+          type="button"
+          data-management-roadmap-line-editor-close
+          aria-label="Cerrar"
+        >
+          ×
+        </button>
+      </header>
+
+      <div
+        class="management-roadmap-mapping-body"
+      >
+        <section
+          class="management-roadmap-mapping-section"
+        >
+          <div
+            class="management-roadmap-line-meta"
+          >
+            <article>
+              <span>
+                Informe
+              </span>
+
+              <strong>
+                Pase a Especialista
+              </strong>
+            </article>
+
+            <article>
+              <span>
+                Producto
+              </span>
+
+              <strong>
+                Blue Buddy
+              </strong>
+            </article>
+
+            <article>
+              <span>
+                País
+              </span>
+
+              <strong>
+                España
+              </strong>
+            </article>
+          </div>
+
+          <div
+            class="management-roadmap-line-form"
+          >
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementSpecialistTaskTitle"
+              >
+                Tarea
+              </label>
+
+              <input
+                id="managementSpecialistTaskTitle"
+                class="management-roadmap-line-input"
+                type="text"
+                value="${rcsEsc(line.title || "")}"
+                placeholder="Nombre de la tarea"
+              />
+            </div>
+
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementSpecialistTaskOwner"
+              >
+                Owner
+              </label>
+
+              <input
+                id="managementSpecialistTaskOwner"
+                class="management-roadmap-line-input"
+                type="text"
+                value="${rcsEsc(line.owner || "")}"
+                placeholder="Ej. DS + MLE"
+              />
+            </div>
+
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementSpecialistTaskQuarter"
+              >
+                Quarter
+              </label>
+
+              <select
+                id="managementSpecialistTaskQuarter"
+                class="management-roadmap-line-select"
+              >
+                ${["Q1", "Q2", "Q3", "Q4"]
+                  .map(
+                    (quarter) => `
+                      <option
+                        value="${quarter}"
+                        ${line.quarter === quarter ? "selected" : ""}
+                      >
+                        ${quarter}
+                      </option>
+                    `,
+                  )
+                  .join("")}
+              </select>
+            </div>
+
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementSpecialistTaskStatus"
+              >
+                Estado
+              </label>
+
+              <select
+                id="managementSpecialistTaskStatus"
+                class="management-roadmap-line-select"
+              >
+                ${getManagementSpecialistRoadmapStatusOptions()
+                  .map(
+                    (option) => `
+                      <option
+                        value="${rcsEsc(option.key)}"
+                        ${statusKey === option.key ? "selected" : ""}
+                      >
+                        ${rcsEsc(option.label)}
+                      </option>
+                    `,
+                  )
+                  .join("")}
+              </select>
+            </div>
+
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementSpecialistTaskStartDate"
+              >
+                Inicio manual
+              </label>
+
+              <input
+                id="managementSpecialistTaskStartDate"
+                class="management-roadmap-line-input"
+                type="date"
+                value="${rcsEsc(toInputDate(line.startDate))}"
+              />
+            </div>
+
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementSpecialistTaskEndDate"
+              >
+                Fin manual
+              </label>
+
+              <input
+                id="managementSpecialistTaskEndDate"
+                class="management-roadmap-line-input"
+                type="date"
+                value="${rcsEsc(toInputDate(line.endDate))}"
+              />
+            </div>
+
+            <div
+              class="management-roadmap-line-field"
+            >
+              <label
+                for="managementSpecialistTaskComments"
+              >
+                Comentarios
+              </label>
+
+              <textarea
+                id="managementSpecialistTaskComments"
+                class="management-roadmap-line-textarea"
+              >${rcsEsc(line.comments || "")}</textarea>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer
+        class="management-roadmap-mapping-footer"
+      >
+        <div>
+          <strong>
+            Configuración persistente
+          </strong>
+
+          <span>
+            Las fechas manuales tienen prioridad
+            sobre la planificación derivada de Features.
+          </span>
+        </div>
+
+        <div
+          class="management-roadmap-mapping-footer-actions"
+        >
+          ${
+            isCreate
+              ? ""
+              : `
+                <button
+                  class="management-roadmap-line-delete-button"
+                  type="button"
+                  data-management-roadmap-line-editor-delete
+                >
+                  Eliminar
+                </button>
+              `
+          }
+
+          <button
+            class="ghost-button"
+            type="button"
+            data-management-roadmap-line-editor-close
+          >
+            Cancelar
+          </button>
+
+          <button
+            class="management-roadmap-mapping-save"
+            type="button"
+            data-management-roadmap-line-editor-save
+          >
+            ${isCreate ? "Crear tarea" : "Guardar"}
+          </button>
+        </div>
+      </footer>
+    </aside>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay
+    .querySelectorAll("[data-management-roadmap-line-editor-close]")
+    .forEach((button) => {
+      button.addEventListener("click", closeManagementRoadmapLineEditorPanel);
+    });
+
+  const deleteButton = overlay.querySelector(
+    "[data-management-roadmap-line-editor-delete]",
+  );
+
+  if (deleteButton) {
+    deleteButton.addEventListener("click", async () => {
+      const confirmed = window.confirm(`¿Quieres eliminar "${line.title}"?`);
+
+      if (!confirmed) {
+        return;
+      }
+
+      await deleteManagementRoadmapLine(programId, line.id);
+    });
+  }
+
+  const saveButton = overlay.querySelector(
+    "[data-management-roadmap-line-editor-save]",
+  );
+
+  if (saveButton) {
+    saveButton.addEventListener("click", async () => {
+      const title = String(
+        overlay.querySelector("#managementSpecialistTaskTitle")?.value || "",
+      ).trim();
+
+      if (!title) {
+        window.alert("La tarea necesita un nombre.");
+
+        return;
+      }
+
+      const owner = String(
+        overlay.querySelector("#managementSpecialistTaskOwner")?.value || "",
+      ).trim();
+
+      const quarter = String(
+        overlay.querySelector("#managementSpecialistTaskQuarter")?.value ||
+          "Q4",
+      )
+        .trim()
+        .toUpperCase();
+
+      const selectedStatus = String(
+        overlay.querySelector("#managementSpecialistTaskStatus")?.value ||
+          "pending",
+      ).trim();
+
+      const statusMeta =
+        getManagementSpecialistRoadmapStatusMeta(selectedStatus);
+
+      const startDate = String(
+        overlay.querySelector("#managementSpecialistTaskStartDate")?.value ||
+          "",
+      ).trim();
+
+      const endDate = String(
+        overlay.querySelector("#managementSpecialistTaskEndDate")?.value || "",
+      ).trim();
+
+      if (startDate && endDate && Date.parse(endDate) < Date.parse(startDate)) {
+        window.alert(
+          "La fecha de fin no puede ser anterior a la fecha de inicio.",
+        );
+
+        return;
+      }
+
+      const comments = String(
+        overlay.querySelector("#managementSpecialistTaskComments")?.value || "",
+      ).trim();
+
+      const updatedTask = {
+        ...line,
+
+        id: line.id || buildManagementSpecialistTaskId(title),
+
+        programId: String(programId || "")
+          .trim()
+          .toLowerCase(),
+
+        productId: "blue-buddy",
+
+        country: "ES",
+
+        year: 2026,
+
+        reportId: "pase-a-especialista",
+
+        category: line.category || "Nuevas Funcionalidades",
+
+        categoryTone: line.categoryTone || "info",
+
+        title,
+
+        owner,
+
+        quarter,
+
+        startDate,
+
+        endDate,
+
+        status: statusMeta.status,
+
+        statusLabel: statusMeta.statusLabel,
+
+        statusTone: statusMeta.statusTone,
+
+        comments,
+
+        active: true,
+      };
+
+      await saveManagementRoadmapLine(programId, updatedTask);
+    });
+  }
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      closeManagementRoadmapLineEditorPanel();
+    }
+  });
+}
+function getManagementSpecialistRoadmap(programId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  return MANAGEMENT_SPECIALIST_ROADMAPS[normalizedProgramId] || null;
+}
+function renderManagementSpecialistRoadmapCard(programId) {
+  const tasks = getManagementSpecialistRoadmapTasks(programId);
+
+  const progress = getManagementSpecialistRoadmapProgress(tasks);
+
+  const inProgress = tasks.filter(
+    (task) =>
+      normalizeManagementSpecialistRoadmapStatus(
+        task.statusLabel || task.status,
+      ) === "in-progress",
+  ).length;
+
+  const pending = tasks.filter(
+    (task) =>
+      normalizeManagementSpecialistRoadmapStatus(
+        task.statusLabel || task.status,
+      ) === "pending",
+  ).length;
+
+  return `
+    <article
+      class="management-report-card"
+    >
+      <div
+        class="management-report-card-top"
+      >
+        <div>
+          <h3>
+            Pase a Especialista
+          </h3>
+
+          <p>
+            Roadmap configurable con tareas,
+            Owners, fuentes JIRA y seguimiento
+            de avance por Features desplegadas.
+          </p>
+        </div>
+
+        <span
+          class="management-report-badge"
+        >
+          Live
+        </span>
+      </div>
+
+      <div
+        class="management-report-card-kpis"
+      >
+        <span>
+          ${tasks.length}
+          tareas
+        </span>
+
+        <span>
+          ${inProgress}
+          en progreso
+        </span>
+
+        <span>
+          ${progress.progress === null ? "—" : `${progress.progress}%`}
+          avance
+        </span>
+      </div>
+
+      <div
+        class="management-report-card-footer"
+      >
+        <span
+          class="management-report-caption"
+        >
+          ${pending}
+          pendientes ·
+          ${progress.deployedCount}/${progress.featureCount}
+          Features deployed
+        </span>
+
+        <button
+          class="management-report-card-link"
+          type="button"
+          data-route="management-specialist-roadmap/${rcsEsc(programId)}"
+        >
+          Abrir roadmap →
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function renderManagementSpecialistRoadmapView(programId) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const program = (DATA.programs || []).find(
+    (item) =>
+      String(item.id || "")
+        .trim()
+        .toLowerCase() === normalizedProgramId,
+  );
+
+  const state = getManagementSpecialistRoadmapUiState();
+
+  const allTasks = getManagementSpecialistRoadmapTasks(normalizedProgramId);
+
+  const visibleTasks = allTasks.filter((task) =>
+    managementSpecialistTaskMatchesQuarter(task, state.quarter),
+  );
+
+  const roadmapProgress = getManagementSpecialistRoadmapProgress(visibleTasks);
+
+  const period = getRoadmapPeriod(state.quarter, state.year);
+
+  const canEdit = rcsCanEdit(normalizedProgramId);
+
+  const riskCount = visibleTasks.filter((task) =>
+    ["at-risk", "blocked"].includes(
+      normalizeManagementSpecialistRoadmapStatus(
+        task.statusLabel || task.status,
+      ),
+    ),
+  ).length;
+
+  const doneCount = visibleTasks.filter(
+    (task) =>
+      normalizeManagementSpecialistRoadmapStatus(
+        task.statusLabel || task.status,
+      ) === "done",
+  ).length;
+
+  const monthCount = period.months.length;
+
+  const monthHeaders = period.months
+    .map(
+      (month) => `
+        <div
+          style="
+            padding: 12px 8px;
+            text-align: center;
+            border-left: 1px solid rgba(255, 255, 255, 0.14);
+            color: #ffffff;
+          "
+        >
+          <strong
+            style="
+              display: block;
+              font-size: 13px;
+              text-transform: capitalize;
+            "
+          >
+            ${rcsEsc(
+              month.toLocaleDateString("es-ES", {
+                month: "short",
+              }),
+            )}
+          </strong>
+
+          <span
+            style="
+              display: block;
+              margin-top: 3px;
+              font-size: 11px;
+              opacity: 0.82;
+            "
+          >
+            ${month.getFullYear()}
+          </span>
+        </div>
+      `,
+    )
+    .join("");
+
+  const renderTaskRow = (task) => {
+    const statusKey = normalizeManagementSpecialistRoadmapStatus(
+      task.statusLabel || task.status,
+    );
+
+    const statusMeta = getManagementSpecialistRoadmapStatusMeta(statusKey);
+
+    const taskProgress = getManagementSpecialistTaskProgress(task);
+
+    const range = getManagementSpecialistTaskPlanningRange(task);
+
+    const hasVisibleRange =
+      range && range.start <= period.endDate && range.end >= period.startDate;
+
+    let left = 0;
+    let width = 0;
+
+    if (hasVisibleRange) {
+      const visibleStart = clampRoadmapDate(
+        range.start,
+        period.startDate,
+        period.endDate,
+      );
+
+      const visibleEnd = clampRoadmapDate(
+        range.end,
+        period.startDate,
+        period.endDate,
+      );
+
+      left = getRoadmapDatePosition(visibleStart, period) || 0;
+
+      const right = getRoadmapDatePosition(visibleEnd, period) || left;
+
+      width = Math.max(state.quarter === "ALL" ? 1.5 : 3, right - left);
+
+      width = Math.min(width, 100 - left);
+    }
+
+    const progressValue =
+      taskProgress.progress === null ? 0 : taskProgress.progress;
+
+    return `
+      <article
+        style="
+          display: grid;
+          grid-template-columns:
+            minmax(360px, 420px)
+            minmax(720px, 1fr);
+          border-top: 1px solid #e5ebf5;
+          background: #ffffff;
+        "
+      >
+        <div
+          style="
+            padding: 18px;
+            border-right: 1px solid #dbe5f4;
+          "
+        >
+          <div
+            style="
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 12px;
+            "
+          >
+            <div>
+              <span
+                style="
+                  display: inline-flex;
+                  margin-bottom: 6px;
+                  font-size: 11px;
+                  font-weight: 700;
+                  color: #64748b;
+                  text-transform: uppercase;
+                  letter-spacing: 0.05em;
+                "
+              >
+                ${rcsEsc(task.quarter || "Sin Q")}
+              </span>
+
+              <strong
+                style="
+                  display: block;
+                  color: #001391;
+                  font-size: 15px;
+                  line-height: 1.35;
+                "
+              >
+                ${rcsEsc(task.title)}
+              </strong>
+            </div>
+
+            <span
+              style="
+                flex: 0 0 auto;
+                display: inline-flex;
+                align-items: center;
+                min-height: 30px;
+                padding: 0 10px;
+                border-radius: 999px;
+                border: 1px solid ${statusMeta.border};
+                background: ${statusMeta.background};
+                color: ${statusMeta.textColor};
+                font-size: 11px;
+                font-weight: 700;
+              "
+            >
+              ${rcsEsc(statusMeta.label)}
+            </span>
+          </div>
+
+          <div
+            style="
+              display: grid;
+              grid-template-columns: 1fr auto;
+              gap: 10px;
+              margin-top: 12px;
+              color: #475569;
+              font-size: 12px;
+            "
+          >
+            <span>
+              <b>Owner:</b>
+              ${rcsEsc(task.owner || "—")}
+            </span>
+
+            <strong
+              style="
+                color: #001391;
+              "
+            >
+              ${
+                taskProgress.progress === null
+                  ? "—"
+                  : `${taskProgress.progress}%`
+              }
+            </strong>
+          </div>
+
+          ${
+            task.comments
+              ? `
+                <p
+                  style="
+                    margin: 10px 0 0;
+                    color: #64748b;
+                    font-size: 12px;
+                    line-height: 1.45;
+                  "
+                >
+                  ${rcsEsc(task.comments)}
+                </p>
+              `
+              : ""
+          }
+
+          <div
+            style="
+              display: flex;
+              flex-wrap: wrap;
+              gap: 6px;
+              margin-top: 12px;
+            "
+          >
+            <span
+              class="management-report-badge"
+            >
+              ${taskProgress.sourceCounts.sda}
+              SDA
+            </span>
+
+            <span
+              class="management-report-badge"
+            >
+              ${taskProgress.sourceCounts.epic}
+              Épicas
+            </span>
+
+            <span
+              class="management-report-badge"
+            >
+              ${taskProgress.sourceCounts.feature}
+              Features
+            </span>
+
+            <span
+              class="management-report-badge"
+            >
+              ${taskProgress.deployedCount}/${taskProgress.featureCount}
+              deployed
+            </span>
+          </div>
+
+          ${
+            canEdit && state.configMode
+              ? `
+                <div
+                  style="
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-top: 14px;
+                  "
+                >
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    data-specialist-task-edit="${rcsEsc(task.id)}"
+                  >
+                    Editar
+                  </button>
+
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    data-specialist-task-sources="${rcsEsc(task.id)}"
+                  >
+                    Fuentes
+                  </button>
+                </div>
+              `
+              : ""
+          }
+        </div>
+
+        <div
+          style="
+            position: relative;
+            min-height: 150px;
+            overflow: hidden;
+          "
+        >
+          <div
+            style="
+              position: absolute;
+              inset: 0;
+              display: grid;
+              grid-template-columns:
+                repeat(${monthCount}, 1fr);
+              pointer-events: none;
+            "
+          >
+            ${period.months
+              .map(
+                () => `
+                  <span
+                    style="
+                      border-left: 1px solid #edf1f7;
+                    "
+                  ></span>
+                `,
+              )
+              .join("")}
+          </div>
+
+          ${
+            hasVisibleRange
+              ? `
+                <div
+                  style="
+                    position: absolute;
+                    top: 52px;
+                    left: ${left}%;
+                    width: ${width}%;
+                    min-width: 16px;
+                    height: 42px;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    background: #dfe9f8;
+                    border: 1px solid rgba(0, 19, 145, 0.18);
+                    box-sizing: border-box;
+                  "
+                  title="${rcsEsc(
+                    `${task.title} · ${
+                      taskProgress.progress === null
+                        ? "Sin avance calculable"
+                        : `${taskProgress.progress}%`
+                    }`,
+                  )}"
+                >
+                  <span
+                    style="
+                      position: absolute;
+                      inset: 0 auto 0 0;
+                      width: ${progressValue}%;
+                      background: #1464c9;
+                    "
+                  ></span>
+
+                  <strong
+                    style="
+                      position: absolute;
+                      inset: 0;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      padding: 0 8px;
+                      color: ${progressValue >= 45 ? "#ffffff" : "#001391"};
+                      font-size: 12px;
+                      font-weight: 700;
+                      white-space: nowrap;
+                      z-index: 2;
+                    "
+                  >
+                    ${
+                      taskProgress.progress === null
+                        ? "Sin Features"
+                        : `${taskProgress.progress}% · ${taskProgress.deployedCount}/${taskProgress.featureCount}`
+                    }
+                  </strong>
+                </div>
+
+                <small
+                  style="
+                    position: absolute;
+                    top: 104px;
+                    left: ${left}%;
+                    color: #64748b;
+                    font-size: 10px;
+                    white-space: nowrap;
+                  "
+                >
+                  ${rcsEsc(formatDate(range.start))}
+                  →
+                  ${rcsEsc(formatDate(range.end))}
+                </small>
+              `
+              : `
+                <div
+                  style="
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                    color: #94a3b8;
+                    font-size: 12px;
+                    text-align: center;
+                  "
+                >
+                  Sin planificación temporal.
+                  Asocia Features o informa fechas
+                  manuales en Configurar.
+                </div>
+              `
+          }
+        </div>
+      </article>
+    `;
+  };
+
+  setHead(
+    `${program?.name || "AIxBanker"} · Pase a Especialista`,
+    "Roadmap configurable de tareas, Owners, fuentes y avance.",
+    `Retail Client Solutions > ${
+      program?.name || normalizedProgramId
+    } > Management Reports > Live Reports > Pase a Especialista`,
+  );
+
+  view.innerHTML = "";
+
+  view.append(tpl("#projects-template"));
+
+  const backButton = document.querySelector(".back-to-program-btn");
+
+  if (backButton) {
+    backButton.dataset.route = `projects/${normalizedProgramId}/live`;
+
+    backButton.textContent = "← Volver a Live Reports";
+  }
+
+  const titleElement = document.querySelector("#backlogHeader h2");
+
+  const subtitleElement = document.querySelector("#backlogHeader p");
+
+  if (titleElement) {
+    titleElement.textContent = "Pase a Especialista";
+  }
+
+  if (subtitleElement) {
+    subtitleElement.textContent =
+      "Seguimiento trimestral de tareas y avance por Features JIRA.";
+  }
+
+  const container = document.querySelector("#managementReportsCards");
+
+  if (!container) {
+    console.error(
+      "[Pase a Especialista] No se ha encontrado #managementReportsCards.",
+    );
+
+    return;
+  }
+
+  /*
+   * El template utiliza originalmente este
+   * contenedor como grid de tarjetas.
+   *
+   * En esta vista pasa a contener un único
+   * dashboard completo.
+   */
+  container.classList.remove("management-reports-grid");
+
+  container.innerHTML = `
+    <section
+      style="
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        width: 100%;
+        min-width: 0;
+      "
+    >
+      <section
+        class="panel"
+        style="
+          padding: 22px;
+          border-radius: 22px;
+        "
+      >
+        <div
+          style="
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+          "
+        >
+          <div>
+            <span
+              style="
+                color: #0b4aa2;
+                font-size: 12px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.07em;
+              "
+            >
+              Live Report · 2026
+            </span>
+
+            <h3
+              style="
+                margin: 8px 0 4px;
+                color: #001391;
+                font-size: 30px;
+              "
+            >
+              Pase a Especialista
+            </h3>
+
+            <p
+              style="
+                margin: 0;
+                color: #64748b;
+              "
+            >
+              Tareas, Owners, estado,
+              comentarios y ejecución JIRA.
+            </p>
+          </div>
+
+          ${
+            canEdit
+              ? `
+                <div
+                  style="
+                    display: flex;
+                    gap: 10px;
+                    flex-wrap: wrap;
+                  "
+                >
+                  ${
+                    state.configMode
+                      ? `
+                        <button
+                          class="management-roadmap-mapping-save"
+                          type="button"
+                          data-specialist-new-task
+                        >
+                          + Nueva tarea
+                        </button>
+
+                        <button
+                          class="ghost-button"
+                          type="button"
+                          data-specialist-config-toggle="false"
+                        >
+                          Cerrar configuración
+                        </button>
+                      `
+                      : `
+                        <button
+                          class="management-roadmap-mapping-save"
+                          type="button"
+                          data-specialist-config-toggle="true"
+                        >
+                          Configurar informe
+                        </button>
+                      `
+                  }
+                </div>
+              `
+              : ""
+          }
+        </div>
+
+        <section
+          class="aixbanker-roadmap-summary"
+          style="
+            margin-top: 20px;
+          "
+        >
+          <article>
+            <span>
+              Tareas
+            </span>
+
+            <strong>
+              ${visibleTasks.length}
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Features
+            </span>
+
+            <strong>
+              ${roadmapProgress.featureCount}
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Deployed
+            </span>
+
+            <strong>
+              ${roadmapProgress.deployedCount}
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Avance
+            </span>
+
+            <strong>
+              ${
+                roadmapProgress.progress === null
+                  ? "—"
+                  : `${roadmapProgress.progress}%`
+              }
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Riesgo / bloqueado
+            </span>
+
+            <strong>
+              ${riskCount}
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Terminadas
+            </span>
+
+            <strong>
+              ${doneCount}
+            </strong>
+          </article>
+        </section>
+
+        <div
+          class="aixbanker-roadmap-filters"
+          style="
+            margin-top: 18px;
+          "
+        >
+          <div
+            class="aixbanker-roadmap-filter-group"
+          >
+            <span
+              class="aixbanker-roadmap-filter-label"
+            >
+              Periodo
+            </span>
+
+            <nav
+              class="executive-filter-row"
+              aria-label="Seleccionar quarter"
+            >
+              ${[
+                ["ALL", "Todo el año"],
+                ["Q1", "Q1"],
+                ["Q2", "Q2"],
+                ["Q3", "Q3"],
+                ["Q4", "Q4"],
+              ]
+                .map(
+                  ([id, label]) => `
+                    <button
+                      class="quarter-btn ${
+                        state.quarter === id ? "active" : ""
+                      }"
+                      type="button"
+                      data-specialist-quarter="${id}"
+                    >
+                      ${label}
+                    </button>
+                  `,
+                )
+                .join("")}
+            </nav>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="panel"
+        style="
+          overflow-x: auto;
+          padding: 0;
+          border-radius: 22px;
+          width: 100%;
+        "
+      >
+        <div
+          style="
+            min-width: ${state.quarter === "ALL" ? "1500px" : "1180px"};
+          "
+        >
+          <div
+            style="
+              display: grid;
+              grid-template-columns:
+                minmax(360px, 420px)
+                minmax(720px, 1fr);
+              background: #001391;
+            "
+          >
+            <div
+              style="
+                padding: 16px 18px;
+                color: #ffffff;
+                font-size: 13px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+              "
+            >
+              Tarea · Owner · Estado
+            </div>
+
+            <div
+              style="
+                display: grid;
+                grid-template-columns:
+                  repeat(${monthCount}, 1fr);
+              "
+            >
+              ${monthHeaders}
+            </div>
+          </div>
+
+          ${
+            visibleTasks.length
+              ? visibleTasks.map(renderTaskRow).join("")
+              : `
+                <div
+                  style="
+                    padding: 44px;
+                    text-align: center;
+                    color: #64748b;
+                  "
+                >
+                  No hay tareas configuradas para
+                  ${rcsEsc(state.quarter === "ALL" ? "2026" : state.quarter)}.
+                </div>
+              `
+          }
+        </div>
+      </section>
+    </section>
+  `;
+
+  container.querySelectorAll("[data-specialist-quarter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.quarter = button.dataset.specialistQuarter;
+
+      renderManagementSpecialistRoadmapView(normalizedProgramId);
+    });
+  });
+
+  container
+    .querySelectorAll("[data-specialist-config-toggle]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        state.configMode = button.dataset.specialistConfigToggle === "true";
+
+        renderManagementSpecialistRoadmapView(normalizedProgramId);
+      });
+    });
+
+  const newTaskButton = container.querySelector("[data-specialist-new-task]");
+
+  if (newTaskButton) {
+    newTaskButton.addEventListener("click", () => {
+      renderManagementSpecialistTaskEditor(normalizedProgramId, null);
+    });
+  }
+
+  container
+    .querySelectorAll("[data-specialist-task-edit]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const taskId = button.dataset.specialistTaskEdit;
+
+        const task = allTasks.find(
+          (item) => String(item.id) === String(taskId),
+        );
+
+        if (task) {
+          renderManagementSpecialistTaskEditor(normalizedProgramId, task);
+        }
+      });
+    });
+
+  container
+    .querySelectorAll("[data-specialist-task-sources]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const taskId = button.dataset.specialistTaskSources;
+
+        renderManagementReportSourcesPanel(normalizedProgramId, taskId);
+      });
+    });
+}
 function renderManagementReportsCategoryView(programId, categoryId) {
   const program = (DATA.programs || []).find((item) => item.id === programId);
   const normalizedProgramId = String(programId || "")
@@ -8627,7 +10748,9 @@ function renderManagementReportsCategoryView(programId, categoryId) {
     backButton.textContent = "← Volver a Management Reports";
   }
 
-  const cardsContainer = document.querySelector("#managementReportsCards");
+  const cardsContainer =
+    document.querySelector("#managementReportsCards") ||
+    document.querySelector("#projects");
 
   if (!cardsContainer) {
     return;
@@ -8811,6 +10934,11 @@ function renderManagementReportsCategoryView(programId, categoryId) {
         `
         : "";
 
+    const specialistRoadmapCard =
+      normalizedProgramId === "aixbanker"
+        ? renderManagementSpecialistRoadmapCard(programId)
+        : "";
+
     cardsContainer.innerHTML = `
       <article class="management-report-card">
         <div class="management-report-card-top">
@@ -8860,32 +10988,32 @@ function renderManagementReportsCategoryView(programId, categoryId) {
 
       ${globalStatusCard}
 
+      ${specialistRoadmapCard}
+
       <article class="management-report-card">
         <div class="management-report-card-top">
           <div>
             <h3>RCS KPIs Heatmap</h3>
             <p>
-              Executive Performance Dashboard para el seguimiento
-              de KPIs estratégicos y de programa por dominio
-              y geografía.
+              Vista ejecutiva del rendimiento de KPIs
+              por prioridad, país y programa.
             </p>
           </div>
 
           <span class="management-report-badge">
-            KPI Performance
+            Live
           </span>
         </div>
 
         <div class="management-report-card-kpis">
-          <span>Strategic KPIs</span>
-          <span>Program KPIs</span>
-          <span>Geographies</span>
+          <span>KPI Performance</span>
+          <span>Heatmap</span>
+          <span>Geografías</span>
         </div>
 
         <div class="management-report-card-footer">
           <span class="management-report-caption">
-            Heatmap comparativo de cumplimiento de objetivos
-            y performance por país.
+            Seguimiento vivo de KPIs y focos de atención.
           </span>
 
           <a
@@ -8893,9 +11021,8 @@ function renderManagementReportsCategoryView(programId, categoryId) {
             href="https://script.google.com/a/macros/bbva.com/s/AKfycbwB4Pe197DmvUW8j1x_YTA_j96CDkeKp3hH5GCSJGYNnlEinJbCS8Awm8RfJgy30BLj/exec"
             target="_blank"
             rel="noopener noreferrer"
-            style="text-decoration: none;"
           >
-            Abrir KPI Heatmap ↗
+            Abrir heatmap ↗
           </a>
         </div>
       </article>
@@ -8915,8 +11042,8 @@ function renderManagementReportsCategoryView(programId, categoryId) {
         <div>
           <h3>Executive Summary</h3>
           <p>
-            Resumen ejecutivo generado automáticamente
-            a partir del estado actual del programa.
+            Resumen ejecutivo generado a partir
+            del contexto y datos disponibles.
           </p>
         </div>
 
@@ -8926,14 +11053,14 @@ function renderManagementReportsCategoryView(programId, categoryId) {
       </div>
 
       <div class="management-report-card-kpis">
-        <span>Roadmap</span>
-        <span>Ejecución</span>
+        <span>Resumen</span>
         <span>Highlights</span>
+        <span>Insights</span>
       </div>
 
       <div class="management-report-card-footer">
         <span class="management-report-caption">
-          Síntesis ejecutiva generada con IA.
+          Vista ejecutiva automática para dirección.
         </span>
 
         <button
@@ -8952,8 +11079,8 @@ function renderManagementReportsCategoryView(programId, categoryId) {
         <div>
           <h3>Risks & Attention</h3>
           <p>
-            Identificación de riesgos, desviaciones
-            y elementos que requieren atención.
+            Riesgos, alertas y focos prioritarios
+            detectados automáticamente.
           </p>
         </div>
 
@@ -8964,7 +11091,7 @@ function renderManagementReportsCategoryView(programId, categoryId) {
 
       <div class="management-report-card-kpis">
         <span>Riesgos</span>
-        <span>Bloqueos</span>
+        <span>Alertas</span>
         <span>Atención</span>
       </div>
 
@@ -11426,31 +13553,147 @@ function isManagementRoadmapLineActive(line) {
     String(line.active).trim().toLowerCase(),
   );
 }
+function normalizeManagementRoadmapDateValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
 
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return "";
+    }
+
+    return value.toISOString().slice(0, 10);
+  }
+
+  const text = String(value).trim();
+
+  if (!text) {
+    return "";
+  }
+
+  /*
+   * =====================================================
+   * YYYY-MM-DD
+   * =====================================================
+   */
+
+  const isoDateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (isoDateOnly) {
+    return [isoDateOnly[1], isoDateOnly[2], isoDateOnly[3]].join("-");
+  }
+
+  /*
+   * =====================================================
+   * ISO DATETIME
+   * =====================================================
+   *
+   * Google Sheets devuelve las celdas Date mediante
+   * sheetToObjects_() como:
+   *
+   * 2026-09-29T00:00:00.000Z
+   *
+   * Para persistencia del Roadmap sólo nos interesa
+   * la fecha, no la hora.
+   * =====================================================
+   */
+
+  const isoDateTime = text.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+
+  if (isoDateTime) {
+    return [isoDateTime[1], isoDateTime[2], isoDateTime[3]].join("-");
+  }
+
+  /*
+   * =====================================================
+   * DD/MM/YYYY
+   * =====================================================
+   */
+
+  const spanishDate = text.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
+
+  if (spanishDate) {
+    const day = String(Number(spanishDate[1])).padStart(2, "0");
+
+    const month = String(Number(spanishDate[2])).padStart(2, "0");
+
+    const year = spanishDate[3];
+
+    return `${year}-${month}-${day}`;
+  }
+
+  /*
+   * =====================================================
+   * FALLBACK
+   * =====================================================
+   */
+
+  const parsed = Date.parse(text);
+
+  if (!Number.isFinite(parsed)) {
+    return text;
+  }
+
+  return new Date(parsed).toISOString().slice(0, 10);
+}
 function normalizeManagementRoadmapLine(line, fallbackOrder = 999) {
+  const normalizedQuarter = String(line?.quarter || "")
+    .trim()
+    .toUpperCase();
+
   return {
     ...line,
+
     id: String(line?.id || "").trim(),
+
     programId: String(line?.programId || "")
       .trim()
       .toLowerCase(),
+
     productId: normalizeRoadmapProduct(line?.productId),
+
     country: String(line?.country || "")
       .trim()
       .toUpperCase(),
+
     year: Number(line?.year) || 2026,
+
     order: Number(line?.order) || fallbackOrder,
+
+    reportId: String(line?.reportId || "")
+      .trim()
+      .toLowerCase(),
+
     category: String(line?.category || "").trim(),
+
     categoryTone: String(line?.categoryTone || "").trim(),
+
     title: String(line?.title || "").trim(),
+
+    owner: String(line?.owner || "").trim(),
+
+    quarter: ["Q1", "Q2", "Q3", "Q4"].includes(normalizedQuarter)
+      ? normalizedQuarter
+      : "",
+
+    startDate: normalizeManagementRoadmapDateValue(line?.startDate),
+
+    endDate: normalizeManagementRoadmapDateValue(line?.endDate),
+
     status: String(line?.status || "on-track").trim(),
+
     statusLabel: String(line?.statusLabel || "En curso").trim(),
+
     statusTone: String(line?.statusTone || "").trim(),
+
     comments: String(line?.comments || "").trim(),
+
+    manualValue: normalizeManagementGlobalStatusManualValue(line?.manualValue),
+
     active: isManagementRoadmapLineActive(line),
   };
 }
-
 function getEffectiveManagementExecutiveLines() {
   const persistedLines = Array.isArray(DATA?.managementRoadmapLines)
     ? DATA.managementRoadmapLines
@@ -11761,26 +14004,40 @@ function getManagementRoadmapRows(programId, productId, countryId) {
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
+
   const normalizedProductId = normalizeRoadmapProduct(productId);
+
   const normalizedCountryId = String(countryId || "")
     .trim()
     .toUpperCase();
+
   return getEffectiveManagementExecutiveLines()
-    .filter(
-      (line) =>
-        String(line.programId || "")
-          .trim()
-          .toLowerCase() === normalizedProgramId &&
-        normalizeRoadmapProduct(line.productId) === normalizedProductId &&
-        String(line.country || "")
-          .trim()
-          .toUpperCase() === normalizedCountryId,
-    )
+    .filter((line) => {
+      const lineProgramId = String(line.programId || "")
+        .trim()
+        .toLowerCase();
+
+      const lineProductId = normalizeRoadmapProduct(line.productId);
+
+      const lineCountryId = String(line.country || "")
+        .trim()
+        .toUpperCase();
+
+      const reportId = String(line.reportId || "")
+        .trim()
+        .toLowerCase();
+
+      return (
+        lineProgramId === normalizedProgramId &&
+        lineProductId === normalizedProductId &&
+        lineCountryId === normalizedCountryId &&
+        !reportId
+      );
+    })
     .sort(
       (left, right) => Number(left.order || 999) - Number(right.order || 999),
     );
 }
-
 function getManagementRoadmapQuarterIndex(quarter) {
   return (
     {
@@ -13078,6 +15335,8 @@ async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
     .trim()
     .toLowerCase();
 
+  const line = getManagementRoadmapLineById(executiveLineId);
+
   const source = getProgramSource(normalizedProgramId);
 
   if (!source || !source.driveJsonUrl) {
@@ -13120,23 +15379,16 @@ async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
       : [];
 
     const unrelatedLinks = currentLinks.filter(
-      (link) =>
-        String(link.executiveLineId || "")
+      (linkItem) =>
+        String(linkItem.executiveLineId || "")
           .trim()
           .toLowerCase() !== normalizedLineId,
     );
 
     const nextLinks = buildManagementRoadmapPersistableLinks([
       ...unrelatedLinks,
-
       ...cloneManagementRoadmapLinks(state.draftLinks),
     ]);
-
-    /*
-     * ===================================================
-     * WRITE
-     * ===================================================
-     */
 
     const endpoint = new URL(source.driveJsonUrl, window.location.href);
 
@@ -13168,17 +15420,6 @@ async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
       }),
     });
 
-    /*
-     * ===================================================
-     * ACTUALIZACIÓN OPTIMISTA LOCAL
-     * ===================================================
-     *
-     * El POST ya ha terminado.
-     *
-     * No bloqueamos al usuario esperando
-     * una segunda ejecución de Apps Script.
-     */
-
     DATA.managementRoadmapLinks = nextLinks;
 
     if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
@@ -13193,27 +15434,17 @@ async function saveManagementRoadmapDraftLinks(programId, executiveLineId) {
 
     state.originalLinks = cloneManagementRoadmapLinks(state.draftLinks);
 
-    /*
-     * Cerramos inmediatamente el panel.
-     */
     closeManagementRoadmapMappingPanel();
 
-    /*
-     * No hacemos render() global.
-     *
-     * Sólo reconstruimos este informe.
-     */
-    renderManagementRoadmapView(normalizedProgramId);
+    const reportId = String(line?.reportId || "")
+      .trim()
+      .toLowerCase();
 
-    /*
-     * ===================================================
-     * VERIFICACIÓN NO BLOQUEANTE
-     * ===================================================
-     *
-     * La lectura contra Sheets continúa existiendo,
-     * pero ya no forma parte del tiempo que espera
-     * el usuario.
-     */
+    if (reportId === "pase-a-especialista") {
+      renderManagementSpecialistRoadmapView(normalizedProgramId);
+    } else {
+      renderManagementRoadmapView(normalizedProgramId);
+    }
 
     window.setTimeout(() => {
       void verifyManagementRoadmapLinksInBackground(
@@ -19365,21 +21596,45 @@ function buildManagementRoadmapPersistableLines(lines) {
 
     result.set(normalized.id.toLowerCase(), {
       id: normalized.id,
+
       programId: normalized.programId,
+
       productId: normalized.productId,
+
       country: normalized.country,
+
       year: normalized.year,
+
       order: normalized.order,
+
+      reportId: normalized.reportId,
+
       category: normalized.category,
+
       categoryTone: normalized.categoryTone,
+
       title: normalized.title,
+
+      owner: normalized.owner,
+
+      quarter: normalized.quarter,
+
+      startDate: normalized.startDate,
+
+      endDate: normalized.endDate,
+
       status: normalized.status,
+
       statusLabel: normalized.statusLabel,
+
       statusTone: normalized.statusTone,
+
       comments: normalized.comments,
+
       manualValue: normalizeManagementGlobalStatusManualValue(
         line?.manualValue || normalized?.manualValue,
       ),
+
       active: normalized.active,
     });
   });
@@ -19392,19 +21647,45 @@ function getManagementRoadmapLinesPersistenceSignature(lines) {
     .map((line) =>
       JSON.stringify({
         id: line.id,
+
+        programId: line.programId,
+
+        productId: line.productId,
+
+        country: line.country,
+
+        year: line.year,
+
+        order: line.order,
+
+        reportId: line.reportId,
+
         title: line.title,
+
+        owner: line.owner,
+
+        quarter: line.quarter,
+
+        startDate: line.startDate,
+
+        endDate: line.endDate,
+
         status: line.status,
+
         statusLabel: line.statusLabel,
+
         statusTone: line.statusTone,
+
         comments: line.comments,
+
         manualValue: line.manualValue,
+
         active: line.active,
       }),
     )
     .sort()
     .join("|");
 }
-
 async function saveManagementRoadmapLine(programId, updatedLine) {
   const normalizedProgramId = String(programId || "")
     .trim()
@@ -19414,6 +21695,7 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
 
   if (!source || !source.driveJsonUrl) {
     window.alert("No existe un Web App configurado para guardar el Roadmap.");
+
     return;
   }
 
@@ -19423,10 +21705,17 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
 
   if (saveButton) {
     saveButton.disabled = true;
+
     saveButton.textContent = "Guardando...";
   }
 
   try {
+    /*
+     * =====================================================
+     * ESTADO ACTUAL
+     * =====================================================
+     */
+
     const currentLines = getEffectiveManagementExecutiveLines();
 
     const normalizedUpdatedLine = normalizeManagementRoadmapLine(
@@ -19445,7 +21734,9 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
 
     const lineToPersist = {
       ...normalizedUpdatedLine,
+
       id: resolvedId,
+
       manualValue: normalizeManagementGlobalStatusManualValue(
         updatedLine?.manualValue,
       ),
@@ -19458,40 +21749,78 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
             .trim()
             .toLowerCase() !== resolvedId.toLowerCase(),
       ),
+
       lineToPersist,
     ]);
 
+    /*
+     * =====================================================
+     * ESCRITURA
+     * =====================================================
+     */
+
     const endpoint = new URL(source.driveJsonUrl, window.location.href);
+
     endpoint.searchParams.delete("callback");
+
     endpoint.searchParams.delete("_");
+
     endpoint.searchParams.delete("dataset");
+
+    endpoint.searchParams.delete("action");
 
     await fetch(endpoint.toString(), {
       method: "POST",
+
       mode: "no-cors",
+
       credentials: "include",
+
       cache: "no-store",
+
       headers: {
         "Content-Type": "text/plain;charset=UTF-8",
       },
+
       body: JSON.stringify({
         action: "save-management-roadmap-lines",
+
         lines: nextLines,
       }),
     });
 
-    await new Promise((resolve) => window.setTimeout(resolve, 900));
+    /*
+     * Damos tiempo a SpreadsheetApp.flush()
+     * y a finalizar el doPost.
+     */
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
 
-    const rawData = await loadConfiguredSource(source, {
-      timeoutMs: 25000,
-      retries: 0,
-      cacheBust: true,
-    });
+    /*
+     * =====================================================
+     * VERIFICACIÓN DIRECTA
+     * =====================================================
+     *
+     * IMPORTANTE:
+     *
+     * No verificamos contra el snapshot general de Drive.
+     *
+     * Leemos directamente:
+     *
+     * action=management-roadmap-config
+     *
+     * De esta forma comprobamos el contenido real de:
+     *
+     * Management Roadmap Lines
+     *
+     * y evitamos falsos negativos por caché del snapshot.
+     * =====================================================
+     */
 
-    const normalizedData = normalizeProgramData(normalizedProgramId, rawData);
+    const persistedConfig =
+      await loadManagementRoadmapConfig(normalizedProgramId);
 
     const persistedLines = buildManagementRoadmapPersistableLines(
-      normalizedData?.managementRoadmapLines,
+      persistedConfig?.managementRoadmapLines,
     );
 
     const expectedSignature =
@@ -19501,29 +21830,65 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
       getManagementRoadmapLinesPersistenceSignature(persistedLines);
 
     if (expectedSignature !== persistedSignature) {
+      console.error("[Management Roadmap] Diferencia tras guardar", {
+        expected: nextLines,
+        persisted: persistedLines,
+      });
+
       throw new Error(
-        "La Spreadsheet no devuelve la configuración que se acaba de guardar.",
+        "La configuración guardada no coincide con la recuperada de Management Roadmap Lines.",
       );
     }
 
+    /*
+     * =====================================================
+     * ESTADO LOCAL
+     * =====================================================
+     */
+
     DATA.managementRoadmapLines = persistedLines;
+
+    if (Array.isArray(persistedConfig?.managementRoadmapLinks)) {
+      DATA.managementRoadmapLinks = buildManagementRoadmapPersistableLinks(
+        persistedConfig.managementRoadmapLinks,
+      );
+    }
 
     if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
       const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
       PROGRAM_DATA_CACHE.set(normalizedProgramId, {
         ...cached,
-        managementRoadmapLines: persistedLines,
+
+        managementRoadmapLines: DATA.managementRoadmapLines,
+
+        managementRoadmapLinks: DATA.managementRoadmapLinks,
       });
     }
 
+    /*
+     * =====================================================
+     * CIERRE
+     * =====================================================
+     */
+
     closeManagementRoadmapLineEditorPanel();
 
-    await render();
+    const reportId = String(lineToPersist?.reportId || "")
+      .trim()
+      .toLowerCase();
+
+    if (reportId === "pase-a-especialista") {
+      renderManagementSpecialistRoadmapView(normalizedProgramId);
+    } else {
+      renderManagementRoadmapView(normalizedProgramId);
+    }
   } catch (error) {
     console.error("[Management Roadmap] Error guardando deliverable", error);
 
     if (saveButton) {
       saveButton.disabled = false;
+
       saveButton.textContent = "Guardar";
     }
 
@@ -19535,106 +21900,166 @@ async function deleteManagementRoadmapLine(programId, lineId) {
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
+
   const normalizedLineId = String(lineId || "").trim();
+
   if (!normalizedLineId) {
     return;
   }
+
   const source = getProgramSource(normalizedProgramId);
+
   if (!source || !source.driveJsonUrl) {
     window.alert(
       "No existe un Web App configurado para eliminar el deliverable.",
     );
+
     return;
   }
+
+  const currentLine = getManagementRoadmapLineById(normalizedLineId);
+
   const deleteButton = document.querySelector(
     "[data-management-roadmap-line-editor-delete]",
   );
+
   if (deleteButton) {
     deleteButton.disabled = true;
+
     deleteButton.textContent = "Eliminando...";
   }
+
   try {
+    /*
+     * =====================================================
+     * ELIMINACIÓN
+     * =====================================================
+     */
+
     const endpoint = new URL(source.driveJsonUrl, window.location.href);
+
     endpoint.searchParams.delete("callback");
+
     endpoint.searchParams.delete("_");
+
     endpoint.searchParams.delete("dataset");
+
+    endpoint.searchParams.delete("action");
+
     await fetch(endpoint.toString(), {
       method: "POST",
+
       mode: "no-cors",
+
       credentials: "include",
+
       cache: "no-store",
+
       headers: {
         "Content-Type": "text/plain;charset=UTF-8",
       },
+
       body: JSON.stringify({
         action: "delete-management-roadmap-line",
+
         lineId: normalizedLineId,
       }),
     });
-    await new Promise((resolve) => window.setTimeout(resolve, 900));
+
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
+
     /*
      * =====================================================
-     * VERIFICACIÓN
+     * VERIFICACIÓN DIRECTA
      * =====================================================
      */
-    const rawData = await loadConfiguredSource(source, {
-      timeoutMs: 25000,
-      retries: 0,
-      cacheBust: true,
-    });
-    const normalizedData = normalizeProgramData(normalizedProgramId, rawData);
+
+    const persistedConfig =
+      await loadManagementRoadmapConfig(normalizedProgramId);
+
     const persistedLines = buildManagementRoadmapPersistableLines(
-      normalizedData?.managementRoadmapLines,
+      persistedConfig?.managementRoadmapLines,
     );
+
     const stillExists = persistedLines.some(
       (line) =>
         String(line.id || "")
           .trim()
           .toLowerCase() === normalizedLineId.toLowerCase(),
     );
+
     if (stillExists) {
       throw new Error(
-        "El deliverable sigue apareciendo en Management Roadmap Lines.",
+        "La tarea sigue apareciendo en Management Roadmap Lines después de eliminarla.",
       );
     }
+
     const persistedLinks = buildManagementRoadmapPersistableLinks(
-      normalizedData?.managementRoadmapLinks,
+      persistedConfig?.managementRoadmapLinks,
     );
+
     const orphanLinks = persistedLinks.filter(
       (link) =>
         String(link.executiveLineId || "")
           .trim()
           .toLowerCase() === normalizedLineId.toLowerCase(),
     );
+
     if (orphanLinks.length) {
       throw new Error(
-        "El deliverable se ha eliminado, pero todavía existen relaciones SDA asociadas.",
+        "La tarea se ha eliminado, pero todavía existen fuentes asociadas.",
       );
     }
+
     /*
      * =====================================================
-     * ACTUALIZACIÓN LOCAL
+     * ESTADO LOCAL
      * =====================================================
      */
+
     DATA.managementRoadmapLines = persistedLines;
+
     DATA.managementRoadmapLinks = persistedLinks;
+
     if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
       const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
       PROGRAM_DATA_CACHE.set(normalizedProgramId, {
         ...cached,
+
         managementRoadmapLines: persistedLines,
+
         managementRoadmapLinks: persistedLinks,
       });
     }
+
     closeManagementRoadmapLineEditorPanel();
-    await render();
+
+    /*
+     * =====================================================
+     * VOLVER A LA VISTA CORRECTA
+     * =====================================================
+     */
+
+    const reportId = String(currentLine?.reportId || "")
+      .trim()
+      .toLowerCase();
+
+    if (reportId === "pase-a-especialista") {
+      renderManagementSpecialistRoadmapView(normalizedProgramId);
+    } else {
+      renderManagementRoadmapView(normalizedProgramId);
+    }
   } catch (error) {
     console.error("[Management Roadmap] Error eliminando deliverable", error);
+
     if (deleteButton) {
       deleteButton.disabled = false;
-      deleteButton.textContent = "Eliminar deliverable";
+
+      deleteButton.textContent = "Eliminar";
     }
-    window.alert(error?.message || "No se ha podido eliminar el deliverable.");
+
+    window.alert(error?.message || "No se ha podido eliminar la tarea.");
   }
 }
 
