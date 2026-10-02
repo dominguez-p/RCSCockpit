@@ -16288,39 +16288,435 @@ function mgqOverlap(range, start, end) {
 }
 
 function mgqSdaItems(row) {
-  const seen = new Set();
+  const year = Number(row?.year) || new Date().getFullYear();
 
-  return getManagementRoadmapLinksForLine(row.id).flatMap((link) => {
-    const id =
-      `${normalizeManagementSdaId(link.sdaId)}:` +
-      normalizeManagementDeliverableId(link.deliverableId);
+  const groups = new Map();
 
-    if (seen.has(id)) return [];
+  const mergeRanges = (left, right) => {
+    if (!left) {
+      return right || null;
+    }
 
-    seen.add(id);
+    if (!right) {
+      return left;
+    }
 
-    const deliverable = getManagementSdaDeliverable(link);
+    return {
+      start: new Date(Math.min(left.start.getTime(), right.start.getTime())),
 
-    return [
-      {
-        id,
-        code: normalizeManagementSdaId(link.sdaId),
-        name:
-          deliverable?.name ||
-          normalizeManagementDeliverableId(link.deliverableId),
-        range: mgqSdaRange(deliverable, Number(row.year)),
-        endQuarter: deliverable?.endQuarter || "",
-        clientDate: deliverable?.clientDate || "",
-      },
-    ];
+      end: new Date(Math.max(left.end.getTime(), right.end.getTime())),
+    };
+  };
+
+  const registerGroup = ({
+    sdaId,
+    deliverableId,
+    deliverable = null,
+    fallbackFeature = null,
+  }) => {
+    const code = normalizeManagementSdaId(sdaId);
+
+    const normalizedDeliverableId =
+      normalizeManagementDeliverableId(deliverableId);
+
+    if (!code || !normalizedDeliverableId) {
+      return;
+    }
+
+    const id = `${code}:${normalizedDeliverableId}`;
+
+    const resolvedDeliverable =
+      deliverable ||
+      getManagementSdaDeliverable({
+        sdaId: code,
+        deliverableId: normalizedDeliverableId,
+      });
+
+    const featureRange = fallbackFeature
+      ? mgqFeatureRange(fallbackFeature, year)
+      : null;
+
+    const deliverableRange = resolvedDeliverable
+      ? mgqSdaRange(resolvedDeliverable, year)
+      : null;
+
+    const existing = groups.get(id);
+
+    if (existing) {
+      /*
+       * Si el grupo no procede del catálogo SDA,
+       * ampliamos el rango utilizando las Features
+       * que hayan entrado directamente.
+       *
+       * Si sí existe un Deliverable SDA oficial,
+       * mantenemos siempre su planificación.
+       */
+      if (!existing.catalogBacked && featureRange) {
+        existing.range = mergeRanges(existing.range, featureRange);
+      }
+
+      return;
+    }
+
+    const fallbackName = String(
+      fallbackFeature?.deliverableName ||
+        fallbackFeature?.deliverable_name ||
+        fallbackFeature?.deliverable ||
+        fallbackFeature?.deliverableId ||
+        fallbackFeature?.deliverable_id ||
+        "",
+    ).trim();
+
+    groups.set(id, {
+      id,
+
+      code,
+
+      name:
+        resolvedDeliverable?.name ||
+        resolvedDeliverable?.deliverableName ||
+        resolvedDeliverable?.deliverable_name ||
+        resolvedDeliverable?.title ||
+        resolvedDeliverable?.label ||
+        fallbackName ||
+        normalizedDeliverableId,
+
+      range: deliverableRange || featureRange,
+
+      endQuarter: resolvedDeliverable?.endQuarter || "",
+
+      clientDate: resolvedDeliverable?.clientDate || "",
+
+      catalogBacked: Boolean(resolvedDeliverable),
+    });
+  };
+
+  /*
+   * =====================================================
+   * SDA / DELIVERABLES SELECCIONADOS EXPLÍCITAMENTE
+   * =====================================================
+   */
+
+  const explicitSdaLinks = getManagementRoadmapLinksForLine(row.id);
+
+  explicitSdaLinks.forEach((link) => {
+    const sdaId = normalizeManagementSdaId(link.sdaId);
+
+    const deliverableId = normalizeManagementDeliverableId(link.deliverableId);
+
+    if (!sdaId || !deliverableId) {
+      return;
+    }
+
+    registerGroup({
+      sdaId,
+      deliverableId,
+      deliverable: getManagementSdaDeliverable(link),
+    });
   });
+
+  /*
+   * Si existe al menos una SDA configurada,
+   * ésa sigue siendo la estructura visual
+   * principal del entregable.
+   *
+   * Las Features directas y las procedentes
+   * de Épicas se incorporarán posteriormente
+   * a estos grupos desde mgqFeatureItems().
+   */
+  if (explicitSdaLinks.length) {
+    return [...groups.values()].map(({ catalogBacked, ...item }) => item);
+  }
+
+  /*
+   * =====================================================
+   * ENTREGABLE SIN SDA EXPLÍCITA
+   * =====================================================
+   *
+   * Una línea puede alimentarse únicamente mediante:
+   *
+   * - Épicas
+   * - Features directas
+   *
+   * En ese caso intentamos recuperar la SDA /
+   * Deliverable naturales de las Features JIRA
+   * para que sigan siendo visibles en el cronograma.
+   */
+
+  const directLinks = getManagementReportLinksForLine(row.id).filter((link) => {
+    const sourceType = normalizeManagementReportSourceType(link);
+
+    return sourceType === "epic" || sourceType === "feature";
+  });
+
+  if (!directLinks.length) {
+    return [];
+  }
+
+  const directFeatures = getManagementRoadmapFeaturesForLinks(directLinks);
+
+  directFeatures.forEach((feature) => {
+    const sdaId = normalizeManagementSdaId(
+      feature?.sdaId ||
+        feature?.sdaCode ||
+        feature?.sda ||
+        feature?.flightId ||
+        feature?.flight_id ||
+        "",
+    );
+
+    if (!sdaId) {
+      return;
+    }
+
+    const deliverableIds = getManagementFeatureDeliverableIds(feature);
+
+    if (deliverableIds.length) {
+      deliverableIds.forEach((deliverableId) => {
+        registerGroup({
+          sdaId,
+          deliverableId,
+          fallbackFeature: feature,
+        });
+      });
+
+      return;
+    }
+
+    /*
+     * Fallback por nombre.
+     *
+     * Algunas Features JIRA pueden traer el
+     * nombre del Deliverable pero no su ID.
+     */
+    const featureDeliverableName = normalizeManagementComparableText(
+      feature?.deliverableName ||
+        feature?.deliverable_name ||
+        feature?.deliverable ||
+        "",
+    );
+
+    if (!featureDeliverableName) {
+      return;
+    }
+
+    const catalog = Array.isArray(DATA?.sdaDeliverables)
+      ? DATA.sdaDeliverables
+      : [];
+
+    const matchingDeliverable = catalog.find((deliverable) => {
+      const deliverableSdaId = getManagementSdaIdFromDeliverable(deliverable);
+
+      if (deliverableSdaId !== sdaId) {
+        return false;
+      }
+
+      const catalogName = normalizeManagementComparableText(
+        deliverable?.deliverableName ||
+          deliverable?.deliverable_name ||
+          deliverable?.name ||
+          deliverable?.title ||
+          deliverable?.label ||
+          "",
+      );
+
+      if (!catalogName) {
+        return false;
+      }
+
+      return (
+        catalogName.includes(featureDeliverableName) ||
+        featureDeliverableName.includes(catalogName)
+      );
+    });
+
+    if (!matchingDeliverable) {
+      return;
+    }
+
+    const deliverableId =
+      getManagementDeliverableIdFromCatalogItem(matchingDeliverable);
+
+    if (!deliverableId) {
+      return;
+    }
+
+    registerGroup({
+      sdaId,
+      deliverableId,
+      deliverable: matchingDeliverable,
+      fallbackFeature: feature,
+    });
+  });
+
+  return [...groups.values()].map(({ catalogBacked, ...item }) => item);
 }
 
 function mgqFeatureItems(row) {
-  return getManagementFeaturesForLine(row.id).map((feature) => ({
-    feature,
-    range: mgqFeatureRange(feature, Number(row.year)),
-  }));
+  const year = Number(row?.year) || new Date().getFullYear();
+
+  const features = getManagementFeaturesForLine(row.id);
+
+  const links = getManagementReportLinksForLine(row.id);
+
+  const sdaLinks = links.filter(
+    (link) => normalizeManagementReportSourceType(link) === "sda-deliverable",
+  );
+
+  const directLinks = links.filter((link) => {
+    const sourceType = normalizeManagementReportSourceType(link);
+
+    return sourceType === "epic" || sourceType === "feature";
+  });
+
+  /*
+   * Grupos que realmente se van a pintar.
+   *
+   * Pueden proceder de:
+   *
+   * - SDA seleccionadas explícitamente.
+   * - SDA / Deliverable deducidos de una
+   *   Épica o Feature directa cuando no
+   *   existe ninguna SDA seleccionada.
+   */
+  const displayedSdaItems = mgqSdaItems(row);
+
+  const featureMatchesDisplayedGroup = (feature) =>
+    displayedSdaItems.some((item) => {
+      const prefix = `${item.code}:`;
+
+      const deliverableId = String(item.id || "").startsWith(prefix)
+        ? String(item.id).slice(prefix.length)
+        : "";
+
+      if (!deliverableId) {
+        return false;
+      }
+
+      return managementFeatureMatchesDeliverable(feature, {
+        sdaId: item.code,
+        deliverableId,
+      });
+    });
+
+  const featureComesFromDirectSource = (feature) =>
+    directLinks.some((link) => {
+      const sourceType = normalizeManagementReportSourceType(link);
+
+      if (sourceType === "epic") {
+        return managementFeatureMatchesEpicSource(feature, link);
+      }
+
+      if (sourceType === "feature") {
+        const expectedKey = getManagementReportLinkSourceId(link)
+          .trim()
+          .toUpperCase();
+
+        const featureKey = String(getManagementFeatureDisplayId(feature))
+          .trim()
+          .toUpperCase();
+
+        return Boolean(expectedKey) && featureKey === expectedKey;
+      }
+
+      return false;
+    });
+
+  /*
+   * SDA principal.
+   *
+   * Si una Feature ha sido seleccionada
+   * directamente o mediante una Épica y no
+   * tiene una asociación SDA / Deliverable
+   * que pueda mostrarse por sí misma,
+   * la incorporamos al primer Deliverable SDA
+   * configurado para la línea ejecutiva.
+   *
+   * Es únicamente una proyección visual:
+   * no modificamos DATA ni la información JIRA.
+   */
+  const primarySdaLink = sdaLinks[0] || null;
+
+  return features.map((feature) => {
+    const range = mgqFeatureRange(feature, year);
+
+    /*
+     * Ya pertenece de forma natural a uno
+     * de los grupos visibles.
+     */
+    if (featureMatchesDisplayedGroup(feature)) {
+      return {
+        feature,
+        range,
+      };
+    }
+
+    /*
+     * No procede de una selección directa.
+     * Conservamos el comportamiento actual.
+     */
+    if (!featureComesFromDirectSource(feature)) {
+      return {
+        feature,
+        range,
+      };
+    }
+
+    /*
+     * Si no hay SDA explícita tampoco
+     * podemos proyectarla artificialmente.
+     *
+     * mgqSdaItems() ya habrá intentado
+     * obtener su SDA / Deliverable natural.
+     */
+    if (!primarySdaLink) {
+      return {
+        feature,
+        range,
+      };
+    }
+
+    const hostSdaId = normalizeManagementSdaId(primarySdaLink.sdaId);
+
+    const hostDeliverableId = normalizeManagementDeliverableId(
+      primarySdaLink.deliverableId,
+    );
+
+    if (!hostSdaId || !hostDeliverableId) {
+      return {
+        feature,
+        range,
+      };
+    }
+
+    /*
+     * Clonamos únicamente para la capa de
+     * presentación del Management Report.
+     *
+     * Esto hace que el renderer SDA actual
+     * pueda pintar también las Features
+     * añadidas mediante Épica / Feature.
+     *
+     * El objeto original de JIRA permanece
+     * intacto.
+     */
+    const projectedFeature = {
+      ...feature,
+
+      sdaId: hostSdaId,
+      sdaCode: hostSdaId,
+
+      deliverableId: hostDeliverableId,
+      deliverable_id: hostDeliverableId,
+      sdaDeliverableId: hostDeliverableId,
+      sda_deliverable_id: hostDeliverableId,
+    };
+
+    return {
+      feature: projectedFeature,
+      range,
+    };
+  });
 }
 
 function mgqYears(rows) {
