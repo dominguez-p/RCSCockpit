@@ -8879,9 +8879,13 @@ function getManagementSpecialistRoadmapStatusMeta(statusKey) {
         status: "done",
         statusLabel: "Terminado",
         statusTone: "done",
-        textColor: "#0a7a33",
-        background: "rgba(17, 156, 82, 0.14)",
-        border: "rgba(17, 156, 82, 0.24)",
+
+        textColor: "#08744f",
+        background: "#def7ec",
+        border: "#9bd8c3",
+
+        barColor: "#20a676",
+        barTrack: "#d9f3e9",
       },
 
       review: {
@@ -8890,9 +8894,13 @@ function getManagementSpecialistRoadmapStatusMeta(statusKey) {
         status: "review",
         statusLabel: "Revisión",
         statusTone: "review",
-        textColor: "#8a5b00",
-        background: "rgba(240, 185, 11, 0.18)",
-        border: "rgba(240, 185, 11, 0.28)",
+
+        textColor: "#8b6400",
+        background: "#fff1c9",
+        border: "#f3d77c",
+
+        barColor: "#d9a400",
+        barTrack: "#fff3c7",
       },
 
       "in-progress": {
@@ -8901,9 +8909,13 @@ function getManagementSpecialistRoadmapStatusMeta(statusKey) {
         status: "on-track",
         statusLabel: "En progreso",
         statusTone: "",
+
         textColor: "#0b4aa2",
-        background: "rgba(59, 130, 246, 0.14)",
-        border: "rgba(59, 130, 246, 0.24)",
+        background: "#e7f1ff",
+        border: "#9dc2f3",
+
+        barColor: "#1464c9",
+        barTrack: "#dfe9f8",
       },
 
       "at-risk": {
@@ -8912,9 +8924,13 @@ function getManagementSpecialistRoadmapStatusMeta(statusKey) {
         status: "at-risk",
         statusLabel: "En riesgo",
         statusTone: "",
-        textColor: "#8a5b00",
-        background: "rgba(245, 158, 11, 0.16)",
-        border: "rgba(245, 158, 11, 0.28)",
+
+        textColor: "#9a5a00",
+        background: "#fff0d5",
+        border: "#f2c36d",
+
+        barColor: "#f59e0b",
+        barTrack: "#fff0d6",
       },
 
       blocked: {
@@ -8923,9 +8939,13 @@ function getManagementSpecialistRoadmapStatusMeta(statusKey) {
         status: "blocked",
         statusLabel: "Bloqueado",
         statusTone: "",
+
         textColor: "#b42318",
-        background: "rgba(239, 68, 68, 0.12)",
-        border: "rgba(239, 68, 68, 0.24)",
+        background: "#ffe5e3",
+        border: "#f2a19a",
+
+        barColor: "#d62839",
+        barTrack: "#fde2e5",
       },
 
       pending: {
@@ -8934,9 +8954,13 @@ function getManagementSpecialistRoadmapStatusMeta(statusKey) {
         status: "pending",
         statusLabel: "Pendiente",
         statusTone: "pending",
+
         textColor: "#5f6b7a",
-        background: "rgba(148, 163, 184, 0.14)",
-        border: "rgba(148, 163, 184, 0.24)",
+        background: "#f1f4f8",
+        border: "#d5dce5",
+
+        barColor: "#94a3b8",
+        barTrack: "#e8edf3",
       },
     }[normalizedStatus] || {
       key: "pending",
@@ -8944,9 +8968,13 @@ function getManagementSpecialistRoadmapStatusMeta(statusKey) {
       status: "pending",
       statusLabel: "Pendiente",
       statusTone: "pending",
+
       textColor: "#5f6b7a",
-      background: "rgba(148, 163, 184, 0.14)",
-      border: "rgba(148, 163, 184, 0.24)",
+      background: "#f1f4f8",
+      border: "#d5dce5",
+
+      barColor: "#94a3b8",
+      barTrack: "#e8edf3",
     }
   );
 }
@@ -8955,6 +8983,7 @@ function getManagementSpecialistRoadmapUiState() {
     window.RCS_MANAGEMENT_SPECIALIST_ROADMAP_UI = {
       year: 2026,
       quarter: "Q4",
+      granularity: "month",
       configMode: false,
     };
   }
@@ -8971,9 +9000,156 @@ function getManagementSpecialistRoadmapUiState() {
 
   state.year = Number(state.year) || 2026;
 
+  if (!["month", "sprint"].includes(String(state.granularity || ""))) {
+    state.granularity = "month";
+  }
+
+  /*
+   * La vista por sprint sólo tiene sentido
+   * cuando estamos dentro de un quarter concreto.
+   */
+  if (state.quarter === "ALL") {
+    state.granularity = "month";
+  }
+
   return state;
 }
+function getManagementSpecialistRoadmapSprintPeriods(
+  programId,
+  quarter,
+  year = 2026,
+) {
+  const normalizedProgramId = String(programId || "")
+    .trim()
+    .toLowerCase();
 
+  const normalizedQuarter = String(quarter || "")
+    .trim()
+    .toUpperCase();
+
+  if (
+    normalizedQuarter === "ALL" ||
+    !["Q1", "Q2", "Q3", "Q4"].includes(normalizedQuarter)
+  ) {
+    return [];
+  }
+
+  const roadmap = MANAGEMENT_SPECIALIST_ROADMAPS[normalizedProgramId];
+
+  const definitions = Array.isArray(roadmap?.periods) ? roadmap.periods : [];
+
+  if (!definitions.length) {
+    return [];
+  }
+
+  const quarterPeriod = getRoadmapPeriod(normalizedQuarter, year);
+
+  const parsedPeriods = definitions
+    .map((definition) => {
+      const range = String(definition?.range || "").trim();
+
+      const match = range.match(
+        /(\d{1,2})\/(\d{1,2})\s*(?:al|a|-|–|—)\s*(\d{1,2})\/(\d{1,2})/i,
+      );
+
+      if (!match) {
+        return null;
+      }
+
+      const startDay = Number(match[1]);
+      const startMonth = Number(match[2]);
+      const endDay = Number(match[3]);
+      const endMonth = Number(match[4]);
+
+      if (!startDay || !startMonth || !endDay || !endMonth) {
+        return null;
+      }
+
+      const startDate = new Date(year, startMonth - 1, startDay, 12, 0, 0, 0);
+
+      let endYear = year;
+
+      if (endMonth < startMonth) {
+        endYear += 1;
+      }
+
+      const endDate = new Date(endYear, endMonth - 1, endDay, 12, 0, 0, 0);
+
+      return {
+        id: String(definition.id || "").trim(),
+        label: String(definition.label || definition.id || "").trim(),
+        range,
+        rawStartDate: startDate,
+        rawEndDate: endDate,
+      };
+    })
+    .filter(Boolean)
+    .sort(
+      (left, right) =>
+        left.rawStartDate.getTime() - right.rawStartDate.getTime(),
+    );
+
+  /*
+   * Algunos calendarios pueden definir el final
+   * de un sprint el mismo día en que comienza
+   * el siguiente.
+   *
+   * Para la representación gráfica evitamos
+   * solapes entre columnas.
+   */
+  const normalizedPeriods = parsedPeriods.map((currentPeriod, index) => {
+    const nextPeriod = parsedPeriods[index + 1];
+
+    let effectiveEndDate = new Date(currentPeriod.rawEndDate);
+
+    if (nextPeriod && nextPeriod.rawStartDate <= effectiveEndDate) {
+      effectiveEndDate = new Date(nextPeriod.rawStartDate);
+
+      effectiveEndDate.setDate(effectiveEndDate.getDate() - 1);
+    }
+
+    return {
+      ...currentPeriod,
+      effectiveEndDate,
+    };
+  });
+
+  return normalizedPeriods
+    .filter(
+      (sprint) =>
+        sprint.rawStartDate <= quarterPeriod.endDate &&
+        sprint.effectiveEndDate >= quarterPeriod.startDate,
+    )
+    .map((sprint) => {
+      const startDate = clampRoadmapDate(
+        sprint.rawStartDate,
+        quarterPeriod.startDate,
+        quarterPeriod.endDate,
+      );
+
+      const endDate = clampRoadmapDate(
+        sprint.effectiveEndDate,
+        quarterPeriod.startDate,
+        quarterPeriod.endDate,
+      );
+
+      const durationDays = Math.max(
+        1,
+        Math.round(
+          (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
+        ) + 1,
+      );
+
+      return {
+        id: sprint.id,
+        label: sprint.label,
+        range: sprint.range,
+        startDate,
+        endDate,
+        durationDays,
+      };
+    });
+}
 function getManagementSpecialistRoadmapStatusOptions() {
   return [
     getManagementSpecialistRoadmapStatusMeta("pending"),
@@ -9890,6 +10066,33 @@ function renderManagementSpecialistRoadmapView(programId) {
 
   const period = getRoadmapPeriod(state.quarter, state.year);
 
+  const sprintPeriods = getManagementSpecialistRoadmapSprintPeriods(
+    normalizedProgramId,
+    state.quarter,
+    state.year,
+  );
+
+  const hasSprintView = state.quarter !== "ALL" && sprintPeriods.length > 0;
+
+  if (state.granularity === "sprint" && !hasSprintView) {
+    state.granularity = "month";
+  }
+
+  const isSprintView = state.granularity === "sprint" && hasSprintView;
+
+  /*
+   * En vista mensual utilizamos el quarter completo.
+   *
+   * En vista sprint utilizamos exactamente el
+   * calendario configurado de sprints.
+   */
+  const timelinePeriod = isSprintView
+    ? {
+        startDate: new Date(sprintPeriods[0].startDate),
+        endDate: new Date(sprintPeriods[sprintPeriods.length - 1].endDate),
+      }
+    : period;
+
   const canEdit = rcsCanEdit(normalizedProgramId);
 
   const riskCount = visibleTasks.filter((task) =>
@@ -9909,45 +10112,95 @@ function renderManagementSpecialistRoadmapView(programId) {
 
   const monthCount = period.months.length;
 
-  const monthHeaders = period.months
-    .map(
-      (month) => `
-        <div
-          style="
-            padding: 12px 8px;
-            text-align: center;
-            border-left: 1px solid rgba(255, 255, 255, 0.14);
-            color: #ffffff;
-          "
-        >
-          <strong
-            style="
-              display: block;
-              font-size: 13px;
-              text-transform: capitalize;
-            "
-          >
-            ${rcsEsc(
-              month.toLocaleDateString("es-ES", {
-                month: "short",
-              }),
-            )}
-          </strong>
+  const timelineGridTemplate = isSprintView
+    ? sprintPeriods
+        .map((sprint) => `${Math.max(1, sprint.durationDays)}fr`)
+        .join(" ")
+    : `repeat(${monthCount}, 1fr)`;
 
-          <span
-            style="
-              display: block;
-              margin-top: 3px;
-              font-size: 11px;
-              opacity: 0.82;
-            "
-          >
-            ${month.getFullYear()}
-          </span>
-        </div>
-      `,
-    )
-    .join("");
+  const timelineHeaders = isSprintView
+    ? sprintPeriods
+        .map(
+          (sprint) => `
+            <div
+              style="
+                padding: 10px 6px;
+                text-align: center;
+                border-left:
+                  1px solid
+                  rgba(255, 255, 255, 0.14);
+                color: #ffffff;
+              "
+            >
+              <strong
+                style="
+                  display: block;
+                  font-size: 13px;
+                "
+              >
+                ${rcsEsc(sprint.label)}
+              </strong>
+
+              <span
+                style="
+                  display: block;
+                  margin-top: 3px;
+                  font-size: 10px;
+                  opacity: 0.82;
+                  white-space: nowrap;
+                "
+              >
+                ${rcsEsc(sprint.range)}
+              </span>
+            </div>
+          `,
+        )
+        .join("")
+    : period.months
+        .map(
+          (month) => `
+            <div
+              style="
+                padding: 12px 8px;
+                text-align: center;
+                border-left:
+                  1px solid
+                  rgba(255, 255, 255, 0.14);
+                color: #ffffff;
+              "
+            >
+              <strong
+                style="
+                  display: block;
+                  font-size: 13px;
+                  text-transform: capitalize;
+                "
+              >
+                ${rcsEsc(
+                  month.toLocaleDateString("es-ES", {
+                    month: "short",
+                  }),
+                )}
+              </strong>
+
+              <span
+                style="
+                  display: block;
+                  margin-top: 3px;
+                  font-size: 11px;
+                  opacity: 0.82;
+                "
+              >
+                ${month.getFullYear()}
+              </span>
+            </div>
+          `,
+        )
+        .join("");
+
+  const timelineBackgroundColumns = isSprintView
+    ? sprintPeriods
+    : period.months;
 
   const renderTaskRow = (task) => {
     const statusKey = normalizeManagementSpecialistRoadmapStatus(
@@ -9961,7 +10214,9 @@ function renderManagementSpecialistRoadmapView(programId) {
     const range = getManagementSpecialistTaskPlanningRange(task);
 
     const hasVisibleRange =
-      range && range.start <= period.endDate && range.end >= period.startDate;
+      range &&
+      range.start <= timelinePeriod.endDate &&
+      range.end >= timelinePeriod.startDate;
 
     let left = 0;
     let width = 0;
@@ -9969,21 +10224,24 @@ function renderManagementSpecialistRoadmapView(programId) {
     if (hasVisibleRange) {
       const visibleStart = clampRoadmapDate(
         range.start,
-        period.startDate,
-        period.endDate,
+        timelinePeriod.startDate,
+        timelinePeriod.endDate,
       );
 
       const visibleEnd = clampRoadmapDate(
         range.end,
-        period.startDate,
-        period.endDate,
+        timelinePeriod.startDate,
+        timelinePeriod.endDate,
       );
 
-      left = getRoadmapDatePosition(visibleStart, period) || 0;
+      left = getRoadmapDatePosition(visibleStart, timelinePeriod) || 0;
 
-      const right = getRoadmapDatePosition(visibleEnd, period) || left;
+      const right = getRoadmapDatePosition(visibleEnd, timelinePeriod) || left;
 
-      width = Math.max(state.quarter === "ALL" ? 1.5 : 3, right - left);
+      width = Math.max(
+        state.quarter === "ALL" ? 1.5 : isSprintView ? 2 : 3,
+        right - left,
+      );
 
       width = Math.min(width, 100 - left);
     }
@@ -9992,315 +10250,501 @@ function renderManagementSpecialistRoadmapView(programId) {
       taskProgress.progress === null ? 0 : taskProgress.progress;
 
     return `
-      <article
+    <article
+      style="
+        display: grid;
+        grid-template-columns:
+          minmax(360px, 420px)
+          minmax(720px, 1fr);
+        border-top: 1px solid #e5ebf5;
+        background: #ffffff;
+      "
+    >
+      <div
         style="
-          display: grid;
-          grid-template-columns:
-            minmax(360px, 420px)
-            minmax(720px, 1fr);
-          border-top: 1px solid #e5ebf5;
-          background: #ffffff;
+          padding: 20px 18px 18px;
+          border-right: 1px solid #dbe5f4;
         "
       >
+        <!--
+          =================================================
+          NIVEL 1 · TAREA
+          =================================================
+        -->
+
         <div
           style="
-            padding: 18px;
-            border-right: 1px solid #dbe5f4;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
           "
         >
           <div
             style="
-              display: flex;
-              align-items: flex-start;
-              justify-content: space-between;
-              gap: 12px;
+              flex: 1 1 auto;
+              min-width: 0;
             "
           >
-            <div>
-              <span
-                style="
-                  display: inline-flex;
-                  margin-bottom: 6px;
-                  font-size: 11px;
-                  font-weight: 700;
-                  color: #64748b;
-                  text-transform: uppercase;
-                  letter-spacing: 0.05em;
-                "
-              >
-                ${rcsEsc(task.quarter || "Sin Q")}
-              </span>
-
-              <strong
-                style="
-                  display: block;
-                  color: #001391;
-                  font-size: 15px;
-                  line-height: 1.35;
-                "
-              >
-                ${rcsEsc(task.title)}
-              </strong>
-            </div>
-
             <span
               style="
-                flex: 0 0 auto;
-                display: inline-flex;
-                align-items: center;
-                min-height: 30px;
-                padding: 0 10px;
-                border-radius: 999px;
-                border: 1px solid ${statusMeta.border};
-                background: ${statusMeta.background};
-                color: ${statusMeta.textColor};
-                font-size: 11px;
-                font-weight: 700;
+                display: block;
+                margin-bottom: 5px;
+                color: #64748b;
+                font-size: 10px;
+                font-weight: 800;
+                line-height: 1;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
               "
             >
-              ${rcsEsc(statusMeta.label)}
-            </span>
-          </div>
-
-          <div
-            style="
-              display: grid;
-              grid-template-columns: 1fr auto;
-              gap: 10px;
-              margin-top: 12px;
-              color: #475569;
-              font-size: 12px;
-            "
-          >
-            <span>
-              <b>Owner:</b>
-              ${rcsEsc(task.owner || "—")}
+              ${rcsEsc(task.quarter || "Sin Q")}
             </span>
 
             <strong
               style="
+                display: block;
                 color: #001391;
+                font-size: 18px;
+                font-weight: 800;
+                line-height: 1.3;
+                letter-spacing: -0.01em;
               "
             >
-              ${
-                taskProgress.progress === null
-                  ? "—"
-                  : `${taskProgress.progress}%`
-              }
+              ${rcsEsc(task.title)}
             </strong>
           </div>
 
-          ${
-            task.comments
-              ? `
+          <!-- Estado -->
+
+          <span
+            style="
+              flex: 0 0 auto;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 30px;
+              padding: 0 11px;
+              border-radius: 999px;
+              border: 1px solid ${statusMeta.border};
+              background: ${statusMeta.background};
+              color: ${statusMeta.textColor};
+              font-size: 11px;
+              font-weight: 800;
+              white-space: nowrap;
+            "
+          >
+            ${rcsEsc(statusMeta.label)}
+          </span>
+        </div>
+
+        <!--
+          =================================================
+          NIVEL 2 · COMENTARIO
+          =================================================
+        -->
+
+        ${
+          task.comments
+            ? `
+              <div
+                style="
+                  margin-top: 13px;
+                  padding: 10px 12px;
+                  border-left: 3px solid #d9e2f3;
+                  border-radius: 0 8px 8px 0;
+                  background: #f8faff;
+                "
+              >
+                <span
+                  style="
+                    display: block;
+                    margin-bottom: 3px;
+                    color: #7b879b;
+                    font-size: 9px;
+                    font-weight: 800;
+                    letter-spacing: 0.07em;
+                    text-transform: uppercase;
+                  "
+                >
+                  Comentario
+                </span>
+
                 <p
                   style="
-                    margin: 10px 0 0;
-                    color: #64748b;
-                    font-size: 12px;
+                    margin: 0;
+                    color: #334155;
+                    font-size: 13px;
                     line-height: 1.45;
                   "
                 >
                   ${rcsEsc(task.comments)}
                 </p>
-              `
-              : ""
-          }
+              </div>
+            `
+            : ""
+        }
 
-          <div
-            style="
-              display: flex;
-              flex-wrap: wrap;
-              gap: 6px;
-              margin-top: 12px;
-            "
-          >
+        <!--
+          =================================================
+          NIVEL 3 · OWNER
+          =================================================
+        -->
+
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 13px;
+            color: #64748b;
+            font-size: 12px;
+          "
+        >
+          <span>
             <span
-              class="management-report-badge"
+              style="
+                color: #94a3b8;
+                font-size: 10px;
+                font-weight: 800;
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+              "
             >
-              ${taskProgress.sourceCounts.sda}
-              SDA
+              Owner
             </span>
 
-            <span
-              class="management-report-badge"
+            <strong
+              style="
+                margin-left: 5px;
+                color: #475569;
+                font-size: 12px;
+              "
             >
-              ${taskProgress.sourceCounts.epic}
-              Épicas
-            </span>
-
-            <span
-              class="management-report-badge"
-            >
-              ${taskProgress.sourceCounts.feature}
-              Features
-            </span>
-
-            <span
-              class="management-report-badge"
-            >
-              ${taskProgress.deployedCount}/${taskProgress.featureCount}
-              deployed
-            </span>
-          </div>
+              ${rcsEsc(task.owner || "—")}
+            </strong>
+          </span>
 
           ${
-            canEdit && state.configMode
+            taskProgress.progress !== null
               ? `
-                <div
+                <strong
                   style="
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 8px;
-                    margin-top: 14px;
+                    color: ${statusMeta.textColor};
+                    font-size: 12px;
                   "
                 >
-                  <button
-                    class="ghost-button"
-                    type="button"
-                    data-specialist-task-edit="${rcsEsc(task.id)}"
-                  >
-                    Editar
-                  </button>
-
-                  <button
-                    class="ghost-button"
-                    type="button"
-                    data-specialist-task-sources="${rcsEsc(task.id)}"
-                  >
-                    Fuentes
-                  </button>
-                </div>
+                  ${taskProgress.progress}%
+                </strong>
               `
               : ""
           }
         </div>
 
+        <!--
+          =================================================
+          NIVEL 4 · TRAZABILIDAD
+          =================================================
+        -->
+
         <div
           style="
-            position: relative;
-            min-height: 150px;
-            overflow: hidden;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 11px;
+            opacity: 0.72;
           "
         >
-          <div
-            style="
-              position: absolute;
-              inset: 0;
-              display: grid;
-              grid-template-columns:
-                repeat(${monthCount}, 1fr);
-              pointer-events: none;
-            "
-          >
-            ${period.months
-              .map(
-                () => `
-                  <span
-                    style="
-                      border-left: 1px solid #edf1f7;
-                    "
-                  ></span>
-                `,
-              )
-              .join("")}
-          </div>
+          ${
+            taskProgress.sourceCounts.sda
+              ? `
+                <span
+                  style="
+                    display: inline-flex;
+                    align-items: center;
+                    min-height: 22px;
+                    padding: 0 7px;
+                    border: 1px solid #e3e8f0;
+                    border-radius: 999px;
+                    background: #f8fafc;
+                    color: #64748b;
+                    font-size: 9px;
+                    font-weight: 700;
+                  "
+                >
+                  ${taskProgress.sourceCounts.sda}
+                  SDA
+                </span>
+              `
+              : ""
+          }
 
           ${
-            hasVisibleRange
+            taskProgress.sourceCounts.epic
               ? `
-                <div
+                <span
                   style="
-                    position: absolute;
-                    top: 52px;
-                    left: ${left}%;
-                    width: ${width}%;
-                    min-width: 16px;
-                    height: 42px;
-                    border-radius: 8px;
-                    overflow: hidden;
-                    background: #dfe9f8;
-                    border: 1px solid rgba(0, 19, 145, 0.18);
-                    box-sizing: border-box;
-                  "
-                  title="${rcsEsc(
-                    `${task.title} · ${
-                      taskProgress.progress === null
-                        ? "Sin avance calculable"
-                        : `${taskProgress.progress}%`
-                    }`,
-                  )}"
-                >
-                  <span
-                    style="
-                      position: absolute;
-                      inset: 0 auto 0 0;
-                      width: ${progressValue}%;
-                      background: #1464c9;
-                    "
-                  ></span>
-
-                  <strong
-                    style="
-                      position: absolute;
-                      inset: 0;
-                      display: flex;
-                      align-items: center;
-                      justify-content: center;
-                      padding: 0 8px;
-                      color: ${progressValue >= 45 ? "#ffffff" : "#001391"};
-                      font-size: 12px;
-                      font-weight: 700;
-                      white-space: nowrap;
-                      z-index: 2;
-                    "
-                  >
-                    ${
-                      taskProgress.progress === null
-                        ? "Sin Features"
-                        : `${taskProgress.progress}% · ${taskProgress.deployedCount}/${taskProgress.featureCount}`
-                    }
-                  </strong>
-                </div>
-
-                <small
-                  style="
-                    position: absolute;
-                    top: 104px;
-                    left: ${left}%;
+                    display: inline-flex;
+                    align-items: center;
+                    min-height: 22px;
+                    padding: 0 7px;
+                    border: 1px solid #e3e8f0;
+                    border-radius: 999px;
+                    background: #f8fafc;
                     color: #64748b;
-                    font-size: 10px;
-                    white-space: nowrap;
+                    font-size: 9px;
+                    font-weight: 700;
                   "
                 >
-                  ${rcsEsc(formatDate(range.start))}
-                  →
-                  ${rcsEsc(formatDate(range.end))}
-                </small>
+                  ${taskProgress.sourceCounts.epic}
+                  Épicas
+                </span>
               `
-              : `
-                <div
+              : ""
+          }
+
+          ${
+            taskProgress.sourceCounts.feature
+              ? `
+                <span
+                  style="
+                    display: inline-flex;
+                    align-items: center;
+                    min-height: 22px;
+                    padding: 0 7px;
+                    border: 1px solid #e3e8f0;
+                    border-radius: 999px;
+                    background: #f8fafc;
+                    color: #64748b;
+                    font-size: 9px;
+                    font-weight: 700;
+                  "
+                >
+                  ${taskProgress.sourceCounts.feature}
+                  Features
+                </span>
+              `
+              : ""
+          }
+
+          ${
+            taskProgress.featureCount
+              ? `
+                <span
+                  style="
+                    display: inline-flex;
+                    align-items: center;
+                    min-height: 22px;
+                    padding: 0 7px;
+                    border: 1px solid #e3e8f0;
+                    border-radius: 999px;
+                    background: #f8fafc;
+                    color: #64748b;
+                    font-size: 9px;
+                    font-weight: 700;
+                  "
+                >
+                  ${taskProgress.deployedCount}/${taskProgress.featureCount}
+                  deployed
+                </span>
+              `
+              : ""
+          }
+        </div>
+
+        ${
+          canEdit && state.configMode
+            ? `
+              <div
+                style="
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 8px;
+                  margin-top: 14px;
+                "
+              >
+                <button
+                  class="ghost-button"
+                  type="button"
+                  data-specialist-task-edit="${rcsEsc(task.id)}"
+                >
+                  Editar
+                </button>
+
+                <button
+                  class="ghost-button"
+                  type="button"
+                  data-specialist-task-sources="${rcsEsc(task.id)}"
+                >
+                  Fuentes
+                </button>
+              </div>
+            `
+            : ""
+        }
+      </div>
+
+      <!--
+        ===================================================
+        TIMELINE
+        ===================================================
+      -->
+
+      <div
+        style="
+          position: relative;
+          min-height: 160px;
+          overflow: hidden;
+        "
+      >
+        <div
+          style="
+            position: absolute;
+            inset: 0;
+            display: grid;
+            grid-template-columns:
+              ${timelineGridTemplate};
+            pointer-events: none;
+          "
+        >
+          ${timelineBackgroundColumns
+            .map(
+              () => `
+                <span
+                  style="
+                    border-left:
+                      1px solid #edf1f7;
+                  "
+                ></span>
+              `,
+            )
+            .join("")}
+        </div>
+
+        ${
+          hasVisibleRange
+            ? `
+              <div
+                style="
+                  position: absolute;
+                  top: 52px;
+                  left: ${left}%;
+                  width: ${width}%;
+                  min-width: 18px;
+                  height: 44px;
+                  border-radius: 9px;
+                  overflow: hidden;
+                  background: ${statusMeta.barTrack};
+                  border:
+                    1px solid
+                    ${statusMeta.border};
+                  box-sizing: border-box;
+                  box-shadow:
+                    0 3px 10px
+                    rgba(7, 46, 111, 0.05);
+                "
+                title="${rcsEsc(
+                  `${task.title} · ${statusMeta.label} · ${
+                    taskProgress.progress === null
+                      ? "Sin avance calculable"
+                      : `${taskProgress.progress}%`
+                  }`,
+                )}"
+              >
+                <span
+                  style="
+                    position: absolute;
+                    inset: 0 auto 0 0;
+                    width: ${
+                      taskProgress.progress === null ? "100" : progressValue
+                    }%;
+                    background:
+                      ${statusMeta.barColor};
+                    opacity:
+                      ${taskProgress.progress === null ? "0.55" : "1"};
+                  "
+                ></span>
+
+                <strong
                   style="
                     position: absolute;
                     inset: 0;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    padding: 20px;
-                    color: #94a3b8;
-                    font-size: 12px;
-                    text-align: center;
+                    padding: 0 8px;
+                    color:
+                      ${
+                        taskProgress.progress === null
+                          ? statusMeta.textColor
+                          : progressValue >= 45
+                            ? "#ffffff"
+                            : statusMeta.textColor
+                      };
+                    font-size: 11px;
+                    font-weight: 800;
+                    white-space: nowrap;
+                    z-index: 2;
                   "
                 >
-                  Sin planificación temporal.
-                  Asocia Features o informa fechas
-                  manuales en Configurar.
-                </div>
-              `
-          }
-        </div>
-      </article>
-    `;
+                  ${
+                    taskProgress.progress === null
+                      ? statusMeta.label
+                      : `${taskProgress.progress}%`
+                  }
+                </strong>
+              </div>
+
+              <small
+                style="
+                  position: absolute;
+                  top: 105px;
+                  left: ${left}%;
+                  color: #64748b;
+                  font-size: 10px;
+                  white-space: nowrap;
+                "
+              >
+                ${rcsEsc(formatDate(range.start))}
+                →
+                ${rcsEsc(formatDate(range.end))}
+              </small>
+            `
+            : `
+              <div
+                style="
+                  position: absolute;
+                  inset: 0;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  padding: 20px;
+                  color: #94a3b8;
+                  font-size: 12px;
+                  text-align: center;
+                "
+              >
+                ${
+                  isSprintView && range
+                    ? `
+                      Fuera del calendario
+                      de sprints configurado.
+                    `
+                    : `
+                      Sin planificación temporal.
+                      Asocia Features o informa
+                      fechas manuales en Configurar.
+                    `
+                }
+              </div>
+            `
+        }
+      </div>
+    </article>
+  `;
   };
 
   setHead(
@@ -10346,13 +10790,6 @@ function renderManagementSpecialistRoadmapView(programId) {
     return;
   }
 
-  /*
-   * El template utiliza originalmente este
-   * contenedor como grid de tarjetas.
-   *
-   * En esta vista pasa a contener un único
-   * dashboard completo.
-   */
   container.classList.remove("management-reports-grid");
 
   container.innerHTML = `
@@ -10573,6 +11010,47 @@ function renderManagementSpecialistRoadmapView(programId) {
                 .join("")}
             </nav>
           </div>
+
+          ${
+            state.quarter !== "ALL" && hasSprintView
+              ? `
+                <div
+                  class="aixbanker-roadmap-filter-group"
+                >
+                  <span
+                    class="aixbanker-roadmap-filter-label"
+                  >
+                    Vista
+                  </span>
+
+                  <nav
+                    class="executive-filter-row"
+                    aria-label="Cambiar granularidad del roadmap"
+                  >
+                    <button
+                      class="quarter-btn ${
+                        state.granularity === "month" ? "active" : ""
+                      }"
+                      type="button"
+                      data-specialist-granularity="month"
+                    >
+                      Meses
+                    </button>
+
+                    <button
+                      class="quarter-btn ${
+                        state.granularity === "sprint" ? "active" : ""
+                      }"
+                      type="button"
+                      data-specialist-granularity="sprint"
+                    >
+                      Sprints
+                    </button>
+                  </nav>
+                </div>
+              `
+              : ""
+          }
         </div>
       </section>
 
@@ -10587,7 +11065,14 @@ function renderManagementSpecialistRoadmapView(programId) {
       >
         <div
           style="
-            min-width: ${state.quarter === "ALL" ? "1500px" : "1180px"};
+            min-width:
+              ${
+                state.quarter === "ALL"
+                  ? "1500px"
+                  : isSprintView
+                    ? "1250px"
+                    : "1180px"
+              };
           "
         >
           <div
@@ -10616,10 +11101,10 @@ function renderManagementSpecialistRoadmapView(programId) {
               style="
                 display: grid;
                 grid-template-columns:
-                  repeat(${monthCount}, 1fr);
+                  ${timelineGridTemplate};
               "
             >
-              ${monthHeaders}
+              ${timelineHeaders}
             </div>
           </div>
 
@@ -10648,9 +11133,26 @@ function renderManagementSpecialistRoadmapView(programId) {
     button.addEventListener("click", () => {
       state.quarter = button.dataset.specialistQuarter;
 
+      if (state.quarter === "ALL") {
+        state.granularity = "month";
+      }
+
       renderManagementSpecialistRoadmapView(normalizedProgramId);
     });
   });
+
+  container
+    .querySelectorAll("[data-specialist-granularity]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        state.granularity =
+          button.dataset.specialistGranularity === "sprint"
+            ? "sprint"
+            : "month";
+
+        renderManagementSpecialistRoadmapView(normalizedProgramId);
+      });
+    });
 
   container
     .querySelectorAll("[data-specialist-config-toggle]")
