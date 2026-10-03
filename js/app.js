@@ -9014,6 +9014,246 @@ function getManagementSpecialistRoadmapUiState() {
 
   return state;
 }
+function getSharedSprintCalendar(year = 2026) {
+  const normalizedYear = Number(year) || 2026;
+
+  /*
+   * =====================================================
+   * CALENDARIO CORPORATIVO DE SPRINTS
+   * =====================================================
+   *
+   * Este calendario es transversal al Cockpit.
+   *
+   * No pertenece a Pase a Especialista ni a ningún
+   * informe concreto.
+   *
+   * Cualquier vista puede consumirlo mediante:
+   *
+   * getSharedSprintCalendar(year)
+   * getSharedSprintPeriods(quarter, year)
+   *
+   * La referencia conocida actualmente es Q4 2026:
+   *
+   * Q4
+   * S1 · 23/09 al 13/10
+   * S2 · 14/10 al 03/11
+   * S3 · 04/11 al 17/11
+   * S4 · 18/11 al 01/12
+   * S5 · 02/12 al 16/12
+   * S0 · 16/12 al 22/12
+   *
+   * Cada quarter ocupa 13 semanas.
+   *
+   * La cadencia se proyecta hacia atrás y hacia
+   * adelante manteniendo el mismo patrón temporal.
+   */
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  /*
+   * Anchor oficial disponible actualmente.
+   */
+  const BASE_YEAR = 2026;
+
+  const BASE_Q4_START = new Date(2026, 8, 23, 12, 0, 0, 0);
+
+  /*
+   * 52 semanas exactas por ciclo anual.
+   *
+   * Esto mantiene el mismo día de la semana
+   * entre calendarios consecutivos.
+   */
+  const yearDifference = normalizedYear - BASE_YEAR;
+
+  const annualOffsetDays = yearDifference * 364;
+
+  const q4Start = new Date(BASE_Q4_START.getTime() + annualOffsetDays * DAY_MS);
+
+  /*
+   * Cada quarter son 13 semanas = 91 días.
+   */
+  const quarterDefinitions = [
+    {
+      id: "Q1",
+      offsetDays: -273,
+    },
+    {
+      id: "Q2",
+      offsetDays: -182,
+    },
+    {
+      id: "Q3",
+      offsetDays: -91,
+    },
+    {
+      id: "Q4",
+      offsetDays: 0,
+    },
+  ];
+
+  /*
+   * Patrón actualmente utilizado en Q4.
+   *
+   * S5 y S0 comparten el día de transición.
+   *
+   * Para la representación gráfica se calcula
+   * posteriormente un endDate efectivo sin
+   * solapamiento, pero se conserva el rango
+   * original para mostrarlo al usuario.
+   */
+  const sprintDefinitions = [
+    {
+      id: "S1",
+      startOffset: 0,
+      endOffset: 20,
+    },
+    {
+      id: "S2",
+      startOffset: 21,
+      endOffset: 41,
+    },
+    {
+      id: "S3",
+      startOffset: 42,
+      endOffset: 55,
+    },
+    {
+      id: "S4",
+      startOffset: 56,
+      endOffset: 69,
+    },
+    {
+      id: "S5",
+      startOffset: 70,
+      endOffset: 84,
+    },
+    {
+      id: "S0",
+      startOffset: 84,
+      endOffset: 90,
+    },
+  ];
+
+  const formatSprintDate = (date) =>
+    [
+      String(date.getDate()).padStart(2, "0"),
+      String(date.getMonth() + 1).padStart(2, "0"),
+    ].join("/");
+
+  const calendar = [];
+
+  quarterDefinitions.forEach((quarterDefinition) => {
+    const quarterStart = new Date(
+      q4Start.getTime() + quarterDefinition.offsetDays * DAY_MS,
+    );
+
+    const rawSprints = sprintDefinitions.map((sprintDefinition) => {
+      const startDate = new Date(
+        quarterStart.getTime() + sprintDefinition.startOffset * DAY_MS,
+      );
+
+      const rawEndDate = new Date(
+        quarterStart.getTime() + sprintDefinition.endOffset * DAY_MS,
+      );
+
+      return {
+        id: `${quarterDefinition.id}-` + sprintDefinition.id,
+
+        quarter: quarterDefinition.id,
+
+        label: sprintDefinition.id,
+
+        year: normalizedYear,
+
+        startDate,
+
+        rawEndDate,
+      };
+    });
+
+    rawSprints.forEach((sprint, index) => {
+      const nextSprint = rawSprints[index + 1] || null;
+
+      let effectiveEndDate = new Date(sprint.rawEndDate);
+
+      /*
+       * Evitamos que dos columnas gráficas
+       * compartan el mismo día.
+       *
+       * El texto mostrado conserva el rango
+       * original.
+       */
+      if (nextSprint && nextSprint.startDate <= effectiveEndDate) {
+        effectiveEndDate = new Date(nextSprint.startDate);
+
+        effectiveEndDate.setDate(effectiveEndDate.getDate() - 1);
+      }
+
+      const durationDays = Math.max(
+        1,
+        Math.round(
+          (effectiveEndDate.getTime() - sprint.startDate.getTime()) / DAY_MS,
+        ) + 1,
+      );
+
+      calendar.push({
+        id: sprint.id,
+
+        quarter: sprint.quarter,
+
+        label: sprint.label,
+
+        year: sprint.year,
+
+        range: `${formatSprintDate(sprint.startDate)} al ${formatSprintDate(
+          sprint.rawEndDate,
+        )}`,
+
+        startDate: new Date(sprint.startDate),
+
+        endDate: effectiveEndDate,
+
+        rawEndDate: new Date(sprint.rawEndDate),
+
+        durationDays,
+      });
+    });
+  });
+
+  return calendar;
+}
+function getSharedSprintPeriods(quarter = "ALL", year = 2026) {
+  const normalizedQuarter = String(quarter || "ALL")
+    .trim()
+    .toUpperCase();
+
+  const calendar = getSharedSprintCalendar(year);
+
+  if (normalizedQuarter === "ALL") {
+    return calendar;
+  }
+
+  if (!["Q1", "Q2", "Q3", "Q4"].includes(normalizedQuarter)) {
+    return [];
+  }
+
+  /*
+   * La pertenencia al quarter es explícita.
+   *
+   * Esto es importante porque algunos sprints
+   * comienzan antes del cambio de mes o del
+   * quarter calendario.
+   *
+   * Por ejemplo:
+   *
+   * Q4-S1 comienza el 23/09.
+   *
+   * Sigue perteneciendo a Q4 y no debe aparecer
+   * dentro de Q3 simplemente porque sus fechas
+   * intersecten septiembre.
+   */
+  return calendar.filter((sprint) => sprint.quarter === normalizedQuarter);
+}
 function getManagementSpecialistRoadmapSprintPeriods(
   programId,
   quarter,
@@ -9027,6 +9267,10 @@ function getManagementSpecialistRoadmapSprintPeriods(
     .trim()
     .toUpperCase();
 
+  if (!normalizedProgramId) {
+    return [];
+  }
+
   if (
     normalizedQuarter === "ALL" ||
     !["Q1", "Q2", "Q3", "Q4"].includes(normalizedQuarter)
@@ -9034,121 +9278,14 @@ function getManagementSpecialistRoadmapSprintPeriods(
     return [];
   }
 
-  const roadmap = MANAGEMENT_SPECIALIST_ROADMAPS[normalizedProgramId];
-
-  const definitions = Array.isArray(roadmap?.periods) ? roadmap.periods : [];
-
-  if (!definitions.length) {
-    return [];
-  }
-
-  const quarterPeriod = getRoadmapPeriod(normalizedQuarter, year);
-
-  const parsedPeriods = definitions
-    .map((definition) => {
-      const range = String(definition?.range || "").trim();
-
-      const match = range.match(
-        /(\d{1,2})\/(\d{1,2})\s*(?:al|a|-|–|—)\s*(\d{1,2})\/(\d{1,2})/i,
-      );
-
-      if (!match) {
-        return null;
-      }
-
-      const startDay = Number(match[1]);
-      const startMonth = Number(match[2]);
-      const endDay = Number(match[3]);
-      const endMonth = Number(match[4]);
-
-      if (!startDay || !startMonth || !endDay || !endMonth) {
-        return null;
-      }
-
-      const startDate = new Date(year, startMonth - 1, startDay, 12, 0, 0, 0);
-
-      let endYear = year;
-
-      if (endMonth < startMonth) {
-        endYear += 1;
-      }
-
-      const endDate = new Date(endYear, endMonth - 1, endDay, 12, 0, 0, 0);
-
-      return {
-        id: String(definition.id || "").trim(),
-        label: String(definition.label || definition.id || "").trim(),
-        range,
-        rawStartDate: startDate,
-        rawEndDate: endDate,
-      };
-    })
-    .filter(Boolean)
-    .sort(
-      (left, right) =>
-        left.rawStartDate.getTime() - right.rawStartDate.getTime(),
-    );
-
   /*
-   * Algunos calendarios pueden definir el final
-   * de un sprint el mismo día en que comienza
-   * el siguiente.
+   * Pase a Especialista deja de tener
+   * calendario propio.
    *
-   * Para la representación gráfica evitamos
-   * solapes entre columnas.
+   * Consume el calendario compartido que
+   * puede utilizar cualquier otro informe.
    */
-  const normalizedPeriods = parsedPeriods.map((currentPeriod, index) => {
-    const nextPeriod = parsedPeriods[index + 1];
-
-    let effectiveEndDate = new Date(currentPeriod.rawEndDate);
-
-    if (nextPeriod && nextPeriod.rawStartDate <= effectiveEndDate) {
-      effectiveEndDate = new Date(nextPeriod.rawStartDate);
-
-      effectiveEndDate.setDate(effectiveEndDate.getDate() - 1);
-    }
-
-    return {
-      ...currentPeriod,
-      effectiveEndDate,
-    };
-  });
-
-  return normalizedPeriods
-    .filter(
-      (sprint) =>
-        sprint.rawStartDate <= quarterPeriod.endDate &&
-        sprint.effectiveEndDate >= quarterPeriod.startDate,
-    )
-    .map((sprint) => {
-      const startDate = clampRoadmapDate(
-        sprint.rawStartDate,
-        quarterPeriod.startDate,
-        quarterPeriod.endDate,
-      );
-
-      const endDate = clampRoadmapDate(
-        sprint.effectiveEndDate,
-        quarterPeriod.startDate,
-        quarterPeriod.endDate,
-      );
-
-      const durationDays = Math.max(
-        1,
-        Math.round(
-          (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
-        ) + 1,
-      );
-
-      return {
-        id: sprint.id,
-        label: sprint.label,
-        range: sprint.range,
-        startDate,
-        endDate,
-        durationDays,
-      };
-    });
+  return getSharedSprintPeriods(normalizedQuarter, year);
 }
 function getManagementSpecialistRoadmapStatusOptions() {
   return [
