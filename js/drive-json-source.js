@@ -3,7 +3,7 @@
  * RCS COCKPIT · DATA SOURCE
  * =========================================================
  *
- * Apps Script tiene únicamente tres responsabilidades
+ * Apps Script tiene únicamente dos responsabilidades
  * desde el navegador:
  *
  * 1. ACCESS CONTROL
@@ -14,14 +14,16 @@
  *
  *    Servir el JSON ya generado en Drive.
  *
- *    No reconstruye datos.
+ *    No reconstruye datos durante la carga normal.
  *
- * 3. REFRESH
+ * La regeneración del snapshot pertenece al proceso
+ * batch horario de Apps Script.
  *
- *    Regenerar explícitamente la fotografía cuando
- *    el usuario pulsa "Actualizar datos".
+ * Excepcionalmente, si el snapshot nunca ha existido,
+ * el propio backend ejecutará la primera generación.
  *
- * No existen cargas de negocio por dataset.
+ * No existen cargas de negocio por dataset desde
+ * el navegador.
  * =========================================================
  */
 
@@ -192,36 +194,4 @@ async function loadJsonp(
   }
 
   throw lastError || new Error("No se ha podido completar la llamada JSONP.");
-}
-
-/* =========================================================
- * REFRESH EXPLÍCITO
- * ========================================================= */
-
-async function triggerDataRefresh(url, { timeoutMs = 120000 } = {}) {
-  const normalizedUrl = String(url || "").trim();
-
-  if (!normalizedUrl) {
-    throw new Error("No se ha configurado la URL de actualización.");
-  }
-
-  const refreshUrl = new URL(normalizedUrl, window.location.href);
-
-  refreshUrl.searchParams.delete("dataset");
-
-  refreshUrl.searchParams.delete("action");
-
-  refreshUrl.searchParams.set("action", "refresh");
-
-  const payload = await createJsonpRequest(refreshUrl.toString(), timeoutMs, {
-    cacheBust: true,
-  });
-
-  if (!payload || payload.ok === false) {
-    throw new Error(
-      payload?.error || "No se ha podido regenerar la fotografía de datos.",
-    );
-  }
-
-  return payload;
 }

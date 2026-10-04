@@ -8161,7 +8161,9 @@ async function refreshCurrentDataSource() {
 
   showLoadingOverlay(
     normalizedProgramId
-      ? `Actualizando datos de ${source?.label || normalizedProgramId}...`
+      ? `Cargando última fotografía de ${
+          source?.label || normalizedProgramId
+        }...`
       : "Actualizando catálogo del Portfolio...",
   );
 
@@ -8209,132 +8211,45 @@ async function refreshCurrentDataSource() {
 
     /*
      * ===================================================
-     * PROGRAMA · ACCESS
+     * PROGRAMA · SNAPSHOT
      * ===================================================
      *
-     * Reutilizamos el permiso existente en sesión.
+     * Nueva arquitectura:
      *
-     * No forzamos una nueva validación.
+     * - NO ejecutamos refresh backend;
+     * - NO importamos JIRA;
+     * - NO importamos Staffing;
+     * - NO regeneramos el JSON.
+     *
+     * Simplemente forzamos una nueva lectura
+     * del último snapshot disponible.
+     *
+     * loadProgramData(..., true):
+     *
+     * - ignora MEMORY CACHE;
+     * - ignora SESSION STORAGE;
+     * - llama al backend con action=snapshot;
+     * - actualiza memoria;
+     * - actualiza sessionStorage.
+     * ===================================================
      */
 
-    const access = await ensureRcsProgramAccess(normalizedProgramId, false);
-
-    if (!access.granted) {
-      blockRcsCockpitAccess(access);
-
-      return;
-    }
-
-    if (!access.canEdit) {
-      throw new Error(
-        "Sólo un perfil Editor puede actualizar los datos del programa.",
-      );
-    }
+    const programData = await loadProgramData(normalizedProgramId, true);
 
     /*
      * ===================================================
-     * REFRESH URL
-     * ===================================================
-     */
-
-    const refreshUrl = String(
-      source?.refreshUrl || source?.driveJsonUrl || "",
-    ).trim();
-
-    if (!refreshUrl) {
-      throw new Error(
-        `No existe URL de actualización para ${normalizedProgramId}.`,
-      );
-    }
-
-    if (typeof triggerDataRefresh !== "function") {
-      throw new Error("No está disponible triggerDataRefresh.");
-    }
-
-    /*
-     * ===================================================
-     * REFRESH
+     * INVALIDAR CACHÉS DERIVADAS
      * ===================================================
      *
-     * El backend:
+     * Sólo después de haber recuperado correctamente
+     * el nuevo snapshot.
      *
-     * 1. importa las fuentes;
-     * 2. actualiza la Spreadsheet;
-     * 3. genera app-common-data.json;
-     * 4. devuelve directamente el nuevo snapshot.
-     *
-     * NO debe existir una llamada action=snapshot
-     * después de esta operación.
-     */
-
-    const rawData = await triggerDataRefresh(refreshUrl, {
-      timeoutMs: 300000,
-    });
-
-    if (!rawData || rawData.ok === false) {
-      throw new Error(
-        rawData?.error ||
-          "No se ha podido recuperar la fotografía actualizada.",
-      );
-    }
-
-    /*
-     * ===================================================
-     * INVALIDAR CACHÉS DERIVADAS ANTERIORES
+     * Si la lectura falla mantenemos intacta
+     * la última fotografía disponible.
      * ===================================================
      */
-
-    PROGRAM_DATA_CACHE.delete(normalizedProgramId);
-
-    PROGRAM_LAST_LOADED_AT.delete(normalizedProgramId);
 
     invalidateProgramDeferredData(normalizedProgramId);
-
-    /*
-     * ===================================================
-     * NORMALIZAR NUEVO SNAPSHOT
-     * ===================================================
-     */
-
-    const programData = normalizeProgramData(normalizedProgramId, rawData);
-
-    const completeProgramData = {
-      ...programData,
-
-      restricted: getEmptyRestrictedProgramData(),
-    };
-
-    /*
-     * ===================================================
-     * MEMORY CACHE
-     * ===================================================
-     */
-
-    PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
-
-    /*
-     * ===================================================
-     * FECHA SNAPSHOT
-     * ===================================================
-     */
-
-    const snapshotDate = rawData.generatedAt
-      ? new Date(rawData.generatedAt)
-      : new Date();
-
-    const loadedAt = Number.isNaN(snapshotDate.getTime())
-      ? new Date()
-      : snapshotDate;
-
-    PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, loadedAt);
-
-    /*
-     * ===================================================
-     * SESSION STORAGE
-     * ===================================================
-     */
-
-    writeRcsSessionCache("program", normalizedProgramId, programData, loadedAt);
 
     /*
      * ===================================================
@@ -8344,17 +8259,18 @@ async function refreshCurrentDataSource() {
 
     setRcsDataMode(normalizedProgramId, "live");
 
-    DATA = buildProgramData(completeProgramData);
+    DATA = buildProgramData(programData);
 
     /*
      * ===================================================
-     * CACHÉS DERIVADAS
+     * DATASETS DERIVADOS
      * ===================================================
      *
-     * Se reconstruyen desde PROGRAM_DATA_CACHE.
+     * Se reconstruyen desde el snapshot que acabamos
+     * de instalar.
      *
-     * No generan llamadas de red porque el snapshot
-     * completo ya está cargado en memoria.
+     * No regeneran las fuentes externas.
+     * ===================================================
      */
 
     if (routeRequiresJiraMsaData(context)) {
@@ -8374,21 +8290,8 @@ async function refreshCurrentDataSource() {
 
     /*
      * ===================================================
-     * RENDER DIRECTO
+     * RENDER
      * ===================================================
-     *
-     * MUY IMPORTANTE:
-     *
-     * NO llamamos a render().
-     *
-     * render() volvería a entrar en:
-     *
-     * loadProgramData()
-     * → Access Control
-     * → snapshot
-     *
-     * cuando acabamos de recibir e instalar
-     * exactamente esos datos.
      */
 
     renderRouteContext(context);
@@ -8399,7 +8302,7 @@ async function refreshCurrentDataSource() {
 
     syncRcsAccessRoleBadge();
   } catch (error) {
-    console.error("[RCS] Error actualizando datos", error);
+    console.error("[RCS] Error cargando última fotografía", error);
 
     /*
      * ===================================================
@@ -8447,6 +8350,11 @@ async function refreshCurrentDataSource() {
      * ===================================================
      * PROGRAM FALLBACK
      * ===================================================
+     *
+     * Si no hemos podido leer el snapshot nuevo,
+     * mantenemos la fotografía que ya tenía
+     * el usuario.
+     * ===================================================
      */
 
     let fallbackProgram = PROGRAM_DATA_CACHE.get(normalizedProgramId);
@@ -8463,7 +8371,7 @@ async function refreshCurrentDataSource() {
       updateDataStatus(normalizedProgramId);
 
       showDataFallbackBanner(
-        `No se han podido actualizar los datos de ${
+        `No se ha podido recuperar la última fotografía de ${
           source?.label || normalizedProgramId
         }. ` + "Se mantiene la última fotografía real disponible.",
       );
