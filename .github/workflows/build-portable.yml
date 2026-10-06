@@ -1,0 +1,116 @@
+name: Build portable distribution
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "index.html"
+      - "styles.css"
+      - "assets/**"
+      - "js/**"
+      - "styles/**"
+      - "tools/portable/**"
+      - "tools/portable-server/**"
+      - ".github/workflows/build-portable.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "index.html"
+      - "styles.css"
+      - "assets/**"
+      - "js/**"
+      - "styles/**"
+      - "tools/portable/**"
+      - "tools/portable-server/**"
+      - ".github/workflows/build-portable.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-portable:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+
+      - name: Prepare package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PACKAGE_ROOT="dist/RCS-Cockpit-Portable"
+          COCKPIT_ROOT="${PACKAGE_ROOT}/cockpit"
+          RUNTIME_ROOT="${COCKPIT_ROOT}/.runtime"
+
+          rm -rf dist
+          mkdir -p "${RUNTIME_ROOT}"
+
+          cp index.html "${COCKPIT_ROOT}/index.html"
+          cp styles.css "${COCKPIT_ROOT}/styles.css"
+          cp -R assets "${COCKPIT_ROOT}/assets"
+          cp -R js "${COCKPIT_ROOT}/js"
+          cp -R styles "${COCKPIT_ROOT}/styles"
+
+          find "${COCKPIT_ROOT}/js" -type f -name '*.gs' -delete
+
+          cp "tools/portable/ABRIR COCKPIT - Windows.cmd" \
+            "${PACKAGE_ROOT}/ABRIR COCKPIT - Windows.cmd"
+
+          cp "tools/portable/ABRIR COCKPIT - Mac.command" \
+            "${PACKAGE_ROOT}/ABRIR COCKPIT - Mac.command"
+
+          cp "tools/portable/LEEME.txt" \
+            "${PACKAGE_ROOT}/LEEME.txt"
+
+          cp "tools/portable/server-windows.ps1" \
+            "${RUNTIME_ROOT}/server-windows.ps1"
+
+      - name: Build macOS portable servers
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RUNTIME_ROOT="dist/RCS-Cockpit-Portable/cockpit/.runtime"
+
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 \
+            go build \
+              -trimpath \
+              -ldflags="-s -w" \
+              -o "${RUNTIME_ROOT}/rcs-cockpit-server-macos-intel" \
+              ./tools/portable-server/main.go
+
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
+            go build \
+              -trimpath \
+              -ldflags="-s -w" \
+              -o "${RUNTIME_ROOT}/rcs-cockpit-server-macos-apple-silicon" \
+              ./tools/portable-server/main.go
+
+          chmod +x \
+            "dist/RCS-Cockpit-Portable/ABRIR COCKPIT - Mac.command" \
+            "${RUNTIME_ROOT}/rcs-cockpit-server-macos-intel" \
+            "${RUNTIME_ROOT}/rcs-cockpit-server-macos-apple-silicon"
+
+      - name: Create ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd dist
+          zip -r -9 RCS-Cockpit-Portable.zip RCS-Cockpit-Portable
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: RCS-Cockpit-Portable
+          path: dist/RCS-Cockpit-Portable.zip
+          if-no-files-found: error
+          retention-days: 30
