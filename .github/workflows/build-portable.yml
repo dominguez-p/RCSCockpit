@@ -2,6 +2,7 @@ name: Build portable distribution
 
 on:
   workflow_dispatch:
+
   pull_request:
     paths:
       - "index.html"
@@ -12,6 +13,7 @@ on:
       - "tools/portable/**"
       - "tools/portable-server/**"
       - ".github/workflows/build-portable.yml"
+
   push:
     branches:
       - main
@@ -41,7 +43,7 @@ jobs:
         with:
           go-version: "1.23.x"
 
-      - name: Prepare package
+      - name: Prepare minimal portable package
         shell: bash
         run: |
           set -euo pipefail
@@ -51,26 +53,120 @@ jobs:
           RUNTIME_ROOT="${COCKPIT_ROOT}/.runtime"
 
           rm -rf dist
+
+          mkdir -p "${COCKPIT_ROOT}"
+          mkdir -p "${COCKPIT_ROOT}/js"
+          mkdir -p "${COCKPIT_ROOT}/styles"
+          mkdir -p "${COCKPIT_ROOT}/assets"
           mkdir -p "${RUNTIME_ROOT}"
+
+          # ==================================================
+          # CORE
+          # ==================================================
 
           cp index.html "${COCKPIT_ROOT}/index.html"
           cp styles.css "${COCKPIT_ROOT}/styles.css"
-          cp -R assets "${COCKPIT_ROOT}/assets"
-          cp -R js "${COCKPIT_ROOT}/js"
-          cp -R styles "${COCKPIT_ROOT}/styles"
 
-          find "${COCKPIT_ROOT}/js" -type f -name '*.gs' -delete
+          # ==================================================
+          # JAVASCRIPT
+          #
+          # Sólo los scripts utilizados por index.html.
+          # No se copia:
+          #
+          # - apps-script/
+          # - *.gs
+          # - js/AccessControl.gs
+          # - js/csv.js
+          # - herramientas de desarrollo
+          # ==================================================
 
-          cp "tools/portable/ABRIR COCKPIT - Windows.cmd" \
+          JS_FILES=(
+            "config.js"
+            "sample-data.js"
+            "drive-json-source.js"
+            "loading-experience.js"
+            "staffing-dashboard.js"
+            "app.js"
+            "portfolio-landing-modes.js"
+            "portfolio-home.js"
+            "program-home.js"
+            "program-governance.js"
+            "roadmap-workspace-data.js"
+            "roadmap-workspace-render.js"
+            "roadmap-workspace-detail.js"
+            "roadmap-workspace-routing.js"
+            "roadmap-ambitions-data.js"
+            "roadmap-ambitions-ui.js"
+            "program-adaptive-cards.js"
+            "context-toolbar.js"
+            "aixbanker-product-execution.js"
+            "product-experience.js"
+            "roadmap-context-ux.js"
+            "context-ux.js"
+          )
+
+          for file in "${JS_FILES[@]}"; do
+            cp "js/${file}" "${COCKPIT_ROOT}/js/${file}"
+          done
+
+          # ==================================================
+          # CSS
+          #
+          # Sólo las hojas cargadas por index.html.
+          # ==================================================
+
+          CSS_FILES=(
+            "portfolio-home.css"
+            "program-home.css"
+            "roadmap-workspace.css"
+            "roadmap-ambitions.css"
+            "program-adaptive-cards.css"
+            "context-toolbar.css"
+            "product-experience.css"
+            "roadmap-context-ux.css"
+            "aixbanker-product-execution.css"
+            "flight-deck.css"
+            "staffing-dashboard.css"
+            "runtime.css"
+          )
+
+          for file in "${CSS_FILES[@]}"; do
+            cp "styles/${file}" "${COCKPIT_ROOT}/styles/${file}"
+          done
+
+          # ==================================================
+          # ASSETS
+          # ==================================================
+
+          cp -R assets/. "${COCKPIT_ROOT}/assets/"
+
+          # Las banderas activas usan SVG.
+          # Se eliminan las versiones PNG duplicadas.
+          rm -f "${COCKPIT_ROOT}/assets/flags/co.png"
+          rm -f "${COCKPIT_ROOT}/assets/flags/es.png"
+          rm -f "${COCKPIT_ROOT}/assets/flags/esp.png"
+          rm -f "${COCKPIT_ROOT}/assets/flags/mx.png"
+          rm -f "${COCKPIT_ROOT}/assets/flags/pe.png"
+          rm -f "${COCKPIT_ROOT}/assets/flags/tr.png"
+
+          # ==================================================
+          # LANZADORES
+          # ==================================================
+
+          cp \
+            "tools/portable/ABRIR COCKPIT - Windows.cmd" \
             "${PACKAGE_ROOT}/ABRIR COCKPIT - Windows.cmd"
 
-          cp "tools/portable/ABRIR COCKPIT - Mac.command" \
+          cp \
+            "tools/portable/ABRIR COCKPIT - Mac.command" \
             "${PACKAGE_ROOT}/ABRIR COCKPIT - Mac.command"
 
-          cp "tools/portable/LEEME.txt" \
+          cp \
+            "tools/portable/LEEME.txt" \
             "${PACKAGE_ROOT}/LEEME.txt"
 
-          cp "tools/portable/server-windows.ps1" \
+          cp \
+            "tools/portable/server-windows.ps1" \
             "${RUNTIME_ROOT}/server-windows.ps1"
 
       - name: Build macOS portable servers
@@ -80,32 +176,78 @@ jobs:
 
           RUNTIME_ROOT="dist/RCS-Cockpit-Portable/cockpit/.runtime"
 
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 \
-            go build \
-              -trimpath \
-              -ldflags="-s -w" \
-              -o "${RUNTIME_ROOT}/rcs-cockpit-server-macos-intel" \
-              ./tools/portable-server/main.go
+          GOOS=darwin \
+          GOARCH=amd64 \
+          CGO_ENABLED=0 \
+          go build \
+            -trimpath \
+            -ldflags="-s -w" \
+            -o "${RUNTIME_ROOT}/rcs-cockpit-server-macos-intel" \
+            ./tools/portable-server/main.go
 
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
-            go build \
-              -trimpath \
-              -ldflags="-s -w" \
-              -o "${RUNTIME_ROOT}/rcs-cockpit-server-macos-apple-silicon" \
-              ./tools/portable-server/main.go
+          GOOS=darwin \
+          GOARCH=arm64 \
+          CGO_ENABLED=0 \
+          go build \
+            -trimpath \
+            -ldflags="-s -w" \
+            -o "${RUNTIME_ROOT}/rcs-cockpit-server-macos-apple-silicon" \
+            ./tools/portable-server/main.go
 
           chmod +x \
             "dist/RCS-Cockpit-Portable/ABRIR COCKPIT - Mac.command" \
             "${RUNTIME_ROOT}/rcs-cockpit-server-macos-intel" \
             "${RUNTIME_ROOT}/rcs-cockpit-server-macos-apple-silicon"
 
-      - name: Create ZIP
+      - name: Validate portable contents
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PACKAGE_ROOT="dist/RCS-Cockpit-Portable"
+          COCKPIT_ROOT="${PACKAGE_ROOT}/cockpit"
+
+          test -f "${COCKPIT_ROOT}/index.html"
+          test -f "${COCKPIT_ROOT}/styles.css"
+
+          if find "${PACKAGE_ROOT}" -type f -name "*.gs" | grep -q .; then
+            echo "ERROR: la distribución contiene scripts de Google Apps Script."
+            find "${PACKAGE_ROOT}" -type f -name "*.gs"
+            exit 1
+          fi
+
+          if [ -d "${PACKAGE_ROOT}/apps-script" ]; then
+            echo "ERROR: apps-script no debe formar parte del portable."
+            exit 1
+          fi
+
+          if [ -d "${PACKAGE_ROOT}/docs" ]; then
+            echo "ERROR: docs no debe formar parte del portable."
+            exit 1
+          fi
+
+          echo ""
+          echo "Contenido final:"
+          echo "----------------"
+          find "${PACKAGE_ROOT}" -maxdepth 3 -type f | sort
+
+          echo ""
+          echo "Tamaño sin comprimir:"
+          echo "---------------------"
+          du -sh "${PACKAGE_ROOT}"
+
+      - name: Create distributable ZIP
         shell: bash
         run: |
           set -euo pipefail
 
           cd dist
-          zip -r -9 RCS-Cockpit-Portable.zip RCS-Cockpit-Portable
+
+          zip \
+            -r \
+            -9 \
+            RCS-Cockpit-Portable.zip \
+            RCS-Cockpit-Portable
 
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v4

@@ -1,22 +1,48 @@
 RCS COCKPIT · VERSIÓN PORTABLE
 ==============================
 
-No requiere instalación de Python, Node ni ningún otro componente.
+No requiere instalación.
+
+ANTES DE ABRIR
+--------------
+
+Descomprime completamente el ZIP.
+No ejecutes el Cockpit directamente desde el archivo ZIP.
+
 
 WINDOWS
-1. Descomprime el ZIP completo.
-2. Haz doble clic en “ABRIR COCKPIT - Windows.cmd”.
-3. El Cockpit se abrirá automáticamente en tu navegador.
+-------
+
+Haz doble clic en:
+
+ABRIR COCKPIT - Windows.cmd
+
 
 MAC
-1. Descomprime el ZIP completo.
-2. Haz doble clic en “ABRIR COCKPIT - Mac.command”.
-3. El Cockpit se abrirá automáticamente en tu navegador.
+---
 
-Si macOS muestra un aviso de seguridad la primera vez, pulsa con botón derecho sobre el lanzador, selecciona “Abrir” y confirma.
+Haz doble clic en:
+
+ABRIR COCKPIT - Mac.command
+
+
+El navegador se abrirá automáticamente.
+
+Mantén abierta la ventana del Cockpit mientras lo estés utilizando.
+
+Para terminar, cierra esa ventana o pulsa Ctrl+C.
+
+
+MAC · PRIMERA EJECUCIÓN
+
+Si macOS bloquea el lanzador:
+
+Botón derecho sobre
+“ABRIR COCKPIT - Mac.command”
+→ Abrir
+→ Abrir
+
 
 IMPORTANTE
-- Mantén abierta la ventana del lanzador mientras utilices el Cockpit.
-- Para cerrar el Cockpit, cierra esa ventana o pulsa Ctrl+C.
-- No separes los lanzadores de la carpeta “cockpit”.
-- El acceso a datos corporativos puede requerir conexión a la red/VPN de BBVA y una sesión corporativa válida.
+
+El acceso a información corporativa puede requerir conexión a la red/VPN de BBVA y una sesión corporativa válida.
