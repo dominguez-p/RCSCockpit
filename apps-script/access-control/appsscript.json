@@ -6,12 +6,22 @@
                 "userSymbol": "Drive",
                 "serviceId": "drive",
                 "version": "v3"
+            },
+            {
+                "userSymbol": "Sheets",
+                "serviceId": "sheets",
+                "version": "v4"
             }
         ]
     },
     "exceptionLogging": "STACKDRIVER",
     "runtimeVersion": "V8",
     "oauthScopes": [
-        "https://www.googleapis.com/auth/drive.metadata.readonly"
-    ]
+        "https://www.googleapis.com/auth/drive.metadata.readonly",
+        "https://www.googleapis.com/auth/spreadsheets.readonly"
+    ],
+    "webapp": {
+        "executeAs": "USER_ACCESSING",
+        "access": "DOMAIN"
+    }
 }
