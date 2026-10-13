@@ -22729,14 +22729,23 @@ async function loadRcsSpreadsheetAccess(
    * =====================================================
    * L1 · MEMORY CACHE
    * =====================================================
+   *
+   * Una landing sólo es reutilizable cuando fue cargada
+   * correctamente.
+   *
+   * landing.available=false nunca debe impedir una nueva
+   * validación remota.
    */
 
   const memoryCached = state.spreadsheets[normalizedSpreadsheetId] || null;
 
-  const memoryHasLanding =
-    memoryCached?.landing && typeof memoryCached.landing === "object";
+  const memoryHasUsableLanding = memoryCached?.landing?.available === true;
 
-  if (!forceRefresh && memoryCached && (!includeLanding || memoryHasLanding)) {
+  if (
+    !forceRefresh &&
+    memoryCached &&
+    (!includeLanding || memoryHasUsableLanding)
+  ) {
     return memoryCached;
   }
 
@@ -22756,13 +22765,12 @@ async function loadRcsSpreadsheetAccess(
 
   const sessionAccess = sessionCached?.data || null;
 
-  const sessionHasLanding =
-    sessionAccess?.landing && typeof sessionAccess.landing === "object";
+  const sessionHasUsableLanding = sessionAccess?.landing?.available === true;
 
   if (
     !forceRefresh &&
     sessionAccess &&
-    (!includeLanding || sessionHasLanding)
+    (!includeLanding || sessionHasUsableLanding)
   ) {
     state.spreadsheets[normalizedSpreadsheetId] = sessionAccess;
 
@@ -22777,6 +22785,9 @@ async function loadRcsSpreadsheetAccess(
    * Un fallo técnico del endpoint no debe convertir
    * automáticamente a un usuario ya validado en un
    * usuario pendiente de OAuth.
+   *
+   * Para reutilizar también la landing, ésta debe haber
+   * sido cargada correctamente.
    */
 
   const reusableAccess =
@@ -22786,8 +22797,7 @@ async function loadRcsSpreadsheetAccess(
         ? sessionAccess
         : null;
 
-  const reusableHasLanding =
-    reusableAccess?.landing && typeof reusableAccess.landing === "object";
+  const reusableHasUsableLanding = reusableAccess?.landing?.available === true;
 
   /*
    * =====================================================
@@ -22829,14 +22839,52 @@ async function loadRcsSpreadsheetAccess(
     /*
      * Hemos conseguido ejecutar el Web App.
      *
-     * Independientemente de que el usuario
-     * tenga permiso sobre la Spreadsheet,
-     * Google ya ha completado la autorización
-     * necesaria para ejecutar este endpoint.
+     * Esto confirma que el endpoint puede ejecutarse,
+     * aunque posteriormente una API concreta pueda
+     * necesitar un scope adicional.
      */
+
     markRcsAuthorizationMarker("access-control", config.driveJsonUrl);
 
     const access = normalizeRcsAccessResult(payload, normalizedSpreadsheetId);
+
+    /*
+     * ===================================================
+     * AUTORIZACIÓN INCREMENTAL
+     * ===================================================
+     *
+     * El backend puede detectar que Drive ya está
+     * autorizado pero que falta el scope de Sheets.
+     *
+     * Preparamos aquí el contexto necesario para abrir
+     * explícitamente mode=authorize.
+     */
+
+    if (access.code === "AUTHORIZATION_REQUIRED") {
+      const authorizationUrl = new URL(
+        config.driveJsonUrl,
+        window.location.href,
+      );
+
+      authorizationUrl.searchParams.set("mode", "authorize");
+
+      authorizationUrl.searchParams.set(
+        "spreadsheetId",
+        normalizedSpreadsheetId,
+      );
+
+      access.authorization = {
+        kind: "access-control",
+
+        url: authorizationUrl.toString(),
+
+        probeUrl: url.toString(),
+
+        spreadsheetId: normalizedSpreadsheetId,
+
+        label: includeLanding ? "RCS Cockpit" : "el programa seleccionado",
+      };
+    }
 
     /*
      * ===================================================
@@ -22877,19 +22925,14 @@ async function loadRcsSpreadsheetAccess(
      * FALLBACK DE ACCESO
      * ===================================================
      *
-     * Si el usuario ya estaba validado en esta sesión
-     * y el Access Control tiene un fallo temporal,
-     * mantenemos ese acceso.
-     *
-     * No hacemos esto durante un refresh explícito
-     * de la landing, porque ahí sí queremos conocer
-     * el resultado real de la actualización.
+     * Sólo reutilizamos una landing si anteriormente
+     * fue recuperada correctamente.
      */
 
     const canReuseAccess =
       !refreshLanding &&
       reusableAccess &&
-      (!includeLanding || reusableHasLanding);
+      (!includeLanding || reusableHasUsableLanding);
 
     if (canReuseAccess && (scriptError || timeout)) {
       console.warn(
@@ -22903,15 +22946,18 @@ async function loadRcsSpreadsheetAccess(
 
     /*
      * ===================================================
-     * PRIMER ACCESO REAL
+     * AUTORIZACIÓN
      * ===================================================
      *
-     * Un JSONP_SCRIPT_ERROR sólo se considera OAuth
-     * pendiente cuando este navegador nunca ha
-     * conseguido ejecutar correctamente el Web App.
+     * Si estamos solicitando la landing y el Web App
+     * deja de poder ejecutarse después de introducir
+     * nuevos scopes, debemos permitir una nueva
+     * autorización aunque Drive ya se hubiera
+     * autorizado anteriormente.
      */
 
-    const authorizationRequired = scriptError && !previouslyAuthorized;
+    const authorizationRequired =
+      scriptError && (!previouslyAuthorized || includeLanding);
 
     const authorizationUrl = new URL(config.driveJsonUrl, window.location.href);
 
@@ -23436,7 +23482,6 @@ function installRcsAccessRoleTracking() {
   });
   syncRcsAccessRoleBadge();
 }
-
 function openRcsAccessAuthorization(access = null) {
   const fallbackConfig = window.APP_CONFIG?.accessControl;
 
@@ -23488,6 +23533,23 @@ function openRcsAccessAuthorization(access = null) {
   const kind = String(authorization?.kind || "access-control").trim();
 
   const spreadsheetId = String(authorization?.spreadsheetId || "").trim();
+
+  /*
+   * =====================================================
+   * PORTFOLIO
+   * =====================================================
+   *
+   * Para el Portfolio no basta con validar Drive.
+   *
+   * La autorización sólo puede darse por completada
+   * cuando la landing puede leer también Google Sheets.
+   * =====================================================
+   */
+
+  const requiresLandingValidation =
+    kind === "access-control" &&
+    Boolean(fallbackSpreadsheetId) &&
+    spreadsheetId === fallbackSpreadsheetId;
 
   if (!authorizationUrl || !probeUrl) {
     setRcsAccessValidationProgress(false);
@@ -23576,7 +23638,10 @@ function openRcsAccessAuthorization(access = null) {
    * Hay dos tipos de Apps Script:
    *
    * 1. access-control
-   *    Comprobamos de nuevo el permiso de Spreadsheet.
+   *    Comprobamos de nuevo los permisos.
+   *
+   *    Para Portfolio validamos además la landing,
+   *    porque necesita spreadsheets.readonly.
    *
    * 2. program-backend
    *    Comprobamos que el Web App ya puede ejecutar
@@ -23596,11 +23661,18 @@ function openRcsAccessAuthorization(access = null) {
       }
 
       const result = await loadRcsSpreadsheetAccess(spreadsheetId, true, {
+        includeLanding: requiresLandingValidation,
+
+        refreshLanding: requiresLandingValidation,
+
         timeoutMs: 30000,
       });
 
+      const landingReady =
+        !requiresLandingValidation || result?.landing?.available === true;
+
       return {
-        complete: result.granted === true,
+        complete: result.granted === true && landingReady,
 
         denied: result.code === "ACCESS_DENIED",
 
