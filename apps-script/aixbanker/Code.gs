@@ -1,5 +1,5 @@
 const EXPORT_FOLDER_NAME = "RCSCockpit-AIxBanker";
-const EXPORT_FILE_NAME = "app-common-data.json";
+const EXPORT_FILE_NAME = "app-common-data_aixbanker.json";
 const SNAPSHOT_SCHEMA_VERSION = 4;
 
 const RCS_ACCESS_TOKEN_SECRET_PROPERTY = "RCS_ACCESS_TOKEN_SECRET";
@@ -1687,65 +1687,134 @@ function syncSnapshotPermissions_(snapshotFile, spreadsheet) {
 
   const spreadsheetFile = DriveApp.getFileById(spreadsheet.getId());
 
-  /*
-   * =====================================================
-   * EDITORES
-   * =====================================================
-   */
-
-  const editorEmails = spreadsheetFile
-    .getEditors()
-    .map((user) =>
-      String(user.getEmail() || "")
-        .trim()
-        .toLowerCase(),
-    )
-    .filter(Boolean);
+  const snapshotFileId = snapshotFile.getId();
 
   /*
    * =====================================================
-   * LECTORES
-   * =====================================================
-   */
-
-  const viewerEmails = spreadsheetFile
-    .getViewers()
-    .map((user) =>
-      String(user.getEmail() || "")
-        .trim()
-        .toLowerCase(),
-    )
-    .filter(Boolean);
-
-  /*
-   * =====================================================
-   * SNAPSHOT · EDITORES
+   * USUARIOS QUE NECESITAN ACCESO
    * =====================================================
    *
-   * No necesitan editar realmente el JSON,
-   * pero mantenemos el mismo nivel de permiso
-   * que tienen sobre la Spreadsheet.
+   * El JSON sólo necesita ser leído por el Cockpit.
+   *
+   * Por tanto, tanto editores como lectores de la
+   * Spreadsheet reciben permiso reader sobre el snapshot.
+   * =====================================================
    */
 
-  if (editorEmails.length) {
-    snapshotFile.addEditors(editorEmails);
-  }
+  const desiredEmails = new Set(
+    [...spreadsheetFile.getEditors(), ...spreadsheetFile.getViewers()]
+      .map((user) =>
+        String(user.getEmail() || "")
+          .trim()
+          .toLowerCase(),
+      )
+      .filter(Boolean),
+  );
 
   /*
    * =====================================================
-   * SNAPSHOT · LECTORES
+   * PERMISOS YA EXISTENTES
+   * =====================================================
+   *
+   * No volvemos a compartir el fichero con usuarios
+   * que ya tienen permiso.
+   *
+   * Esto hace la operación idempotente y evita llamadas
+   * innecesarias a Drive.
    * =====================================================
    */
 
-  if (viewerEmails.length) {
-    snapshotFile.addViewers(viewerEmails);
-  }
+  const existingEmails = new Set();
 
-  Logger.log("Permisos snapshot sincronizados");
+  let pageToken = null;
 
-  Logger.log("Editores: " + editorEmails.length);
+  do {
+    const response = Drive.Permissions.list(snapshotFileId, {
+      fields: "nextPageToken,permissions(id,type,role,emailAddress)",
 
-  Logger.log("Lectores: " + viewerEmails.length);
+      pageToken: pageToken || undefined,
+
+      supportsAllDrives: true,
+    });
+
+    const permissions = Array.isArray(response.permissions)
+      ? response.permissions
+      : [];
+
+    permissions.forEach((permission) => {
+      const email = String(permission.emailAddress || "")
+        .trim()
+        .toLowerCase();
+
+      if (email) {
+        existingEmails.add(email);
+      }
+    });
+
+    pageToken = response.nextPageToken || null;
+  } while (pageToken);
+
+  /*
+   * =====================================================
+   * CREAR SÓLO PERMISOS QUE FALTAN
+   * =====================================================
+   */
+
+  let added = 0;
+
+  let existing = 0;
+
+  desiredEmails.forEach((email) => {
+    if (existingEmails.has(email)) {
+      existing += 1;
+
+      return;
+    }
+
+    Drive.Permissions.create(
+      {
+        type: "user",
+
+        role: "reader",
+
+        emailAddress: email,
+      },
+
+      snapshotFileId,
+
+      {
+        /*
+         * =============================================
+         * IMPORTANTE
+         * =============================================
+         *
+         * No enviar email al usuario cuando se
+         * comparte el snapshot.
+         * =============================================
+         */
+
+        sendNotificationEmail: false,
+
+        supportsAllDrives: true,
+      },
+    );
+
+    added += 1;
+  });
+
+  Logger.log("========================================");
+
+  Logger.log("SNAPSHOT · PERMISOS SINCRONIZADOS");
+
+  Logger.log(`Usuarios origen: ${desiredEmails.size}`);
+
+  Logger.log(`Ya tenían acceso: ${existing}`);
+
+  Logger.log(`Nuevos permisos: ${added}`);
+
+  Logger.log("Notificaciones email: DESACTIVADAS");
+
+  Logger.log("========================================");
 }
 /* =========================================================
  * TRIGGER DE EXPORT ACTUAL
@@ -1801,6 +1870,97 @@ function getManagementRoadmapConfig_() {
     generatedAt: new Date().toISOString(),
     managementRoadmapLines: lines,
     managementRoadmapLinks: links,
+  };
+}
+function patchManagementRoadmapConfigSnapshot_() {
+  /*
+   * =====================================================
+   * MANAGEMENT REPORTS · FAST SNAPSHOT PATCH
+   * =====================================================
+   *
+   * Los cambios de configuración de Management Reports
+   * no justifican regenerar el snapshot completo.
+   *
+   * El snapshot completo incluye:
+   *
+   * - Core
+   * - JIRA
+   * - MSA
+   * - Staffing
+   * - permisos
+   *
+   * Aquí únicamente han cambiado:
+   *
+   * - Management Roadmap Lines
+   * - Management Roadmap Links
+   *
+   * Por tanto leemos el snapshot ya existente y
+   * sustituimos únicamente esas dos propiedades.
+   * =====================================================
+   */
+
+  const file = getPortfolioSnapshotFile_();
+
+  const snapshot = getPortfolioSnapshot_();
+
+  /*
+   * Caso excepcional:
+   *
+   * Si todavía no existe snapshot, hacemos una
+   * exportación completa para reconstruirlo.
+   *
+   * Esto no debería ocurrir durante el uso normal
+   * del Cockpit.
+   */
+  if (!file || !snapshot) {
+    console.warn(
+      "[Management Reports] No existe snapshot válido. Se realizará export completo.",
+    );
+
+    return exportPortfolioJson();
+  }
+
+  const config = getManagementRoadmapConfig_();
+
+  const nextSnapshot = {
+    ...snapshot,
+
+    managementRoadmapLines: Array.isArray(config.managementRoadmapLines)
+      ? config.managementRoadmapLines
+      : [],
+
+    managementRoadmapLinks: Array.isArray(config.managementRoadmapLinks)
+      ? config.managementRoadmapLinks
+      : [],
+
+    /*
+     * No modificamos generatedAt.
+     *
+     * Ese timestamp representa la actualización
+     * de los datasets completos.
+     */
+    managementRoadmapConfigGeneratedAt:
+      config.generatedAt || new Date().toISOString(),
+  };
+
+  file.setContent(JSON.stringify(nextSnapshot));
+
+  Logger.log(
+    [
+      "[Management Reports] Snapshot parcheado.",
+      `Lines: ${nextSnapshot.managementRoadmapLines.length}`,
+      `Links: ${nextSnapshot.managementRoadmapLinks.length}`,
+    ].join(" "),
+  );
+
+  return {
+    generatedAt: nextSnapshot.managementRoadmapConfigGeneratedAt,
+
+    fileId: file.getId(),
+
+    savedLines: nextSnapshot.managementRoadmapLines.length,
+
+    savedLinks: nextSnapshot.managementRoadmapLinks.length,
   };
 }
 function doGet(e) {
@@ -3405,10 +3565,192 @@ const MANAGEMENT_ROADMAP_LINKS_SHEET_NAME = "Management Roadmap Links";
 
 const MANAGEMENT_ROADMAP_LINKS_HEADERS = [
   "executiveLineId",
+  "sourceType",
+  "sourceId",
   "sdaId",
   "deliverableId",
+  "featureId",
+  "staffingId",
+  "description",
+  "startDate",
+  "endDate",
   "active",
 ];
+
+function normalizeManagementRoadmapLinkRow_(row) {
+  const executiveLineId = String(row?.executiveLineId || "").trim();
+
+  if (!executiveLineId) {
+    return null;
+  }
+
+  let sourceType = String(row?.sourceType || "")
+    .trim()
+    .toLowerCase();
+
+  if (["sda", "deliverable"].includes(sourceType)) {
+    sourceType = "sda-deliverable";
+  }
+
+  if (["epica", "épica"].includes(sourceType)) {
+    sourceType = "epic";
+  }
+
+  const sdaId = String(row?.sdaId || "")
+    .trim()
+    .toUpperCase();
+
+  const deliverableId = String(row?.deliverableId || "")
+    .trim()
+    .toUpperCase();
+
+  const featureId = String(row?.featureId || "")
+    .trim()
+    .toUpperCase();
+
+  const staffingId = String(row?.staffingId || "").trim();
+
+  let sourceId = String(row?.sourceId || "").trim();
+
+  if (!sourceType) {
+    if (sdaId && deliverableId) {
+      sourceType = "sda-deliverable";
+    } else if (featureId) {
+      sourceType = "feature";
+    } else if (staffingId) {
+      sourceType = "staffing";
+    }
+  }
+
+  if (sourceType === "sda-deliverable") {
+    if (!sdaId || !deliverableId) {
+      return null;
+    }
+
+    sourceId = sourceId || `${sdaId}::${deliverableId}`;
+  }
+
+  if (sourceType === "epic") {
+    sourceId = sourceId.toUpperCase();
+  }
+
+  if (sourceType === "feature") {
+    sourceId = (sourceId || featureId).toUpperCase();
+  }
+
+  if (sourceType === "staffing") {
+    sourceId = sourceId || staffingId;
+  }
+
+  if (
+    !["sda-deliverable", "epic", "feature", "staffing", "manual"].includes(
+      sourceType,
+    )
+  ) {
+    return null;
+  }
+
+  if (!sourceId) {
+    return null;
+  }
+
+  const description =
+    sourceType === "manual" ? String(row?.description || "").trim() : "";
+
+  const startDate =
+    sourceType === "manual"
+      ? normalizeManagementRoadmapDateCell_(row?.startDate)
+      : "";
+
+  const endDate =
+    sourceType === "manual"
+      ? normalizeManagementRoadmapDateCell_(row?.endDate)
+      : "";
+
+  if (sourceType === "manual") {
+    if (!description) {
+      return null;
+    }
+
+    if (startDate && endDate && endDate < startDate) {
+      return null;
+    }
+  }
+
+  const active = !["false", "0", "no", "off"].includes(
+    String(row?.active ?? true)
+      .trim()
+      .toLowerCase(),
+  );
+
+  return {
+    executiveLineId,
+    sourceType,
+    sourceId,
+    sdaId: sourceType === "sda-deliverable" ? sdaId : "",
+    deliverableId: sourceType === "sda-deliverable" ? deliverableId : "",
+    featureId: sourceType === "feature" ? sourceId : "",
+    staffingId: sourceType === "staffing" ? sourceId : "",
+    description,
+    startDate,
+    endDate,
+    active,
+  };
+}
+
+function deduplicateManagementRoadmapLinks_(rows) {
+  const result = new Map();
+
+  (Array.isArray(rows) ? rows : [])
+    .map(normalizeManagementRoadmapLinkRow_)
+    .filter(Boolean)
+    .forEach((row) => {
+      const key = [
+        row.executiveLineId.trim().toLowerCase(),
+
+        row.sourceType,
+
+        row.sourceId.trim().toUpperCase(),
+      ].join("::");
+
+      result.set(key, row);
+    });
+
+  return [...result.values()];
+}
+
+function saveManagementRoadmapLinks_(rawLinks) {
+  const lock = LockService.getDocumentLock();
+
+  if (!lock.tryLock(5000)) {
+    throw new Error(
+      "Hay otra actualización de relaciones en curso. Inténtalo de nuevo.",
+    );
+  }
+
+  let links = [];
+
+  try {
+    links = writeManagementRoadmapLinks_(rawLinks);
+
+    SpreadsheetApp.flush();
+  } finally {
+    lock.releaseLock();
+  }
+
+  /*
+   * Evitamos exportPortfolioJson().
+   *
+   * La configuración de Management Reports
+   * se parchea directamente en el snapshot.
+   */
+  patchManagementRoadmapConfigSnapshot_();
+
+  return {
+    saved: links.length,
+    links,
+  };
+}
 
 /* =========================================================
  * WEB APP · ESCRITURA
@@ -3503,76 +3845,6 @@ function createManagementRoadmapJsonResponse_(payload) {
 }
 
 /* =========================================================
- * NORMALIZACIÓN
- * ========================================================= */
-
-function normalizeManagementRoadmapLinkRow_(row) {
-  const executiveLineId = String(row?.executiveLineId || "").trim();
-
-  const sdaId = String(row?.sdaId || "").trim();
-
-  const deliverableId = String(row?.deliverableId || "").trim();
-
-  /*
-   * Las filas incompletas antiguas
-   * no deben bloquear toda la escritura.
-   *
-   * Ejemplo actual:
-   *
-   * es-blue-buddy-competidores
-   * SDA informada
-   * deliverableId vacío
-   *
-   * Esa fila simplemente desaparece
-   * en la siguiente publicación.
-   */
-  if (!executiveLineId || !sdaId || !deliverableId) {
-    return null;
-  }
-
-  const activeText = String(row?.active ?? true)
-    .trim()
-    .toLowerCase();
-
-  const active = !["false", "0", "no", "off"].includes(activeText);
-
-  return {
-    executiveLineId,
-
-    sdaId,
-
-    deliverableId,
-
-    active,
-  };
-}
-
-/* =========================================================
- * DEDUPLICACIÓN
- * ========================================================= */
-
-function deduplicateManagementRoadmapLinks_(rows) {
-  const result = new Map();
-
-  (Array.isArray(rows) ? rows : [])
-    .map(normalizeManagementRoadmapLinkRow_)
-    .filter(Boolean)
-    .forEach((row) => {
-      const key = [
-        row.executiveLineId.trim().toLowerCase(),
-
-        row.sdaId.trim().toUpperCase(),
-
-        row.deliverableId.trim().toUpperCase(),
-      ].join("::");
-
-      result.set(key, row);
-    });
-
-  return [...result.values()];
-}
-
-/* =========================================================
  * SHEET
  * ========================================================= */
 
@@ -3586,64 +3858,6 @@ function getOrCreateManagementRoadmapLinksSheet_() {
   }
 
   return sheet;
-}
-
-/* =========================================================
- * SAVE
- * ========================================================= */
-
-function saveManagementRoadmapLinks_(rawLinks) {
-  const links = deduplicateManagementRoadmapLinks_(rawLinks);
-
-  const lock = LockService.getDocumentLock();
-
-  if (!lock.tryLock(5000)) {
-    throw new Error(
-      "Hay otra actualización de relaciones en curso. Inténtalo de nuevo.",
-    );
-  }
-
-  let result;
-
-  try {
-    const sheet = getOrCreateManagementRoadmapLinksSheet_();
-
-    sheet.clearContents();
-
-    sheet
-      .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINKS_HEADERS.length)
-      .setValues([MANAGEMENT_ROADMAP_LINKS_HEADERS]);
-
-    if (links.length) {
-      const values = links.map((link) => [
-        link.executiveLineId,
-        link.sdaId,
-        link.deliverableId,
-        link.active,
-      ]);
-
-      sheet
-        .getRange(2, 1, values.length, MANAGEMENT_ROADMAP_LINKS_HEADERS.length)
-        .setValues(values);
-    }
-
-    SpreadsheetApp.flush();
-
-    result = {
-      saved: links.length,
-      links,
-    };
-  } finally {
-    lock.releaseLock();
-  }
-
-  /*
-   * Sincronizamos inmediatamente la fotografía consumida
-   * por el Cockpit.
-   */
-  exportPortfolioJson();
-
-  return result;
 }
 
 /* =========================================================
@@ -3684,9 +3898,15 @@ const MANAGEMENT_ROADMAP_LINES_HEADERS = [
   "country",
   "year",
   "order",
+  "reportId",
   "category",
   "categoryTone",
   "title",
+  "owner",
+  "quarter",
+  "startDate",
+  "endDate",
+  "deadlines",
   "status",
   "statusLabel",
   "statusTone",
@@ -3753,6 +3973,115 @@ function prepareManagementRoadmapManualValueColumn_(sheet, dataRowCount) {
 
   sheet.getRange(2, manualValueColumn, rowsToFormat, 1).setNumberFormat("@");
 }
+function normalizeManagementRoadmapDateCell_(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return "";
+    }
+
+    return Utilities.formatDate(value, "UTC", "yyyy-MM-dd");
+  }
+
+  const text = String(value).trim();
+
+  if (!text) {
+    return "";
+  }
+
+  const isoDate = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (isoDate) {
+    return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
+  }
+
+  const spanishDate = text.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
+
+  if (spanishDate) {
+    return [
+      spanishDate[3],
+      String(Number(spanishDate[2])).padStart(2, "0"),
+      String(Number(spanishDate[1])).padStart(2, "0"),
+    ].join("-");
+  }
+
+  return text;
+}
+
+function normalizeManagementRoadmapDeadlinesCell_(value) {
+  let source = [];
+
+  if (Array.isArray(value)) {
+    source = value;
+  } else if (value && typeof value === "object") {
+    source = [value];
+  } else {
+    const text = String(value ?? "").trim();
+
+    if (!text) {
+      return "[]";
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+
+      source = Array.isArray(parsed) ? parsed : [parsed];
+    } catch (error) {
+      source = text
+        .split(/\r?\n|;/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+
+  const result = new Map();
+
+  source.forEach((item) => {
+    let rawDate = "";
+
+    let label = "";
+
+    if (typeof item === "string") {
+      const parts = item.split("|");
+
+      rawDate = String(parts.shift() || "").trim();
+
+      label = parts.join("|").trim();
+    } else if (item && typeof item === "object") {
+      rawDate = String(item.date || item.deadline || item.at || "").trim();
+
+      label = String(item.label || item.name || item.title || "").trim();
+    }
+
+    const date = normalizeManagementRoadmapDateCell_(rawDate);
+
+    if (!date) {
+      return;
+    }
+
+    const key = `${date}::${label.toLowerCase()}`;
+
+    result.set(key, {
+      date,
+      label,
+    });
+  });
+
+  const normalized = [...result.values()].sort((left, right) => {
+    const dateComparison = String(left.date).localeCompare(String(right.date));
+
+    if (dateComparison !== 0) {
+      return dateComparison;
+    }
+
+    return String(left.label || "").localeCompare(String(right.label || ""));
+  });
+
+  return JSON.stringify(normalized);
+}
 function normalizeManagementRoadmapLineRow_(row) {
   const id = String(row?.id || "").trim();
 
@@ -3765,6 +4094,10 @@ function normalizeManagementRoadmapLineRow_(row) {
   if (!title) {
     return null;
   }
+
+  const quarter = String(row?.quarter || "")
+    .trim()
+    .toUpperCase();
 
   return {
     id,
@@ -3785,11 +4118,25 @@ function normalizeManagementRoadmapLineRow_(row) {
 
     order: Number(row?.order) || 999,
 
+    reportId: String(row?.reportId || "")
+      .trim()
+      .toLowerCase(),
+
     category: String(row?.category || "").trim(),
 
     categoryTone: String(row?.categoryTone || "").trim(),
 
     title,
+
+    owner: String(row?.owner || "").trim(),
+
+    quarter: ["Q1", "Q2", "Q3", "Q4"].includes(quarter) ? quarter : "",
+
+    startDate: normalizeManagementRoadmapDateCell_(row?.startDate),
+
+    endDate: normalizeManagementRoadmapDateCell_(row?.endDate),
+
+    deadlines: normalizeManagementRoadmapDeadlinesCell_(row?.deadlines),
 
     status: String(row?.status || "").trim(),
 
@@ -3808,7 +4155,6 @@ function normalizeManagementRoadmapLineRow_(row) {
     ),
   };
 }
-
 /* =========================================================
  * DEDUPLICACIÓN
  * ========================================================= */
@@ -3842,6 +4188,86 @@ function getOrCreateManagementRoadmapLinesSheet_() {
   }
 
   return sheet;
+}
+function managementRoadmapLineToSheetRow_(line) {
+  const normalized = normalizeManagementRoadmapLineRow_(line);
+
+  if (!normalized) {
+    return null;
+  }
+
+  return [
+    normalized.id,
+    normalized.programId,
+    normalized.productId,
+    normalized.country,
+    normalized.year,
+    normalized.order,
+    normalized.reportId,
+    normalized.category,
+    normalized.categoryTone,
+    normalized.title,
+    normalized.owner,
+    normalized.quarter,
+    normalized.startDate,
+    normalized.endDate,
+    normalized.deadlines,
+    normalized.status,
+    normalized.statusLabel,
+    normalized.statusTone,
+    normalized.comments,
+    normalizeManagementRoadmapManualValue_(normalized.manualValue),
+    normalized.active,
+  ];
+}
+
+function prepareManagementRoadmapDeadlinesColumn_(sheet, dataRowCount) {
+  if (!sheet) {
+    throw new Error("No se ha recibido la pestaña Management Roadmap Lines.");
+  }
+
+  const deadlinesColumn =
+    MANAGEMENT_ROADMAP_LINES_HEADERS.indexOf("deadlines") + 1;
+
+  if (deadlinesColumn < 1) {
+    throw new Error(
+      'No existe "deadlines" en MANAGEMENT_ROADMAP_LINES_HEADERS.',
+    );
+  }
+
+  const rowsToFormat = Math.max(1, Number(dataRowCount) || 0);
+
+  sheet.getRange(2, deadlinesColumn, rowsToFormat, 1).setNumberFormat("@");
+}
+
+function writeManagementRoadmapLinesSheet_(sheet, rawLines) {
+  if (!sheet) {
+    throw new Error("No se ha recibido la pestaña Management Roadmap Lines.");
+  }
+
+  const lines = deduplicateManagementRoadmapLines_(rawLines);
+
+  sheet.clearContents();
+
+  sheet
+    .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
+    .setValues([MANAGEMENT_ROADMAP_LINES_HEADERS]);
+
+  prepareManagementRoadmapManualValueColumn_(sheet, lines.length);
+
+  prepareManagementRoadmapDeadlinesColumn_(sheet, lines.length);
+
+  if (lines.length) {
+    const values = lines.map(managementRoadmapLineToSheetRow_).filter(Boolean);
+
+    if (values.length) {
+      sheet
+        .getRange(2, 1, values.length, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
+        .setValues(values);
+    }
+  }
+
+  return lines;
 }
 
 /* =========================================================
@@ -3879,10 +4305,6 @@ function saveManagementGlobalStatusLines_(rawLines) {
 
     const currentRows = sheet.getLastRow() > 1 ? sheetToObjects_(sheet) : [];
 
-    /*
-     * Conservamos todas las líneas que no pertenecen
-     * a Blue Buddy Global Status.
-     */
     const nonGlobalStatusRows = currentRows.filter(
       (row) =>
         String(row?.productId || "")
@@ -3890,64 +4312,18 @@ function saveManagementGlobalStatusLines_(rawLines) {
           .toLowerCase() !== GLOBAL_STATUS_PRODUCT_ID,
     );
 
-    const preservedLines =
-      deduplicateManagementRoadmapLines_(nonGlobalStatusRows);
-
-    /*
-     * Sustituimos la fotografía completa
-     * de Global Status.
-     */
     const nextLines = deduplicateManagementRoadmapLines_([
-      ...preservedLines,
+      ...nonGlobalStatusRows,
       ...globalStatusLines,
     ]);
 
-    sheet.clearContents();
-
-    sheet
-      .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
-      .setValues([MANAGEMENT_ROADMAP_LINES_HEADERS]);
-
-    /*
-     * CRÍTICO:
-     *
-     * manualValue se almacena como texto.
-     *
-     * Esto evita que Google Sheets transforme:
-     *
-     * 100% -> 1
-     */
-    prepareManagementRoadmapManualValueColumn_(sheet, nextLines.length);
-
-    if (nextLines.length) {
-      const values = nextLines.map((line) => [
-        line.id,
-        line.programId,
-        line.productId,
-        line.country,
-        line.year,
-        line.order,
-        line.category,
-        line.categoryTone,
-        line.title,
-        line.status,
-        line.statusLabel,
-        line.statusTone,
-        line.comments,
-        normalizeManagementRoadmapManualValue_(line.manualValue),
-        line.active,
-      ]);
-
-      sheet
-        .getRange(2, 1, values.length, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
-        .setValues(values);
-    }
+    const persistedLines = writeManagementRoadmapLinesSheet_(sheet, nextLines);
 
     SpreadsheetApp.flush();
 
     result = {
       saved: globalStatusLines.length,
-      lines: globalStatusLines,
+      lines: persistedLines,
     };
   } finally {
     lock.releaseLock();
@@ -3957,114 +4333,6 @@ function saveManagementGlobalStatusLines_(rawLines) {
 
   return result;
 }
-function saveManagementGlobalStatusLines_(rawLines) {
-  const GLOBAL_STATUS_PRODUCT_ID = "blue-global-status";
-
-  /*
-   * IMPORTANTE:
-   *
-   * deduplicateManagementRoadmapLines_
-   * pasa por normalizeManagementRoadmapLineRow_.
-   *
-   * Por eso manualValue debe formar parte
-   * explícitamente de dicha normalización.
-   */
-  const globalStatusLines = deduplicateManagementRoadmapLines_(rawLines).filter(
-    (line) =>
-      String(line?.productId || "")
-        .trim()
-        .toLowerCase() === GLOBAL_STATUS_PRODUCT_ID,
-  );
-
-  if (!globalStatusLines.length) {
-    throw new Error(
-      "No se han recibido líneas válidas de Blue Buddy Global Status.",
-    );
-  }
-
-  const lock = LockService.getDocumentLock();
-
-  if (!lock.tryLock(5000)) {
-    throw new Error(
-      "Hay otra actualización del Global Status en curso. Inténtalo de nuevo.",
-    );
-  }
-
-  let result;
-
-  try {
-    const sheet = getOrCreateManagementRoadmapLinesSheet_();
-
-    const currentRows = sheet.getLastRow() > 1 ? sheetToObjects_(sheet) : [];
-
-    /*
-     * Conservamos todas las líneas que no pertenecen
-     * a Blue Buddy Global Status.
-     */
-    const nonGlobalStatusRows = currentRows.filter(
-      (row) =>
-        String(row?.productId || "")
-          .trim()
-          .toLowerCase() !== GLOBAL_STATUS_PRODUCT_ID,
-    );
-
-    const preservedLines =
-      deduplicateManagementRoadmapLines_(nonGlobalStatusRows);
-
-    /*
-     * Sustituimos la fotografía completa
-     * de Global Status.
-     */
-    const nextLines = deduplicateManagementRoadmapLines_([
-      ...preservedLines,
-      ...globalStatusLines,
-    ]);
-
-    sheet.clearContents();
-
-    sheet
-      .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
-      .setValues([MANAGEMENT_ROADMAP_LINES_HEADERS]);
-
-    if (nextLines.length) {
-      const values = nextLines.map((line) => [
-        line.id,
-        line.programId,
-        line.productId,
-        line.country,
-        line.year,
-        line.order,
-        line.category,
-        line.categoryTone,
-        line.title,
-        line.status,
-        line.statusLabel,
-        line.statusTone,
-        line.comments,
-        normalizeManagementRoadmapManualValue_(line.manualValue),
-        line.active,
-      ]);
-
-      sheet
-        .getRange(2, 1, values.length, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
-        .setValues(values);
-    }
-
-    SpreadsheetApp.flush();
-
-    result = {
-      saved: globalStatusLines.length,
-      lines: globalStatusLines,
-    };
-  } finally {
-    lock.releaseLock();
-  }
-
-  exportPortfolioJson();
-
-  return result;
-}
-
 /* =========================================================
  * TEST
  * ========================================================= */
@@ -4108,11 +4376,6 @@ function deleteManagementRoadmapLine_(lineId) {
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
-    /*
-     * =====================================================
-     * MANAGEMENT ROADMAP LINES
-     * =====================================================
-     */
     const linesSheet = spreadsheet.getSheetByName(
       MANAGEMENT_ROADMAP_LINES_SHEET_NAME,
     );
@@ -4131,47 +4394,9 @@ function deleteManagementRoadmapLine_(lineId) {
     const deleted = currentLines.length - nextLines.length;
 
     if (linesSheet) {
-      linesSheet.clearContents();
-
-      linesSheet
-        .getRange(1, 1, 1, MANAGEMENT_ROADMAP_LINES_HEADERS.length)
-        .setValues([MANAGEMENT_ROADMAP_LINES_HEADERS]);
-
-      if (nextLines.length) {
-        const values = nextLines.map((line) => [
-          line.id,
-          line.programId,
-          line.productId,
-          line.country,
-          line.year,
-          line.order,
-          line.category,
-          line.categoryTone,
-          line.title,
-          line.status,
-          line.statusLabel,
-          line.statusTone,
-          line.comments,
-          normalizeManagementRoadmapManualValue_(line.manualValue),
-          line.active,
-        ]);
-
-        linesSheet
-          .getRange(
-            2,
-            1,
-            values.length,
-            MANAGEMENT_ROADMAP_LINES_HEADERS.length,
-          )
-          .setValues(values);
-      }
+      writeManagementRoadmapLinesSheet_(linesSheet, nextLines);
     }
 
-    /*
-     * =====================================================
-     * MANAGEMENT ROADMAP LINKS
-     * =====================================================
-     */
     const linksSheet = spreadsheet.getSheetByName(
       MANAGEMENT_ROADMAP_LINKS_SHEET_NAME,
     );
@@ -4514,6 +4739,7 @@ function base64UrlDecode_(value) {
 
   return Utilities.newBlob(bytes).getDataAsString("UTF-8");
 }
+
 function refreshAllSourcesAndExport() {
   const startedAt = new Date();
 
@@ -4568,6 +4794,91 @@ function refreshAllSourcesAndExport() {
       new Date().getTime() - startedAt.getTime()
     } ms`,
   );
+
+  return result;
+}
+function scheduledRefreshAllSourcesAndExport() {
+  const lock = LockService.getScriptLock();
+
+  /*
+   * =====================================================
+   * EVITAR REFRESCOS SOLAPADOS
+   * =====================================================
+   *
+   * Un trigger horario no debe arrancar una segunda
+   * regeneración si la anterior todavía está ejecutándose.
+   *
+   * Si el lock está ocupado, simplemente dejamos que el
+   * siguiente trigger horario vuelva a intentarlo.
+   * =====================================================
+   */
+
+  if (!lock.tryLock(5000)) {
+    Logger.log(
+      "AIXBANKER · HOURLY REFRESH omitido: ya existe otra regeneración en curso.",
+    );
+
+    return null;
+  }
+
+  try {
+    Logger.log("========================================");
+    Logger.log("AIXBANKER · HOURLY SNAPSHOT REFRESH");
+    Logger.log("========================================");
+
+    const result = refreshAllSourcesAndExport();
+
+    Logger.log(
+      `Snapshot horario generado: ${result?.generatedAt || "sin fecha"}`,
+    );
+
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function installHourlySnapshotRefreshTrigger() {
+  const handlerName = "scheduledRefreshAllSourcesAndExport";
+
+  /*
+   * =====================================================
+   * ELIMINAR TRIGGERS ANTERIORES DEL MISMO HANDLER
+   * =====================================================
+   *
+   * Así esta función puede ejecutarse varias veces sin
+   * terminar creando varios refrescos por hora.
+   * =====================================================
+   */
+
+  ScriptApp.getProjectTriggers()
+    .filter((trigger) => trigger.getHandlerFunction() === handlerName)
+    .forEach((trigger) => {
+      ScriptApp.deleteTrigger(trigger);
+    });
+
+  /*
+   * =====================================================
+   * NUEVO TRIGGER HORARIO
+   * =====================================================
+   */
+
+  const trigger = ScriptApp.newTrigger(handlerName)
+    .timeBased()
+    .everyHours(1)
+    .create();
+
+  const result = {
+    handler: handlerName,
+    triggerId: trigger.getUniqueId(),
+    frequency: "hourly",
+    installedAt: new Date().toISOString(),
+  };
+
+  Logger.log("========================================");
+  Logger.log("AIXBANKER · HOURLY TRIGGER INSTALLED");
+  Logger.log("========================================");
+  Logger.log(JSON.stringify(result, null, 2));
 
   return result;
 }
@@ -4666,11 +4977,25 @@ function getPortfolioSnapshot_() {
 function getOrBuildPortfolioSnapshot_() {
   /*
    * =====================================================
-   * L2 CACHE · DRIVE JSON
+   * FAST PATH · SNAPSHOT EXISTENTE
+   * =====================================================
+   *
+   * Este es el camino normal.
+   *
+   * El Cockpit debe vivir prácticamente siempre aquí:
+   *
+   * Drive JSON
+   * → parse
+   * → respuesta
+   *
+   * Sin SDA.
+   * Sin JIRA.
+   * Sin Staffing.
+   * Sin regeneración.
    * =====================================================
    */
 
-  const snapshot = getPortfolioSnapshot_();
+  let snapshot = getPortfolioSnapshot_();
 
   if (snapshot) {
     Logger.log("Snapshot existente encontrado. No se ejecutan importaciones.");
@@ -4680,32 +5005,162 @@ function getOrBuildPortfolioSnapshot_() {
 
   /*
    * =====================================================
-   * CACHE MISS
+   * CACHE MISS · PRIMERA EJECUCIÓN
    * =====================================================
    *
    * Sólo llegamos aquí si:
    *
-   * - no existe el JSON;
-   * - está vacío;
-   * - está corrupto;
-   * - o no es full-export.
+   * - nunca se ha generado app-common-data.json;
+   * - el fichero está vacío;
+   * - el JSON está corrupto;
+   * - o no corresponde al dataset full-export.
+   *
+   * Bloqueamos para impedir que dos primeras peticiones
+   * ejecuten simultáneamente toda la generación.
+   * =====================================================
    */
 
-  Logger.log("No existe un snapshot válido. Se ejecutará refresh completo.");
+  const lock = LockService.getScriptLock();
 
-  const result = refreshAllSourcesAndExport();
+  lock.waitLock(120000);
 
-  if (result?.snapshot && typeof result.snapshot === "object") {
-    return result.snapshot;
+  try {
+    /*
+     * ===================================================
+     * DOUBLE CHECK
+     * ===================================================
+     *
+     * Otro usuario podría haber generado el snapshot
+     * mientras esta petición esperaba el lock.
+     * ===================================================
+     */
+
+    snapshot = getPortfolioSnapshot_();
+
+    if (snapshot) {
+      Logger.log(
+        "Snapshot generado por otra ejecución mientras se esperaba el lock.",
+      );
+
+      return snapshot;
+    }
+
+    Logger.log(
+      "No existe un snapshot válido. Se ejecutará el refresh inicial completo.",
+    );
+
+    const result = refreshAllSourcesAndExport();
+
+    if (result?.snapshot && typeof result.snapshot === "object") {
+      return result.snapshot;
+    }
+
+    const generatedSnapshot = getPortfolioSnapshot_();
+
+    if (!generatedSnapshot) {
+      throw new Error(
+        "El refresh ha finalizado pero no se ha podido recuperar el snapshot generado.",
+      );
+    }
+
+    return generatedSnapshot;
+  } finally {
+    lock.releaseLock();
   }
+}
+function writeManagementRoadmapLines_(rawLines) {
+  const sheet = getOrCreateManagementRoadmapLinesSheet_();
 
-  const generatedSnapshot = getPortfolioSnapshot_();
+  return writeManagementRoadmapLinesSheet_(sheet, rawLines);
+}
+function saveManagementRoadmapLines_(rawLines) {
+  const lock = LockService.getDocumentLock();
 
-  if (!generatedSnapshot) {
+  if (!lock.tryLock(5000)) {
     throw new Error(
-      "El refresh ha finalizado pero no se ha podido recuperar el snapshot generado.",
+      "Hay otra actualización del Roadmap en curso. Inténtalo de nuevo.",
     );
   }
 
-  return generatedSnapshot;
+  let lines = [];
+
+  try {
+    lines = writeManagementRoadmapLines_(rawLines);
+
+    SpreadsheetApp.flush();
+  } finally {
+    lock.releaseLock();
+  }
+
+  /*
+   * Actualización rápida del snapshot.
+   *
+   * Conservamos el mecanismo existente:
+   * sólo se actualizan las colecciones
+   * de Management Reports.
+   *
+   * No regeneramos JIRA, Staffing ni el
+   * resto de los datos del programa.
+   */
+  patchManagementRoadmapConfigSnapshot_();
+
+  return {
+    saved: lines.length,
+    lines,
+  };
+}
+
+function writeManagementRoadmapLinks_(rawLinks) {
+  const sheet = getOrCreateManagementRoadmapLinksSheet_();
+
+  const links = deduplicateManagementRoadmapLinks_(rawLinks);
+
+  const headers = MANAGEMENT_ROADMAP_LINKS_HEADERS;
+
+  const values = links.map((link) =>
+    headers.map((header) => {
+      if (header === "startDate" || header === "endDate") {
+        return normalizeManagementRoadmapDateCell_(link[header]);
+      }
+
+      if (header === "active") {
+        return link.active !== false;
+      }
+
+      return link[header] ?? "";
+    }),
+  );
+
+  const requiredRows = Math.max(1, values.length + 1);
+
+  if (sheet.getMaxRows() < requiredRows) {
+    sheet.insertRowsAfter(
+      sheet.getMaxRows(),
+      requiredRows - sheet.getMaxRows(),
+    );
+  }
+
+  if (sheet.getMaxColumns() < headers.length) {
+    sheet.insertColumnsAfter(
+      sheet.getMaxColumns(),
+      headers.length - sheet.getMaxColumns(),
+    );
+  }
+
+  sheet.clearContents();
+
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+  if (values.length) {
+    const startColumn = headers.indexOf("startDate") + 1;
+    const endColumn = headers.indexOf("endDate") + 1;
+
+    sheet.getRange(2, startColumn, values.length, 1).setNumberFormat("@");
+
+    sheet.getRange(2, endColumn, values.length, 1).setNumberFormat("@");
+
+    sheet.getRange(2, 1, values.length, headers.length).setValues(values);
+  }
+
+  return links;
 }

@@ -10182,3 +10182,149 @@ PRODUCT PLAN · EPIC COLLAPSE
     minmax(0, 1fr)
     auto;
 }
+
+.management-manual-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px;
+}
+
+.management-manual-sources-heading h3 {
+  margin: 0 0 5px;
+  color: #001391;
+  font-size: 16px;
+}
+
+.management-manual-sources-heading p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.management-manual-source-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px;
+  border: 1px solid #dce5f3;
+  border-radius: 12px;
+  background: #f8faff;
+}
+
+.management-manual-source-editor h4,
+.management-manual-source-list h4 {
+  margin: 0;
+  color: #001391;
+  font-size: 13px;
+}
+
+.management-manual-source-editor label {
+  color: #43577c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.management-manual-source-editor textarea,
+.management-manual-source-editor input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid #d3def0;
+  border-radius: 8px;
+  background: #fff;
+  color: #172554;
+  font: inherit;
+  font-size: 12px;
+}
+
+.management-manual-source-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.management-manual-source-dates > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.management-manual-source-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.management-manual-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.management-manual-source-card {
+  padding: 12px;
+  border: 1px solid #e0e7f3;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.management-manual-source-card p {
+  margin: 0 0 8px;
+  color: #172554;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.management-manual-source-card small {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.management-manual-source-card > div {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.management-manual-source-empty {
+  color: #94a3b8;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* =========================================================
+   MANAGEMENT REPORTS · CINCO TIPOS DE FUENTES
+   ========================================================= */
+
+.management-report-source-panel .management-report-source-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: 42px;
+  align-items: center;
+
+  width: 100%;
+  height: auto;
+  min-height: 58px;
+  max-height: 58px;
+
+  padding: 8px 12px;
+  gap: 6px;
+
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.management-report-source-panel .management-report-source-tabs button {
+  min-width: 0;
+  width: 100%;
+  height: 42px;
+  padding: 0 5px;
+  white-space: nowrap;
+  font-size: 10px;
+}
