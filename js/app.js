@@ -250,32 +250,84 @@ function renderLanding() {
 }
 
 function getAIxBankerProduct(productId) {
-  const normalizedProductId = String(productId || "")
-    .trim()
-    .toLowerCase();
-  const products = {
+  const id = normalizeRoadmapProduct(productId);
+
+  if (!id) {
+    return null;
+  }
+
+  const catalog = (
+    Array.isArray(DATA?.productCatalog) ? DATA.productCatalog : []
+  ).find(
+    (item) =>
+      normalizeRoadmapProduct(item.productId || item.product_id || item.id) ===
+      id,
+  );
+
+  const flight = (Array.isArray(DATA?.sdaFlights) ? DATA.sdaFlights : []).find(
+    (item) => normalizeRoadmapProduct(item.productId || item.product) === id,
+  );
+
+  const definitions = {
     "blue-buddy": {
-      id: "blue-buddy",
       label: "Blue Buddy",
       description: "Roadmap, iniciativas y evolución del producto Blue Buddy.",
     },
     panorama: {
-      id: "panorama",
       label: "Panorama",
       description: "Roadmap, iniciativas y evolución del producto Panorama.",
     },
     blue: {
-      id: "blue",
       label: "Blue",
-      description: "Solución agentic para cliente.",
+      description: "Solución agéntica para cliente.",
     },
     nbc: {
-      id: "nbc",
       label: "NBC",
       description: "Orquestación inteligente de interacciones y asistencia.",
     },
+    nbc1: {
+      label: "Filtrado / Enrutado",
+      description: "Smart Routing",
+    },
+    nbc2: {
+      label: "Foresight",
+      description: "Asistencia en Caídas (interacciones)",
+    },
+    nbc3: {
+      label: "Asistencia Proactiva",
+      description: "Asistencia Proactiva",
+    },
   };
-  return products[normalizedProductId] || null;
+
+  const definition = definitions[id] || {};
+
+  if (!catalog && !flight && !definitions[id]) {
+    return null;
+  }
+
+  const label = String(
+    catalog?.productName ||
+      catalog?.product_name ||
+      catalog?.label ||
+      flight?.productName ||
+      definition.label ||
+      id,
+  ).trim();
+
+  const description = String(
+    catalog?.tagline ||
+      catalog?.overview ||
+      flight?.programName ||
+      flight?.description ||
+      definition.description ||
+      "",
+  ).trim();
+
+  return {
+    id,
+    label,
+    description,
+  };
 }
 
 function getCurrentQuarter() {
@@ -3822,25 +3874,108 @@ function applyFlightDeckProgramIdentity(programId) {
   const normalizedProgramId = String(programId || "")
     .trim()
     .toLowerCase();
+
+  /*
+   * Obtener los productos reales del programa
+   * desde el catálogo y los vuelos SDA.
+   */
+  const productIds = new Set();
+
+  (Array.isArray(DATA?.productCatalog) ? DATA.productCatalog : [])
+    .filter((item) => {
+      const itemProgramId = String(item.programId || item.program_id || "")
+        .trim()
+        .toLowerCase();
+
+      const enabled = ![
+        "false",
+        "0",
+        "no",
+        "disabled",
+        "inactive",
+        "inactivo",
+      ].includes(
+        String(item.enabled ?? true)
+          .trim()
+          .toLowerCase(),
+      );
+
+      return itemProgramId === normalizedProgramId && enabled;
+    })
+    .forEach((item) => {
+      const id = normalizeRoadmapProduct(
+        item.productId || item.product_id || item.id,
+      );
+
+      if (id) {
+        productIds.add(id);
+      }
+    });
+
+  (Array.isArray(DATA?.sdaFlights) ? DATA.sdaFlights : [])
+    .filter(
+      (item) =>
+        String(item.programId || "")
+          .trim()
+          .toLowerCase() === normalizedProgramId,
+    )
+    .forEach((item) => {
+      const id = normalizeRoadmapProduct(item.productId || item.product);
+
+      if (id) {
+        productIds.add(id);
+      }
+    });
+
+  /*
+   * Navegación de retorno común.
+   *
+   * Varios productos -> selector de productos.
+   * Un único producto -> portfolio.
+   */
+  const backButton = document.querySelector(".flight-deck-back");
+
+  if (backButton) {
+    if (productIds.size > 1) {
+      backButton.dataset.route = `program/${normalizedProgramId}`;
+
+      backButton.textContent = "← Volver a productos";
+    } else {
+      backButton.dataset.route = "landing";
+      backButton.textContent = "← Volver al portfolio";
+    }
+  }
+
+  /*
+   * Identidad visual del Flight Deck.
+   * Se conserva la configuración existente.
+   */
   const identities = {
     rosetta: {
       top: "RCS",
       bottom: "ORCH",
     },
   };
+
   const identity = identities[normalizedProgramId];
+
   if (!identity) {
     return;
   }
+
   const centerPost = document.querySelector(".flight-deck-center-post");
+
   if (!centerPost) {
     return;
   }
+
   const centerTop = centerPost.querySelector("span");
   const centerBottom = centerPost.querySelector("strong");
+
   if (centerTop) {
     centerTop.textContent = identity.top;
   }
+
   if (centerBottom) {
     centerBottom.textContent = identity.bottom;
   }
@@ -6977,6 +7112,365 @@ async function loadProgramData(programId, forceRefresh = false) {
   }
 }
 
+function renderProgramProductSelection(programId) {
+  const id = String(programId || "")
+    .trim()
+    .toLowerCase();
+
+  const program = (DATA.programs || []).find(
+    (item) =>
+      String(item.id || "")
+        .trim()
+        .toLowerCase() === id,
+  );
+
+  const programName = String(program?.name || id);
+  const productsById = new Map();
+
+  const normalized = (value) => normalizeRoadmapProduct(value);
+
+  const catalog = Array.isArray(DATA.productCatalog) ? DATA.productCatalog : [];
+
+  const flights = Array.isArray(DATA.sdaFlights) ? DATA.sdaFlights : [];
+
+  const features = Array.isArray(DATA.productFeatures)
+    ? DATA.productFeatures
+    : [];
+
+  /*
+   * Fuente principal: catálogo de productos.
+   */
+  catalog
+    .filter((item) => {
+      const owner = String(item.programId || item.program_id || "")
+        .trim()
+        .toLowerCase();
+
+      const disabled = [
+        "false",
+        "0",
+        "no",
+        "inactive",
+        "disabled",
+        "inactivo",
+      ].includes(
+        String(item.enabled ?? true)
+          .trim()
+          .toLowerCase(),
+      );
+
+      return owner === id && !disabled;
+    })
+    .forEach((item, index) => {
+      const productId = normalized(
+        item.productId || item.product_id || item.id,
+      );
+
+      if (!productId) return;
+
+      productsById.set(productId, {
+        id: productId,
+        name: String(
+          item.productName ||
+            item.product_name ||
+            item.label ||
+            getAIxBankerProduct(productId)?.label ||
+            productId,
+        ).trim(),
+        description: String(
+          item.tagline ||
+            item.overview ||
+            getAIxBankerProduct(productId)?.description ||
+            "",
+        ).trim(),
+        order: Number(item.sortOrder ?? item.sort_order ?? index + 1),
+        flights: [],
+      });
+    });
+
+  /*
+   * Completar el catálogo con los vuelos SDA.
+   * Un programa puede tener productos definidos
+   * en SDA aunque aún no tenga productCatalog.
+   */
+  flights
+    .filter(
+      (item) =>
+        String(item.programId || "")
+          .trim()
+          .toLowerCase() === id,
+    )
+    .forEach((flight, index) => {
+      const productId = normalized(flight.productId || flight.product);
+
+      if (!productId) return;
+
+      const definition = getAIxBankerProduct(productId);
+
+      const product = productsById.get(productId) || {
+        id: productId,
+        name: String(
+          flight.productName || definition?.label || productId,
+        ).trim(),
+        description: String(
+          definition?.description || flight.description || "",
+        ).trim(),
+        order: index + 1,
+        flights: [],
+      };
+
+      const sdaCode = String(flight.sdaCode || "").trim();
+
+      if (sdaCode && !product.flights.includes(sdaCode)) {
+        product.flights.push(sdaCode);
+      }
+
+      productsById.set(productId, product);
+    });
+
+  /*
+   * Compatibilidad con AIxBanker cuando su
+   * catálogo o snapshot no esté disponible.
+   */
+  if (!productsById.size && id === "aixbanker") {
+    [
+      { id: "blue-buddy", order: 1 },
+      { id: "panorama", order: 2 },
+    ].forEach((item) => {
+      const definition = getAIxBankerProduct(item.id);
+
+      productsById.set(item.id, {
+        id: item.id,
+        name: definition?.label || item.id,
+        description: definition?.description || "",
+        order: item.order,
+        flights: [],
+      });
+    });
+  }
+
+  const products = [...productsById.values()].sort(
+    (a, b) => a.order - b.order || a.name.localeCompare(b.name, "es"),
+  );
+
+  /*
+   * Estadísticas del catálogo funcional.
+   */
+  function getProductStats(productId) {
+    const rows = features.filter(
+      (item) =>
+        normalized(item.productId || item.product_id || "") === productId,
+    );
+
+    const capabilities = new Set(
+      rows
+        .map((item) =>
+          String(item.capabilityId || item.capability_id || "").trim(),
+        )
+        .filter(Boolean),
+    );
+
+    const countries = new Set();
+
+    rows.forEach((item) => {
+      String(item.country || item.countries || "")
+        .split(/[|,;\n]+/)
+        .map((value) => value.trim().toUpperCase())
+        .filter(Boolean)
+        .forEach((value) => countries.add(value));
+    });
+
+    return {
+      capabilities: capabilities.size,
+      features: rows.length,
+      countries: [...countries],
+    };
+  }
+
+  setHead(
+    programName,
+    "Selecciona un producto para acceder a su espacio de planificación, ejecución y gestión.",
+    `Retail Client Solutions > ${programName}`,
+  );
+
+  /*
+   * Misma plantilla que la landing original
+   * de productos de AIxBanker.
+   */
+  view.innerHTML = "";
+  view.append(tpl("#aixbanker-home-template"));
+
+  const board = document.querySelector("#flightGateBoardGrid");
+
+  if (!board) {
+    console.error("[Product Selection] No existe #flightGateBoardGrid");
+    return;
+  }
+
+  const home = board.closest(".aixbanker-home");
+
+  if (home) {
+    const backButton = home.querySelector('button[data-route="landing"]');
+
+    if (backButton) {
+      backButton.textContent = "← Volver al portfolio";
+    }
+  }
+
+  /*
+   * Estructura visual original:
+   * flight-gate-board
+   * flight-gate-monitor-frame
+   * flight-gate-monitor
+   * flight-gate-destination
+   * flight-gate-info
+   * flight-gate-status
+   *
+   * No se añade CSS específico.
+   */
+  board.innerHTML = products
+    .map((product, index) => {
+      const stats = getProductStats(product.id);
+
+      const isPanorama = product.id === "panorama";
+
+      const gateCode =
+        product.id === "blue-buddy"
+          ? "BBY"
+          : isPanorama
+            ? "PNM"
+            : product.id.toUpperCase();
+
+      const displayName = String(product.name || product.id).trim();
+
+      const shortName = displayName
+        .replace(/\s*\/\s*/g, "/")
+        .toLocaleUpperCase("es");
+
+      const rawDescription = String(product.description || "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      /*
+       * Texto resumido para que todas las
+       * tarjetas mantengan una altura controlada.
+       */
+      const description =
+        rawDescription.length > 110
+          ? `${rawDescription.slice(0, 107).trimEnd()}…`
+          : rawDescription;
+
+      const isSdaProduct = product.flights.length > 0;
+
+      const infoHtml = isSdaProduct
+        ? `
+          <div>
+            <span>Vuelo SDA</span>
+            <strong>
+              ${rcsEsc(product.flights.join(" · "))}
+            </strong>
+          </div>
+          <div>
+            <span>Año</span>
+            <strong>
+              ${rcsEsc(
+                String(
+                  flights.find(
+                    (flight) =>
+                      String(flight.programId || "")
+                        .trim()
+                        .toLowerCase() === id &&
+                      normalized(flight.productId || flight.product) ===
+                        product.id,
+                  )?.year || new Date().getFullYear(),
+                ),
+              )}
+            </strong>
+          </div>
+        `
+        : `
+          <div>
+            <span>Capacidades</span>
+            <strong>${stats.capabilities}</strong>
+          </div>
+          <div>
+            <span>Casos funcionales</span>
+            <strong>${stats.features}</strong>
+          </div>
+          <div>
+            <span>Disponible en</span>
+            <strong>
+              ${
+                stats.countries.length
+                  ? stats.countries
+                      .slice(0, 4)
+                      .map((country) => `<span>${rcsEsc(country)}</span>`)
+                      .join(" ")
+                  : "—"
+              }
+            </strong>
+          </div>
+        `;
+
+      return `
+        <article class="flight-gate-board ${isPanorama ? "is-panorama" : ""}">
+          <div class="flight-gate-sign">
+            ${rcsEsc(gateCode)}
+          </div>
+
+          <div class="flight-gate-monitor-frame">
+            <div class="flight-gate-monitor">
+
+              <div class="flight-gate-monitor-top">
+                <div class="flight-gate-airline">
+                  ${rcsEsc(programName)}
+                </div>
+
+                <div class="flight-gate-flight-meta">
+                  <strong>${rcsEsc(displayName)}</strong>
+                  <small>PRODUCTO GLOBAL</small>
+                </div>
+              </div>
+
+              <div class="flight-gate-destination">
+                ${rcsEsc(shortName)}
+              </div>
+
+              <div class="flight-gate-info">
+                ${infoHtml}
+              </div>
+
+              <div class="flight-gate-status">
+                ${rcsEsc(description)}
+              </div>
+
+              <button
+                class="flight-gate-open"
+                type="button"
+                data-route="program/${rcsEsc(id)}/${rcsEsc(product.id)}"
+                aria-label="Abrir ${rcsEsc(displayName)}"
+              >
+                <span aria-hidden="true">→</span>
+                Abrir producto
+              </button>
+
+              <small class="flight-gate-monitor-brand">
+                RCS · ${rcsEsc(programName)} · GATE ${index + 1}
+              </small>
+
+            </div>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  console.info("[Product Selection] Productos cargados", {
+    programId: id,
+    products: products.map((product) => product.id),
+  });
+}
+
 function renderCurrentRoute(
   routeName,
   programId,
@@ -6990,68 +7484,74 @@ function renderCurrentRoute(
     .trim()
     .toLowerCase();
 
-  const singleProductFlightDeck = {
-    blue: "blue",
-    rosetta: "nbc",
-  };
+  const normalizedProductId = normalizeRoadmapProduct(productId);
 
-  const usesProductFlightDeck = ["aixbanker", "blue", "rosetta"].includes(
-    normalizedProgramId,
-  );
-
-  /*
-   * =====================================================
-   * PROGRAMA
-   * =====================================================
-   */
   if (routeName === "program") {
-    if (usesProductFlightDeck && typeof renderAIxBankerHome === "function") {
-      const resolvedProductId =
-        String(productId || "").trim() ||
-        singleProductFlightDeck[normalizedProgramId] ||
-        null;
-
-      if (
-        normalizedProgramId === "rosetta" &&
-        !String(productId || "").trim() &&
-        resolvedProductId
-      ) {
-        route(`program/${normalizedProgramId}/${resolvedProductId}`);
-        return;
-      }
-
-      renderAIxBankerHome(normalizedProgramId, resolvedProductId);
-
-      if (
-        normalizedProgramId === "rosetta" &&
-        typeof applyFlightDeckProgramIdentity === "function"
-      ) {
-        applyFlightDeckProgramIdentity(normalizedProgramId);
-      }
-
+    /*
+     * AIxBanker conserva su landing original.
+     * Blue Buddy y Panorama mantienen sus
+     * métricas, colores y diseño publicados.
+     */
+    if (normalizedProgramId === "aixbanker" && !normalizedProductId) {
+      renderAIxBankerHome(normalizedProgramId);
       return;
     }
 
-    renderProgram(programId, productId);
+    const usesProductFlightDeck = ["aixbanker", "blue", "rosetta"].includes(
+      normalizedProgramId,
+    );
+
+    if (usesProductFlightDeck) {
+      const products =
+        getManagementRoadmapAvailableProducts(normalizedProgramId);
+
+      /*
+       * Selector compartido para programas
+       * con varios productos.
+       */
+      if (!normalizedProductId && products.length > 1) {
+        renderProgramProductSelection(normalizedProgramId);
+        return;
+      }
+
+      /*
+       * No permitir productos obsoletos.
+       */
+      if (
+        normalizedProductId &&
+        products.length > 0 &&
+        !products.includes(normalizedProductId)
+      ) {
+        route(`program/${normalizedProgramId}`);
+        return;
+      }
+
+      const effectiveProductId =
+        normalizedProductId ||
+        products[0] ||
+        (normalizedProgramId === "blue" ? "blue" : null);
+
+      if (effectiveProductId) {
+        renderAIxBankerHome(normalizedProgramId, effectiveProductId);
+
+        applyFlightDeckProgramIdentity(normalizedProgramId);
+        return;
+      }
+
+      renderProgramProductSelection(normalizedProgramId);
+      return;
+    }
+
+    renderProgram(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * ROADMAP LEGACY AIxBANKER
-   * =====================================================
-   */
-  if (routeName === "roadmap" && programId === "aixbanker") {
+  if (routeName === "roadmap" && normalizedProgramId === "aixbanker") {
     renderAIxBankerRoadmap(programId, productId, quarter);
     return;
   }
 
-  /*
-   * =====================================================
-   * DETALLE ROADMAP
-   * =====================================================
-   */
-  if (routeName === "roadmap-detail" && programId === "aixbanker") {
+  if (routeName === "roadmap-detail" && normalizedProgramId === "aixbanker") {
     renderAIxBankerRoadmapDetail(
       programId,
       productId,
@@ -7062,12 +7562,7 @@ function renderCurrentRoute(
     return;
   }
 
-  /*
-   * =====================================================
-   * DETALLE ACTIVIDAD ROADMAP
-   * =====================================================
-   */
-  if (routeName === "roadmap-activity" && programId === "aixbanker") {
+  if (routeName === "roadmap-activity" && normalizedProgramId === "aixbanker") {
     renderAIxBankerRoadmapActivityDetail(
       programId,
       productId,
@@ -7079,144 +7574,77 @@ function renderCurrentRoute(
     return;
   }
 
-  /*
-   * =====================================================
-   * MAPA FUNCIONAL
-   * =====================================================
-   */
   if (routeName === "functional") {
     renderFunctional(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * SISTEMAS
-   * =====================================================
-   */
   if (routeName === "systems") {
     renderSystems(programId, "systems");
     return;
   }
 
-  /*
-   * =====================================================
-   * ARQUITECTURA
-   * =====================================================
-   */
   if (routeName === "architecture") {
     renderSystems(programId, "architecture");
     return;
   }
 
-  /*
-   * =====================================================
-   * IMPEDIMENTOS
-   * =====================================================
-   */
   if (routeName === "impediments") {
     renderImpediments(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * DECISIONES
-   * =====================================================
-   */
   if (routeName === "decisions") {
     renderDecisions(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * MANAGEMENT REPORTS
-   * =====================================================
-   */
   if (routeName === "projects") {
     renderProjectsView(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * MANAGEMENT REPORTS · CONTRASTE Y VALIDACIÓN
-   * =====================================================
-   */
   if (routeName === "management-contrast") {
     renderManagementContrastValidationView(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * MANAGEMENT REPORTS · DEMOS
-   * =====================================================
-   */
   if (routeName === "management-demos") {
     renderManagementDemosView(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * MANAGEMENT REPORTS · GLOBAL STATUS
-   * =====================================================
-   */
-  if (routeName === "management-global-status" && programId === "aixbanker") {
+  if (
+    routeName === "management-global-status" &&
+    normalizedProgramId === "aixbanker"
+  ) {
     renderManagementGlobalStatusView(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * MANAGEMENT REPORTS · PASE A ESPECIALISTA
-   * =====================================================
-   */
   if (
     routeName === "management-specialist-roadmap" &&
-    programId === "aixbanker"
+    normalizedProgramId === "aixbanker"
   ) {
     renderManagementSpecialistRoadmapView(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * MANAGEMENT REPORTS · ROADMAP
-   * =====================================================
-   */
   if (routeName === "management-roadmap") {
     renderManagementRoadmapView(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * MSAS LEGACY
-   * =====================================================
-   */
   if (routeName === "msas") {
     route(`projects/${programId}`);
     return;
   }
 
-  /*
-   * =====================================================
-   * TEAMS
-   * =====================================================
-   */
   if (routeName === "teams") {
     renderTeamsView(programId);
     return;
   }
 
-  /*
-   * =====================================================
-   * FALLBACK
-   * =====================================================
-   */
   renderLanding();
 }
 
@@ -7638,9 +8066,7 @@ async function render() {
     renderPortfolioComingSoon(routeName);
 
     updateDataStatus();
-
     clearDataFallbackBanner();
-
     syncRcsAccessRoleBadge();
 
     return;
@@ -7658,9 +8084,7 @@ async function render() {
     renderLanding();
 
     updateDataStatus();
-
     clearDataFallbackBanner();
-
     syncRcsAccessRoleBadge();
 
     return;
@@ -7678,6 +8102,17 @@ async function render() {
 
   const requiresBlockingLoad = !hasMemorySnapshot && !hasSessionSnapshot;
 
+  /*
+   * Las pantallas de configuración necesitan
+   * relaciones actuales, no sólo el snapshot.
+   *
+   * Mismo criterio para todos los programas.
+   */
+  const requiresManagementConfig = [
+    "management-roadmap",
+    "management-specialist-roadmap",
+  ].includes(routeName);
+
   try {
     const source = getProgramSource(normalizedProgramId);
 
@@ -7687,6 +8122,15 @@ async function render() {
       );
     }
 
+    /*
+     * =====================================================
+     * 1. SNAPSHOT GENERAL
+     * =====================================================
+     *
+     * Contiene JIRA, SDA, Staffing y
+     * el resto de colecciones del programa.
+     */
+
     const programData = await loadProgramData(normalizedProgramId);
 
     setRcsDataMode(normalizedProgramId, "live");
@@ -7694,9 +8138,98 @@ async function render() {
     DATA = buildProgramData(programData);
 
     /*
-     * ===================================================
-     * DATASETS ON-DEMAND
-     * ===================================================
+     * =====================================================
+     * 2. CONFIGURACIÓN ACTUAL DE MANAGEMENT ROADMAP
+     * =====================================================
+     *
+     * Google Sheets es la fuente autoritativa
+     * de Management Roadmap Lines y Links.
+     *
+     * El snapshot sigue siendo la fuente de
+     * las demás colecciones.
+     *
+     * No hay lógica específica de programas.
+     */
+
+    if (requiresManagementConfig) {
+      showLoadingOverlay(
+        "Sincronizando configuración de Management Reports...",
+      );
+
+      const config = await loadManagementRoadmapConfig(normalizedProgramId);
+
+      if (
+        !Array.isArray(config.managementRoadmapLines) ||
+        !Array.isArray(config.managementRoadmapLinks)
+      ) {
+        throw new Error(
+          "La configuración de Management Roadmap está incompleta.",
+        );
+      }
+
+      const persistedLines = buildManagementRoadmapPersistableLines(
+        config.managementRoadmapLines,
+      );
+
+      const persistedLinks = buildManagementRoadmapPersistableLinks(
+        config.managementRoadmapLinks,
+      );
+
+      /*
+       * Actualizar DATA.
+       *
+       * Se conserva todo lo demás:
+       * Features, JIRA, SDA, Staffing, etc.
+       */
+
+      DATA.managementRoadmapLines = persistedLines;
+
+      DATA.managementRoadmapLinks = persistedLinks;
+
+      /*
+       * Actualizar la caché del programa.
+       *
+       * Evita que una navegación posterior
+       * recupere las relaciones antiguas.
+       */
+
+      const cachedProgram =
+        PROGRAM_DATA_CACHE.get(normalizedProgramId) || programData;
+
+      const updatedProgram = {
+        ...cachedProgram,
+        managementRoadmapLines: persistedLines,
+        managementRoadmapLinks: persistedLinks,
+      };
+
+      PROGRAM_DATA_CACHE.set(normalizedProgramId, updatedProgram);
+
+      /*
+       * Actualizar también sessionStorage.
+       *
+       * De este modo la próxima recarga
+       * no restaura las líneas anteriores.
+       */
+
+      writeRcsSessionCache(
+        "program",
+        normalizedProgramId,
+        updatedProgram,
+        new Date(),
+      );
+
+      console.info("[Management Roadmap] Configuración sincronizada", {
+        programId: normalizedProgramId,
+        lines: persistedLines.length,
+        links: persistedLinks.length,
+        generatedAt: config.generatedAt || "",
+      });
+    }
+
+    /*
+     * =====================================================
+     * 3. DATASETS ON-DEMAND
+     * =====================================================
      */
 
     await ensureJiraMsaDataForRoute(context);
@@ -7704,9 +8237,29 @@ async function render() {
     await ensureJiraFeaturesDataForRoute(context);
 
     /*
-     * ===================================================
-     * RENDER
-     * ===================================================
+     * =====================================================
+     * 4. EVITAR RENDERIZADOS DE RUTAS ANTIGUAS
+     * =====================================================
+     *
+     * El usuario puede navegar mientras se
+     * está recuperando la configuración.
+     */
+
+    const currentContext = getCurrentRoute();
+
+    if (
+      currentContext.routeName !== routeName ||
+      String(currentContext.programId || "")
+        .trim()
+        .toLowerCase() !== normalizedProgramId
+    ) {
+      return;
+    }
+
+    /*
+     * =====================================================
+     * 5. RENDER
+     * =====================================================
      */
 
     renderRouteContext(context);
@@ -7718,6 +8271,83 @@ async function render() {
     syncRcsAccessRoleBadge();
   } catch (error) {
     console.error(`[RCS] Error cargando ${normalizedProgramId}`, error);
+
+    /*
+     * =====================================================
+     * MANAGEMENT ROADMAP
+     * =====================================================
+     *
+     * Si la configuración actual no está
+     * disponible, no mostrar silenciosamente
+     * relaciones antiguas.
+     *
+     * Importante: tampoco permitir editar
+     * datos desactualizados.
+     */
+
+    if (requiresManagementConfig) {
+      view.innerHTML = "";
+
+      const panel = document.createElement("section");
+
+      panel.className = "panel";
+
+      Object.assign(panel.style, {
+        maxWidth: "720px",
+        margin: "30px auto",
+        padding: "28px",
+      });
+
+      const heading = document.createElement("h2");
+
+      heading.textContent = "No se ha podido sincronizar Management Roadmap";
+
+      const description = document.createElement("p");
+
+      description.textContent =
+        "No se mostrará una configuración antigua. " +
+        "Comprueba la conexión con Google Sheets " +
+        "y vuelve a intentarlo.";
+
+      const details = document.createElement("p");
+
+      details.style.color = "#64748b";
+
+      details.textContent = error?.message || String(error);
+
+      const retryButton = document.createElement("button");
+
+      retryButton.type = "button";
+
+      retryButton.className = "ghost-button";
+
+      retryButton.textContent = "Reintentar";
+
+      retryButton.addEventListener("click", () => {
+        render().catch(console.error);
+      });
+
+      panel.append(heading, description, details, retryButton);
+
+      view.appendChild(panel);
+
+      showDataFallbackBanner(
+        "No se ha podido recuperar la configuración actual de Management Roadmap.",
+      );
+
+      syncRcsAccessRoleBadge();
+
+      return;
+    }
+
+    /*
+     * =====================================================
+     * FALLBACK GENERAL
+     * =====================================================
+     *
+     * Las demás pantallas conservan
+     * el comportamiento existente.
+     */
 
     let fallbackProgram = PROGRAM_DATA_CACHE.get(normalizedProgramId);
 
@@ -7736,8 +8366,8 @@ async function render() {
         `No se han podido actualizar los datos de ${
           getProgramSource(normalizedProgramId)?.label || normalizedProgramId
         }. ` +
-          `Se mantiene la última fotografía real disponible. ` +
-          `Pulsa “Actualizar datos” para reintentar la conexión.`,
+          "Se mantiene la última fotografía real disponible. " +
+          "Pulsa «Actualizar datos» para reintentar la conexión.",
       );
 
       syncRcsAccessRoleBadge();
@@ -7760,22 +8390,11 @@ async function render() {
       `El origen de ${
         getProgramSource(normalizedProgramId)?.label || normalizedProgramId
       } no ha respondido a tiempo. ` +
-        `Pulsa “Actualizar datos” para volver a intentarlo.`,
+        "Pulsa «Actualizar datos» para volver a intentarlo.",
     );
 
     syncRcsAccessRoleBadge();
   } finally {
-    /*
-     * Siempre cerramos el loading asociado
-     * a una navegación de programa.
-     *
-     * Si la carga vino de caché será prácticamente
-     * inmediato.
-     *
-     * Si necesitó Access + snapshot permanecerá
-     * visible hasta completar la carga.
-     */
-
     hideLoadingOverlay();
   }
 }
@@ -8161,19 +8780,18 @@ async function refreshCurrentDataSource() {
 
   showLoadingOverlay(
     normalizedProgramId
-      ? `Cargando última fotografía de ${
-          source?.label || normalizedProgramId
-        }...`
+      ? `Actualizando datos de ${source?.label || normalizedProgramId}...`
       : "Actualizando catálogo del Portfolio...",
   );
 
   try {
     /*
-     * ===================================================
-     * LANDING
-     * ===================================================
+     * =====================================================
+     * PORTFOLIO
+     * =====================================================
+     *
+     * Se mantiene su procedimiento habitual.
      */
-
     if (!normalizedProgramId || routeName === "landing") {
       const access = await ensureRcsPortfolioAccess(true, {
         refreshLanding: true,
@@ -8181,7 +8799,6 @@ async function refreshCurrentDataSource() {
 
       if (!access.granted) {
         blockRcsCockpitAccess(access);
-
         return;
       }
 
@@ -8189,8 +8806,7 @@ async function refreshCurrentDataSource() {
 
       if (!installed) {
         throw new Error(
-          access.landing?.error ||
-            "No se ha podido actualizar el catálogo del Portfolio.",
+          access.landing?.error || "No se ha podido actualizar el Portfolio.",
         );
       }
 
@@ -8199,80 +8815,152 @@ async function refreshCurrentDataSource() {
       DATA = PORTFOLIO_DATA;
 
       updateDataStatus();
-
       clearDataFallbackBanner();
-
       syncRcsAccessRoleBadge();
-
       renderLanding();
 
       return;
     }
 
     /*
-     * ===================================================
-     * PROGRAMA · SNAPSHOT
-     * ===================================================
+     * =====================================================
+     * CONTROL DE ACCESO
+     * =====================================================
      *
-     * Nueva arquitectura:
-     *
-     * - NO ejecutamos refresh backend;
-     * - NO importamos JIRA;
-     * - NO importamos Staffing;
-     * - NO regeneramos el JSON.
-     *
-     * Simplemente forzamos una nueva lectura
-     * del último snapshot disponible.
-     *
-     * loadProgramData(..., true):
-     *
-     * - ignora MEMORY CACHE;
-     * - ignora SESSION STORAGE;
-     * - llama al backend con action=snapshot;
-     * - actualiza memoria;
-     * - actualiza sessionStorage.
-     * ===================================================
+     * Regenerar el snapshot es una escritura
+     * sobre el fichero JSON de Drive.
      */
-
-    const programData = await loadProgramData(normalizedProgramId, true);
+    if (!rcsCanEdit(normalizedProgramId)) {
+      throw new Error("Sólo los editores pueden regenerar el snapshot.");
+    }
 
     /*
-     * ===================================================
-     * INVALIDAR CACHÉS DERIVADAS
-     * ===================================================
-     *
-     * Sólo después de haber recuperado correctamente
-     * el nuevo snapshot.
-     *
-     * Si la lectura falla mantenemos intacta
-     * la última fotografía disponible.
-     * ===================================================
+     * =====================================================
+     * URL DE ACTUALIZACIÓN
+     * =====================================================
      */
+    const configuredUrl = String(
+      source?.refreshUrl || source?.snapshotUrl || source?.driveJsonUrl || "",
+    ).trim();
 
+    if (!configuredUrl) {
+      throw new Error("No existe un origen de actualización configurado.");
+    }
+
+    const refreshUrl = new URL(configuredUrl, window.location.href);
+
+    refreshUrl.searchParams.delete("dataset");
+    refreshUrl.searchParams.delete("action");
+    refreshUrl.searchParams.delete("itemId");
+
+    refreshUrl.searchParams.set("action", "refresh");
+
+    /*
+     * =====================================================
+     * REFRESH REMOTO
+     * =====================================================
+     *
+     * El backend regenera el JSON desde
+     * el estado actual de Google Sheets.
+     *
+     * El JSONP devuelve directamente
+     * el snapshot nuevo, por lo que
+     * evitamos una segunda lectura
+     * potencialmente desactualizada.
+     */
+    const rawData = await loadJsonp(refreshUrl.toString(), {
+      timeoutMs: 60000,
+      retries: 0,
+      cacheBust: true,
+    });
+
+    if (
+      !rawData ||
+      rawData.ok === false ||
+      rawData.dataset !== "full-export" ||
+      !rawData.generatedAt
+    ) {
+      throw new Error(
+        rawData?.error || "El backend no ha confirmado una nueva exportación.",
+      );
+    }
+
+    const generatedAt = new Date(rawData.generatedAt);
+
+    if (Number.isNaN(generatedAt.getTime())) {
+      throw new Error("La nueva exportación tiene una fecha inválida.");
+    }
+
+    /*
+     * =====================================================
+     * NORMALIZAR SNAPSHOT
+     * =====================================================
+     */
+    const programData = normalizeProgramData(normalizedProgramId, rawData);
+
+    const completeProgramData = {
+      ...programData,
+      restricted: getEmptyRestrictedProgramData(),
+    };
+
+    /*
+     * =====================================================
+     * INVALIDAR DATOS ANTERIORES
+     * =====================================================
+     */
     invalidateProgramDeferredData(normalizedProgramId);
 
     /*
-     * ===================================================
-     * INSTALAR DATA
-     * ===================================================
+     * =====================================================
+     * ACTUALIZAR CACHÉ DEL PROGRAMA
+     * =====================================================
      */
+    PROGRAM_DATA_CACHE.set(normalizedProgramId, completeProgramData);
 
-    setRcsDataMode(normalizedProgramId, "live");
+    PROGRAM_LAST_LOADED_AT.set(normalizedProgramId, generatedAt);
 
-    DATA = buildProgramData(programData);
+    writeRcsSessionCache(
+      "program",
+      normalizedProgramId,
+      programData,
+      generatedAt,
+    );
 
     /*
-     * ===================================================
-     * DATASETS DERIVADOS
-     * ===================================================
-     *
-     * Se reconstruyen desde el snapshot que acabamos
-     * de instalar.
-     *
-     * No regeneran las fuentes externas.
-     * ===================================================
+     * =====================================================
+     * INSTALAR NUEVOS DATOS
+     * =====================================================
      */
+    setRcsDataMode(normalizedProgramId, "live");
 
+    DATA = buildProgramData(completeProgramData);
+
+    /*
+     * =====================================================
+     * MANAGEMENT ROADMAP
+     * =====================================================
+     *
+     * Lines y Links tienen persistencia
+     * propia en Sheets. Para estas rutas
+     * se mantiene la sincronización que
+     * ya incorporamos en render().
+     *
+     * No sobrescribir relaciones actuales
+     * con datos antiguos del snapshot.
+     */
+    if (
+      routeName === "management-roadmap" ||
+      routeName === "management-specialist-roadmap"
+    ) {
+      await render();
+      return;
+    }
+
+    /*
+     * =====================================================
+     * DATASETS DERIVADOS
+     * =====================================================
+     */
     if (routeRequiresJiraMsaData(context)) {
       const jiraMsaData = await loadJiraMsaData(normalizedProgramId, false);
 
@@ -8289,11 +8977,30 @@ async function refreshCurrentDataSource() {
     }
 
     /*
-     * ===================================================
-     * RENDER
-     * ===================================================
+     * =====================================================
+     * COMPROBAR NAVEGACIÓN
+     * =====================================================
+     *
+     * Evita que una actualización
+     * iniciada en una pantalla termine
+     * dibujándose sobre otra.
      */
+    const currentContext = getCurrentRoute();
 
+    if (
+      currentContext.routeName !== routeName ||
+      String(currentContext.programId || "")
+        .trim()
+        .toLowerCase() !== normalizedProgramId
+    ) {
+      return;
+    }
+
+    /*
+     * =====================================================
+     * RENDERIZADO
+     * =====================================================
+     */
     renderRouteContext(context);
 
     updateDataStatus(normalizedProgramId);
@@ -8301,99 +9008,23 @@ async function refreshCurrentDataSource() {
     clearDataFallbackBanner();
 
     syncRcsAccessRoleBadge();
+
+    console.info("[RCS] Snapshot actualizado desde Google Sheets", {
+      programId: normalizedProgramId,
+      generatedAt: rawData.generatedAt,
+      sdaFlights: Array.isArray(DATA.sdaFlights) ? DATA.sdaFlights.length : 0,
+    });
   } catch (error) {
-    console.error("[RCS] Error cargando última fotografía", error);
+    console.error("[RCS] Error actualizando datos", error);
+
+    const message = String(error?.message || error);
 
     /*
-     * ===================================================
-     * LANDING FALLBACK
-     * ===================================================
+     * Un fallo de actualización no debe
+     * presentarse como una actualización
+     * completada correctamente.
      */
-
-    if (!normalizedProgramId || routeName === "landing") {
-      const cachedPortfolio = hydratePortfolioFromSessionCache();
-
-      if (
-        cachedPortfolio ||
-        (Array.isArray(PORTFOLIO_DATA.programs) &&
-          PORTFOLIO_DATA.programs.length)
-      ) {
-        DATA = PORTFOLIO_DATA;
-
-        renderLanding();
-
-        updateDataStatus();
-
-        showDataFallbackBanner(
-          "No se ha podido actualizar el catálogo del Portfolio. " +
-            "Se mantiene la última fotografía real disponible.",
-        );
-
-        return;
-      }
-
-      DATA = PORTFOLIO_DATA;
-
-      renderLanding();
-
-      statusEl.textContent = "No se ha podido cargar el catálogo del Portfolio";
-
-      showDataFallbackBanner(
-        "No se ha podido cargar el catálogo de programas. " +
-          "Pulsa “Actualizar datos” para volver a intentarlo.",
-      );
-
-      return;
-    }
-
-    /*
-     * ===================================================
-     * PROGRAM FALLBACK
-     * ===================================================
-     *
-     * Si no hemos podido leer el snapshot nuevo,
-     * mantenemos la fotografía que ya tenía
-     * el usuario.
-     * ===================================================
-     */
-
-    let fallbackProgram = PROGRAM_DATA_CACHE.get(normalizedProgramId);
-
-    if (!fallbackProgram) {
-      fallbackProgram = hydrateProgramFromSessionCache(normalizedProgramId);
-    }
-
-    if (fallbackProgram) {
-      DATA = buildProgramData(fallbackProgram);
-
-      renderRouteContext(context);
-
-      updateDataStatus(normalizedProgramId);
-
-      showDataFallbackBanner(
-        `No se ha podido recuperar la última fotografía de ${
-          source?.label || normalizedProgramId
-        }. ` + "Se mantiene la última fotografía real disponible.",
-      );
-
-      return;
-    }
-
-    DATA = {
-      ...PORTFOLIO_DATA,
-
-      ...getEmptyProgramData(),
-    };
-
-    renderRouteContext(context);
-
-    statusEl.textContent = `No se han podido cargar los datos de ${
-      source?.label || normalizedProgramId
-    }`;
-
-    showDataFallbackBanner(
-      `El origen de ${source?.label || normalizedProgramId} no ha respondido.`,
-    );
+    showDataFallbackBanner(`No se ha podido actualizar el origen. ${message}`);
   } finally {
     hideLoadingOverlay();
   }
@@ -14647,176 +15278,220 @@ function buildManagementRoadmapDraftLine(programId, productId, countryId) {
 }
 
 function getManagementRoadmapAvailableProducts(programId) {
-  const normalizedProgramId = String(programId || "")
+  const program = String(programId || "")
     .trim()
     .toLowerCase();
-  /*
-   * =====================================================
-   * 1. MANAGEMENT ROADMAP YA CONFIGURADO
-   * =====================================================
-   */
-  const configuredProducts = [
-    ...new Set(
-      getEffectiveManagementExecutiveLines()
-        .filter(
-          (line) =>
-            String(line.programId || "")
-              .trim()
-              .toLowerCase() === normalizedProgramId,
-        )
-        .map((line) => normalizeRoadmapProduct(line.productId))
-        .filter(Boolean),
-    ),
-  ];
-  if (configuredProducts.length) {
-    return configuredProducts;
-  }
-  /*
-   * =====================================================
-   * 2. PRODUCT CATALOG
-   * =====================================================
-   *
-   * Nos permite arrancar un programa que todavía
-   * no tiene Management Roadmap Lines.
-   */
-  const catalogProducts = [
-    ...new Set(
-      (Array.isArray(DATA?.productCatalog) ? DATA.productCatalog : [])
-        .filter((product) => {
-          const productProgramId = String(product.programId || "")
-            .trim()
-            .toLowerCase();
-          /*
-           * Algunos orígenes antiguos
-           * no informan programId.
-           */
-          return !productProgramId || productProgramId === normalizedProgramId;
-        })
-        .map((product) => normalizeRoadmapProduct(product.productId))
-        .filter(Boolean),
-    ),
-  ];
-  if (catalogProducts.length) {
-    return catalogProducts;
-  }
-  /*
-   * =====================================================
-   * 3. ROADMAP OPERATIVO
-   * =====================================================
-   */
-  const roadmapProducts = [
-    ...new Set(
-      getManagementReportSourceItems(normalizedProgramId)
-        .map((item) => normalizeRoadmapProduct(item.product || item.productId))
-        .filter(Boolean),
-    ),
-  ];
-  if (roadmapProducts.length) {
-    return roadmapProducts;
-  }
-  /*
-   * =====================================================
-   * 4. BOOTSTRAP
-   * =====================================================
-   *
-   * Último fallback.
-   *
-   * Permite crear el primer deliverable ejecutivo
-   * aunque todavía no exista ninguna configuración.
-   */
-  const bootstrapProducts = {
-    aixbanker: ["blue-buddy"],
-    blue: ["blue"],
-    rosetta: ["interaction-orchestration"],
+
+  const products = new Map();
+
+  const normalize = (value) => normalizeRoadmapProduct(value);
+
+  const isEnabled = (value) =>
+    !["false", "0", "no", "disabled", "inactive", "inactivo"].includes(
+      String(value ?? true)
+        .trim()
+        .toLowerCase(),
+    );
+
+  const add = (value, priority, order) => {
+    const id = normalize(value);
+
+    if (!id) return;
+
+    const previous = products.get(id);
+
+    if (!previous || priority < previous.priority) {
+      products.set(id, { id, priority, order });
+    }
   };
-  return bootstrapProducts[normalizedProgramId] || [];
+
+  // Catálogo funcional.
+  (Array.isArray(DATA?.productCatalog) ? DATA.productCatalog : [])
+    .filter(
+      (item) =>
+        String(item.programId || item.program_id || "")
+          .trim()
+          .toLowerCase() === program && isEnabled(item.enabled),
+    )
+    .forEach((item, index) => {
+      add(
+        item.productId || item.product_id || item.id,
+        0,
+        Number(item.sortOrder ?? item.sort_order ?? index + 1),
+      );
+    });
+
+  // Productos identificados por sus SDA.
+  (Array.isArray(DATA?.sdaFlights) ? DATA.sdaFlights : [])
+    .filter(
+      (item) =>
+        String(item.programId || "")
+          .trim()
+          .toLowerCase() === program,
+    )
+    .forEach((item, index) => {
+      add(item.productId || item.product, 1, index + 1);
+    });
+
+  // Si existe un catálogo funcional, es la fuente
+  // de verdad. No añadir identificadores ejecutivos
+  // antiguos que podrían representar varios productos.
+  if (products.size) {
+    return [...products.values()]
+      .sort(
+        (a, b) =>
+          a.priority - b.priority ||
+          a.order - b.order ||
+          a.id.localeCompare(b.id, "es"),
+      )
+      .map((item) => item.id);
+  }
+
+  // Compatibilidad para programas sin catálogo.
+  getEffectiveManagementExecutiveLines()
+    .filter(
+      (line) =>
+        String(line.programId || "")
+          .trim()
+          .toLowerCase() === program,
+    )
+    .forEach((line, index) => {
+      add(line.productId, 2, index + 1);
+    });
+
+  if (products.size) {
+    return [...products.values()].map((item) => item.id);
+  }
+
+  getManagementReportSourceItems(program).forEach((item, index) => {
+    add(item.product || item.productId, 3, index + 1);
+  });
+
+  if (products.size) {
+    return [...products.values()].map((item) => item.id);
+  }
+
+  const defaults = {
+    aixbanker: ["blue-buddy", "panorama"],
+    blue: ["blue"],
+  };
+
+  return defaults[program] || [];
 }
 
 function getManagementRoadmapAvailableCountries(programId, productId) {
-  const normalizedProgramId = String(programId || "")
+  const program = String(programId || "")
     .trim()
     .toLowerCase();
-  const normalizedProductId = normalizeRoadmapProduct(productId);
-  const preferredOrder = ["ES", "MX", "PE", "CO", "UY", "AR", "TR", "HL"];
-  /*
-   * =====================================================
-   * 1. PAÍSES YA CONFIGURADOS
-   * =====================================================
-   */
-  let available = [
-    ...new Set(
-      getEffectiveManagementExecutiveLines()
-        .filter(
-          (line) =>
-            String(line.programId || "")
-              .trim()
-              .toLowerCase() === normalizedProgramId &&
-            normalizeRoadmapProduct(line.productId) === normalizedProductId,
-        )
-        .map((line) =>
-          String(line.country || "")
-            .trim()
-            .toUpperCase(),
-        )
-        .filter(Boolean),
-    ),
-  ];
-  /*
-   * =====================================================
-   * 2. PAÍSES DEL ROADMAP OPERATIVO
-   * =====================================================
-   */
-  if (!available.length) {
-    available = [
-      ...new Set(
-        getManagementReportSourceItems(normalizedProgramId)
-          .filter(
-            (item) =>
-              normalizeRoadmapProduct(item.product || item.productId) ===
-              normalizedProductId,
-          )
-          .map((item) =>
-            String(item.country || "")
-              .trim()
-              .toUpperCase(),
-          )
-          .filter(Boolean),
-      ),
-    ];
+
+  const product = normalizeRoadmapProduct(productId);
+
+  const preferredOrder = ["HL", "ES", "MX", "PE", "CO", "UY", "AR", "TR"];
+
+  const countries = new Set();
+
+  const normalizeCountry = (value) => {
+    const country = String(value || "")
+      .trim()
+      .toUpperCase();
+
+    if (["HOLDING", "GLOBAL", "HL"].includes(country)) {
+      return "HL";
+    }
+
+    return country;
+  };
+
+  const register = (value) => {
+    const country = normalizeCountry(value);
+
+    if (country) {
+      countries.add(country);
+    }
+  };
+
+  // Países de los entregables ejecutivos.
+  getEffectiveManagementExecutiveLines()
+    .filter(
+      (line) =>
+        String(line.programId || "")
+          .trim()
+          .toLowerCase() === program &&
+        normalizeRoadmapProduct(line.productId) === product,
+    )
+    .forEach((line) => register(line.country));
+
+  // Geografías del catálogo funcional SDA.
+  (Array.isArray(DATA?.sdaFlights) ? DATA.sdaFlights : [])
+    .filter(
+      (flight) =>
+        String(flight.programId || "")
+          .trim()
+          .toLowerCase() === program &&
+        normalizeRoadmapProduct(flight.productId || flight.product) === product,
+    )
+    .forEach((flight) => register(flight.country || flight.countries));
+
+  // Países del roadmap operativo.
+  getManagementReportSourceItems(program)
+    .filter(
+      (item) =>
+        normalizeRoadmapProduct(item.product || item.productId) === product,
+    )
+    .forEach((item) => register(item.country));
+
+  // Mantener la posibilidad de configurar el primer
+  // entregable aun sin geografía informada.
+  if (!countries.size) {
+    register("HL");
   }
-  /*
-   * =====================================================
-   * 3. BOOTSTRAP
-   * =====================================================
-   *
-   * Si no existe absolutamente nada todavía,
-   * ofrecemos las geografías estándar RCS.
-   */
-  if (!available.length && ["blue", "rosetta"].includes(normalizedProgramId)) {
-    available = ["ES", "MX", "PE", "CO", "UY", "AR", "TR", "HL"];
-  }
-  return available.sort((left, right) => {
-    const leftIndex = preferredOrder.indexOf(left);
-    const rightIndex = preferredOrder.indexOf(right);
+
+  return [...countries].sort((a, b) => {
+    const ai = preferredOrder.indexOf(a);
+    const bi = preferredOrder.indexOf(b);
+
     return (
-      (leftIndex === -1 ? 999 : leftIndex) -
-      (rightIndex === -1 ? 999 : rightIndex)
+      (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.localeCompare(b, "es")
     );
   });
 }
 
 function getManagementRoadmapProductLabel(productId) {
-  const normalizedProductId = normalizeRoadmapProduct(productId);
-  return (
-    {
-      "blue-buddy": "Blue Buddy",
-      franchise: "Franquicia",
-      blue: "Blue",
-      rosetta: "Interaction Orchestration",
-      "interaction-orchestration": "Interaction Orchestration",
-    }[normalizedProductId] ||
-    formatManagementReportProductLabel(normalizedProductId)
+  const id = normalizeRoadmapProduct(productId);
+
+  if (!id) return "";
+
+  const catalog = (
+    Array.isArray(DATA?.productCatalog) ? DATA.productCatalog : []
+  ).find(
+    (item) =>
+      normalizeRoadmapProduct(item.productId || item.product_id || item.id) ===
+      id,
   );
+
+  const flight = (Array.isArray(DATA?.sdaFlights) ? DATA.sdaFlights : []).find(
+    (item) => normalizeRoadmapProduct(item.productId || item.product) === id,
+  );
+
+  const label = String(
+    catalog?.productName ||
+      catalog?.product_name ||
+      catalog?.label ||
+      flight?.productName ||
+      "",
+  ).trim();
+
+  if (label) return label;
+
+  const legacyLabels = {
+    "blue-buddy": "Blue Buddy",
+    panorama: "Panorama",
+    franchise: "Franquicia",
+    blue: "Blue",
+    "interaction-orchestration": "Interaction Orchestration",
+  };
+
+  return legacyLabels[id] || formatManagementReportProductLabel(id);
 }
 
 function getManagementRoadmapCountrySelectorLabel(countryId) {
@@ -20912,9 +21587,68 @@ function renderManagementRoadmapSnapshotEditorTable(
     </div>
   `;
 }
+
 function renderManagementRoadmapSnapshotTable(programId, productId, countryId) {
-  return renderManagementRoadmapBoard(programId, productId, countryId);
+  const rows = getManagementRoadmapRows(programId, productId, countryId);
+
+  const mappingState = getManagementRoadmapMappingUiState();
+
+  /*
+   * Si existen entregables, conservar el
+   * renderizado habitual del Roadmap.
+   */
+  if (rows.length > 0) {
+    return renderManagementRoadmapBoard(programId, productId, countryId);
+  }
+
+  /*
+   * Estado vacío.
+   *
+   * El usuario debe poder crear el primer
+   * entregable sin modificar Google Sheets.
+   */
+  const canCreate = Boolean(mappingState.enabled);
+
+  return `
+    <div class="management-deliverables-table-wrap">
+      ${
+        canCreate
+          ? `
+            <div class="management-roadmap-table-actions">
+              <button
+                class="management-roadmap-line-create-button"
+                type="button"
+                data-management-roadmap-create-line
+              >
+                + Nuevo entregable
+              </button>
+            </div>
+          `
+          : ""
+      }
+
+      <div class="management-deliverables-empty">
+        ${
+          canCreate
+            ? `
+              <p>
+                Todavía no hay entregables configurados
+                para este producto y país.
+              </p>
+              <p>
+                Pulsa «Nuevo entregable» para crear el primero.
+              </p>
+            `
+            : `
+              No hay entregables configurados
+              para este producto y país.
+            `
+        }
+      </div>
+    </div>
+  `;
 }
+
 function applyManagementRoadmapInlineConfiguration(programId) {
   const mappingState = getManagementRoadmapMappingUiState();
 

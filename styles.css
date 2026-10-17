@@ -10328,3 +10328,26 @@ PRODUCT PLAN · EPIC COLLAPSE
   white-space: nowrap;
   font-size: 10px;
 }
+
+/* ==========================================================
+   PRODUCT GATES · NOMBRES LARGOS
+   Ajuste compartido para todos los programas
+   ========================================================== */
+
+#flightGateBoardGrid .flight-gate-destination {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+
+  font-size: clamp(22px, 2.1vw, 31px);
+  line-height: 1.12;
+  text-align: center;
+
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
