@@ -9401,6 +9401,8 @@ function buildManagementSpecialistRoadmapDraftTask(programId) {
 
       endDate: "",
 
+      deadlines: [],
+
       status: "pending",
 
       statusLabel: "Pendiente",
@@ -9564,18 +9566,18 @@ function renderManagementSpecialistTaskEditor(programId, task = null) {
     line.statusLabel || line.status,
   );
 
+  const deadlines = normalizeManagementRoadmapDeadlines(line.deadlines);
+
+  const deadlineEditorValue = deadlines
+    .map((deadline) =>
+      deadline.label ? `${deadline.date} | ${deadline.label}` : deadline.date,
+    )
+    .join("\n");
+
   const toInputDate = (value) => {
-    const date = mgqParseDate(value);
+    const normalized = normalizeManagementRoadmapDateValue(value);
 
-    if (!date) {
-      return "";
-    }
-
-    return [
-      date.getUTCFullYear(),
-      String(date.getUTCMonth() + 1).padStart(2, "0"),
-      String(date.getUTCDate()).padStart(2, "0"),
-    ].join("-");
+    return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : "";
   };
 
   const overlay = document.createElement("div");
@@ -9793,6 +9795,37 @@ function renderManagementSpecialistTaskEditor(programId, task = null) {
 
             <div
               class="management-roadmap-line-field"
+              style="grid-column: 1 / -1;"
+            >
+              <label
+                for="managementSpecialistTaskDeadlines"
+              >
+                Deadlines
+              </label>
+
+              <textarea
+                id="managementSpecialistTaskDeadlines"
+                class="management-roadmap-line-textarea"
+                rows="5"
+                placeholder="2026-10-20 | Validación negocio&#10;2026-10-30 | Go / No Go"
+              >${rcsEsc(deadlineEditorValue)}</textarea>
+
+              <small
+                style="
+                  display: block;
+                  margin-top: 7px;
+                  color: #64748b;
+                  line-height: 1.4;
+                "
+              >
+                Un deadline por línea.
+                Formato: fecha | descripción opcional.
+              </small>
+            </div>
+
+            <div
+              class="management-roadmap-line-field"
+              style="grid-column: 1 / -1;"
             >
               <label
                 for="managementSpecialistTaskComments"
@@ -9818,8 +9851,8 @@ function renderManagementSpecialistTaskEditor(programId, task = null) {
           </strong>
 
           <span>
-            Las fechas manuales tienen prioridad
-            sobre la planificación derivada de Features.
+            Las fechas manuales tienen prioridad sobre la planificación
+            derivada de Features. Los deadlines son hitos independientes.
           </span>
         </div>
 
@@ -9936,6 +9969,23 @@ function renderManagementSpecialistTaskEditor(programId, task = null) {
         return;
       }
 
+      const deadlineParse = parseManagementSpecialistDeadlineEditorText(
+        overlay.querySelector("#managementSpecialistTaskDeadlines")?.value ||
+          "",
+      );
+
+      if (deadlineParse.errors.length) {
+        window.alert(
+          [
+            "Hay deadlines que no tienen una fecha válida:",
+            "",
+            ...deadlineParse.errors,
+          ].join("\n"),
+        );
+
+        return;
+      }
+
       const comments = String(
         overlay.querySelector("#managementSpecialistTaskComments")?.value || "",
       ).trim();
@@ -9953,7 +10003,7 @@ function renderManagementSpecialistTaskEditor(programId, task = null) {
 
         country: "ES",
 
-        year: 2026,
+        year: Number(line.year) || 2026,
 
         reportId: "pase-a-especialista",
 
@@ -9970,6 +10020,8 @@ function renderManagementSpecialistTaskEditor(programId, task = null) {
         startDate,
 
         endDate,
+
+        deadlines: deadlineParse.deadlines,
 
         status: statusMeta.status,
 
@@ -10125,12 +10177,6 @@ function renderManagementSpecialistRoadmapView(programId) {
 
   const isSprintView = state.granularity === "sprint" && hasSprintView;
 
-  /*
-   * En vista mensual utilizamos el quarter completo.
-   *
-   * En vista sprint utilizamos exactamente el
-   * calendario configurado de sprints.
-   */
   const timelinePeriod = isSprintView
     ? {
         startDate: new Date(sprintPeriods[0].startDate),
@@ -10171,9 +10217,7 @@ function renderManagementSpecialistRoadmapView(programId) {
               style="
                 padding: 10px 6px;
                 text-align: center;
-                border-left:
-                  1px solid
-                  rgba(255, 255, 255, 0.14);
+                border-left: 1px solid rgba(255,255,255,0.14);
                 color: #ffffff;
               "
             >
@@ -10208,9 +10252,7 @@ function renderManagementSpecialistRoadmapView(programId) {
               style="
                 padding: 12px 8px;
                 text-align: center;
-                border-left:
-                  1px solid
-                  rgba(255, 255, 255, 0.14);
+                border-left: 1px solid rgba(255,255,255,0.14);
                 color: #ffffff;
               "
             >
@@ -10247,6 +10289,76 @@ function renderManagementSpecialistRoadmapView(programId) {
     ? sprintPeriods
     : period.months;
 
+  const now = new Date();
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const todayIsVisible =
+    today >= timelinePeriod.startDate && today <= timelinePeriod.endDate;
+
+  const todayPosition = todayIsVisible
+    ? getRoadmapDatePosition(today, timelinePeriod)
+    : null;
+
+  const todayLabel = today
+    .toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "short",
+    })
+    .replace(".", "");
+
+  const renderTodayLine = (header = false) => {
+    if (todayPosition === null) {
+      return "";
+    }
+
+    return `
+      <div
+        aria-hidden="true"
+        style="
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: ${todayPosition}%;
+          width: 1px;
+          transform: translateX(-0.5px);
+          background: ${
+            header ? "rgba(255,255,255,0.50)" : "rgba(0,19,145,0.18)"
+          };
+          pointer-events: none;
+          z-index: ${header ? "8" : "3"};
+        "
+      >
+        ${
+          header
+            ? `
+              <span
+                style="
+                  position: absolute;
+                  top: 4px;
+                  left: 50%;
+                  transform: translateX(-50%);
+                  padding: 1px 5px;
+                  border-radius: 999px;
+                  background: rgba(255,255,255,0.14);
+                  color: #ffffff;
+                  font-size: 8px;
+                  font-weight: 800;
+                  line-height: 1.4;
+                  letter-spacing: 0.04em;
+                  text-transform: uppercase;
+                  white-space: nowrap;
+                "
+              >
+                Hoy · ${rcsEsc(todayLabel)}
+              </span>
+            `
+            : ""
+        }
+      </div>
+    `;
+  };
+
   const renderTaskRow = (task) => {
     const statusKey = normalizeManagementSpecialistRoadmapStatus(
       task.statusLabel || task.status,
@@ -10258,12 +10370,29 @@ function renderManagementSpecialistRoadmapView(programId) {
 
     const range = getManagementSpecialistTaskPlanningRange(task);
 
+    const deadlines = normalizeManagementRoadmapDeadlines(task.deadlines);
+
+    const visibleDeadlines = deadlines
+      .map((deadline) => ({
+        ...deadline,
+        timelineDate: getManagementSpecialistDeadlineTimelineDate(
+          deadline.date,
+        ),
+      }))
+      .filter(
+        (deadline) =>
+          deadline.timelineDate &&
+          deadline.timelineDate >= timelinePeriod.startDate &&
+          deadline.timelineDate <= timelinePeriod.endDate,
+      );
+
     const hasVisibleRange =
       range &&
       range.start <= timelinePeriod.endDate &&
       range.end >= timelinePeriod.startDate;
 
     let left = 0;
+
     let width = 0;
 
     if (hasVisibleRange) {
@@ -10294,502 +10423,572 @@ function renderManagementSpecialistRoadmapView(programId) {
     const progressValue =
       taskProgress.progress === null ? 0 : taskProgress.progress;
 
-    return `
-    <article
-      style="
-        display: grid;
-        grid-template-columns:
-          minmax(360px, 420px)
-          minmax(720px, 1fr);
-        border-top: 1px solid #e5ebf5;
-        background: #ffffff;
-      "
-    >
-      <div
-        style="
-          padding: 20px 18px 18px;
-          border-right: 1px solid #dbe5f4;
-        "
-      >
-        <!--
-          =================================================
-          NIVEL 1 · TAREA
-          =================================================
-        -->
+    const deadlineMarkers = visibleDeadlines
+      .map((deadline) => {
+        const rawPosition =
+          getRoadmapDatePosition(deadline.timelineDate, timelinePeriod) || 0;
 
+        const markerPosition = Math.min(99.6, Math.max(0.4, rawPosition));
+
+        const formattedDate = formatManagementSpecialistDeadlineDate(
+          deadline.date,
+        );
+
+        const tooltip = ["Deadline", formattedDate, deadline.label]
+          .filter(Boolean)
+          .join(" · ");
+
+        return `
+          <div
+            title="${rcsEsc(tooltip)}"
+            style="
+              position: absolute;
+              top: 34px;
+              bottom: 40px;
+              left: ${markerPosition}%;
+              width: 0;
+              border-left: 1px solid rgba(198,40,40,0.68);
+              pointer-events: none;
+              z-index: 6;
+            "
+          >
+            <span
+              style="
+                position: absolute;
+                top: -5px;
+                left: -4px;
+                width: 8px;
+                height: 8px;
+                transform: rotate(45deg);
+                border: 1px solid rgba(198,40,40,0.75);
+                background: #ffffff;
+                box-shadow: 0 1px 4px rgba(198,40,40,0.18);
+              "
+            ></span>
+          </div>
+        `;
+      })
+      .join("");
+
+    const deadlineSummary = deadlines.length
+      ? `
         <div
           style="
             display: flex;
             align-items: flex-start;
-            justify-content: space-between;
-            gap: 14px;
+            flex-wrap: wrap;
+            gap: 5px 7px;
+            margin-top: 11px;
           "
         >
-          <div
-            style="
-              flex: 1 1 auto;
-              min-width: 0;
-            "
-          >
-            <span
-              style="
-                display: block;
-                margin-bottom: 5px;
-                color: #64748b;
-                font-size: 10px;
-                font-weight: 800;
-                line-height: 1;
-                letter-spacing: 0.08em;
-                text-transform: uppercase;
-              "
-            >
-              ${rcsEsc(task.quarter || "Sin Q")}
-            </span>
-
-            <strong
-              style="
-                display: block;
-                color: #001391;
-                font-size: 18px;
-                font-weight: 800;
-                line-height: 1.3;
-                letter-spacing: -0.01em;
-              "
-            >
-              ${rcsEsc(task.title)}
-            </strong>
-          </div>
-
-          <!-- Estado -->
-
           <span
             style="
-              flex: 0 0 auto;
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              min-height: 30px;
-              padding: 0 11px;
-              border-radius: 999px;
-              border: 1px solid ${statusMeta.border};
-              background: ${statusMeta.background};
-              color: ${statusMeta.textColor};
-              font-size: 11px;
+              padding-top: 3px;
+              color: #94a3b8;
+              font-size: 9px;
               font-weight: 800;
-              white-space: nowrap;
+              letter-spacing: 0.06em;
+              text-transform: uppercase;
             "
           >
-            ${rcsEsc(statusMeta.label)}
-          </span>
-        </div>
-
-        <!--
-          =================================================
-          NIVEL 2 · COMENTARIO
-          =================================================
-        -->
-
-        ${
-          task.comments
-            ? `
-              <div
-                style="
-                  margin-top: 13px;
-                  padding: 10px 12px;
-                  border-left: 3px solid #d9e2f3;
-                  border-radius: 0 8px 8px 0;
-                  background: #f8faff;
-                "
-              >
-                <span
-                  style="
-                    display: block;
-                    margin-bottom: 3px;
-                    color: #7b879b;
-                    font-size: 9px;
-                    font-weight: 800;
-                    letter-spacing: 0.07em;
-                    text-transform: uppercase;
-                  "
-                >
-                  Comentario
-                </span>
-
-                <p
-                  style="
-                    margin: 0;
-                    color: #334155;
-                    font-size: 13px;
-                    line-height: 1.45;
-                  "
-                >
-                  ${rcsEsc(task.comments)}
-                </p>
-              </div>
-            `
-            : ""
-        }
-
-        <!--
-          =================================================
-          NIVEL 3 · OWNER
-          =================================================
-        -->
-
-        <div
-          style="
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-top: 13px;
-            color: #64748b;
-            font-size: 12px;
-          "
-        >
-          <span>
-            <span
-              style="
-                color: #94a3b8;
-                font-size: 10px;
-                font-weight: 800;
-                letter-spacing: 0.05em;
-                text-transform: uppercase;
-              "
-            >
-              Owner
-            </span>
-
-            <strong
-              style="
-                margin-left: 5px;
-                color: #475569;
-                font-size: 12px;
-              "
-            >
-              ${rcsEsc(task.owner || "—")}
-            </strong>
+            Deadlines
           </span>
 
-          ${
-            taskProgress.progress !== null
-              ? `
-                <strong
-                  style="
-                    color: ${statusMeta.textColor};
-                    font-size: 12px;
-                  "
-                >
-                  ${taskProgress.progress}%
-                </strong>
-              `
-              : ""
-          }
-        </div>
-
-        <!--
-          =================================================
-          NIVEL 4 · TRAZABILIDAD
-          =================================================
-        -->
-
-        <div
-          style="
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 5px;
-            margin-top: 11px;
-            opacity: 0.72;
-          "
-        >
-          ${
-            taskProgress.sourceCounts.sda
-              ? `
-                <span
-                  style="
-                    display: inline-flex;
-                    align-items: center;
-                    min-height: 22px;
-                    padding: 0 7px;
-                    border: 1px solid #e3e8f0;
-                    border-radius: 999px;
-                    background: #f8fafc;
-                    color: #64748b;
-                    font-size: 9px;
-                    font-weight: 700;
-                  "
-                >
-                  ${taskProgress.sourceCounts.sda}
-                  SDA
-                </span>
-              `
-              : ""
-          }
-
-          ${
-            taskProgress.sourceCounts.epic
-              ? `
-                <span
-                  style="
-                    display: inline-flex;
-                    align-items: center;
-                    min-height: 22px;
-                    padding: 0 7px;
-                    border: 1px solid #e3e8f0;
-                    border-radius: 999px;
-                    background: #f8fafc;
-                    color: #64748b;
-                    font-size: 9px;
-                    font-weight: 700;
-                  "
-                >
-                  ${taskProgress.sourceCounts.epic}
-                  Épicas
-                </span>
-              `
-              : ""
-          }
-
-          ${
-            taskProgress.sourceCounts.feature
-              ? `
-                <span
-                  style="
-                    display: inline-flex;
-                    align-items: center;
-                    min-height: 22px;
-                    padding: 0 7px;
-                    border: 1px solid #e3e8f0;
-                    border-radius: 999px;
-                    background: #f8fafc;
-                    color: #64748b;
-                    font-size: 9px;
-                    font-weight: 700;
-                  "
-                >
-                  ${taskProgress.sourceCounts.feature}
-                  Features
-                </span>
-              `
-              : ""
-          }
-
-          ${
-            taskProgress.featureCount
-              ? `
-                <span
-                  style="
-                    display: inline-flex;
-                    align-items: center;
-                    min-height: 22px;
-                    padding: 0 7px;
-                    border: 1px solid #e3e8f0;
-                    border-radius: 999px;
-                    background: #f8fafc;
-                    color: #64748b;
-                    font-size: 9px;
-                    font-weight: 700;
-                  "
-                >
-                  ${taskProgress.deployedCount}/${taskProgress.featureCount}
-                  deployed
-                </span>
-              `
-              : ""
-          }
-        </div>
-
-        ${
-          canEdit && state.configMode
-            ? `
-              <div
-                style="
-                  display: flex;
-                  flex-wrap: wrap;
-                  gap: 8px;
-                  margin-top: 14px;
-                "
-              >
-                <button
-                  class="ghost-button"
-                  type="button"
-                  data-specialist-task-edit="${rcsEsc(task.id)}"
-                >
-                  Editar
-                </button>
-
-                <button
-                  class="ghost-button"
-                  type="button"
-                  data-specialist-task-sources="${rcsEsc(task.id)}"
-                >
-                  Fuentes
-                </button>
-              </div>
-            `
-            : ""
-        }
-      </div>
-
-      <!--
-        ===================================================
-        TIMELINE
-        ===================================================
-      -->
-
-      <div
-        style="
-          position: relative;
-          min-height: 160px;
-          overflow: hidden;
-        "
-      >
-        <div
-          style="
-            position: absolute;
-            inset: 0;
-            display: grid;
-            grid-template-columns:
-              ${timelineGridTemplate};
-            pointer-events: none;
-          "
-        >
-          ${timelineBackgroundColumns
+          ${deadlines
             .map(
-              () => `
+              (deadline) => `
                 <span
+                  title="${rcsEsc(
+                    deadline.label
+                      ? `${deadline.date} · ${deadline.label}`
+                      : deadline.date,
+                  )}"
                   style="
-                    border-left:
-                      1px solid #edf1f7;
+                    display: inline-flex;
+                    align-items: center;
+                    min-height: 22px;
+                    padding: 0 7px;
+                    border: 1px solid rgba(198,40,40,0.16);
+                    border-radius: 999px;
+                    background: rgba(198,40,40,0.035);
+                    color: #7f1d1d;
+                    font-size: 9px;
+                    font-weight: 700;
                   "
-                ></span>
+                >
+                  ${rcsEsc(
+                    formatManagementSpecialistDeadlineDate(deadline.date),
+                  )}
+                  ${deadline.label ? ` · ${rcsEsc(deadline.label)}` : ""}
+                </span>
               `,
             )
             .join("")}
         </div>
+      `
+      : "";
 
-        ${
-          hasVisibleRange
-            ? `
-              <div
+    return `
+      <article
+        style="
+          display: grid;
+          grid-template-columns:
+            minmax(360px,420px)
+            minmax(720px,1fr);
+          border-top: 1px solid #e5ebf5;
+          background: #ffffff;
+        "
+      >
+        <div
+          style="
+            padding: 20px 18px 18px;
+            border-right: 1px solid #dbe5f4;
+          "
+        >
+          <div
+            style="
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 14px;
+            "
+          >
+            <div
+              style="
+                flex: 1 1 auto;
+                min-width: 0;
+              "
+            >
+              <span
                 style="
-                  position: absolute;
-                  top: 52px;
-                  left: ${left}%;
-                  width: ${width}%;
-                  min-width: 18px;
-                  height: 44px;
-                  border-radius: 9px;
-                  overflow: hidden;
-                  background: ${statusMeta.barTrack};
-                  border:
-                    1px solid
-                    ${statusMeta.border};
-                  box-sizing: border-box;
-                  box-shadow:
-                    0 3px 10px
-                    rgba(7, 46, 111, 0.05);
+                  display: block;
+                  margin-bottom: 5px;
+                  color: #64748b;
+                  font-size: 10px;
+                  font-weight: 800;
+                  line-height: 1;
+                  letter-spacing: 0.08em;
+                  text-transform: uppercase;
                 "
-                title="${rcsEsc(
-                  `${task.title} · ${statusMeta.label} · ${
-                    taskProgress.progress === null
-                      ? "Sin avance calculable"
-                      : `${taskProgress.progress}%`
-                  }`,
-                )}"
               >
-                <span
-                  style="
-                    position: absolute;
-                    inset: 0 auto 0 0;
-                    width: ${
-                      taskProgress.progress === null ? "100" : progressValue
-                    }%;
-                    background:
-                      ${statusMeta.barColor};
-                    opacity:
-                      ${taskProgress.progress === null ? "0.55" : "1"};
-                  "
-                ></span>
+                ${rcsEsc(task.quarter || "Sin Q")}
+              </span>
 
-                <strong
+              <strong
+                style="
+                  display: block;
+                  color: #001391;
+                  font-size: 18px;
+                  font-weight: 800;
+                  line-height: 1.3;
+                  letter-spacing: -0.01em;
+                "
+              >
+                ${rcsEsc(task.title)}
+              </strong>
+            </div>
+
+            <span
+              style="
+                flex: 0 0 auto;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 30px;
+                padding: 0 11px;
+                border-radius: 999px;
+                border: 1px solid ${statusMeta.border};
+                background: ${statusMeta.background};
+                color: ${statusMeta.textColor};
+                font-size: 11px;
+                font-weight: 800;
+                white-space: nowrap;
+              "
+            >
+              ${rcsEsc(statusMeta.label)}
+            </span>
+          </div>
+
+          ${
+            task.comments
+              ? `
+                <div
+                  style="
+                    margin-top: 13px;
+                    padding: 10px 12px;
+                    border-left: 3px solid #d9e2f3;
+                    border-radius: 0 8px 8px 0;
+                    background: #f8faff;
+                  "
+                >
+                  <span
+                    style="
+                      display: block;
+                      margin-bottom: 3px;
+                      color: #7b879b;
+                      font-size: 9px;
+                      font-weight: 800;
+                      letter-spacing: 0.07em;
+                      text-transform: uppercase;
+                    "
+                  >
+                    Comentario
+                  </span>
+
+                  <p
+                    style="
+                      margin: 0;
+                      color: #334155;
+                      font-size: 13px;
+                      line-height: 1.45;
+                    "
+                  >
+                    ${rcsEsc(task.comments)}
+                  </p>
+                </div>
+              `
+              : ""
+          }
+
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+              margin-top: 13px;
+              color: #64748b;
+              font-size: 12px;
+            "
+          >
+            <span>
+              <span
+                style="
+                  color: #94a3b8;
+                  font-size: 10px;
+                  font-weight: 800;
+                  letter-spacing: 0.05em;
+                  text-transform: uppercase;
+                "
+              >
+                Owner
+              </span>
+
+              <strong
+                style="
+                  margin-left: 5px;
+                  color: #475569;
+                  font-size: 12px;
+                "
+              >
+                ${rcsEsc(task.owner || "—")}
+              </strong>
+            </span>
+
+            ${
+              taskProgress.progress !== null
+                ? `
+                  <strong
+                    style="
+                      color: ${statusMeta.textColor};
+                      font-size: 12px;
+                    "
+                  >
+                    ${taskProgress.progress}%
+                  </strong>
+                `
+                : ""
+            }
+          </div>
+
+          ${deadlineSummary}
+
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              flex-wrap: wrap;
+              gap: 5px;
+              margin-top: 11px;
+              opacity: 0.72;
+            "
+          >
+            ${
+              taskProgress.sourceCounts.sda
+                ? `
+                  <span
+                    style="
+                      display: inline-flex;
+                      align-items: center;
+                      min-height: 22px;
+                      padding: 0 7px;
+                      border: 1px solid #e3e8f0;
+                      border-radius: 999px;
+                      background: #f8fafc;
+                      color: #64748b;
+                      font-size: 9px;
+                      font-weight: 700;
+                    "
+                  >
+                    ${taskProgress.sourceCounts.sda} SDA
+                  </span>
+                `
+                : ""
+            }
+
+            ${
+              taskProgress.sourceCounts.epic
+                ? `
+                  <span
+                    style="
+                      display: inline-flex;
+                      align-items: center;
+                      min-height: 22px;
+                      padding: 0 7px;
+                      border: 1px solid #e3e8f0;
+                      border-radius: 999px;
+                      background: #f8fafc;
+                      color: #64748b;
+                      font-size: 9px;
+                      font-weight: 700;
+                    "
+                  >
+                    ${taskProgress.sourceCounts.epic} Épicas
+                  </span>
+                `
+                : ""
+            }
+
+            ${
+              taskProgress.sourceCounts.feature
+                ? `
+                  <span
+                    style="
+                      display: inline-flex;
+                      align-items: center;
+                      min-height: 22px;
+                      padding: 0 7px;
+                      border: 1px solid #e3e8f0;
+                      border-radius: 999px;
+                      background: #f8fafc;
+                      color: #64748b;
+                      font-size: 9px;
+                      font-weight: 700;
+                    "
+                  >
+                    ${taskProgress.sourceCounts.feature} Features
+                  </span>
+                `
+                : ""
+            }
+
+            ${
+              taskProgress.featureCount
+                ? `
+                  <span
+                    style="
+                      display: inline-flex;
+                      align-items: center;
+                      min-height: 22px;
+                      padding: 0 7px;
+                      border: 1px solid #e3e8f0;
+                      border-radius: 999px;
+                      background: #f8fafc;
+                      color: #64748b;
+                      font-size: 9px;
+                      font-weight: 700;
+                    "
+                  >
+                    ${taskProgress.deployedCount}/${taskProgress.featureCount}
+                    deployed
+                  </span>
+                `
+                : ""
+            }
+          </div>
+
+          ${
+            canEdit && state.configMode
+              ? `
+                <div
+                  style="
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-top: 14px;
+                  "
+                >
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    data-specialist-task-edit="${rcsEsc(task.id)}"
+                  >
+                    Editar
+                  </button>
+
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    data-specialist-task-sources="${rcsEsc(task.id)}"
+                  >
+                    Fuentes
+                  </button>
+                </div>
+              `
+              : ""
+          }
+        </div>
+
+        <div
+          style="
+            position: relative;
+            min-height: 160px;
+            overflow: hidden;
+          "
+        >
+          <div
+            style="
+              position: absolute;
+              inset: 0;
+              display: grid;
+              grid-template-columns: ${timelineGridTemplate};
+              pointer-events: none;
+            "
+          >
+            ${timelineBackgroundColumns
+              .map(
+                () => `
+                  <span
+                    style="
+                      border-left: 1px solid #edf1f7;
+                    "
+                  ></span>
+                `,
+              )
+              .join("")}
+          </div>
+
+          ${renderTodayLine(false)}
+
+          ${deadlineMarkers}
+
+          ${
+            hasVisibleRange
+              ? `
+                <div
                   style="
                     position: absolute;
-                    inset: 0;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 0 8px;
-                    color:
-                      ${
+                    top: 52px;
+                    left: ${left}%;
+                    width: ${width}%;
+                    min-width: 18px;
+                    height: 44px;
+                    border-radius: 9px;
+                    overflow: hidden;
+                    background: ${statusMeta.barTrack};
+                    border: 1px solid ${statusMeta.border};
+                    box-sizing: border-box;
+                    box-shadow: 0 3px 10px rgba(7,46,111,0.05);
+                    z-index: 4;
+                  "
+                  title="${rcsEsc(
+                    `${task.title} · ${statusMeta.label} · ${
+                      taskProgress.progress === null
+                        ? "Sin avance calculable"
+                        : `${taskProgress.progress}%`
+                    }`,
+                  )}"
+                >
+                  <span
+                    style="
+                      position: absolute;
+                      inset: 0 auto 0 0;
+                      width: ${
+                        taskProgress.progress === null ? "100" : progressValue
+                      }%;
+                      background: ${statusMeta.barColor};
+                      opacity: ${taskProgress.progress === null ? "0.55" : "1"};
+                    "
+                  ></span>
+
+                  <strong
+                    style="
+                      position: absolute;
+                      inset: 0;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      padding: 0 8px;
+                      color: ${
                         taskProgress.progress === null
                           ? statusMeta.textColor
                           : progressValue >= 45
                             ? "#ffffff"
                             : statusMeta.textColor
                       };
-                    font-size: 11px;
-                    font-weight: 800;
+                      font-size: 11px;
+                      font-weight: 800;
+                      white-space: nowrap;
+                      z-index: 2;
+                    "
+                  >
+                    ${
+                      taskProgress.progress === null
+                        ? statusMeta.label
+                        : `${taskProgress.progress}%`
+                    }
+                  </strong>
+                </div>
+
+                <small
+                  style="
+                    position: absolute;
+                    top: 105px;
+                    left: ${left}%;
+                    color: #64748b;
+                    font-size: 10px;
                     white-space: nowrap;
+                    z-index: 4;
+                  "
+                >
+                  ${rcsEsc(formatDate(range.start))}
+                  →
+                  ${rcsEsc(formatDate(range.end))}
+                </small>
+              `
+              : `
+                <div
+                  style="
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                    color: #94a3b8;
+                    font-size: 12px;
+                    text-align: center;
                     z-index: 2;
                   "
                 >
                   ${
-                    taskProgress.progress === null
-                      ? statusMeta.label
-                      : `${taskProgress.progress}%`
+                    isSprintView && range
+                      ? `
+                        Fuera del calendario
+                        de sprints configurado.
+                      `
+                      : `
+                        Sin planificación temporal.
+                        Asocia Features o informa
+                        fechas manuales en Configurar.
+                      `
                   }
-                </strong>
-              </div>
-
-              <small
-                style="
-                  position: absolute;
-                  top: 105px;
-                  left: ${left}%;
-                  color: #64748b;
-                  font-size: 10px;
-                  white-space: nowrap;
-                "
-              >
-                ${rcsEsc(formatDate(range.start))}
-                →
-                ${rcsEsc(formatDate(range.end))}
-              </small>
-            `
-            : `
-              <div
-                style="
-                  position: absolute;
-                  inset: 0;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  padding: 20px;
-                  color: #94a3b8;
-                  font-size: 12px;
-                  text-align: center;
-                "
-              >
-                ${
-                  isSprintView && range
-                    ? `
-                      Fuera del calendario
-                      de sprints configurado.
-                    `
-                    : `
-                      Sin planificación temporal.
-                      Asocia Features o informa
-                      fechas manuales en Configurar.
-                    `
-                }
-              </div>
-            `
-        }
-      </div>
-    </article>
-  `;
+                </div>
+              `
+          }
+        </div>
+      </article>
+    `;
   };
 
   setHead(
@@ -10949,40 +11148,22 @@ function renderManagementSpecialistRoadmapView(programId) {
           "
         >
           <article>
-            <span>
-              Tareas
-            </span>
-
-            <strong>
-              ${visibleTasks.length}
-            </strong>
+            <span>Tareas</span>
+            <strong>${visibleTasks.length}</strong>
           </article>
 
           <article>
-            <span>
-              Features
-            </span>
-
-            <strong>
-              ${roadmapProgress.featureCount}
-            </strong>
+            <span>Features</span>
+            <strong>${roadmapProgress.featureCount}</strong>
           </article>
 
           <article>
-            <span>
-              Deployed
-            </span>
-
-            <strong>
-              ${roadmapProgress.deployedCount}
-            </strong>
+            <span>Deployed</span>
+            <strong>${roadmapProgress.deployedCount}</strong>
           </article>
 
           <article>
-            <span>
-              Avance
-            </span>
-
+            <span>Avance</span>
             <strong>
               ${
                 roadmapProgress.progress === null
@@ -10993,23 +11174,13 @@ function renderManagementSpecialistRoadmapView(programId) {
           </article>
 
           <article>
-            <span>
-              Riesgo / bloqueado
-            </span>
-
-            <strong>
-              ${riskCount}
-            </strong>
+            <span>Riesgo / bloqueado</span>
+            <strong>${riskCount}</strong>
           </article>
 
           <article>
-            <span>
-              Terminadas
-            </span>
-
-            <strong>
-              ${doneCount}
-            </strong>
+            <span>Terminadas</span>
+            <strong>${doneCount}</strong>
           </article>
         </section>
 
@@ -11110,22 +11281,21 @@ function renderManagementSpecialistRoadmapView(programId) {
       >
         <div
           style="
-            min-width:
-              ${
-                state.quarter === "ALL"
-                  ? "1500px"
-                  : isSprintView
-                    ? "1250px"
-                    : "1180px"
-              };
+            min-width: ${
+              state.quarter === "ALL"
+                ? "1500px"
+                : isSprintView
+                  ? "1250px"
+                  : "1180px"
+            };
           "
         >
           <div
             style="
               display: grid;
               grid-template-columns:
-                minmax(360px, 420px)
-                minmax(720px, 1fr);
+                minmax(360px,420px)
+                minmax(720px,1fr);
               background: #001391;
             "
           >
@@ -11144,12 +11314,13 @@ function renderManagementSpecialistRoadmapView(programId) {
 
             <div
               style="
+                position: relative;
                 display: grid;
-                grid-template-columns:
-                  ${timelineGridTemplate};
+                grid-template-columns: ${timelineGridTemplate};
               "
             >
               ${timelineHeaders}
+              ${renderTodayLine(true)}
             </div>
           </div>
 
@@ -13785,7 +13956,6 @@ function getManagementReportLinkSourceId(link) {
 
   if (type === "sda-deliverable") {
     const sdaId = normalizeManagementSdaId(link?.sdaId);
-
     const deliverableId = normalizeManagementDeliverableId(link?.deliverableId);
 
     return sdaId && deliverableId ? `${sdaId}::${deliverableId}` : "";
@@ -13805,6 +13975,10 @@ function getManagementReportLinkSourceId(link) {
 
   if (type === "staffing") {
     return String(link?.sourceId || link?.staffingId || "").trim();
+  }
+
+  if (type === "manual") {
+    return String(link?.sourceId || "").trim();
   }
 
   return "";
@@ -14184,6 +14358,140 @@ function normalizeManagementRoadmapDateValue(value) {
 
   return new Date(parsed).toISOString().slice(0, 10);
 }
+function normalizeManagementRoadmapDeadlines(value) {
+  let source = [];
+
+  if (Array.isArray(value)) {
+    source = value;
+  } else if (value && typeof value === "object") {
+    source = [value];
+  } else {
+    const text = String(value ?? "").trim();
+
+    if (!text) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+
+      source = Array.isArray(parsed) ? parsed : [parsed];
+    } catch (error) {
+      source = text
+        .split(/\r?\n|;/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+
+  const result = new Map();
+
+  source.forEach((item) => {
+    let rawDate = "";
+    let label = "";
+
+    if (typeof item === "string") {
+      const parts = item.split("|");
+
+      rawDate = String(parts.shift() || "").trim();
+      label = parts.join("|").trim();
+    } else if (item && typeof item === "object") {
+      rawDate = String(item.date || item.deadline || item.at || "").trim();
+
+      label = String(item.label || item.name || item.title || "").trim();
+    }
+
+    const date = normalizeManagementRoadmapDateValue(rawDate);
+
+    if (!date || !mgqParseDate(date)) {
+      return;
+    }
+
+    const key = `${date}::${label.toLowerCase()}`;
+
+    result.set(key, {
+      date,
+      label,
+    });
+  });
+
+  return [...result.values()].sort((left, right) => {
+    const dateComparison = String(left.date).localeCompare(String(right.date));
+
+    if (dateComparison !== 0) {
+      return dateComparison;
+    }
+
+    return String(left.label || "").localeCompare(String(right.label || ""));
+  });
+}
+
+function parseManagementSpecialistDeadlineEditorText(value) {
+  const lines = String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const deadlines = [];
+  const errors = [];
+
+  lines.forEach((line, index) => {
+    const parts = line.split("|");
+
+    const rawDate = String(parts.shift() || "").trim();
+
+    const label = parts.join("|").trim();
+
+    const date = normalizeManagementRoadmapDateValue(rawDate);
+
+    if (!date || !mgqParseDate(date)) {
+      errors.push(`Línea ${index + 1}: "${rawDate}" no es una fecha válida.`);
+
+      return;
+    }
+
+    deadlines.push({
+      date,
+      label,
+    });
+  });
+
+  return {
+    deadlines: normalizeManagementRoadmapDeadlines(deadlines),
+    errors,
+  };
+}
+
+function getManagementSpecialistDeadlineTimelineDate(value) {
+  const normalized = normalizeManagementRoadmapDateValue(value);
+
+  const isoDate = String(normalized || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (isoDate) {
+    return new Date(
+      Number(isoDate[1]),
+      Number(isoDate[2]) - 1,
+      Number(isoDate[3]),
+    );
+  }
+
+  return mgqParseDate(normalized);
+}
+
+function formatManagementSpecialistDeadlineDate(value) {
+  const date = getManagementSpecialistDeadlineTimelineDate(value);
+
+  if (!date) {
+    return "";
+  }
+
+  return date
+    .toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "short",
+    })
+    .replace(".", "");
+}
 function normalizeManagementRoadmapLine(line, fallbackOrder = 999) {
   const normalizedQuarter = String(line?.quarter || "")
     .trim()
@@ -14227,6 +14535,8 @@ function normalizeManagementRoadmapLine(line, fallbackOrder = 999) {
     startDate: normalizeManagementRoadmapDateValue(line?.startDate),
 
     endDate: normalizeManagementRoadmapDateValue(line?.endDate),
+
+    deadlines: normalizeManagementRoadmapDeadlines(line?.deadlines),
 
     status: String(line?.status || "on-track").trim(),
 
@@ -16074,19 +16384,18 @@ function buildManagementRoadmapPersistableLinks(links) {
         ? normalizeManagementDeliverableId(link?.deliverableId)
         : "";
 
-    const sourceId = getManagementReportLinkSourceId({
-      ...link,
-      sdaId,
-      deliverableId,
-    });
+    const sourceId =
+      sourceType === "manual"
+        ? String(link?.sourceId || "").trim()
+        : getManagementReportLinkSourceId({
+            ...link,
+            sdaId,
+            deliverableId,
+          });
 
     if (!sourceId) {
       return;
     }
-
-    const featureId = sourceType === "feature" ? sourceId.toUpperCase() : "";
-
-    const staffingId = sourceType === "staffing" ? sourceId : "";
 
     const normalizedLink = {
       executiveLineId,
@@ -16094,8 +16403,18 @@ function buildManagementRoadmapPersistableLinks(links) {
       sourceId,
       sdaId,
       deliverableId,
-      featureId,
-      staffingId,
+      featureId: sourceType === "feature" ? sourceId.toUpperCase() : "",
+      staffingId: sourceType === "staffing" ? sourceId : "",
+      description:
+        sourceType === "manual" ? String(link?.description || "").trim() : "",
+      startDate:
+        sourceType === "manual"
+          ? normalizeManagementRoadmapDateValue(link?.startDate)
+          : "",
+      endDate:
+        sourceType === "manual"
+          ? normalizeManagementRoadmapDateValue(link?.endDate)
+          : "",
       active: true,
     };
 
@@ -22170,6 +22489,8 @@ function buildManagementRoadmapPersistableLines(lines) {
 
       endDate: normalized.endDate,
 
+      deadlines: normalizeManagementRoadmapDeadlines(normalized.deadlines),
+
       status: normalized.status,
 
       statusLabel: normalized.statusLabel,
@@ -22217,6 +22538,8 @@ function getManagementRoadmapLinesPersistenceSignature(lines) {
 
         endDate: line.endDate,
 
+        deadlines: normalizeManagementRoadmapDeadlines(line.deadlines),
+
         status: line.status,
 
         statusLabel: line.statusLabel,
@@ -22233,6 +22556,7 @@ function getManagementRoadmapLinesPersistenceSignature(lines) {
     .sort()
     .join("|");
 }
+
 async function saveManagementRoadmapLine(programId, updatedLine) {
   const normalizedProgramId = String(programId || "")
     .trim()
@@ -22242,7 +22566,6 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
 
   if (!source || !source.driveJsonUrl) {
     window.alert("No existe un Web App configurado para guardar el Roadmap.");
-
     return;
   }
 
@@ -22252,17 +22575,10 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
 
   if (saveButton) {
     saveButton.disabled = true;
-
     saveButton.textContent = "Guardando...";
   }
 
   try {
-    /*
-     * =====================================================
-     * ESTADO ACTUAL
-     * =====================================================
-     */
-
     const currentLines = getEffectiveManagementExecutiveLines();
 
     const normalizedUpdatedLine = normalizeManagementRoadmapLine(
@@ -22281,9 +22597,7 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
 
     const lineToPersist = {
       ...normalizedUpdatedLine,
-
       id: resolvedId,
-
       manualValue: normalizeManagementGlobalStatusManualValue(
         updatedLine?.manualValue,
       ),
@@ -22296,101 +22610,224 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
             .trim()
             .toLowerCase() !== resolvedId.toLowerCase(),
       ),
-
       lineToPersist,
     ]);
 
+    const expectedSignature =
+      getManagementRoadmapLinesPersistenceSignature(nextLines);
+
     /*
-     * =====================================================
      * ESCRITURA
-     * =====================================================
+     *
+     * El POST es no-cors y su respuesta es opaca.
+     * No asumimos que el backend haya terminado
+     * cuando fetch devuelve el control.
      */
 
     const endpoint = new URL(source.driveJsonUrl, window.location.href);
 
     endpoint.searchParams.delete("callback");
-
     endpoint.searchParams.delete("_");
-
     endpoint.searchParams.delete("dataset");
-
     endpoint.searchParams.delete("action");
 
     await fetch(endpoint.toString(), {
       method: "POST",
-
       mode: "no-cors",
-
       credentials: "include",
-
       cache: "no-store",
-
       headers: {
         "Content-Type": "text/plain;charset=UTF-8",
       },
-
       body: JSON.stringify({
         action: "save-management-roadmap-lines",
-
         lines: nextLines,
       }),
     });
 
     /*
-     * Damos tiempo a SpreadsheetApp.flush()
-     * y a finalizar el doPost.
+     * VERIFICACIÓN CON REINTENTOS
+     *
+     * Una lectura puede encontrar todavía
+     * los datos anteriores mientras Apps Script
+     * está escribiendo o finalizando el flush.
+     *
+     * No damos por correcto el guardado
+     * hasta recuperar la configuración esperada.
      */
-    await new Promise((resolve) => window.setTimeout(resolve, 700));
+
+    const maxAttempts = 10;
+    const retryDelayMs = 1500;
+
+    let persistedConfig = null;
+    let persistedLines = [];
+    let verified = false;
+    let lastReadError = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      if (saveButton) {
+        saveButton.textContent =
+          attempt === 1
+            ? "Verificando..."
+            : `Verificando (${attempt}/${maxAttempts})...`;
+      }
+
+      try {
+        persistedConfig =
+          await loadManagementRoadmapConfig(normalizedProgramId);
+
+        persistedLines = buildManagementRoadmapPersistableLines(
+          persistedConfig?.managementRoadmapLines,
+        );
+
+        const persistedSignature =
+          getManagementRoadmapLinesPersistenceSignature(persistedLines);
+
+        if (expectedSignature === persistedSignature) {
+          verified = true;
+          break;
+        }
+
+        lastReadError = null;
+
+        console.warn(
+          `[Management Roadmap] Verificación ${attempt}/${maxAttempts}: datos todavía diferentes.`,
+        );
+      } catch (error) {
+        lastReadError = error;
+
+        console.warn(
+          `[Management Roadmap] Error de lectura ${attempt}/${maxAttempts}`,
+          error,
+        );
+      }
+
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, retryDelayMs),
+        );
+      }
+    }
 
     /*
-     * =====================================================
-     * VERIFICACIÓN DIRECTA
-     * =====================================================
+     * DIAGNÓSTICO
      *
-     * IMPORTANTE:
-     *
-     * No verificamos contra el snapshot general de Drive.
-     *
-     * Leemos directamente:
-     *
-     * action=management-roadmap-config
-     *
-     * De esta forma comprobamos el contenido real de:
-     *
-     * Management Roadmap Lines
-     *
-     * y evitamos falsos negativos por caché del snapshot.
-     * =====================================================
+     * Si no coincide, identificamos
+     * los registros y campos diferentes.
      */
 
-    const persistedConfig =
-      await loadManagementRoadmapConfig(normalizedProgramId);
+    if (!verified) {
+      const expectedById = new Map(
+        nextLines.map((line) => [String(line.id).toLowerCase(), line]),
+      );
 
-    const persistedLines = buildManagementRoadmapPersistableLines(
-      persistedConfig?.managementRoadmapLines,
-    );
+      const persistedById = new Map(
+        persistedLines.map((line) => [String(line.id).toLowerCase(), line]),
+      );
 
-    const expectedSignature =
-      getManagementRoadmapLinesPersistenceSignature(nextLines);
+      const differences = [];
 
-    const persistedSignature =
-      getManagementRoadmapLinesPersistenceSignature(persistedLines);
+      const allIds = new Set([...expectedById.keys(), ...persistedById.keys()]);
 
-    if (expectedSignature !== persistedSignature) {
-      console.error("[Management Roadmap] Diferencia tras guardar", {
-        expected: nextLines,
-        persisted: persistedLines,
+      allIds.forEach((id) => {
+        const expected = expectedById.get(id);
+        const persisted = persistedById.get(id);
+
+        if (!expected) {
+          differences.push({
+            id,
+            issue: "Registro adicional recuperado",
+            persisted,
+          });
+          return;
+        }
+
+        if (!persisted) {
+          differences.push({
+            id,
+            issue: "Registro no recuperado",
+            expected,
+          });
+          return;
+        }
+
+        const fields = [
+          "programId",
+          "productId",
+          "country",
+          "year",
+          "order",
+          "reportId",
+          "title",
+          "owner",
+          "quarter",
+          "startDate",
+          "endDate",
+          "deadlines",
+          "status",
+          "statusLabel",
+          "statusTone",
+          "comments",
+          "manualValue",
+          "active",
+        ];
+
+        fields.forEach((field) => {
+          const expectedValue =
+            field === "deadlines"
+              ? normalizeManagementRoadmapDeadlines(expected[field])
+              : expected[field];
+
+          const persistedValue =
+            field === "deadlines"
+              ? normalizeManagementRoadmapDeadlines(persisted[field])
+              : persisted[field];
+
+          if (
+            JSON.stringify(expectedValue) !== JSON.stringify(persistedValue)
+          ) {
+            differences.push({
+              id,
+              field,
+              expected: expectedValue,
+              persisted: persistedValue,
+            });
+          }
+        });
       });
 
+      console.error("[Management Roadmap] Guardado no verificado", {
+        programId: normalizedProgramId,
+        lineId: resolvedId,
+        expectedCount: nextLines.length,
+        persistedCount: persistedLines.length,
+        differences,
+        lastReadError,
+      });
+
+      const details = differences
+        .slice(0, 5)
+        .map((difference) => {
+          if (difference.field) {
+            return `${difference.id}: ${difference.field}`;
+          }
+
+          return `${difference.id}: ${difference.issue}`;
+        })
+        .join("\n");
+
       throw new Error(
-        "La configuración guardada no coincide con la recuperada de Management Roadmap Lines.",
+        "No se ha podido verificar el guardado de Management Roadmap Lines." +
+          (details ? `\n\nDiferencias:\n${details}` : "") +
+          "\n\nComprueba la consola y los datos de Google Sheets antes de volver a guardar.",
       );
     }
 
     /*
-     * =====================================================
-     * ESTADO LOCAL
-     * =====================================================
+     * SINCRONIZACIÓN DEL ESTADO LOCAL
+     *
+     * Sólo llegamos aquí si hemos comprobado
+     * que los datos están persistidos.
      */
 
     DATA.managementRoadmapLines = persistedLines;
@@ -22406,17 +22843,13 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
 
       PROGRAM_DATA_CACHE.set(normalizedProgramId, {
         ...cached,
-
         managementRoadmapLines: DATA.managementRoadmapLines,
-
         managementRoadmapLinks: DATA.managementRoadmapLinks,
       });
     }
 
     /*
-     * =====================================================
      * CIERRE
-     * =====================================================
      */
 
     closeManagementRoadmapLineEditorPanel();
@@ -22435,7 +22868,6 @@ async function saveManagementRoadmapLine(programId, updatedLine) {
 
     if (saveButton) {
       saveButton.disabled = false;
-
       saveButton.textContent = "Guardar";
     }
 
@@ -24797,6 +25229,883 @@ function renderPortfolioComingSoon(routeName) {
     </section>
   `;
 }
+
+function installManagementManualSources() {
+  if (window.__managementManualSourcesInstalled) {
+    return;
+  }
+
+  window.__managementManualSourcesInstalled = true;
+
+  const originalRender = renderManagementReportSourcesPanel;
+
+  const normalizeDate = (value) => {
+    const date = normalizeManagementRoadmapDateValue(value);
+    return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+  };
+
+  const createId = () => {
+    if (window.crypto?.randomUUID) {
+      return `manual-${window.crypto.randomUUID()}`;
+    }
+
+    return `manual-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  };
+
+  renderManagementReportSourcesPanel = async function (
+    programId,
+    executiveLineId,
+    options = {},
+  ) {
+    await originalRender(programId, executiveLineId, options);
+
+    const overlay = document.querySelector("#managementRoadmapMappingOverlay");
+
+    if (!overlay) {
+      return;
+    }
+
+    const state = getManagementRoadmapMappingEditorState();
+
+    const line = getManagementRoadmapLineById(executiveLineId);
+
+    if (!line) {
+      return;
+    }
+
+    const manualLinks = () =>
+      state.draftLinks.filter(
+        (link) => normalizeManagementReportSourceType(link) === "manual",
+      );
+
+    const tabs = overlay.querySelector(".management-report-source-tabs");
+
+    if (!tabs) {
+      return;
+    }
+
+    const manualTab = document.createElement("button");
+
+    manualTab.type = "button";
+    manualTab.className = state.reportSourceTab === "manual" ? "is-active" : "";
+
+    manualTab.innerHTML = `
+      Manual
+      <span>${manualLinks().length}</span>
+    `;
+
+    manualTab.addEventListener("click", () => {
+      void renderManagementReportSourcesPanel(programId, executiveLineId, {
+        preserveDraft: true,
+        tab: "manual",
+      });
+    });
+
+    tabs.appendChild(manualTab);
+
+    const previewCounts = overlay.querySelector(
+      ".management-report-source-preview-counts",
+    );
+
+    if (previewCounts) {
+      previewCounts.insertAdjacentHTML(
+        "beforeend",
+        `
+          <span>
+            Manual
+            <strong>${manualLinks().length}</strong>
+          </span>
+        `,
+      );
+    }
+
+    if (state.reportSourceTab !== "manual") {
+      return;
+    }
+
+    const search = overlay.querySelector(".management-report-source-search");
+
+    if (search) {
+      search.remove();
+    }
+
+    const list = overlay.querySelector(".management-report-source-list");
+
+    if (!list) {
+      return;
+    }
+
+    const emptySearch = overlay.querySelector(
+      ".management-report-source-search-empty",
+    );
+
+    if (emptySearch) {
+      emptySearch.hidden = true;
+    }
+
+    const renderManualEditor = (editingId = "") => {
+      const existing = manualLinks().find(
+        (item) => item.sourceId === editingId,
+      );
+
+      const description = existing?.description || "";
+      const startDate = normalizeDate(existing?.startDate);
+      const endDate = normalizeDate(existing?.endDate);
+
+      list.innerHTML = `
+        <section class="management-manual-sources">
+          <div class="management-manual-sources-heading">
+            <h3>Fuentes manuales</h3>
+            <p>
+              Añade información externa a SDA,
+              Épicas, Features o Staffing.
+            </p>
+          </div>
+
+          <div class="management-manual-source-editor">
+            <h4>
+              ${editingId ? "Editar fuente manual" : "Nueva fuente manual"}
+            </h4>
+
+            <label for="manualSourceDescription">
+              Descripción
+            </label>
+
+            <textarea
+              id="manualSourceDescription"
+              rows="4"
+              placeholder="Describe la actividad o información que quieres incorporar."
+            >${rcsEsc(description)}</textarea>
+
+            <div class="management-manual-source-dates">
+              <div>
+                <label for="manualSourceStartDate">
+                  Fecha inicio
+                </label>
+
+                <input
+                  id="manualSourceStartDate"
+                  type="date"
+                  value="${rcsEsc(startDate)}"
+                />
+              </div>
+
+              <div>
+                <label for="manualSourceEndDate">
+                  Fecha fin
+                </label>
+
+                <input
+                  id="manualSourceEndDate"
+                  type="date"
+                  value="${rcsEsc(endDate)}"
+                />
+              </div>
+            </div>
+
+            <div class="management-manual-source-actions">
+              ${
+                editingId
+                  ? `
+                    <button
+                      type="button"
+                      class="ghost-button"
+                      data-manual-cancel
+                    >
+                      Cancelar edición
+                    </button>
+                  `
+                  : ""
+              }
+
+              <button
+                type="button"
+                class="management-roadmap-mapping-save"
+                data-manual-add
+              >
+                ${editingId ? "Actualizar fuente" : "+ Añadir fuente"}
+              </button>
+            </div>
+          </div>
+
+          <div class="management-manual-source-list">
+            <h4>
+              Fuentes añadidas (${manualLinks().length})
+            </h4>
+
+            ${
+              manualLinks().length
+                ? manualLinks()
+                    .map(
+                      (item) => `
+                        <article
+                          class="management-manual-source-card"
+                        >
+                          <p>
+                            ${rcsEsc(item.description || "")}
+                          </p>
+
+                          <small>
+                            ${
+                              item.startDate
+                                ? `Inicio: ${rcsEsc(item.startDate)}`
+                                : "Sin fecha inicio"
+                            }
+                            ·
+                            ${
+                              item.endDate
+                                ? `Fin: ${rcsEsc(item.endDate)}`
+                                : "Sin fecha fin"
+                            }
+                          </small>
+
+                          <div>
+                            <button
+                              type="button"
+                              class="ghost-button"
+                              data-manual-edit="${rcsEsc(item.sourceId)}"
+                            >
+                              Editar
+                            </button>
+
+                            <button
+                              type="button"
+                              class="ghost-button"
+                              data-manual-delete="${rcsEsc(item.sourceId)}"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </article>
+                      `,
+                    )
+                    .join("")
+                : `
+                  <p class="management-manual-source-empty">
+                    Todavía no hay fuentes manuales.
+                  </p>
+                `
+            }
+          </div>
+        </section>
+      `;
+
+      const addButton = list.querySelector("[data-manual-add]");
+
+      addButton?.addEventListener("click", () => {
+        const nextDescription = String(
+          list.querySelector("#manualSourceDescription")?.value || "",
+        ).trim();
+
+        const nextStartDate = String(
+          list.querySelector("#manualSourceStartDate")?.value || "",
+        ).trim();
+
+        const nextEndDate = String(
+          list.querySelector("#manualSourceEndDate")?.value || "",
+        ).trim();
+
+        if (!nextDescription) {
+          window.alert("La descripción es obligatoria.");
+          return;
+        }
+
+        if (nextStartDate && nextEndDate && nextEndDate < nextStartDate) {
+          window.alert(
+            "La fecha de fin no puede ser anterior a la fecha de inicio.",
+          );
+          return;
+        }
+
+        const sourceId = editingId || createId();
+
+        const normalizedLink = {
+          executiveLineId: line.id,
+          sourceType: "manual",
+          sourceId,
+          sdaId: "",
+          deliverableId: "",
+          featureId: "",
+          staffingId: "",
+          description: nextDescription,
+          startDate: nextStartDate,
+          endDate: nextEndDate,
+          active: true,
+        };
+
+        state.draftLinks = state.draftLinks.filter(
+          (item) =>
+            !(
+              normalizeManagementReportSourceType(item) === "manual" &&
+              item.sourceId === sourceId
+            ),
+        );
+
+        state.draftLinks.push(normalizedLink);
+
+        void renderManagementReportSourcesPanel(programId, executiveLineId, {
+          preserveDraft: true,
+          tab: "manual",
+        });
+      });
+
+      list
+        .querySelector("[data-manual-cancel]")
+        ?.addEventListener("click", () => {
+          renderManualEditor();
+        });
+
+      list.querySelectorAll("[data-manual-edit]").forEach((button) => {
+        button.addEventListener("click", () => {
+          renderManualEditor(button.dataset.manualEdit);
+        });
+      });
+
+      list.querySelectorAll("[data-manual-delete]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const sourceId = button.dataset.manualDelete;
+
+          state.draftLinks = state.draftLinks.filter(
+            (item) =>
+              !(
+                normalizeManagementReportSourceType(item) === "manual" &&
+                item.sourceId === sourceId
+              ),
+          );
+
+          void renderManagementReportSourcesPanel(programId, executiveLineId, {
+            preserveDraft: true,
+            tab: "manual",
+          });
+        });
+      });
+    };
+
+    renderManualEditor();
+  };
+}
+
+installManagementManualSources();
+
+function installManagementReportSourcesFreshLoad() {
+  if (window.__managementReportSourcesFreshLoadInstalled) {
+    return;
+  }
+
+  window.__managementReportSourcesFreshLoadInstalled = true;
+
+  const originalRender = renderManagementReportSourcesPanel;
+
+  renderManagementReportSourcesPanel = async function (
+    programId,
+    executiveLineId,
+    options = {},
+  ) {
+    const normalizedProgramId = String(programId || "")
+      .trim()
+      .toLowerCase();
+
+    const state = getManagementRoadmapMappingEditorState();
+
+    const sameLine =
+      String(state.selectedLineId || "") === String(executiveLineId || "");
+
+    /*
+     * Sólo consultar el servidor al abrir
+     * una tarea o iniciar una nueva edición.
+     *
+     * No volver a consultar al cambiar
+     * de pestaña, añadir, editar o eliminar
+     * fuentes dentro del formulario.
+     */
+    const needsFreshLoad = !options.preserveDraft || !sameLine;
+
+    if (needsFreshLoad) {
+      try {
+        const config = await loadManagementRoadmapConfig(normalizedProgramId);
+
+        if (!Array.isArray(config.managementRoadmapLinks)) {
+          throw new Error("La respuesta no contiene Management Roadmap Links.");
+        }
+
+        /*
+         * Sincronizar las relaciones con
+         * la versión recuperada de Sheets.
+         */
+        DATA.managementRoadmapLinks = buildManagementRoadmapPersistableLinks(
+          config.managementRoadmapLinks,
+        );
+
+        /*
+         * Mantener actualizado el caché del
+         * programa sin modificar otras fuentes.
+         */
+        if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+          const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
+          PROGRAM_DATA_CACHE.set(normalizedProgramId, {
+            ...cached,
+            managementRoadmapLinks: DATA.managementRoadmapLinks,
+          });
+        }
+
+        console.info("[Management Reports] Fuentes sincronizadas", {
+          programId: normalizedProgramId,
+          total: DATA.managementRoadmapLinks.length,
+          lineId: executiveLineId,
+          lineLinks: getManagementReportLinksForLine(executiveLineId),
+        });
+      } catch (error) {
+        console.error("[Management Reports] Error recuperando fuentes", error);
+
+        window.alert(
+          "No se han podido recuperar las fuentes actualizadas. " +
+            "No se abrirá el editor con datos antiguos.\n\n" +
+            (error?.message || String(error)),
+        );
+
+        return;
+      }
+    }
+
+    return originalRender(programId, executiveLineId, options);
+  };
+}
+
+installManagementReportSourcesFreshLoad();
+
+function installManagementSpecialistManualTimeline() {
+  if (window.__managementSpecialistManualTimelineInstalled) {
+    return;
+  }
+
+  window.__managementSpecialistManualTimelineInstalled = true;
+
+  const originalRender = renderManagementSpecialistRoadmapView;
+
+  let renderSequence = 0;
+
+  function parseLocalDate(value) {
+    const normalized = normalizeManagementRoadmapDateValue(value);
+
+    const match = String(normalized || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+    if (!match) {
+      return null;
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+
+    const date = new Date(year, month - 1, day);
+
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return date;
+  }
+
+  function formatDateShort(date) {
+    return date
+      .toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "short",
+      })
+      .replace(".", "");
+  }
+
+  function buildElement(tag, styles = {}) {
+    const element = document.createElement(tag);
+
+    Object.assign(element.style, styles);
+
+    return element;
+  }
+
+  function paintManualSources(programId, links, sequence) {
+    if (sequence !== renderSequence) {
+      return;
+    }
+
+    const container = document.querySelector("#managementReportsCards");
+
+    if (!container) {
+      return;
+    }
+
+    const panels = container.querySelectorAll(
+      ":scope > section > section.panel",
+    );
+
+    const timelinePanel = panels[1];
+
+    if (!timelinePanel) {
+      return;
+    }
+
+    const state = getManagementSpecialistRoadmapUiState();
+
+    const tasks = getManagementSpecialistRoadmapTasks(programId).filter(
+      (task) => managementSpecialistTaskMatchesQuarter(task, state.quarter),
+    );
+
+    const period = getRoadmapPeriod(state.quarter, state.year);
+
+    const sprintPeriods = getManagementSpecialistRoadmapSprintPeriods(
+      programId,
+      state.quarter,
+      state.year,
+    );
+
+    const isSprintView =
+      state.granularity === "sprint" &&
+      state.quarter !== "ALL" &&
+      sprintPeriods.length > 0;
+
+    const timelinePeriod = isSprintView
+      ? {
+          startDate: parseLocalDate(sprintPeriods[0].startDate),
+          endDate: parseLocalDate(
+            sprintPeriods[sprintPeriods.length - 1].endDate,
+          ),
+        }
+      : period;
+
+    if (!timelinePeriod.startDate || !timelinePeriod.endDate) {
+      return;
+    }
+
+    const taskRows = timelinePanel.querySelectorAll(":scope > div > article");
+
+    taskRows.forEach((row, index) => {
+      const task = tasks[index];
+
+      if (!task) {
+        return;
+      }
+
+      const informationCell = row.children[0];
+      const timelineCell = row.children[1];
+
+      if (!informationCell || !timelineCell) {
+        return;
+      }
+
+      /*
+       * Limpiar los elementos de una
+       * representación anterior.
+       */
+      row
+        .querySelectorAll("[data-specialist-manual-timeline]")
+        .forEach((element) => element.remove());
+
+      /*
+       * Filtrar únicamente fuentes manuales
+       * activas de esta tarea.
+       */
+      const taskId = String(task.id || "")
+        .trim()
+        .toLowerCase();
+
+      const sources = links
+        .filter((link) => {
+          const lineId = String(link.executiveLineId || "")
+            .trim()
+            .toLowerCase();
+
+          return (
+            lineId === taskId &&
+            normalizeManagementReportSourceType(link) === "manual" &&
+            isManagementRoadmapLinkActive(link)
+          );
+        })
+        .map((link) => ({
+          ...link,
+          start: parseLocalDate(link.startDate),
+          end: parseLocalDate(link.endDate),
+        }))
+        .filter(
+          (source) => source.start && source.end && source.end >= source.start,
+        )
+        .sort((a, b) => a.start - b.start || a.end - b.end);
+
+      if (!sources.length) {
+        return;
+      }
+
+      /*
+       * Información en la columna izquierda.
+       */
+      const count = buildElement("div", {
+        display: "flex",
+        alignItems: "center",
+        gap: "7px",
+        marginTop: "11px",
+        color: "#456689",
+        fontSize: "10px",
+        fontWeight: "700",
+      });
+
+      count.dataset.specialistManualTimeline = "count";
+
+      const dot = buildElement("span", {
+        width: "7px",
+        height: "7px",
+        flexShrink: "0",
+        borderRadius: "50%",
+        background: "#5389b7",
+      });
+
+      const countLabel = document.createElement("span");
+
+      countLabel.textContent =
+        `${sources.length} ` +
+        (sources.length === 1 ? "fuente manual" : "fuentes manuales");
+
+      count.append(dot, countLabel);
+
+      informationCell.appendChild(count);
+
+      /*
+       * Mostrar sólo las fuentes que
+       * coinciden con el periodo visible.
+       */
+      const visibleSources = sources.filter(
+        (source) =>
+          source.start <= timelinePeriod.endDate &&
+          source.end >= timelinePeriod.startDate,
+      );
+
+      if (!visibleSources.length) {
+        return;
+      }
+
+      /*
+       * Altura dinámica: una fila por fuente.
+       *
+       * No se solapan fuentes que
+       * comparten fechas.
+       */
+      const firstTop = 146;
+      const rowHeight = 42;
+      const barHeight = 24;
+
+      const requiredHeight = firstTop + visibleSources.length * rowHeight + 12;
+
+      timelineCell.style.minHeight = `${Math.max(160, requiredHeight)}px`;
+
+      timelineCell.style.position = "relative";
+
+      /*
+       * Cabecera de las fuentes.
+       */
+      const heading = buildElement("div", {
+        position: "absolute",
+        top: "122px",
+        left: "12px",
+        fontSize: "9px",
+        fontWeight: "800",
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        color: "#7189a7",
+        pointerEvents: "none",
+        zIndex: "5",
+      });
+
+      heading.dataset.specialistManualTimeline = "heading";
+
+      heading.textContent = "Fuentes manuales";
+
+      timelineCell.appendChild(heading);
+
+      visibleSources.forEach((source, sourceIndex) => {
+        const visibleStart = clampRoadmapDate(
+          source.start,
+          timelinePeriod.startDate,
+          timelinePeriod.endDate,
+        );
+
+        const visibleEnd = clampRoadmapDate(
+          source.end,
+          timelinePeriod.startDate,
+          timelinePeriod.endDate,
+        );
+
+        const left = getRoadmapDatePosition(visibleStart, timelinePeriod) || 0;
+
+        const right =
+          getRoadmapDatePosition(visibleEnd, timelinePeriod) || left;
+
+        const width = Math.min(
+          100 - left,
+          Math.max(state.quarter === "ALL" ? 0.8 : 1.2, right - left),
+        );
+
+        const top = firstTop + sourceIndex * rowHeight;
+
+        const description = String(
+          source.description || "Fuente manual",
+        ).trim();
+
+        const dateText =
+          `${formatDateShort(source.start)} → ` +
+          `${formatDateShort(source.end)}`;
+
+        /*
+         * Barra proporcional a las fechas.
+         */
+        const bar = buildElement("div", {
+          position: "absolute",
+          top: `${top}px`,
+          left: `${left}%`,
+          width: `${width}%`,
+          minWidth: "4px",
+          height: `${barHeight}px`,
+          boxSizing: "border-box",
+          border: "1px solid #8fb2d0",
+          borderRadius: "5px",
+          background: "#cfe3f4",
+          boxShadow: "0 1px 3px rgba(30,70,110,0.08)",
+          zIndex: "5",
+        });
+
+        bar.dataset.specialistManualTimeline = "bar";
+
+        bar.title = `${description}\n${dateText}`;
+
+        timelineCell.appendChild(bar);
+
+        /*
+         * Etiqueta independiente de la barra.
+         *
+         * Esto permite leer descripciones
+         * incluso en fuentes de uno o dos días.
+         */
+        const label = buildElement("div", {
+          position: "absolute",
+          top: `${top + 5}px`,
+          left: `${left}%`,
+          paddingLeft: "7px",
+          color: "#24577f",
+          fontSize: "10px",
+          fontWeight: "700",
+          whiteSpace: "nowrap",
+          lineHeight: "14px",
+          pointerEvents: "none",
+          zIndex: "6",
+        });
+
+        label.dataset.specialistManualTimeline = "label";
+
+        label.textContent = description;
+
+        /*
+         * Si la barra es demasiado estrecha
+         * para el texto, la etiqueta continúa
+         * por la derecha de forma legible.
+         */
+        timelineCell.appendChild(label);
+
+        const dates = buildElement("small", {
+          position: "absolute",
+          top: `${top + barHeight + 2}px`,
+          left: `${left}%`,
+          color: "#7489a2",
+          fontSize: "9px",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          zIndex: "5",
+        });
+
+        dates.dataset.specialistManualTimeline = "dates";
+
+        dates.textContent = dateText;
+
+        timelineCell.appendChild(dates);
+      });
+    });
+  }
+
+  /*
+   * Renderizado principal.
+   *
+   * Primero se dibuja el cronograma normal.
+   * Después se consultan las relaciones
+   * actualizadas y se añaden las fuentes.
+   */
+  renderManagementSpecialistRoadmapView = function (programId) {
+    const normalizedProgramId = String(programId || "")
+      .trim()
+      .toLowerCase();
+
+    const sequence = ++renderSequence;
+
+    const result = originalRender(programId);
+
+    const loadAndPaint = async () => {
+      try {
+        const config = await loadManagementRoadmapConfig(normalizedProgramId);
+
+        if (sequence !== renderSequence) {
+          return;
+        }
+
+        if (!Array.isArray(config?.managementRoadmapLinks)) {
+          throw new Error(
+            "La configuración recuperada no contiene Management Roadmap Links.",
+          );
+        }
+
+        const links = buildManagementRoadmapPersistableLinks(
+          config.managementRoadmapLinks,
+        );
+
+        /*
+         * Sincronización con la fuente real.
+         */
+        DATA.managementRoadmapLinks = links;
+
+        if (PROGRAM_DATA_CACHE.has(normalizedProgramId)) {
+          const cached = PROGRAM_DATA_CACHE.get(normalizedProgramId);
+
+          PROGRAM_DATA_CACHE.set(normalizedProgramId, {
+            ...cached,
+            managementRoadmapLinks: links,
+          });
+        }
+
+        paintManualSources(normalizedProgramId, links, sequence);
+      } catch (error) {
+        console.error(
+          "[Pase a Especialista] Error pintando fuentes manuales",
+          error,
+        );
+      }
+    };
+
+    void loadAndPaint();
+
+    return result;
+  };
+}
+
+installManagementSpecialistManualTimeline();
+
+/*************************************************************************************************************************************** */
+/*************************************************************************************************************************************** */
+/*************************************************************************************************************************************** */
+/*************************************************************************************************************************************** */
+/*************************************************************************************************************************************** */
+/*************************************************************************************************************************************** */
+/*************************************************************************************************************************************** */
+/*************************************************************************************************************************************** */
+/*************************************************************************************************************************************** */
 /* teams */
 document.addEventListener("click", (event) => {
   const quarterButton = event.target.closest("[data-team-quarter]");
