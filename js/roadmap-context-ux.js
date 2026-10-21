@@ -1609,54 +1609,113 @@ function installProductPlanComparison() {
   function collectFeatureRows(programId, productId) {
     const normalizedProgramId = String(programId || "").trim();
     const normalizedProductId = normalizeProduct(productId);
+
     const items = Array.isArray(DATA?.jiraWorkspaceFeatures)
       ? DATA.jiraWorkspaceFeatures
       : [];
+
     return items
       .filter((item) => {
         const itemProgramId = String(
           item.programId || normalizedProgramId,
         ).trim();
-        if (itemProgramId !== normalizedProgramId) {
-          return false;
-        }
-        return normalizeProduct(item.product) === normalizedProductId;
+
+        return (
+          itemProgramId === normalizedProgramId &&
+          normalizeProduct(item.product) === normalizedProductId
+        );
       })
       .map((item) => {
         const deliverableRef = String(item.deliverable || "").trim();
+
         const analysisId = String(item.analysisId || "")
           .trim()
           .toUpperCase();
+
         const analysisKeys = productPlanExtractJiraKeys(analysisId);
+
+        const sourceKey = String(
+          item.jiraKey || item.key || item.id || "Feature",
+        ).trim();
+
+        /*
+         * El nombre funcional tiene prioridad sobre el código.
+         * Summary es la fuente preferente para el título JIRA.
+         */
+        const titleCandidates = [
+          item.summary,
+          item.title,
+          item.featureTitle,
+          item.featureName,
+          item.displayName,
+          item.name,
+          item.fields?.summary,
+          item.description,
+        ];
+
+        const normalizedKeys = new Set(
+          [sourceKey, item.jiraKey, item.key, item.id]
+            .map((value) =>
+              String(value || "")
+                .trim()
+                .toUpperCase(),
+            )
+            .filter(Boolean),
+        );
+
+        const readableTitle = titleCandidates
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .find(
+            (value) =>
+              value &&
+              !normalizedKeys.has(value.toUpperCase()) &&
+              !/^[A-Z][A-Z0-9]+-\d+$/i.test(value),
+          );
+
+        const title =
+          readableTitle ||
+          String(item.summary || item.title || item.name || sourceKey).trim();
+
         return {
           id: `feature-${item.id || item.jiraKey || item.name || item.summary}`,
+
           sourceType: "features",
           sourceLabel: "JIRA · Feature",
-          sourceKey: String(item.jiraKey || item.id || "Feature").trim(),
-          title: String(
-            item.name || item.summary || item.jiraKey || "Feature JIRA",
-          ).trim(),
+          sourceKey,
+          title,
+
           subtitle: String(item.statusRaw || item.status || "").trim(),
+
           startDate: parseDate(item.startDate),
+
           endDate: parseDate(item.endDate || item.targetDate),
+
           countries: parseCountries(item.country),
+
           deliverableRef,
           analysisId,
+
           analysisKeys: [...new Set(analysisKeys)],
+
           jiraKey: String(item.jiraKey || "")
             .trim()
             .toUpperCase(),
+
           workspaceKey: String(item.workspaceKey || "")
             .trim()
             .toUpperCase(),
+
           sdaId: String(item.sdaId || "").trim(),
+
           sdaE2E: String(item.sdaE2E || "")
             .trim()
             .toUpperCase(),
+
           hasPlanningDates: Boolean(
             parseDate(item.startDate) &&
             parseDate(item.endDate || item.targetDate),
           ),
+
           raw: item,
         };
       });
@@ -3526,22 +3585,17 @@ function installProductPlanComparison() {
   }
   function renderProductPlanLinkedRow(row, year, sourceType) {
     const isMsa = sourceType === "msa";
+    const isFeature = sourceType === "features";
 
     const label = isMsa ? "MSA" : "FEATURE";
+
+    const sourceKey = String(row.sourceKey || "").trim();
+
+    const displayTitle = String(row.title || sourceKey || label).trim();
 
     const hasPlanningDates = Boolean(row.startDate && row.endDate);
 
     const layout = hasPlanningDates ? rowLayout(row, year) : null;
-
-    /*
-     * El row.raw del MSA conserva el
-     * roadmap item original.
-     *
-     * El detalle se navega mediante:
-     *
-     * type = msa
-     * id   = roadmapItem.id
-     */
 
     const detailId = isMsa ? String(row?.raw?.id || "").trim() : "";
 
@@ -3551,14 +3605,39 @@ function installProductPlanComparison() {
       ? `${formatShortDate(row.startDate)} → ${formatShortDate(row.endDate)}`
       : "Sin planificación temporal";
 
+    /*
+     * Features: mostrar nombre funcional.
+     * MSAs: mantener el comportamiento existente.
+     */
+    const barLabel = isFeature
+      ? displayTitle
+      : `${sourceKey} · ${planningLabel}`;
+
     const barTitle = [
-      row.sourceKey,
-      row.title,
+      displayTitle,
+      sourceKey !== displayTitle ? sourceKey : "",
       planningLabel,
+      row.subtitle ? `Estado: ${row.subtitle}` : "",
       canNavigate ? "Abrir detalle del MSA" : "",
     ]
       .filter(Boolean)
       .join(" · ");
+
+    const barInnerHtml = isFeature
+      ? `
+        <span class="product-plan-bar-readable-title">
+          ${escapeHtml(displayTitle)}
+        </span>
+      `
+      : `
+        <span>
+          ${escapeHtml(sourceKey)}
+          ·
+          ${escapeHtml(formatShortDate(row.startDate))}
+          →
+          ${escapeHtml(formatShortDate(row.endDate))}
+        </span>
+      `;
 
     let timelineBar = "";
 
@@ -3580,15 +3659,9 @@ function installProductPlanComparison() {
           font:inherit;
         "
         title="${escapeHtml(barTitle)}"
-        aria-label="${escapeHtml(`Abrir detalle del MSA ${row.title}`)}"
+        aria-label="${escapeHtml(`Abrir detalle del MSA ${displayTitle}`)}"
       >
-        <span>
-          ${escapeHtml(row.sourceKey)}
-          ·
-          ${escapeHtml(formatShortDate(row.startDate))}
-          →
-          ${escapeHtml(formatShortDate(row.endDate))}
-        </span>
+        ${barInnerHtml}
       </button>
     `;
     } else if (hasPlanningDates) {
@@ -3603,22 +3676,15 @@ function installProductPlanComparison() {
           width:${layout.width}%;
         "
         title="${escapeHtml(barTitle)}"
+        aria-label="${escapeHtml(barTitle)}"
       >
-        <span>
-          ${escapeHtml(row.sourceKey)}
-          ·
-          ${escapeHtml(formatShortDate(row.startDate))}
-          →
-          ${escapeHtml(formatShortDate(row.endDate))}
-        </span>
+        ${barInnerHtml}
       </span>
     `;
     } else {
       timelineBar = `
       <span
-        class="
-          product-plan-sda-hidden
-        "
+        class="product-plan-sda-hidden"
         title="${escapeHtml(barTitle)}"
       >
         Sin planificación temporal
@@ -3634,59 +3700,43 @@ function installProductPlanComparison() {
         product-plan-linked-${escapeHtml(sourceType)}
       "
     >
-      <div
-        class="
-          product-plan-row-info
-        "
-      >
-        <div
-          class="
-            product-plan-row-topline
-          "
-        >
-          <span
-            class="
-              product-plan-linked-kind
-            "
-          >
+      <div class="product-plan-row-info">
+        <div class="product-plan-row-topline">
+
+          <span class="product-plan-linked-kind">
             ${label}
           </span>
 
           <span
-            class="
-              product-plan-source-key
-            "
+            class="product-plan-source-key"
+            title="${escapeHtml(sourceKey)}"
           >
-            ${escapeHtml(row.sourceKey)}
+            ${escapeHtml(sourceKey)}
           </span>
 
           ${renderCountryBadges(row.countries)}
         </div>
 
         <strong
-          title="${escapeHtml(row.title)}"
+          class="product-plan-readable-title"
+          title="${escapeHtml(displayTitle)}"
         >
-          ${escapeHtml(row.title)}
+          ${escapeHtml(displayTitle)}
         </strong>
 
         ${
           row.subtitle
             ? `
-                <small>
-                  ${escapeHtml(row.subtitle)}
-                </small>
-              `
+              <small>
+                ${escapeHtml(row.subtitle)}
+              </small>
+            `
             : ""
         }
       </div>
 
-      <div
-        class="
-          product-plan-row-track
-        "
-      >
+      <div class="product-plan-row-track">
         ${renderTodayLine(year)}
-
         ${timelineBar}
       </div>
     </article>
@@ -3915,9 +3965,61 @@ function installProductPlanComparison() {
     const raw =
       feature?.raw && typeof feature.raw === "object" ? feature.raw : {};
 
-    return String(
-      feature?.epicName || raw.epicName || raw.epic_name || "",
+    const epic = raw.epic && typeof raw.epic === "object" ? raw.epic : {};
+
+    const parent =
+      raw.parent && typeof raw.parent === "object" ? raw.parent : {};
+
+    const epicKey = productPlanFeatureEpicKey(feature);
+
+    const parentKey = String(parent.key || parent.jiraKey || parent.id || "")
+      .trim()
+      .toUpperCase();
+
+    const parentType = String(
+      parent.issueType?.name || parent.issuetype?.name || parent.type || "",
     ).trim();
+
+    const parentIsEpic =
+      parentKey === epicKey || /^(epic|épica)$/i.test(parentType);
+
+    /*
+     * Buscar el título funcional de la épica.
+     * No asumir que epicName siempre llega informado.
+     */
+    const candidates = [
+      feature?.epicSummary,
+      feature?.epicTitle,
+      feature?.epicName,
+
+      raw.epicSummary,
+      raw.epic_summary,
+      raw.epicTitle,
+      raw.epic_title,
+      raw.epicName,
+      raw.epic_name,
+
+      epic.summary,
+      epic.title,
+      epic.name,
+      epic.fields?.summary,
+
+      parentIsEpic ? parent.summary : "",
+      parentIsEpic ? parent.title : "",
+      parentIsEpic ? parent.name : "",
+      parentIsEpic ? parent.fields?.summary : "",
+    ];
+
+    const readableName = candidates
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .find(
+        (value) =>
+          value &&
+          value.toUpperCase() !== epicKey &&
+          !/^[A-Z][A-Z0-9]+-\d+$/i.test(value),
+      );
+
+    return readableName || "";
   }
 
   function productPlanFeatureIsDeployed(feature) {
@@ -4098,7 +4200,6 @@ function installProductPlanComparison() {
       ? rowLayout(
           {
             startDate: group.startDate,
-
             endDate: group.endDate,
           },
           year,
@@ -4107,48 +4208,62 @@ function installProductPlanComparison() {
 
     const epicTitle = isUnassigned
       ? "Features sin épica"
-      : group.name || group.key;
+      : String(group.name || `Épica ${group.key}`).trim();
 
     const planningLabel = hasPlanningDates
-      ? `${formatShortDate(group.startDate)} → ${formatShortDate(
-          group.endDate,
-        )}`
+      ? `${formatShortDate(group.startDate)} → ${formatShortDate(group.endDate)}`
       : "Sin planificación temporal";
+
+    const epicBarLabel = isUnassigned ? "Features sin épica" : epicTitle;
+
+    const barTitle = [
+      epicTitle,
+      isUnassigned ? "" : group.key,
+      `${group.featureCount} Features`,
+      planningLabel,
+    ]
+      .filter(Boolean)
+      .join(" · ");
 
     const timelineBar = hasPlanningDates
       ? `
-        <span
-          class="
-            product-plan-bar
-            product-plan-bar-epic
-          "
-          style="
-            left:${layout.left}%;
-            width:${layout.width}%;
-          "
-          title="${escapeHtml(
-            [epicTitle, `${group.featureCount} Features`, planningLabel].join(
-              " · ",
-            ),
-          )}"
-        >
-          <span>
-            ${escapeHtml(isUnassigned ? "Sin épica" : group.key)}
-            ·
-            ${group.featureCount}
-            Features
-          </span>
+      <span
+        class="
+          product-plan-bar
+          product-plan-bar-epic
+        "
+        style="
+          left:${layout.left}%;
+          width:${layout.width}%;
+        "
+        title="${escapeHtml(barTitle)}"
+        aria-label="${escapeHtml(barTitle)}"
+      >
+        <span class="product-plan-bar-readable-title">
+          ${escapeHtml(epicBarLabel)}
+          ·
+          ${group.featureCount}
+          ${group.featureCount === 1 ? "Feature" : "Features"}
         </span>
-      `
+      </span>
+    `
       : `
-        <span
-          class="
-            product-plan-sda-hidden
-          "
-        >
-          Sin planificación temporal
-        </span>
-      `;
+      <span class="product-plan-sda-hidden">
+        Sin planificación temporal
+      </span>
+    `;
+
+    const featuresHtml = expanded
+      ? `
+      <div class="product-plan-epic-features">
+        ${group.features
+          .map((feature) =>
+            renderProductPlanLinkedRow(feature, year, "features"),
+          )
+          .join("")}
+      </div>
+    `
+      : "";
 
     return `
     <section
@@ -4170,21 +4285,10 @@ function installProductPlanComparison() {
         aria-expanded="${expanded ? "true" : "false"}"
         title="${expanded ? "Ocultar Features" : "Mostrar Features"}"
       >
-        <div
-          class="
-            product-plan-row-info
-          "
-        >
-          <div
-            class="
-              product-plan-row-topline
-            "
-          >
-            <span
-              class="
-                product-plan-linked-kind
-              "
-            >
+        <div class="product-plan-row-info">
+          <div class="product-plan-row-topline">
+
+            <span class="product-plan-linked-kind">
               ${isUnassigned ? "SIN ÉPICA" : "EPIC"}
             </span>
 
@@ -4192,9 +4296,8 @@ function installProductPlanComparison() {
               !isUnassigned
                 ? `
                   <span
-                    class="
-                      product-plan-source-key
-                    "
+                    class="product-plan-source-key"
+                    title="${escapeHtml(group.key)}"
                   >
                     ${escapeHtml(group.key)}
                   </span>
@@ -4203,9 +4306,7 @@ function installProductPlanComparison() {
             }
 
             <span
-              class="
-                product-plan-epic-expand-indicator
-              "
+              class="product-plan-epic-expand-indicator"
               aria-hidden="true"
             >
               ⌄
@@ -4213,6 +4314,7 @@ function installProductPlanComparison() {
           </div>
 
           <strong
+            class="product-plan-readable-title"
             title="${escapeHtml(epicTitle)}"
           >
             ${escapeHtml(epicTitle)}
@@ -4227,34 +4329,13 @@ function installProductPlanComparison() {
           </small>
         </div>
 
-        <div
-          class="
-            product-plan-row-track
-          "
-        >
+        <div class="product-plan-row-track">
           ${renderTodayLine(year)}
-
           ${timelineBar}
         </div>
       </article>
 
-      ${
-        expanded
-          ? `
-            <div
-              class="
-                product-plan-epic-features
-              "
-            >
-              ${group.features
-                .map((feature) =>
-                  renderProductPlanLinkedRow(feature, year, "features"),
-                )
-                .join("")}
-            </div>
-          `
-          : ""
-      }
+      ${featuresHtml}
     </section>
   `;
   }

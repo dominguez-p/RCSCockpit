@@ -1,0 +1,132 @@
+/*
+ * RCS Cockpit
+ * Flight Plan · Readable Epic and Feature names
+ */
+
+.product-plan-linked-timeline {
+  min-width: 1320px;
+}
+
+.product-plan-linked-timeline .product-plan-axis,
+.product-plan-linked-timeline .product-plan-row {
+  grid-template-columns:
+    minmax(390px, 390px)
+    minmax(850px, 1fr);
+}
+
+/* Columna izquierda */
+
+.product-plan-linked-timeline .product-plan-linked-row {
+  min-height: 96px;
+}
+
+.product-plan-linked-timeline .product-plan-linked-row .product-plan-row-info {
+  gap: 7px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.product-plan-linked-timeline
+  .product-plan-linked-row
+  .product-plan-row-info
+  > .product-plan-readable-title {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  color: #122b55;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.product-plan-linked-timeline
+  .product-plan-linked-epic
+  .product-plan-row-info
+  > .product-plan-readable-title {
+  color: #122b65;
+  font-size: 14px;
+}
+
+.product-plan-linked-timeline
+  .product-plan-linked-row
+  .product-plan-source-key {
+  color: #7586a2;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+/* Barras del cronograma: todas las categorías */
+
+.product-plan-linked-timeline .product-plan-bar {
+  height: 40px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+/* Tipografía general SDA, MSA, Epic y Feature */
+
+.product-plan-linked-timeline .product-plan-bar > span {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Nombres descriptivos de Features y Epics */
+
+.product-plan-linked-timeline
+  .product-plan-bar
+  > .product-plan-bar-readable-title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+/* Colores de las categorías */
+
+.product-plan-linked-timeline .product-plan-bar-sda {
+  background: #1464c9;
+}
+
+.product-plan-linked-timeline .product-plan-bar-msa {
+  background: #6755c4;
+}
+
+.product-plan-linked-timeline .product-plan-bar-epic {
+  background: #6755c4;
+}
+
+.product-plan-linked-timeline .product-plan-bar-features {
+  background: #159d82;
+}
+
+/* Altura suficiente para las barras */
+
+.product-plan-linked-timeline .product-plan-linked-row .product-plan-row-track {
+  min-height: 96px;
+}
+
+/* Responsive */
+
+@media (max-width: 900px) {
+  .product-plan-timeline-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .product-plan-linked-timeline {
+    min-width: 1320px;
+  }
+}
