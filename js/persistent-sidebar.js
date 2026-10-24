@@ -57,15 +57,48 @@
   }
 
   function getCurrentCountry(context, countries) {
-    const routeCountry = ["product", "capability", "roadmap"].includes(
-      context.routeName,
-    )
-      ? context.countryId
-      : "";
+    const routeName = String(context?.routeName || "").trim();
 
-    const value = String(routeCountry || selectedCountry || "HL").toUpperCase();
+    let routeCountry = "";
 
-    return countries.find((country) => country.id === value) || countries[0];
+    /*
+     * Pantallas con país en el contexto
+     * de navegación habitual.
+     */
+    if (["product", "capability", "roadmap"].includes(routeName)) {
+      routeCountry = String(context.countryId || "").trim();
+    }
+
+    /*
+     * Key Issues:
+     *
+     * impediments/program/product/country
+     *
+     * ALL equivale a Holding en el
+     * selector global.
+     */
+    if (routeName === "impediments") {
+      const scope = String(context.parts?.[3] || "ALL")
+        .trim()
+        .toUpperCase();
+
+      routeCountry = ["ALL", "HL", "HOLDING"].includes(scope) ? "HL" : scope;
+    }
+
+    const value = String(routeCountry || selectedCountry || "HL")
+      .trim()
+      .toUpperCase();
+
+    return (
+      countries.find(
+        (country) =>
+          String(country.id || "")
+            .trim()
+            .toUpperCase() === value,
+      ) ||
+      countries.find((country) => country.id === "HL") ||
+      countries[0]
+    );
   }
 
   function needsCountryFilter(context) {
@@ -249,7 +282,9 @@
 
     const container = document.getElementById("globalContextFilters");
 
-    if (!container) {
+    const topbar = document.querySelector(".app-shell > .main > .topbar");
+
+    if (!container || !topbar) {
       return;
     }
 
@@ -257,21 +292,84 @@
 
     syncActiveNavigation(context);
 
-    const existingToolbar = document.getElementById("flightPlanCountryToolbar");
+    /*
+     * =====================================================
+     * ELIMINAR SELECTOR DENTRO DE DATA-STATUS
+     * =====================================================
+     *
+     * El contenedor globalContextFilters permanece
+     * disponible para compatibilidad, pero vacío.
+     *
+     * De este modo la cápsula de actualización
+     * recupera su tamaño original.
+     */
+
+    container.replaceChildren();
+    container.hidden = true;
+
+    const countries = availableCountries();
+
+    let toolbar = document.getElementById("flightPlanCountryToolbar");
+
+    /*
+     * =====================================================
+     * PANTALLAS SIN FILTRO GEOGRÁFICO
+     * =====================================================
+     */
+
+    if (!needsCountryFilter(context) || !countries.length) {
+      if (toolbar) {
+        toolbar.remove();
+      }
+
+      return;
+    }
+
+    /*
+     * =====================================================
+     * CONTENEDOR GLOBAL
+     * =====================================================
+     *
+     * Situado inmediatamente debajo de topbar.
+     *
+     * Es independiente de data-status y
+     * se reutiliza en todas las pantallas.
+     */
+
+    if (!toolbar) {
+      toolbar = document.createElement("section");
+
+      toolbar.id = "flightPlanCountryToolbar";
+      toolbar.className = "flight-plan-country-toolbar";
+
+      toolbar.setAttribute("aria-label", "Selección geográfica del Cockpit");
+    }
+
+    toolbar.style.width = "100%";
+    toolbar.style.margin = "0 0 22px";
+
+    /*
+     * insertAdjacentElement también permite
+     * recolocar el elemento si ya existe.
+     */
+
+    topbar.insertAdjacentElement("afterend", toolbar);
+
+    toolbar.hidden = false;
 
     /*
      * =====================================================
      * FLIGHT PLAN
      * =====================================================
      *
-     * En esta pantalla utilizamos el selector
-     * de botones existente.
+     * Mantiene su selector especial:
      *
-     * Lo movemos fuera del contenedor de estado
-     * y debajo de la cabecera principal.
+     * - multiselección en Holding;
+     * - botón Todos;
+     * - filtros por año y entregable;
+     * - mismos eventos originales.
      *
-     * No se clona: es el mismo elemento.
-     * Sus eventos siguen funcionando.
+     * Se traslada el elemento real, sin clonarlo.
      */
 
     const flightPlan = document.querySelector("#view .product-plan-comparison");
@@ -283,50 +381,9 @@
         ".product-plan-geography",
       );
 
-      let toolbar = existingToolbar;
-
-      if (!toolbar) {
-        toolbar = document.createElement("section");
-
-        toolbar.id = "flightPlanCountryToolbar";
-        toolbar.className = "flight-plan-country-toolbar";
-
-        toolbar.setAttribute(
-          "aria-label",
-          "Selector de geografías del Flight Plan",
-        );
-
-        toolbar.style.width = "100%";
-        toolbar.style.margin = "0 0 22px";
-
-        const header = document.querySelector(".app-shell > .main > .topbar");
-
-        if (header) {
-          header.insertAdjacentElement("afterend", toolbar);
-        }
-      }
-
-      /*
-       * Cada render del Flight Plan genera
-       * el selector actualizado dentro de #view.
-       *
-       * Lo trasladamos al contenedor superior,
-       * reemplazando la versión anterior.
-       */
-      if (geographyControl && toolbar) {
+      if (geographyControl) {
         toolbar.replaceChildren(geographyControl);
       }
-
-      if (toolbar) {
-        toolbar.hidden = false;
-      }
-
-      /*
-       * Eliminamos el desplegable de país
-       * únicamente en el Flight Plan.
-       */
-      container.replaceChildren();
-      container.hidden = true;
 
       return;
     }
@@ -336,75 +393,162 @@
      * RESTO DEL COCKPIT
      * =====================================================
      *
-     * Desaparece el selector especial
-     * cuando abandonamos el Flight Plan.
+     * Utilizamos el mismo diseño visual
+     * que el Flight Plan:
+     *
+     * product-plan-geography
+     * product-plan-country-toggles
+     * product-plan-country-toggle
+     *
+     * No necesitamos CSS nuevo.
      */
-
-    if (existingToolbar) {
-      existingToolbar.remove();
-    }
-
-    const countries = availableCountries();
-
-    if (!needsCountryFilter(context) || !countries.length) {
-      container.hidden = true;
-      container.replaceChildren();
-      return;
-    }
 
     const active = getCurrentCountry(context, countries);
 
-    const label = document.createElement("label");
+    const activeCountryId = String(active?.id || "HL")
+      .trim()
+      .toUpperCase();
 
-    label.className = "rcs-country-control";
-    label.htmlFor = "rcsContextCountry";
+    const geographyControl = document.createElement("section");
 
-    const caption = document.createElement("span");
+    geographyControl.className = "product-plan-geography is-holding";
 
-    caption.className = "rcs-country-caption";
-    caption.textContent = "País";
+    geographyControl.setAttribute("aria-label", "Ámbito geográfico");
 
-    const flag = document.createElement("img");
+    /*
+     * Información de la selección actual.
+     */
 
-    flag.className = "rcs-country-flag";
-    flag.src = active.flagSrc || "";
-    flag.alt = "";
-    flag.setAttribute("aria-hidden", "true");
+    const copy = document.createElement("div");
 
-    const select = document.createElement("select");
+    copy.className = "product-plan-geography-copy";
 
-    select.id = "rcsContextCountry";
+    const eyebrow = document.createElement("span");
 
-    select.setAttribute("aria-label", "Seleccionar país del programa");
+    eyebrow.textContent = "ÁMBITO GEOGRÁFICO";
+
+    const title = document.createElement("strong");
+
+    title.textContent = String(active?.label || "Holding");
+
+    const description = document.createElement("small");
+
+    description.textContent =
+      "Selecciona una geografía para consultar " +
+      "la información correspondiente.";
+
+    copy.append(eyebrow, title, description);
+
+    /*
+     * =====================================================
+     * BOTONES DE PAÍS
+     * =====================================================
+     */
+
+    const buttons = document.createElement("div");
+
+    buttons.className = "product-plan-country-toggles";
 
     countries.forEach((country) => {
-      const option = document.createElement("option");
+      const countryId = String(country?.id || "")
+        .trim()
+        .toUpperCase();
 
-      option.value = country.id;
-      option.textContent = country.label;
+      if (!countryId) {
+        return;
+      }
 
-      select.append(option);
+      const label = String(country?.label || countryId);
+
+      const isActive = countryId === activeCountryId;
+
+      const button = document.createElement("button");
+
+      button.type = "button";
+
+      button.className = [
+        "product-plan-country-toggle",
+        isActive ? "is-active" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      button.dataset.rcsCountryButton = countryId;
+
+      button.setAttribute("aria-pressed", String(isActive));
+
+      button.setAttribute("aria-label", `Seleccionar ${label}`);
+
+      button.title = label;
+
+      /*
+       * Bandera o código de país.
+       */
+
+      const flagSrc = String(country?.flagSrc || "").trim();
+
+      if (flagSrc) {
+        const flag = document.createElement("img");
+
+        flag.src = flagSrc;
+        flag.alt = "";
+        flag.loading = "lazy";
+
+        flag.setAttribute("aria-hidden", "true");
+
+        button.append(flag);
+      } else {
+        const icon = document.createElement("span");
+
+        icon.textContent = countryId;
+
+        icon.setAttribute("aria-hidden", "true");
+
+        button.append(icon);
+      }
+
+      const name = document.createElement("strong");
+
+      name.textContent = label;
+
+      button.append(name);
+
+      /*
+       * Navegación geográfica existente.
+       *
+       * Conserva producto, programa y
+       * contexto según changeCountry().
+       */
+
+      button.addEventListener("click", () => {
+        if (isActive) {
+          return;
+        }
+
+        changeCountry(countryId);
+      });
+
+      buttons.append(button);
     });
 
-    select.value = active.id;
+    geographyControl.append(copy, buttons);
 
-    const caret = document.createElement("span");
-
-    caret.className = "rcs-country-caret";
-    caret.textContent = "⌄";
-
-    caret.setAttribute("aria-hidden", "true");
-
-    label.append(caption, flag, select, caret);
-
-    container.replaceChildren(label);
-    container.hidden = false;
+    toolbar.replaceChildren(geographyControl);
   }
 
   function changeCountry(nextId) {
     const countries = availableCountries();
 
-    const next = countries.find((country) => country.id === nextId);
+    const normalizedId = String(nextId || "")
+      .trim()
+      .toUpperCase();
+
+    const next = countries.find(
+      (country) =>
+        String(country.id || "")
+          .trim()
+          .toUpperCase() === normalizedId,
+    );
 
     if (!next) {
       return;
@@ -418,14 +562,70 @@
     selectedSystemComponent = null;
     selectedArchitectureGap = null;
 
+    /*
+     * =====================================================
+     * KEY ISSUES
+     * =====================================================
+     *
+     * Conservamos programa y producto.
+     *
+     * Holding corresponde a ALL para mostrar
+     * todos los issues, incluidos los globales.
+     */
+
+    if (context.routeName === "impediments") {
+      const productId = String(context.parts?.[2] || "ALL").trim() || "ALL";
+
+      const countryScope = normalizedId === "HL" ? "ALL" : normalizedId;
+
+      const targetRoute =
+        typeof programGovernanceImpedimentCountryRoute === "function"
+          ? programGovernanceImpedimentCountryRoute(
+              context.programId,
+              productId,
+              countryScope,
+            )
+          : [
+              "impediments",
+              encodeURIComponent(context.programId),
+              encodeURIComponent(productId),
+              encodeURIComponent(countryScope),
+            ].join("/");
+
+      const currentRoute = String(location.hash || "")
+        .replace(/^#\/?/, "")
+        .trim();
+
+      if (currentRoute !== targetRoute) {
+        route(targetRoute);
+      } else {
+        Promise.resolve(render()).catch(console.error);
+      }
+
+      return;
+    }
+
+    /*
+     * =====================================================
+     * PRODUCTO
+     * =====================================================
+     */
+
     if (context.routeName === "product" && context.parts?.[2]) {
       route(
         `product/${encodeURIComponent(context.programId)}/` +
           `${encodeURIComponent(context.parts[2])}/` +
           `${encodeURIComponent(next.id)}`,
       );
+
       return;
     }
+
+    /*
+     * =====================================================
+     * CAPABILITY
+     * =====================================================
+     */
 
     if (context.routeName === "capability" && context.parts?.[3]) {
       route(
@@ -434,8 +634,15 @@
           `${encodeURIComponent(context.parts[3])}/` +
           `${encodeURIComponent(next.id)}`,
       );
+
       return;
     }
+
+    /*
+     * =====================================================
+     * ROADMAP / FLIGHT PLAN
+     * =====================================================
+     */
 
     if (context.routeName === "roadmap") {
       if (typeof roadmapWorkspaceRoute === "function") {
@@ -450,15 +657,24 @@
         );
 
         if (target) {
-          if (String(location.hash).replace(/^#/, "") !== target) {
+          const currentRoute = String(location.hash || "").replace(/^#\/?/, "");
+
+          if (currentRoute !== target) {
             route(target);
           } else {
-            render().catch(console.error);
+            Promise.resolve(render()).catch(console.error);
           }
+
           return;
         }
       }
     }
+
+    /*
+     * =====================================================
+     * RESTO DEL COCKPIT
+     * =====================================================
+     */
 
     Promise.resolve(render()).catch(console.error);
   }

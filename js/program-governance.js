@@ -204,92 +204,17 @@ function programGovernanceRenderCountrySelector(
   productId,
   activeCountryScope,
 ) {
-  const normalizedScope =
-    programGovernanceNormalizeCountryScope(activeCountryScope);
-
-  const countries = Array.isArray(COUNTRIES)
-    ? COUNTRIES.filter(
-        (country) =>
-          String(country?.id || "")
-            .trim()
-            .toUpperCase() !== "HL",
-      )
-    : [];
-
-  const options = [
-    programGovernanceCountryMeta("ALL"),
-    ...countries.map((country) => programGovernanceCountryMeta(country.id)),
-  ];
-
-  return `
-    <section
-      class="aixbanker-roadmap-filters"
-      aria-label="Filtro geográfico de Key Issues"
-    >
-      <div
-        class="aixbanker-roadmap-filter-group"
-      >
-        <span
-          class="aixbanker-roadmap-filter-label"
-        >
-          País
-        </span>
-
-        <div
-          class="country-selector"
-          aria-label="Seleccionar país"
-        >
-          ${options
-            .map((country) => {
-              const active = normalizedScope === country.id;
-
-              const routeValue = programGovernanceImpedimentCountryRoute(
-                programId,
-                productId,
-                country.id,
-              );
-
-              return `
-                <button
-                  class="
-                    country-flag
-                    ${active ? "active" : ""}
-                  "
-                  type="button"
-                  data-route="${programGovernanceEscape(routeValue)}"
-                  title="${programGovernanceEscape(country.scopeLabel)}"
-                  aria-label="${programGovernanceEscape(country.scopeLabel)}"
-                  aria-pressed="${active ? "true" : "false"}"
-                >
-                  ${
-                    country.flagSrc
-                      ? `
-                        <img
-                          src="${programGovernanceEscape(country.flagSrc)}"
-                          alt=""
-                          aria-hidden="true"
-                        />
-                      `
-                      : `
-                        <span
-                          aria-hidden="true"
-                        >
-                          ${programGovernanceEscape(country.id)}
-                        </span>
-                      `
-                  }
-                </button>
-
-                <span>
-                  ${programGovernanceEscape(country.label)}
-                </span>
-              `;
-            })
-            .join("")}
-        </div>
-      </div>
-    </section>
-  `;
+  /*
+   * El selector geográfico de Key Issues
+   * está centralizado en la cabecera global.
+   *
+   * No renderizamos un segundo selector
+   * dentro de la pantalla.
+   *
+   * El resto de filtros y funcionalidades
+   * de Key Issues permanecen intactos.
+   */
+  return "";
 }
 
 function programGovernanceImpedimentCountryLabel(item) {
