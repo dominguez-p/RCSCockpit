@@ -1,0 +1,415 @@
+name: Build portable distribution
+
+on:
+  workflow_dispatch:
+
+  pull_request:
+    paths:
+      - "index.html"
+      - "styles.css"
+      - "assets/**"
+      - "js/**"
+      - "styles/**"
+      - "tools/portable/**"
+      - "tools/portable-server/**"
+      - ".github/workflows/build-portable.yml"
+
+  push:
+    branches:
+      - main
+    paths:
+      - "index.html"
+      - "styles.css"
+      - "assets/**"
+      - "js/**"
+      - "styles/**"
+      - "tools/portable/**"
+      - "tools/portable-server/**"
+      - ".github/workflows/build-portable.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-portable:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+          cache: false
+
+      - name: Install image optimizer
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update -qq
+          sudo apt-get install -y webp
+
+      - name: Prepare minimal portable package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PACKAGE_ROOT="dist/RCS-Cockpit-Portable"
+          COCKPIT_ROOT="${PACKAGE_ROOT}/cockpit"
+          RUNTIME_ROOT="${COCKPIT_ROOT}/.runtime"
+
+          rm -rf dist
+
+          mkdir -p "${COCKPIT_ROOT}"
+          mkdir -p "${COCKPIT_ROOT}/js"
+          mkdir -p "${COCKPIT_ROOT}/styles"
+          mkdir -p "${COCKPIT_ROOT}/assets/flags"
+          mkdir -p "${COCKPIT_ROOT}/assets/landscapes"
+          mkdir -p "${COCKPIT_ROOT}/assets/program-aircraft"
+          mkdir -p "${RUNTIME_ROOT}"
+
+          # ==================================================
+          # CORE
+          # ==================================================
+
+          cp index.html "${COCKPIT_ROOT}/index.html"
+          cp styles.css "${COCKPIT_ROOT}/styles.css"
+
+          # ==================================================
+          # JAVASCRIPT
+          #
+          # Sólo los JavaScript utilizados por index.html.
+          #
+          # No entran en la distribución:
+          #
+          # - apps-script/
+          # - *.gs
+          # - AccessControl.gs
+          # - csv.js
+          # - docs/
+          # - .github/
+          # - tools/
+          # ==================================================
+
+          JS_FILES=(
+            "config.js"
+            "sample-data.js"
+            "drive-json-source.js"
+            "loading-experience.js"
+            "staffing-dashboard.js"
+            "app.js"
+            "portfolio-landing-modes.js"
+            "portfolio-home.js"
+            "program-home.js"
+            "program-governance.js"
+            "roadmap-workspace-data.js"
+            "roadmap-workspace-render.js"
+            "roadmap-workspace-detail.js"
+            "roadmap-workspace-routing.js"
+            "roadmap-ambitions-data.js"
+            "roadmap-ambitions-ui.js"
+            "program-adaptive-cards.js"
+            "context-toolbar.js"
+            "aixbanker-product-execution.js"
+            "product-experience.js"
+            "roadmap-context-ux.js"
+            "context-ux.js"
+          )
+
+          for file in "${JS_FILES[@]}"; do
+            cp "js/${file}" "${COCKPIT_ROOT}/js/${file}"
+          done
+
+          # ==================================================
+          # CSS
+          #
+          # Sólo los estilos utilizados por index.html.
+          # ==================================================
+
+          CSS_FILES=(
+            "portfolio-home.css"
+            "program-home.css"
+            "roadmap-workspace.css"
+            "roadmap-ambitions.css"
+            "program-adaptive-cards.css"
+            "context-toolbar.css"
+            "product-experience.css"
+            "roadmap-context-ux.css"
+            "aixbanker-product-execution.css"
+            "flight-deck.css"
+            "staffing-dashboard.css"
+            "runtime.css"
+          )
+
+          for file in "${CSS_FILES[@]}"; do
+            cp "styles/${file}" "${COCKPIT_ROOT}/styles/${file}"
+          done
+
+          # ==================================================
+          # ASSETS · FLAGS
+          #
+          # Sólo se utilizan SVG para países y world.png
+          # para Holding.
+          # ==================================================
+
+          cp assets/flags/co.svg \
+            "${COCKPIT_ROOT}/assets/flags/co.svg"
+
+          cp assets/flags/es.svg \
+            "${COCKPIT_ROOT}/assets/flags/es.svg"
+
+          cp assets/flags/mx.svg \
+            "${COCKPIT_ROOT}/assets/flags/mx.svg"
+
+          cp assets/flags/pe.svg \
+            "${COCKPIT_ROOT}/assets/flags/pe.svg"
+
+          cp assets/flags/tr.svg \
+            "${COCKPIT_ROOT}/assets/flags/tr.svg"
+
+          cp assets/flags/world.png \
+            "${COCKPIT_ROOT}/assets/flags/world.png"
+
+          # ==================================================
+          # ASSETS · LANDSCAPES
+          #
+          # Sólo las dos imágenes referenciadas actualmente
+          # por flight-deck.css.
+          # ==================================================
+
+          cp \
+            assets/landscapes/skyline-Madrid.jpg \
+            "${COCKPIT_ROOT}/assets/landscapes/skyline-Madrid.jpg"
+
+          cp \
+            assets/landscapes/vista-aerea-ciudad-bbva-768x442.avif \
+            "${COCKPIT_ROOT}/assets/landscapes/vista-aerea-ciudad-bbva-768x442.avif"
+
+          # ==================================================
+          # ASSETS · AIRCRAFT
+          #
+          # Las imágenes originales permanecen como PNG en
+          # el repositorio.
+          #
+          # Para la distribución portable se convierten a
+          # WebP para reducir drásticamente el tamaño.
+          # ==================================================
+
+          cwebp \
+            -quiet \
+            -q 82 \
+            -m 6 \
+            assets/program-aircraft/bbva-747-default.png \
+            -o "${COCKPIT_ROOT}/assets/program-aircraft/bbva-747-default.webp"
+
+          cwebp \
+            -quiet \
+            -q 82 \
+            -m 6 \
+            assets/program-aircraft/bbva-747.png \
+            -o "${COCKPIT_ROOT}/assets/program-aircraft/bbva-747.webp"
+
+          cwebp \
+            -quiet \
+            -q 82 \
+            -m 6 \
+            assets/program-aircraft/bbva-787.png \
+            -o "${COCKPIT_ROOT}/assets/program-aircraft/bbva-787.webp"
+
+          cwebp \
+            -quiet \
+            -q 82 \
+            -m 6 \
+            assets/program-aircraft/bbva-a350.png \
+            -o "${COCKPIT_ROOT}/assets/program-aircraft/bbva-a350.webp"
+
+          cwebp \
+            -quiet \
+            -q 82 \
+            -m 6 \
+            assets/program-aircraft/bbva-falcon-8x.png \
+            -o "${COCKPIT_ROOT}/assets/program-aircraft/bbva-falcon-8x.webp"
+
+          # ==================================================
+          # ADAPTACIÓN PORTABLE
+          #
+          # portfolio-landing-modes.js referencia los PNG
+          # originales.
+          #
+          # Sólo modificamos la copia de distribución.
+          # El código fuente del Cockpit no cambia.
+          # ==================================================
+
+          sed -i \
+            's#assets/program-aircraft/bbva-747-default\.png#assets/program-aircraft/bbva-747-default.webp#g' \
+            "${COCKPIT_ROOT}/js/portfolio-landing-modes.js"
+
+          sed -i \
+            's#assets/program-aircraft/bbva-747\.png#assets/program-aircraft/bbva-747.webp#g' \
+            "${COCKPIT_ROOT}/js/portfolio-landing-modes.js"
+
+          sed -i \
+            's#assets/program-aircraft/bbva-787\.png#assets/program-aircraft/bbva-787.webp#g' \
+            "${COCKPIT_ROOT}/js/portfolio-landing-modes.js"
+
+          sed -i \
+            's#assets/program-aircraft/bbva-a350\.png#assets/program-aircraft/bbva-a350.webp#g' \
+            "${COCKPIT_ROOT}/js/portfolio-landing-modes.js"
+
+          sed -i \
+            's#assets/program-aircraft/bbva-falcon-8x\.png#assets/program-aircraft/bbva-falcon-8x.webp#g' \
+            "${COCKPIT_ROOT}/js/portfolio-landing-modes.js"
+
+          # ==================================================
+          # FAVICON
+          # ==================================================
+
+          if [ -s assets/favicon.ico ]; then
+            cp assets/favicon.ico "${COCKPIT_ROOT}/assets/favicon.ico"
+          fi
+
+          # ==================================================
+          # LANZADORES
+          # ==================================================
+
+          cp \
+            "tools/portable/ABRIR COCKPIT - Windows.cmd" \
+            "${PACKAGE_ROOT}/ABRIR COCKPIT - Windows.cmd"
+
+          cp \
+            "tools/portable/ABRIR COCKPIT - Mac.command" \
+            "${PACKAGE_ROOT}/ABRIR COCKPIT - Mac.command"
+
+          cp \
+            "tools/portable/LEEME.txt" \
+            "${PACKAGE_ROOT}/LEEME.txt"
+
+          cp \
+            "tools/portable/server-windows.ps1" \
+            "${RUNTIME_ROOT}/server-windows.ps1"
+
+      - name: Build macOS portable servers
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RUNTIME_ROOT="dist/RCS-Cockpit-Portable/cockpit/.runtime"
+
+          GOOS=darwin \
+          GOARCH=amd64 \
+          CGO_ENABLED=0 \
+          go build \
+            -trimpath \
+            -buildvcs=false \
+            -ldflags="-s -w -buildid=" \
+            -o "${RUNTIME_ROOT}/rcs-cockpit-server-macos-intel" \
+            ./tools/portable-server/main.go
+
+          GOOS=darwin \
+          GOARCH=arm64 \
+          CGO_ENABLED=0 \
+          go build \
+            -trimpath \
+            -buildvcs=false \
+            -ldflags="-s -w -buildid=" \
+            -o "${RUNTIME_ROOT}/rcs-cockpit-server-macos-apple-silicon" \
+            ./tools/portable-server/main.go
+
+          chmod +x \
+            "dist/RCS-Cockpit-Portable/ABRIR COCKPIT - Mac.command" \
+            "${RUNTIME_ROOT}/rcs-cockpit-server-macos-intel" \
+            "${RUNTIME_ROOT}/rcs-cockpit-server-macos-apple-silicon"
+
+      - name: Validate portable contents
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PACKAGE_ROOT="dist/RCS-Cockpit-Portable"
+          COCKPIT_ROOT="${PACKAGE_ROOT}/cockpit"
+
+          test -f "${COCKPIT_ROOT}/index.html"
+          test -f "${COCKPIT_ROOT}/styles.css"
+
+          test -f \
+            "${COCKPIT_ROOT}/assets/program-aircraft/bbva-747-default.webp"
+
+          test -f \
+            "${COCKPIT_ROOT}/assets/program-aircraft/bbva-747.webp"
+
+          test -f \
+            "${COCKPIT_ROOT}/assets/program-aircraft/bbva-787.webp"
+
+          test -f \
+            "${COCKPIT_ROOT}/assets/program-aircraft/bbva-a350.webp"
+
+          test -f \
+            "${COCKPIT_ROOT}/assets/program-aircraft/bbva-falcon-8x.webp"
+
+          if find "${PACKAGE_ROOT}" -type f -name "*.gs" | grep -q .; then
+            echo "ERROR: la distribución contiene Apps Script."
+            find "${PACKAGE_ROOT}" -type f -name "*.gs"
+            exit 1
+          fi
+
+          if find "${PACKAGE_ROOT}" -type f -name "*.png" \
+            -path "*/program-aircraft/*" | grep -q .; then
+            echo "ERROR: quedan aviones PNG en la distribución."
+            exit 1
+          fi
+
+          if [ -d "${PACKAGE_ROOT}/apps-script" ]; then
+            echo "ERROR: apps-script no debe formar parte del portable."
+            exit 1
+          fi
+
+          if [ -d "${PACKAGE_ROOT}/docs" ]; then
+            echo "ERROR: docs no debe formar parte del portable."
+            exit 1
+          fi
+
+          if [ -d "${PACKAGE_ROOT}/tools" ]; then
+            echo "ERROR: tools no debe formar parte del portable."
+            exit 1
+          fi
+
+          echo ""
+          echo "============================================"
+          echo " RCS Cockpit portable validado"
+          echo "============================================"
+          echo ""
+
+          echo "Tamaño sin comprimir:"
+          du -sh "${PACKAGE_ROOT}"
+
+          echo ""
+          echo "Ficheros:"
+          find "${PACKAGE_ROOT}" -type f | sort
+
+      - name: Create distributable ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd dist
+
+          zip \
+            -r \
+            -9 \
+            RCS-Cockpit-Portable.zip \
+            RCS-Cockpit-Portable
+
+          echo ""
+          echo "ZIP final:"
+          ls -lh RCS-Cockpit-Portable.zip
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: RCS-Cockpit-Portable
+          path: dist/RCS-Cockpit-Portable.zip
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,48 @@
+RCS COCKPIT · VERSIÓN PORTABLE
+==============================
+
+No requiere instalación.
+
+ANTES DE ABRIR
+--------------
+
+Descomprime completamente el ZIP.
+No ejecutes el Cockpit directamente desde el archivo ZIP.
+
+
+WINDOWS
+-------
+
+Haz doble clic en:
+
+ABRIR COCKPIT - Windows.cmd
+
+
+MAC
+---
+
+Haz doble clic en:
+
+ABRIR COCKPIT - Mac.command
+
+
+El navegador se abrirá automáticamente.
+
+Mantén abierta la ventana del Cockpit mientras lo estés utilizando.
+
+Para terminar, cierra esa ventana o pulsa Ctrl+C.
+
+
+MAC · PRIMERA EJECUCIÓN
+
+Si macOS bloquea el lanzador:
+
+Botón derecho sobre
+“ABRIR COCKPIT - Mac.command”
+→ Abrir
+→ Abrir
+
+
+IMPORTANTE
+
+El acceso a información corporativa puede requerir conexión a la red/VPN de BBVA y una sesión corporativa válida.
