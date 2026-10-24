@@ -3583,7 +3583,13 @@ function installProductPlanComparison() {
     </article>
   `;
   }
-  function renderProductPlanLinkedRow(row, year, sourceType) {
+
+  function renderProductPlanLinkedRow(
+    row,
+    year,
+    sourceType,
+    standalone = false,
+  ) {
     const isMsa = sourceType === "msa";
     const isFeature = sourceType === "features";
 
@@ -3605,10 +3611,6 @@ function installProductPlanComparison() {
       ? `${formatShortDate(row.startDate)} → ${formatShortDate(row.endDate)}`
       : "Sin planificación temporal";
 
-    /*
-     * Features: mostrar nombre funcional.
-     * MSAs: mantener el comportamiento existente.
-     */
     const barLabel = isFeature
       ? displayTitle
       : `${sourceKey} · ${planningLabel}`;
@@ -3625,19 +3627,19 @@ function installProductPlanComparison() {
 
     const barInnerHtml = isFeature
       ? `
-        <span class="product-plan-bar-readable-title">
-          ${escapeHtml(displayTitle)}
-        </span>
-      `
+      <span class="product-plan-bar-readable-title">
+        ${escapeHtml(displayTitle)}
+      </span>
+    `
       : `
-        <span>
-          ${escapeHtml(sourceKey)}
-          ·
-          ${escapeHtml(formatShortDate(row.startDate))}
-          →
-          ${escapeHtml(formatShortDate(row.endDate))}
-        </span>
-      `;
+      <span>
+        ${escapeHtml(sourceKey)}
+        ·
+        ${escapeHtml(formatShortDate(row.startDate))}
+        →
+        ${escapeHtml(formatShortDate(row.endDate))}
+      </span>
+    `;
 
     let timelineBar = "";
 
@@ -3692,17 +3694,77 @@ function installProductPlanComparison() {
     `;
     }
 
+    /*
+     * El título del MSA siempre permite
+     * abrir su detalle, tenga fechas o no.
+     */
+    const titleHtml = canNavigate
+      ? `
+      <button
+        type="button"
+        data-roadmap-detail-type="msa"
+        data-roadmap-detail-id="${escapeHtml(detailId)}"
+        aria-label="${escapeHtml(`Abrir detalle del MSA ${displayTitle}`)}"
+        title="Abrir detalle del MSA"
+        style="
+          display:inline;
+          padding:0;
+          border:0;
+          background:transparent;
+          color:inherit;
+          font:inherit;
+          font-weight:inherit;
+          text-align:left;
+          cursor:pointer;
+          text-decoration:underline;
+          text-underline-offset:2px;
+        "
+      >
+        ${escapeHtml(displayTitle)}
+      </button>
+    `
+      : escapeHtml(displayTitle);
+
+    /*
+     * En modo individual:
+     *
+     * - eliminamos la clase linked-row;
+     * - desaparecen las líneas del árbol;
+     * - recuperamos el padding normal;
+     * - conservamos los títulos multilínea.
+     *
+     * En modo agrupado se mantiene
+     * exactamente la estructura anterior.
+     */
+    const rowClass = standalone
+      ? "product-plan-standalone-row"
+      : "product-plan-linked-row";
+
+    const standaloneTitleStyle = standalone
+      ? `
+      display:-webkit-box;
+      min-width:0;
+      overflow:hidden;
+      font-size:13px;
+      font-weight:900;
+      line-height:1.35;
+      white-space:normal;
+      overflow-wrap:anywhere;
+      -webkit-box-orient:vertical;
+      -webkit-line-clamp:3;
+    `
+      : "";
+
     return `
     <article
       class="
         product-plan-row
-        product-plan-linked-row
+        ${rowClass}
         product-plan-linked-${escapeHtml(sourceType)}
       "
     >
       <div class="product-plan-row-info">
         <div class="product-plan-row-topline">
-
           <span class="product-plan-linked-kind">
             ${label}
           </span>
@@ -3720,8 +3782,9 @@ function installProductPlanComparison() {
         <strong
           class="product-plan-readable-title"
           title="${escapeHtml(displayTitle)}"
+          ${standalone ? `style="${standaloneTitleStyle}"` : ""}
         >
-          ${escapeHtml(displayTitle)}
+          ${titleHtml}
         </strong>
 
         ${
@@ -3742,6 +3805,7 @@ function installProductPlanComparison() {
     </article>
   `;
   }
+
   function productPlanSdaCollapseKey(row) {
     const directId =
       typeof productPlanSdaDeliverableId === "function"
@@ -4573,6 +4637,7 @@ function installProductPlanComparison() {
     </details>
   `;
   }
+
   function renderProductPlanGroupedTimeline(
     sdaRows,
     msaRows,
@@ -4582,51 +4647,284 @@ function installProductPlanComparison() {
     relationshipsReady,
     selectedSdaDeliverableId = ALL_ID,
   ) {
+    /*
+     * =====================================================
+     * TOGGLES ACTIVOS
+     * =====================================================
+     *
+     * 0 activos: sin elementos.
+     * 1 activo: vista individual.
+     * 2 o 3 activos: agrupación por SDA.
+     */
+
+    const enabledSources = ["sda", "msa", "features"].filter(
+      (sourceType) => state.sources[sourceType] === true,
+    );
+
+    /*
+     * =====================================================
+     * MODO INDIVIDUAL
+     * =====================================================
+     *
+     * SDA:
+     *   Sólo barras de estado/planificación.
+     *
+     * MSA:
+     *   Listado independiente de MSAs.
+     *
+     * FEATURES:
+     *   Listado independiente de Features.
+     *
+     * No se muestran agrupadores SDA.
+     */
+
+    if (enabledSources.length <= 1) {
+      const activeSource = enabledSources[0] || "";
+
+      let standaloneRows = [];
+
+      if (activeSource === "sda") {
+        /*
+         * Los SDA ya llegan filtrados por
+         * año, geografía y Deliverable.
+         */
+        standaloneRows = filterRowsByYear(
+          Array.isArray(sdaRows) ? sdaRows : [],
+          year,
+        );
+      }
+
+      if (activeSource === "msa" || activeSource === "features") {
+        const originalRows = activeSource === "msa" ? msaRows : featureRows;
+
+        let candidateRows = [];
+
+        if (selectedSdaDeliverableId === ALL_ID) {
+          /*
+           * Vista global independiente.
+           *
+           * No es necesario que un MSA o Feature
+           * esté asociado a un Deliverable SDA.
+           *
+           * Se respeta su geografía propia.
+           */
+          candidateRows = (
+            Array.isArray(originalRows) ? originalRows : []
+          ).filter((row) => rowMatchesGeography(row.countries, state));
+        } else {
+          /*
+           * Existe un Deliverable SDA seleccionado.
+           *
+           * Respetamos el filtro, pero mostramos
+           * sus elementos relacionados sin
+           * construir cabeceras ni grupos SDA.
+           */
+          const relations = productPlanBuildSdaRelations(
+            sdaRows,
+            msaRows,
+            featureRows,
+            state,
+          );
+
+          candidateRows = relations.groups.flatMap((group) =>
+            activeSource === "msa" ? group.msas : group.features,
+          );
+        }
+
+        /*
+         * Un MSA o Feature puede estar asociado
+         * a varios Deliverables.
+         *
+         * En modo individual sólo debe
+         * aparecer una vez.
+         */
+        const uniqueRows = productPlanUniqueRows(
+          candidateRows,
+          activeSource === "msa"
+            ? productPlanMsaUniqueKey
+            : productPlanFeatureUniqueKey,
+        );
+
+        standaloneRows = filterRowsByYear(uniqueRows, year);
+      }
+
+      /*
+       * Features necesitan estar cargadas.
+       *
+       * Los MSA también necesitan las relaciones
+       * si se ha filtrado por un SDA concreto.
+       *
+       * Con todos los SDA seleccionados,
+       * los MSA se muestran inmediatamente.
+       */
+      const needsRelationships =
+        activeSource === "features" ||
+        (activeSource === "msa" && selectedSdaDeliverableId !== ALL_ID);
+
+      const isLoading =
+        needsRelationships &&
+        !relationshipsReady &&
+        !state.relationshipsLoadError;
+
+      const hasError =
+        needsRelationships &&
+        !relationshipsReady &&
+        state.relationshipsLoadError;
+
+      const emptyTitle =
+        activeSource === "sda"
+          ? "Sin planificación SDA"
+          : activeSource === "msa"
+            ? "Sin MSAs"
+            : activeSource === "features"
+              ? "Sin Features"
+              : "Ningún nivel seleccionado";
+
+      const emptyDescription = !activeSource
+        ? "Activa Planificación, Diseño o Ejecución para visualizar el cronograma."
+        : activeSource === "sda"
+          ? "No hay entregables SDA para esta selección."
+          : activeSource === "msa"
+            ? "No hay MSAs para el año y ámbito seleccionados."
+            : "No hay Features para el año y ámbito seleccionados.";
+
+      let rowsHtml = "";
+
+      if (activeSource === "sda") {
+        rowsHtml = standaloneRows
+          .map((row) => renderProductPlanSdaAnchor(row, year, true))
+          .join("");
+      }
+
+      if (activeSource === "msa") {
+        rowsHtml = standaloneRows
+          .map((row) => renderProductPlanLinkedRow(row, year, "msa", true))
+          .join("");
+      }
+
+      if (activeSource === "features") {
+        rowsHtml = standaloneRows
+          .map((row) => renderProductPlanLinkedRow(row, year, "features", true))
+          .join("");
+      }
+
+      return `
+      <div
+        class="
+          product-plan-timeline
+          product-plan-linked-timeline
+          product-plan-standalone-timeline
+        "
+        data-product-plan-view="standalone"
+        data-product-plan-active-source="${escapeHtml(activeSource)}"
+      >
+        ${renderMonthAxis(year)}
+
+        ${
+          isLoading
+            ? `
+              <div class="product-plan-relations-loading">
+                Cargando elementos JIRA
+                y sus relaciones...
+              </div>
+            `
+            : ""
+        }
+
+        ${
+          hasError
+            ? `
+              <div class="product-plan-relations-error">
+                No se han podido cargar
+                las relaciones JIRA.
+              </div>
+            `
+            : ""
+        }
+
+        ${!isLoading && !hasError && standaloneRows.length ? rowsHtml : ""}
+
+        ${
+          !isLoading && !hasError && !standaloneRows.length
+            ? `
+              <div class="product-plan-no-sources">
+                <strong>
+                  ${escapeHtml(emptyTitle)}
+                </strong>
+                <span>
+                  ${escapeHtml(emptyDescription)}
+                </span>
+              </div>
+            `
+            : ""
+        }
+      </div>
+    `;
+    }
+
+    /*
+     * =====================================================
+     * MODO AGRUPADO
+     * =====================================================
+     *
+     * A partir de dos toggles activos mantenemos
+     * la estructura actual:
+     *
+     * SDA → MSA → Features
+     *
+     * Se conservan:
+     *
+     * - relaciones por Deliverable;
+     * - desplegado y colapsado;
+     * - agrupación opcional por épicas;
+     * - elementos JIRA sin relación SDA;
+     * - estados y barras temporales.
+     */
+
     const relations = productPlanBuildSdaRelations(
       sdaRows,
       msaRows,
       featureRows,
       state,
     );
+
     const showUnlinked = selectedSdaDeliverableId === ALL_ID;
+
     return `
     <div
       class="
         product-plan-timeline
         product-plan-linked-timeline
       "
+      data-product-plan-view="grouped"
     >
       ${renderProductPlanCollapseToolbar(relations.groups, state)}
+
       ${renderMonthAxis(year)}
+
       ${
         state.relationshipsLoading
           ? `
-              <div
-                class="
-                  product-plan-relations-loading
-                "
-              >
-                Relacionando entregables
-                SDA con MSAs y Features
-                JIRA...
-              </div>
-            `
+            <div class="product-plan-relations-loading">
+              Relacionando entregables
+              SDA con MSAs y Features
+              JIRA...
+            </div>
+          `
           : ""
       }
+
       ${
         state.relationshipsLoadError
           ? `
-              <div
-                class="
-                  product-plan-relations-error
-                "
-              >
-                No se han podido cargar
-                las relaciones JIRA.
-              </div>
-            `
+            <div class="product-plan-relations-error">
+              No se han podido cargar
+              las relaciones JIRA.
+            </div>
+          `
           : ""
       }
+
       ${
         relations.groups.length
           ? relations.groups
@@ -4640,21 +4938,18 @@ function installProductPlanComparison() {
               )
               .join("")
           : `
-              <div
-                class="
-                  product-plan-no-sources
-                "
-              >
-                <strong>
-                  Sin Deliverables SDA
-                </strong>
-                <span>
-                  No hay elementos SDA
-                  para esta selección.
-                </span>
-              </div>
-            `
+            <div class="product-plan-no-sources">
+              <strong>
+                Sin Deliverables SDA
+              </strong>
+              <span>
+                No hay elementos SDA
+                para esta selección.
+              </span>
+            </div>
+          `
       }
+
       ${
         relationshipsReady && showUnlinked
           ? renderProductPlanUnlinked(relations, year, state)
@@ -4663,6 +4958,7 @@ function installProductPlanComparison() {
     </div>
   `;
   }
+
   document.addEventListener("click", handleComparisonClick);
   window.addEventListener("click", handleSidebarCountryClick, true);
 }
