@@ -257,6 +257,93 @@
 
     syncActiveNavigation(context);
 
+    const existingToolbar = document.getElementById("flightPlanCountryToolbar");
+
+    /*
+     * =====================================================
+     * FLIGHT PLAN
+     * =====================================================
+     *
+     * En esta pantalla utilizamos el selector
+     * de botones existente.
+     *
+     * Lo movemos fuera del contenedor de estado
+     * y debajo de la cabecera principal.
+     *
+     * No se clona: es el mismo elemento.
+     * Sus eventos siguen funcionando.
+     */
+
+    const flightPlan = document.querySelector("#view .product-plan-comparison");
+
+    const isFlightPlan = context.routeName === "roadmap" && Boolean(flightPlan);
+
+    if (isFlightPlan) {
+      const geographyControl = flightPlan.querySelector(
+        ".product-plan-geography",
+      );
+
+      let toolbar = existingToolbar;
+
+      if (!toolbar) {
+        toolbar = document.createElement("section");
+
+        toolbar.id = "flightPlanCountryToolbar";
+        toolbar.className = "flight-plan-country-toolbar";
+
+        toolbar.setAttribute(
+          "aria-label",
+          "Selector de geografías del Flight Plan",
+        );
+
+        toolbar.style.width = "100%";
+        toolbar.style.margin = "0 0 22px";
+
+        const header = document.querySelector(".app-shell > .main > .topbar");
+
+        if (header) {
+          header.insertAdjacentElement("afterend", toolbar);
+        }
+      }
+
+      /*
+       * Cada render del Flight Plan genera
+       * el selector actualizado dentro de #view.
+       *
+       * Lo trasladamos al contenedor superior,
+       * reemplazando la versión anterior.
+       */
+      if (geographyControl && toolbar) {
+        toolbar.replaceChildren(geographyControl);
+      }
+
+      if (toolbar) {
+        toolbar.hidden = false;
+      }
+
+      /*
+       * Eliminamos el desplegable de país
+       * únicamente en el Flight Plan.
+       */
+      container.replaceChildren();
+      container.hidden = true;
+
+      return;
+    }
+
+    /*
+     * =====================================================
+     * RESTO DEL COCKPIT
+     * =====================================================
+     *
+     * Desaparece el selector especial
+     * cuando abandonamos el Flight Plan.
+     */
+
+    if (existingToolbar) {
+      existingToolbar.remove();
+    }
+
     const countries = availableCountries();
 
     if (!needsCountryFilter(context) || !countries.length) {
@@ -268,38 +355,48 @@
     const active = getCurrentCountry(context, countries);
 
     const label = document.createElement("label");
+
     label.className = "rcs-country-control";
     label.htmlFor = "rcsContextCountry";
 
     const caption = document.createElement("span");
+
     caption.className = "rcs-country-caption";
     caption.textContent = "País";
 
     const flag = document.createElement("img");
+
     flag.className = "rcs-country-flag";
     flag.src = active.flagSrc || "";
     flag.alt = "";
     flag.setAttribute("aria-hidden", "true");
 
     const select = document.createElement("select");
+
     select.id = "rcsContextCountry";
+
     select.setAttribute("aria-label", "Seleccionar país del programa");
 
     countries.forEach((country) => {
       const option = document.createElement("option");
+
       option.value = country.id;
       option.textContent = country.label;
+
       select.append(option);
     });
 
     select.value = active.id;
 
     const caret = document.createElement("span");
+
     caret.className = "rcs-country-caret";
     caret.textContent = "⌄";
+
     caret.setAttribute("aria-hidden", "true");
 
     label.append(caption, flag, select, caret);
+
     container.replaceChildren(label);
     container.hidden = false;
   }
