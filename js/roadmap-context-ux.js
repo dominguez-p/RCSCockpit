@@ -2260,84 +2260,63 @@ function installProductPlanComparison() {
       </button>
     `;
   }
+
   function renderGeographyControl(state) {
     const activeCountry = normalizeCountry(selectedCountry) || HOLDING_ID;
-    /*
-     * =====================================================
-     * PAÍS
-     * =====================================================
-     *
-     * El eje izquierdo sigue siendo el control principal.
-     */
-    if (activeCountry !== HOLDING_ID) {
-      const country = countryMeta(activeCountry);
-      return `
-      <section
-        class="
-          product-plan-geography
-          is-local
-        "
-      >
-        <div
-          class="
-            product-plan-geography-copy
-          "
-        >
-          <span>
-            ÁMBITO GEOGRÁFICO
-          </span>
-          <strong>
-            ${escapeHtml(country.label || activeCountry)}
-          </strong>
-          <small>
-            Se muestran únicamente
-            elementos asociados a
-            ${escapeHtml(country.label || activeCountry)}.
-            La navegación se controla
-            desde el eje izquierdo.
-          </small>
-        </div>
-      </section>
-    `;
-    }
-    /*
-     * =====================================================
-     * HOLDING
-     * =====================================================
-     */
+
+    const isHolding = activeCountry === HOLDING_ID;
+
     const allIds = localCountryIds();
+
+    /*
+     * En Holding respetamos las geografías
+     * seleccionadas por el usuario.
+     *
+     * En un país concreto destacamos
+     * únicamente ese país.
+     */
+    const selectionState = isHolding
+      ? state
+      : {
+          holdingCountries: new Set([activeCountry]),
+        };
+
     const allSelected =
+      isHolding &&
       allIds.length > 0 &&
       allIds.every((countryId) => state.holdingCountries.has(countryId));
+
+    const scopeLabel = isHolding
+      ? holdingScopeText(state)
+      : countryMeta(activeCountry).label || activeCountry;
+
+    const description = isHolding
+      ? "Activa o desactiva las geografías para construir la visión agregada."
+      : "Selecciona otro país o pulsa Todos para consultar todas las geografías.";
+
     return `
     <section
       class="
         product-plan-geography
         is-holding
       "
+      aria-label="Ámbito geográfico del Flight Plan"
     >
-      <div
-        class="
-          product-plan-geography-copy
-        "
-      >
+      <div class="product-plan-geography-copy">
         <span>
-          HOLDING · GEOGRAFÍAS
+          ÁMBITO GEOGRÁFICO
         </span>
+
         <strong>
-          ${escapeHtml(holdingScopeText(state))}
+          ${escapeHtml(scopeLabel)}
         </strong>
+
         <small>
-          Activa o desactiva Holding
-          y cada país para construir
-          la visión agregada.
+          ${escapeHtml(description)}
         </small>
       </div>
-      <div
-        class="
-          product-plan-country-toggles
-        "
-      >
+
+      <div class="product-plan-country-toggles">
         <button
           type="button"
           class="
@@ -2348,22 +2327,23 @@ function installProductPlanComparison() {
           data-product-plan-country="ALL"
           aria-pressed="${allSelected ? "true" : "false"}"
         >
-          <span
-            aria-hidden="true"
-          >
+          <span aria-hidden="true">
             ◎
           </span>
+
           <strong>
             Todos
           </strong>
         </button>
+
         ${localCountries()
-          .map((country) => renderHoldingCountryToggle(country, state))
+          .map((country) => renderHoldingCountryToggle(country, selectionState))
           .join("")}
       </div>
     </section>
   `;
   }
+
   function renderSdaDeliverableSelector(
     programId,
     productId,
@@ -2947,67 +2927,112 @@ function installProductPlanComparison() {
     }
     rerenderComparison();
   }
+
   function toggleHoldingCountry(button) {
     const context =
       typeof roadmapWorkspaceParseRoute === "function"
         ? roadmapWorkspaceParseRoute()
         : null;
+
     const programId = String(context?.programId || "").trim();
+
     const productId = normalizeProduct(context?.productId);
+
     if (
       !isProductPlanProgram(programId) ||
       !productId ||
-      productId === ALL_ID ||
-      normalizeCountry(selectedCountry) !== HOLDING_ID
+      productId === ALL_ID
     ) {
       return;
     }
-    const state = comparisonState(programId, productId);
+
     const countryId = String(button.dataset.productPlanCountry || "")
       .trim()
       .toUpperCase();
-    /*
-     * Ahora contiene:
-     *
-     * HL
-     * ES
-     * MX
-     * PE
-     * CO
-     */
+
     const selectableIds = localCountryIds();
+
+    if (countryId !== ALL_ID && !selectableIds.includes(countryId)) {
+      return;
+    }
+
+    const state = comparisonState(programId, productId);
+
+    const currentCountry = normalizeCountry(selectedCountry) || HOLDING_ID;
+
     /*
      * =====================================================
-     * TODOS
+     * PAÍS CONCRETO
+     * =====================================================
+     *
+     * Cuando estamos en España, México, etc.,
+     * los botones permiten cambiar directamente
+     * de geografía.
+     *
+     * Todos y Holding vuelven al ámbito
+     * agregado, conservando año y Deliverable.
+     */
+
+    if (currentCountry !== HOLDING_ID) {
+      const year = requestedYear(context);
+
+      const deliverableId = productPlanRequestedSdaDeliverableId(context);
+
+      if (countryId === ALL_ID) {
+        state.holdingCountries = new Set(selectableIds);
+
+        selectedCountry = HOLDING_ID;
+      } else if (countryId === HOLDING_ID) {
+        state.holdingCountries = new Set([HOLDING_ID]);
+
+        selectedCountry = HOLDING_ID;
+      } else {
+        selectedCountry = countryId;
+      }
+
+      route(
+        buildRoute(programId, productId, year, selectedCountry, deliverableId),
+      );
+
+      return;
+    }
+
+    /*
+     * =====================================================
+     * HOLDING · TODAS LAS GEOGRAFÍAS
      * =====================================================
      */
+
     if (countryId === ALL_ID) {
       const allSelected =
         selectableIds.length > 0 &&
         selectableIds.every((id) => state.holdingCountries.has(id));
+
       if (allSelected) {
         state.holdingCountries.clear();
       } else {
         state.holdingCountries = new Set(selectableIds);
       }
+
       rerenderComparison();
       return;
     }
+
     /*
      * =====================================================
-     * GEOGRAFÍA INDIVIDUAL
+     * HOLDING · MULTISELECCIÓN
      * =====================================================
      */
-    if (!selectableIds.includes(countryId)) {
-      return;
-    }
+
     if (state.holdingCountries.has(countryId)) {
       state.holdingCountries.delete(countryId);
     } else {
       state.holdingCountries.add(countryId);
     }
+
     rerenderComparison();
   }
+
   function selectYear(button) {
     const year = Number(button.dataset.productPlanYear);
     const programId = String(button.dataset.productPlanProgram || "").trim();
