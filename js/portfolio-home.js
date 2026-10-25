@@ -232,6 +232,8 @@ function renderPortfolioKpis(kpis) {
 }
 
 function renderPortfolioAmbitionCard(ambition) {
+  const isProductivity = ambition.id === "productivity";
+
   return `
     <article
       class="portfolio-ambition-card"
@@ -244,6 +246,7 @@ function renderPortfolioAmbitionCard(ambition) {
       </div>
 
       <h3>${portfolioEscape(ambition.title)}</h3>
+
       <p>${portfolioEscape(ambition.ambition)}</p>
 
       <details class="portfolio-ambition-detail">
@@ -255,13 +258,143 @@ function renderPortfolioAmbitionCard(ambition) {
             .join("")}
         </ul>
       </details>
+
+      ${
+        isProductivity
+          ? `
+            <button
+              type="button"
+              data-rcse-productivity-open
+              aria-controls="rcse-productivity-report"
+              aria-expanded="false"
+              style="
+                display:flex;
+                align-items:center;
+                gap:8px;
+                margin-top:14px;
+                padding:10px 14px;
+                width:100%;
+                border:1px solid #b9cced;
+                border-radius:10px;
+                background:#eef3ff;
+                color:#001391;
+                font-family:inherit;
+                font-size:13px;
+                font-weight:700;
+                text-align:left;
+                cursor:pointer;
+              "
+            >
+              <span aria-hidden="true">▤</span>
+              Ver dashboard de Uso de IA
+              <span aria-hidden="true">→</span>
+            </button>
+          `
+          : ""
+      }
     </article>
   `;
 }
 
 function renderPortfolioAmbitions() {
+  // =====================================================
+  // LOOKER STUDIO · PRODUCTIVIDAD
+  // =====================================================
+
+  // URL de inserción del informe.
+  // La inserción debe estar habilitada en Looker Studio.
+
+  const reportEmbedUrl =
+    "https://datastudio.google.com/embed/reporting/1e920e66-2c96-463d-8bc0-1582c9d2315d/page/p_zsr7vk0w4d";
+  /* "https://datastudio.google.com/embed/reporting/" +
+    "94d0a9f5-2cdd-4eb4-b4c1-066601e8a1b7/" +
+    "page/p_13onfdvx7d";
+ */
+  // =====================================================
+  // EVENTOS DE APERTURA Y CIERRE
+  // =====================================================
+
+  // Registrar los eventos una única vez.
+  // La navegación del cockpit reconstruye las vistas,
+  // pero el listener se mantiene activo.
+
+  if (!window.__rcseProductivityEmbedEventsRegistered) {
+    window.__rcseProductivityEmbedEventsRegistered = true;
+
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+
+      const openButton = event.target.closest("[data-rcse-productivity-open]");
+
+      const closeButton = event.target.closest(
+        "[data-rcse-productivity-close]",
+      );
+
+      if (!openButton && !closeButton) {
+        return;
+      }
+
+      const panel = document.getElementById("rcse-productivity-report");
+
+      if (!panel) {
+        return;
+      }
+
+      const trigger = document.querySelector("[data-rcse-productivity-open]");
+
+      const isOpen = !panel.hidden;
+
+      // Pulsar el botón abre el informe.
+      // Pulsar de nuevo o cerrar lo oculta.
+
+      if (openButton && !isOpen) {
+        panel.hidden = false;
+        panel.style.display = "block";
+
+        if (trigger) {
+          trigger.setAttribute("aria-expanded", "true");
+        }
+
+        const iframe = panel.querySelector("#rcseProductivityIframe");
+
+        // Cargar el informe únicamente la primera vez.
+        if (iframe && !iframe.getAttribute("src")) {
+          iframe.setAttribute("src", iframe.dataset.embedSrc);
+        }
+
+        panel.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+
+        return;
+      }
+
+      // Cerrar el informe sin abandonar el cockpit.
+
+      panel.hidden = true;
+      panel.style.display = "none";
+
+      if (trigger) {
+        trigger.setAttribute("aria-expanded", "false");
+
+        trigger.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    });
+  }
+
+  // =====================================================
+  // RENDERIZAR LAS OCHO AMBICIONES
+  // =====================================================
+
   return `
     <div class="portfolio-ambition-axes-grid">
+
       ${PORTFOLIO_AMBITION_AXES.map((axis) => {
         const ambitions = PORTFOLIO_AMBITIONS.filter(
           (ambition) => ambition.axis === axis.id,
@@ -269,6 +402,7 @@ function renderPortfolioAmbitions() {
 
         return `
           <section class="portfolio-ambition-axis">
+
             <header class="portfolio-section-header">
               <div>
                 <span class="portfolio-section-eyebrow">
@@ -284,10 +418,136 @@ function renderPortfolioAmbitions() {
             <div class="portfolio-ambition-grid">
               ${ambitions.map(renderPortfolioAmbitionCard).join("")}
             </div>
+
           </section>
         `;
       }).join("")}
+
     </div>
+
+    <!-- =================================================
+         DASHBOARD DE PRODUCTIVIDAD
+         ================================================= -->
+
+    <section
+      id="rcse-productivity-report"
+      hidden
+      aria-label="Dashboard de productividad y uso de IA"
+      style="
+        display:none;
+        width:100%;
+        margin-top:22px;
+        padding:18px;
+        background:#ffffff;
+        border:1px solid #d7e2f2;
+        border-radius:18px;
+        box-sizing:border-box;
+        scroll-margin-top:20px;
+      "
+    >
+
+      <!-- CABECERA DEL INFORME -->
+
+      <header style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        flex-wrap:wrap;
+        gap:12px;
+        margin-bottom:16px;
+      ">
+
+        <div>
+          <span style="
+            display:block;
+            margin-bottom:5px;
+            font-size:11px;
+            font-weight:800;
+            color:#001391;
+            letter-spacing:1px;
+            text-transform:uppercase;
+          ">
+            Ambición 05 · Productividad
+          </span>
+
+          <h2 style="
+            margin:0;
+            color:#001391;
+            font-size:25px;
+          ">
+            Consumo de IA
+          </h2>
+
+          <p style="
+            margin:6px 0 0;
+            color:#53688c;
+            font-size:13px;
+          ">
+            Transformación Systems Retail ·
+            Dashboard interactivo de uso de IA
+          </p>
+        </div>
+
+        <button
+          type="button"
+          data-rcse-productivity-close
+          class="toolbar-btn"
+          style="
+            padding:10px 15px;
+            border:1px solid #d7e2f2;
+            border-radius:10px;
+            background:#eef3ff;
+            color:#001391;
+            font-family:inherit;
+            font-size:13px;
+            font-weight:700;
+            cursor:pointer;
+          "
+        >
+          ← Volver a las ambiciones
+        </button>
+
+      </header>
+
+      <!-- INFORME INCRUSTADO -->
+
+      <div style="
+        width:100%;
+        overflow:hidden;
+        border:1px solid #e0e7f2;
+        border-radius:12px;
+        background:#f8faff;
+      ">
+
+        <iframe
+          id="rcseProductivityIframe"
+          title="Consumo de IA - Transformación Systems Retail"
+          data-embed-src="${reportEmbedUrl}"
+          loading="lazy"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen
+          style="
+            display:block;
+            width:100%;
+            height:clamp(600px,80vh,1050px);
+            border:0;
+            background:#ffffff;
+          "
+        ></iframe>
+
+      </div>
+
+      <p style="
+        margin:12px 0 0;
+        color:#60708f;
+        font-size:12px;
+      ">
+        Fuente: Google Looker Studio.
+        La información y sus filtros se gestionan
+        directamente desde el informe original.
+      </p>
+
+    </section>
   `;
 }
 
