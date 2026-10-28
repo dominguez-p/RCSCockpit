@@ -3628,24 +3628,68 @@ function installProductPlanComparison() {
 
     const layout = hasPlanningDates ? rowLayout(row, year) : null;
 
+    /*
+     * ================================================
+     * NAVEGACIÓN MSA
+     * ================================================
+     */
+
     const detailId = isMsa ? String(row?.raw?.id || "").trim() : "";
 
-    const canNavigate = isMsa && Boolean(detailId);
+    const canNavigateMsa = isMsa && Boolean(detailId);
+
+    /*
+     * ================================================
+     * ENLACE JIRA DE LA FEATURE
+     * ================================================
+     *
+     * Se utiliza la jiraKey recibida del origen
+     * oficial de Features.
+     *
+     * Ejemplo:
+     *
+     * WSONERELAT-13019
+     *
+     * https://jira.globaldevtools.bbva.com/
+     * browse/WSONERELAT-13019
+     *
+     * Sólo se generan URLs para claves JIRA
+     * que cumplen el formato esperado.
+     */
+
+    const featureJiraKey = isFeature
+      ? String(row.jiraKey || row.raw?.jiraKey || sourceKey || "")
+          .trim()
+          .toUpperCase()
+      : "";
+
+    const validFeatureJiraKey = /^[A-Z][A-Z0-9]+-\d+$/.test(featureJiraKey);
+
+    const featureJiraUrl =
+      isFeature && validFeatureJiraKey
+        ? "https://jira.globaldevtools.bbva.com/browse/" +
+          encodeURIComponent(featureJiraKey)
+        : "";
+
+    const canOpenFeature = Boolean(featureJiraUrl);
+
+    /*
+     * ================================================
+     * INFORMACIÓN TEMPORAL
+     * ================================================
+     */
 
     const planningLabel = hasPlanningDates
       ? `${formatShortDate(row.startDate)} → ${formatShortDate(row.endDate)}`
       : "Sin planificación temporal";
-
-    const barLabel = isFeature
-      ? displayTitle
-      : `${sourceKey} · ${planningLabel}`;
 
     const barTitle = [
       displayTitle,
       sourceKey !== displayTitle ? sourceKey : "",
       planningLabel,
       row.subtitle ? `Estado: ${row.subtitle}` : "",
-      canNavigate ? "Abrir detalle del MSA" : "",
+      canNavigateMsa ? "Abrir detalle del MSA" : "",
+      canOpenFeature ? "Abrir Feature en JIRA" : "",
     ]
       .filter(Boolean)
       .join(" · ");
@@ -3666,9 +3710,24 @@ function installProductPlanComparison() {
       </span>
     `;
 
+    /*
+     * ================================================
+     * BARRA TEMPORAL
+     * ================================================
+     *
+     * MSA:
+     *   Botón hacia el detalle interno.
+     *
+     * Feature:
+     *   Enlace externo a JIRA.
+     *
+     * Resto:
+     *   Barra informativa sin navegación.
+     */
+
     let timelineBar = "";
 
-    if (hasPlanningDates && canNavigate) {
+    if (hasPlanningDates && canNavigateMsa) {
       timelineBar = `
       <button
         type="button"
@@ -3690,6 +3749,32 @@ function installProductPlanComparison() {
       >
         ${barInnerHtml}
       </button>
+    `;
+    } else if (hasPlanningDates && canOpenFeature) {
+      /*
+       * Feature:
+       * toda la barra temporal es clicable.
+       */
+      timelineBar = `
+      <a
+        class="
+          product-plan-bar
+          product-plan-bar-${escapeHtml(sourceType)}
+        "
+        href="${escapeHtml(featureJiraUrl)}"
+        target="_blank"
+        rel="noopener noreferrer"
+        style="
+          left:${layout.left}%;
+          width:${layout.width}%;
+          cursor:pointer;
+          text-decoration:none;
+        "
+        title="${escapeHtml(barTitle)}"
+        aria-label="${escapeHtml(`Abrir Feature ${featureJiraKey} en JIRA`)}"
+      >
+        ${barInnerHtml}
+      </a>
     `;
     } else if (hasPlanningDates) {
       timelineBar = `
@@ -3720,11 +3805,24 @@ function installProductPlanComparison() {
     }
 
     /*
-     * El título del MSA siempre permite
-     * abrir su detalle, tenga fechas o no.
+     * ================================================
+     * TÍTULO DE LA FILA
+     * ================================================
+     *
+     * MSA:
+     *   Abre detalle del Cockpit.
+     *
+     * Feature:
+     *   Abre JIRA en una pestaña nueva.
+     *
+     * La navegación está disponible incluso
+     * cuando el elemento no tiene fechas.
      */
-    const titleHtml = canNavigate
-      ? `
+
+    let titleHtml = escapeHtml(displayTitle);
+
+    if (canNavigateMsa) {
+      titleHtml = `
       <button
         type="button"
         data-roadmap-detail-type="msa"
@@ -3747,20 +3845,38 @@ function installProductPlanComparison() {
       >
         ${escapeHtml(displayTitle)}
       </button>
-    `
-      : escapeHtml(displayTitle);
+    `;
+    } else if (canOpenFeature) {
+      titleHtml = `
+      <a
+        href="${escapeHtml(featureJiraUrl)}"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="${escapeHtml(`Abrir ${featureJiraKey} en JIRA`)}"
+        aria-label="${escapeHtml(`Abrir Feature ${featureJiraKey} en JIRA`)}"
+        style="
+          display:inline;
+          color:inherit;
+          font:inherit;
+          font-weight:inherit;
+          text-align:left;
+          cursor:pointer;
+          text-decoration:underline;
+          text-underline-offset:2px;
+        "
+      >
+        ${escapeHtml(displayTitle)}
+        <span aria-hidden="true">↗</span>
+      </a>
+    `;
+    }
 
     /*
-     * En modo individual:
-     *
-     * - eliminamos la clase linked-row;
-     * - desaparecen las líneas del árbol;
-     * - recuperamos el padding normal;
-     * - conservamos los títulos multilínea.
-     *
-     * En modo agrupado se mantiene
-     * exactamente la estructura anterior.
+     * ================================================
+     * PRESENTACIÓN
+     * ================================================
      */
+
     const rowClass = standalone
       ? "product-plan-standalone-row"
       : "product-plan-linked-row";
