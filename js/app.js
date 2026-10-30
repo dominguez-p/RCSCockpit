@@ -393,6 +393,12 @@ function adaptRoadmapItemStatusHistory(row) {
   };
 }
 const MANAGEMENT_ROADMAP_EDITABLE_STATUSES = {
+  planned: {
+    key: "planned",
+    status: "planned",
+    statusLabel: "Planificado",
+    statusTone: "",
+  },
   "on-track": {
     key: "on-track",
     status: "on-track",
@@ -15247,13 +15253,23 @@ function buildManagementRoadmapLineId(
 }
 
 function buildManagementRoadmapDraftLine(programId, productId, countryId) {
-  const rows = getManagementRoadmapRows(programId, productId, countryId);
-  const sampleRow = rows[0] || {};
+  const snapshotState = getManagementRoadmapSnapshotState();
+
+  const selectedYear = Number(snapshotState.year);
+
+  const planningYear =
+    Number.isInteger(selectedYear) &&
+    selectedYear >= 2020 &&
+    selectedYear <= 2100
+      ? selectedYear
+      : new Date().getFullYear();
+
   const nextOrder = getManagementRoadmapNextOrder(
     programId,
     productId,
     countryId,
   );
+
   return normalizeManagementRoadmapLine(
     {
       id: "",
@@ -15262,7 +15278,7 @@ function buildManagementRoadmapDraftLine(programId, productId, countryId) {
       country: String(countryId || "")
         .trim()
         .toUpperCase(),
-      year: Number(sampleRow?.year) || 2026,
+      year: planningYear,
       order: nextOrder,
       category: "",
       categoryTone: "",
@@ -22883,15 +22899,32 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
 ) {
   closeManagementRoadmapLineEditorPanel();
   closeManagementRoadmapMappingPanel();
+
   if (!line) {
     return;
   }
+
   const statusKey = getManagementRoadmapEditableStatusKey(line);
+
   const originalCategory = String(line.category || "").trim();
   const originalCategoryTone = String(line.categoryTone || "").trim();
+
+  const currentYear = new Date().getFullYear();
+  const selectedYear = Number(line.year) || currentYear;
+
+  const firstYear = Math.min(2026, currentYear - 1, selectedYear);
+  const lastYear = Math.max(2027, currentYear + 3, selectedYear);
+
+  const availableYears = Array.from(
+    { length: lastYear - firstYear + 1 },
+    (_, index) => firstYear + index,
+  );
+
   const overlay = document.createElement("div");
+
   overlay.id = "managementRoadmapLineEditorOverlay";
   overlay.className = "management-roadmap-mapping-overlay";
+
   overlay.innerHTML = `
     <aside
       class="management-roadmap-mapping-panel"
@@ -22899,26 +22932,25 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
       aria-modal="true"
       aria-labelledby="managementRoadmapLineEditorTitle"
     >
-      <header
-        class="management-roadmap-mapping-header"
-      >
+      <header class="management-roadmap-mapping-header">
         <div>
-          <span
-            class="management-roadmap-mapping-eyebrow"
-          >
+          <span class="management-roadmap-mapping-eyebrow">
             ${isCreate ? "Nuevo deliverable" : "Configurar deliverable"}
           </span>
-          <h2
-            id="managementRoadmapLineEditorTitle"
-          >
+
+          <h2 id="managementRoadmapLineEditorTitle">
             ${isCreate ? "Crear deliverable" : rcsEsc(line.title)}
           </h2>
+
           <p>
             ${rcsEsc(getManagementRoadmapProductLabel(line.productId))}
             ·
             ${rcsEsc(getManagementRoadmapCountrySelectorLabel(line.country))}
+            ·
+            ${rcsEsc(selectedYear)}
           </p>
         </div>
+
         <button
           class="management-roadmap-mapping-close"
           type="button"
@@ -22928,35 +22960,27 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
           ×
         </button>
       </header>
-      <div
-        class="management-roadmap-mapping-body"
-      >
-        <section
-          class="management-roadmap-mapping-section"
-        >
-          <div
-            class="management-roadmap-line-meta"
-          >
+
+      <div class="management-roadmap-mapping-body">
+        <section class="management-roadmap-mapping-section">
+
+          <div class="management-roadmap-line-meta">
             <article>
-              <span>
-                ID
-              </span>
+              <span>ID</span>
               <strong>
                 ${line.id ? rcsEsc(line.id) : "Se generará al guardar"}
               </strong>
             </article>
+
             <article>
-              <span>
-                Producto
-              </span>
+              <span>Producto</span>
               <strong>
                 ${rcsEsc(getManagementRoadmapProductLabel(line.productId))}
               </strong>
             </article>
+
             <article>
-              <span>
-                País
-              </span>
+              <span>País</span>
               <strong>
                 ${rcsEsc(
                   getManagementRoadmapCountrySelectorLabel(line.country),
@@ -22964,17 +22988,39 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
               </strong>
             </article>
           </div>
-          <div
-            class="management-roadmap-line-form"
-          >
-            <div
-              class="management-roadmap-line-field"
-            >
-              <label
-                for="managementRoadmapLineTitle"
+
+          <div class="management-roadmap-line-form">
+
+            <div class="management-roadmap-line-field">
+              <label for="managementRoadmapLineYear">
+                Año
+              </label>
+
+              <select
+                id="managementRoadmapLineYear"
+                class="management-roadmap-line-select"
+                required
               >
+                ${availableYears
+                  .map(
+                    (year) => `
+                      <option
+                        value="${year}"
+                        ${year === selectedYear ? "selected" : ""}
+                      >
+                        ${year}
+                      </option>
+                    `,
+                  )
+                  .join("")}
+              </select>
+            </div>
+
+            <div class="management-roadmap-line-field">
+              <label for="managementRoadmapLineTitle">
                 Deliverable
               </label>
+
               <input
                 id="managementRoadmapLineTitle"
                 class="management-roadmap-line-input"
@@ -22982,14 +23028,12 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
                 value="${rcsEsc(line.title || "")}"
               />
             </div>
-            <div
-              class="management-roadmap-line-field"
-            >
-              <label
-                for="managementRoadmapLineCategory"
-              >
+
+            <div class="management-roadmap-line-field">
+              <label for="managementRoadmapLineCategory">
                 Categoría
               </label>
+
               <input
                 id="managementRoadmapLineCategory"
                 class="management-roadmap-line-input"
@@ -22998,14 +23042,12 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
                 placeholder="Ej. Aumento conocimiento"
               />
             </div>
-            <div
-              class="management-roadmap-line-field"
-            >
-              <label
-                for="managementRoadmapLineStatus"
-              >
+
+            <div class="management-roadmap-line-field">
+              <label for="managementRoadmapLineStatus">
                 Estado
               </label>
+
               <select
                 id="managementRoadmapLineStatus"
                 class="management-roadmap-line-select"
@@ -23024,36 +23066,32 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
                   .join("")}
               </select>
             </div>
-            <div
-              class="management-roadmap-line-field"
-            >
-              <label
-                for="managementRoadmapLineComments"
-              >
+
+            <div class="management-roadmap-line-field">
+              <label for="managementRoadmapLineComments">
                 Comentarios
               </label>
+
               <textarea
                 id="managementRoadmapLineComments"
                 class="management-roadmap-line-textarea"
               >${rcsEsc(line.comments || "")}</textarea>
             </div>
+
           </div>
         </section>
       </div>
-      <footer
-        class="management-roadmap-mapping-footer"
-      >
+
+      <footer class="management-roadmap-mapping-footer">
         <div>
-          <strong>
-            Management Roadmap Lines
-          </strong>
+          <strong>Management Roadmap Lines</strong>
           <span>
             Los cambios se guardarán en el origen del Cockpit.
           </span>
         </div>
-        <div
-          class="management-roadmap-mapping-footer-actions"
-        >
+
+        <div class="management-roadmap-mapping-footer-actions">
+
           ${
             isCreate
               ? ""
@@ -23067,6 +23105,7 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
                 </button>
               `
           }
+
           <button
             class="ghost-button"
             type="button"
@@ -23074,6 +23113,7 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
           >
             Cancelar
           </button>
+
           <button
             class="management-roadmap-mapping-save"
             type="button"
@@ -23081,65 +23121,83 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
           >
             ${isCreate ? "Crear" : "Guardar"}
           </button>
+
         </div>
       </footer>
     </aside>
   `;
+
   document.body.appendChild(overlay);
+
   overlay
     .querySelectorAll("[data-management-roadmap-line-editor-close]")
     .forEach((button) => {
       button.addEventListener("click", closeManagementRoadmapLineEditorPanel);
     });
+
   const deleteButton = overlay.querySelector(
     "[data-management-roadmap-line-editor-delete]",
   );
+
   if (deleteButton) {
     deleteButton.addEventListener("click", async () => {
       const confirmed = window.confirm(`¿Quieres eliminar "${line.title}"?`);
+
       if (!confirmed) {
         return;
       }
+
       await deleteManagementRoadmapLine(programId, line.id);
     });
   }
+
   const saveButton = overlay.querySelector(
     "[data-management-roadmap-line-editor-save]",
   );
+
   if (saveButton) {
     saveButton.addEventListener("click", async () => {
       const title = String(
         overlay.querySelector("#managementRoadmapLineTitle")?.value || "",
       ).trim();
+
       if (!title) {
         window.alert("El deliverable necesita un nombre.");
         return;
       }
+
+      const year = Number(
+        overlay.querySelector("#managementRoadmapLineYear")?.value,
+      );
+
+      if (!Number.isInteger(year) || year < 2020 || year > 2100) {
+        window.alert("Selecciona un año válido.");
+        return;
+      }
+
       const category = String(
         overlay.querySelector("#managementRoadmapLineCategory")?.value || "",
       ).trim();
-      /*
-       * Si no se cambia la categoría,
-       * mantenemos su tono actual.
-       *
-       * Si se escribe una categoría nueva,
-       * dejamos categoryTone vacío para
-       * utilizar el estilo neutro.
-       */
+
       const categoryTone =
         category === originalCategory ? originalCategoryTone : "";
+
       const selectedStatusKey = String(
         overlay.querySelector("#managementRoadmapLineStatus")?.value ||
           "on-track",
       ).trim();
+
       const statusConfig =
         MANAGEMENT_ROADMAP_EDITABLE_STATUSES[selectedStatusKey] ||
         MANAGEMENT_ROADMAP_EDITABLE_STATUSES["on-track"];
+
       const comments = String(
         overlay.querySelector("#managementRoadmapLineComments")?.value || "",
       ).trim();
+
       const updatedLine = {
         ...line,
+        year,
         title,
         category,
         categoryTone,
@@ -23149,9 +23207,27 @@ function renderManagementRoadmapLineEditorPanelFromRecord(
         comments,
         active: true,
       };
+
+      // Mantener el año elegido al recargar el cronograma.
+      const snapshotState = getManagementRoadmapSnapshotState();
+
+      const previousYear = snapshotState.year;
+      const previousQuarter = snapshotState.quarter;
+
+      snapshotState.year = year;
+      snapshotState.quarter = "ALL";
+
       await saveManagementRoadmapLine(programId, updatedLine);
+
+      // Si el panel sigue abierto, el guardado no se confirmó.
+      // Restauramos el periodo anterior.
+      if (document.body.contains(overlay)) {
+        snapshotState.year = previousYear;
+        snapshotState.quarter = previousQuarter;
+      }
     });
   }
+
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) {
       closeManagementRoadmapLineEditorPanel();
