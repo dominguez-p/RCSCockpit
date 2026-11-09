@@ -3,10 +3,21 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-// Jira v2 — Constructor de relaciones
-// Modos: muestra | completo
+/**
+ * Jira v2 - Constructor de relaciones jerárquicas.
+ *
+ * Uso:
+ *   node jira-v2/normalizer/build-relations.cjs muestra
+ *   node jira-v2/normalizer/build-relations.cjs completo
+ *   node jira-v2/normalizer/build-relations.cjs descubierto aixbanker
+ *
+ * El modo descubierto trabaja solo con los archivos del nuevo origen
+ * y no sobrescribe los resultados de muestra o completo.
+ * Solo lectura del archivo de entrada; salida local sin datos en Git.
+ */
 
 const MODE = process.argv[2] || "muestra";
+const requestedProgramId = (process.argv[3] || "").trim().toLowerCase();
 
 const MODES = {
   muestra: {
@@ -19,34 +30,61 @@ const MODES = {
   },
 };
 
-if (!MODES[MODE]) {
-  throw new Error("Modo inválido: muestra o completo");
+if (MODE === "descubierto") {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(requestedProgramId)) {
+    throw new Error(
+      "Indica un programa válido. Ejemplo: " +
+      "node jira-v2/normalizer/build-relations.cjs descubierto aixbanker"
+    );
+  }
+
+  MODES.descubierto = {
+    input: `jira-v2-${requestedProgramId}-descubierto-normalized.json`,
+    output: `jira-v2-${requestedProgramId}-descubierto-with-relations.json`,
+  };
+}
+
+if (!Object.prototype.hasOwnProperty.call(MODES, MODE)) {
+  throw new Error("Modo inválido. Usa: muestra, completo o descubierto <programa>");
 }
 
 const dataDir = path.join(__dirname, "../data/local");
-
 const inputPath = path.join(dataDir, MODES[MODE].input);
-
 const outputPath = path.join(dataDir, MODES[MODE].output);
-
 const snapshot = JSON.parse(fs.readFileSync(inputPath, "utf8"));
 
-if (!Array.isArray(snapshot.issues)) {
+if (!snapshot || !Array.isArray(snapshot.issues)) {
   throw new Error("Snapshot sin incidencias");
 }
 
-// Índice único por clave Jira.
-const issuesByKey = new Map();
-
-for (const issue of snapshot.issues) {
-  if (!issue.key || issuesByKey.has(issue.key)) {
-    throw new Error(`Clave Jira inválida o duplicada: ${issue.key}`);
+if (MODE === "descubierto") {
+  if (snapshot.programId !== requestedProgramId) {
+    throw new Error("El identificador del programa no coincide con el archivo");
   }
-
-  issuesByKey.set(issue.key, issue);
+  if (
+    snapshot.source?.complete !== true ||
+    snapshot.source?.discoveryMode !== "sda-hierarchy"
+  ) {
+    throw new Error("El origen no es una extracción SDA completa y validada");
+  }
 }
 
-// Relaciones únicas por par padre-hijo.
+// Índices únicos por clave e ID Jira.
+const issuesByKey = new Map();
+const issueIds = new Set();
+
+for (const issue of snapshot.issues) {
+  if (!issue.key || !issue.id || issuesByKey.has(issue.key)) {
+    throw new Error(`Clave Jira inválida o duplicada: ${issue.key}`);
+  }
+  if (issueIds.has(String(issue.id))) {
+    throw new Error(`ID Jira duplicado: ${issue.id}`);
+  }
+  issuesByKey.set(issue.key, issue);
+  issueIds.add(String(issue.id));
+}
+
+// Una única relación por par padre-hijo, conservando la prioridad del origen.
 const relationsByEdge = new Map();
 const unresolvedByKey = new Map();
 const warnings = new Set();
@@ -72,21 +110,13 @@ function addRelation({
   }
 
   const edgeKey = `${parentKey}->${childKey}`;
-
   const missing = [];
 
-  if (!issuesByKey.has(parentKey)) {
-    missing.push(parentKey);
-  }
-
-  if (!issuesByKey.has(childKey)) {
-    missing.push(childKey);
-  }
+  if (!issuesByKey.has(parentKey)) missing.push(parentKey);
+  if (!issuesByKey.has(childKey)) missing.push(childKey);
 
   if (missing.length > 0) {
-    const unresolvedKey = `${type}:${edgeKey}`;
-
-    unresolvedByKey.set(unresolvedKey, {
+    unresolvedByKey.set(`${type}:${edgeKey}`, {
       parentKey,
       childKey,
       type,
@@ -94,7 +124,6 @@ function addRelation({
       missingIssueKeys: missing,
       reason: "Incidencia fuera de la extracción",
     });
-
     return;
   }
 
@@ -114,14 +143,10 @@ function addRelation({
     return;
   }
 
-  // Mismo enlace encontrado desde ambos extremos.
-  if (existing.type === type) {
-    return;
-  }
+  if (existing.type === type) return;
 
-  // Evitar representar dos veces el mismo par.
   warnings.add(
-    `Relación ${edgeKey} detectada con tipos ` + `${existing.type} y ${type}`,
+    `Relación ${edgeKey} detectada con tipos ${existing.type} y ${type}`
   );
 
   if ((priorities[type] ?? 0) > (priorities[existing.type] ?? 0)) {
@@ -129,10 +154,9 @@ function addRelation({
   }
 }
 
-// 1. Feature → Story / Task / otros hijos.
+// 1. Feature -> Story / Task / otros hijos.
 for (const issue of snapshot.issues) {
   if (!issue.featureParentKey) continue;
-
   addRelation({
     parentKey: issue.featureParentKey,
     childKey: issue.key,
@@ -141,8 +165,7 @@ for (const issue of snapshot.issues) {
   });
 }
 
-// 2. Task L1 → Task L2.
-// Leer las referencias originales de los hijos.
+// 2. Task L1 -> Task L2: referencias declaradas en los hijos.
 for (const issue of snapshot.issues) {
   for (const parentKey of issue.taskL1ParentKeys ?? []) {
     addRelation({
@@ -155,16 +178,11 @@ for (const issue of snapshot.issues) {
   }
 }
 
-// 3. Procesar enlaces Jira desde ambos extremos.
+// 3. Enlaces originales desde ambos extremos.
 for (const issue of snapshot.issues) {
   for (const link of issue.jiraLinks ?? []) {
-    if (link.type !== "Task L1 - Child") {
-      continue;
-    }
+    if (link.type !== "Task L1 - Child" || !link.linkedIssueKey) continue;
 
-    if (!link.linkedIssueKey) continue;
-
-    // El enlace outward apunta al padre Task L1.
     if (link.direction === "outward") {
       addRelation({
         parentKey: link.linkedIssueKey,
@@ -175,7 +193,6 @@ for (const issue of snapshot.issues) {
       });
     }
 
-    // El enlace inward apunta al hijo Task L2.
     if (link.direction === "inward") {
       addRelation({
         parentKey: issue.key,
@@ -188,20 +205,12 @@ for (const issue of snapshot.issues) {
   }
 }
 
-// 4. Subtareas con campo parent.
-// Evitar repetir las relaciones ya identificadas.
+// 4. Subtareas nativas, sin repetir la relación si ya se identificó.
 for (const issue of snapshot.issues) {
   const parentKey = issue.parentKey;
-
   if (!parentKey) continue;
-
-  if (parentKey === issue.featureParentKey) {
-    continue;
-  }
-
-  if ((issue.taskL1ParentKeys ?? []).includes(parentKey)) {
-    continue;
-  }
+  if (parentKey === issue.featureParentKey) continue;
+  if ((issue.taskL1ParentKeys ?? []).includes(parentKey)) continue;
 
   addRelation({
     parentKey,
@@ -212,7 +221,6 @@ for (const issue of snapshot.issues) {
 }
 
 const relations = [...relationsByEdge.values()];
-
 const unresolvedRelations = [...unresolvedByKey.values()];
 
 const result = {
@@ -224,47 +232,32 @@ const result = {
   },
 };
 
+// Escribir solo después de validar todos los registros.
 fs.writeFileSync(outputPath, JSON.stringify(result, null, 2), "utf8");
 
-// Diagnóstico
 const count = (type) => relations.filter((r) => r.type === type).length;
 
-console.log("=== JIRA V2 — RELACIONES ===");
+console.log("=== JIRA V2 - RELACIONES ===");
 console.log("Modo:", MODE);
+console.log("Programa:", snapshot.programId);
 console.log("Incidencias:", snapshot.issues.length);
-
 console.log("\n=== JERARQUÍA ===");
-
 console.log("Feature -> hijos:", count("feature_child"));
-
 console.log("Task L1 -> Task L2:", count("task_child"));
-
 console.log("Parent -> Subtask:", count("parent_child"));
-
 console.log("Total relaciones únicas:", relations.length);
-
 console.log("\n=== CALIDAD ===");
-
 console.log("Referencias fuera de la extracción:", unresolvedRelations.length);
-
 console.log("Advertencias:", warnings.size);
 
 const linkedKeys = new Set();
-
 for (const relation of relations) {
   linkedKeys.add(relation.sourceId.replace(/^issue:/, ""));
-
   linkedKeys.add(relation.targetId.replace(/^issue:/, ""));
 }
-
 const withoutHierarchy = snapshot.issues.filter(
-  (issue) => issue.type !== "Enterprise" && !linkedKeys.has(issue.key),
+  (issue) => issue.type !== "Enterprise" && !linkedKeys.has(issue.key)
 );
-
-console.log(
-  "Incidencias sin relación jerárquica interna:",
-  withoutHierarchy.length,
-);
-
+console.log("Incidencias sin relación jerárquica interna:", withoutHierarchy.length);
 console.log("\nArchivo generado:", outputPath);
 console.log("Construcción finalizada correctamente");

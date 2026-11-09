@@ -1,310 +1,207 @@
 "use strict";
 
+/**
+ * Jira v2 - Validador de navegación multiprograma.
+ * Uso:
+ *   node jira-v2/normalizer/validate-program-navigation.cjs <ruta-snapshot.json>
+ *
+ * Sin argumentos conserva la ruta histórica de AIxBanker.
+ * Solo lectura. No modifica snapshots ni el Cockpit.
+ */
+
 const fs = require("node:fs");
 const path = require("node:path");
 
-// Jira v2 - Validación de navegación masiva.
-// Solo lectura. No modifica los datos ni el Cockpit.
-
-const snapshotPath = path.join(
+const defaultPath = path.join(
   __dirname,
   "../data/local/jira-v2-aixbanker-snapshot.json",
 );
+const snapshotPath = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : defaultPath;
 
-function readSnapshot() {
-  return JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
+function readSnapshot(filePath) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`No existe el snapshot: ${filePath}`);
+  }
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function totalStoryPoints(issues) {
+  const withPoints = issues.filter((issue) =>
+    typeof issue.storyPoints === "number" &&
+    Number.isFinite(issue.storyPoints),
+  );
+  return {
+    total: withPoints.reduce((sum, issue) => sum + issue.storyPoints, 0),
+    informed: withPoints.length,
+    missing: issues.length - withPoints.length,
+  };
 }
 
 function validateNavigation(snapshot) {
+  assert(snapshot && typeof snapshot === "object", "Snapshot inválido");
+  assert(typeof snapshot.programId === "string" && snapshot.programId.trim(),
+    "Falta programId");
+
   for (const name of ["sdas", "deliverables", "issues", "relations"]) {
-    if (!Array.isArray(snapshot[name])) {
-      throw new Error(`Colección inválida: ${name}`);
-    }
+    assert(Array.isArray(snapshot[name]), `Colección inválida: ${name}`);
   }
+  assert(snapshot.sdas.length > 0, "El programa no tiene SDA configuradas");
 
   const nodes = new Map();
   const children = new Map();
   const relationKeys = new Set();
 
-  function registerNode(id, value) {
-    if (nodes.has(id)) {
-      throw new Error(`Nodo duplicado: ${id}`);
-    }
-
-    nodes.set(id, value);
+  function addNode(id, entity) {
+    assert(id && !id.endsWith(":"), `Identificador vacío: ${id}`);
+    assert(!nodes.has(id), `Nodo duplicado: ${id}`);
+    nodes.set(id, entity);
   }
 
-  // 1. Registrar los nodos del programa.
-  for (const sda of snapshot.sdas) {
-    registerNode(`sda:${sda.id}`, sda);
-  }
+  for (const sda of snapshot.sdas) addNode(`sda:${sda.id}`, sda);
+  for (const d of snapshot.deliverables) addNode(`deliverable:${d.id}`, d);
+  for (const issue of snapshot.issues) addNode(`issue:${issue.key}`, issue);
 
-  for (const deliverable of snapshot.deliverables) {
-    registerNode(`deliverable:${deliverable.id}`, deliverable);
-  }
-
-  for (const issue of snapshot.issues) {
-    registerNode(`issue:${issue.key}`, issue);
-  }
-
-  // 2. Validar y construir el grafo.
   for (const relation of snapshot.relations) {
     const { sourceId, targetId, type } = relation;
-
-    if (!nodes.has(sourceId) || !nodes.has(targetId)) {
-      throw new Error(`Relación inválida: ${sourceId} -> ${targetId}`);
-    }
-
+    assert(typeof sourceId === "string" && typeof targetId === "string" && type,
+      "Relación sin identificadores o tipo");
+    assert(nodes.has(sourceId) && nodes.has(targetId),
+      `Relación interna inválida: ${sourceId} → ${targetId}`);
     const key = `${type}|${sourceId}|${targetId}`;
-
-    if (relationKeys.has(key)) {
-      throw new Error(`Relación duplicada: ${key}`);
-    }
-
+    assert(!relationKeys.has(key), `Relación duplicada: ${key}`);
     relationKeys.add(key);
-
-    if (!children.has(sourceId)) {
-      children.set(sourceId, new Set());
-    }
-
+    if (!children.has(sourceId)) children.set(sourceId, new Set());
     children.get(sourceId).add(targetId);
   }
 
-  // 3. Detectar ciclos jerárquicos.
+  // Detecta ciclos sin depender de la profundidad de la pila de JavaScript.
   const colors = new Map();
-
-  function detectCycle(nodeId) {
-    const color = colors.get(nodeId) ?? 0;
-
-    if (color === 1) {
-      throw new Error(`Ciclo jerárquico detectado en ${nodeId}`);
+  for (const start of nodes.keys()) {
+    if (colors.get(start) === 2) continue;
+    const stack = [{ id: start, iter: null }];
+    while (stack.length) {
+      const frame = stack[stack.length - 1];
+      if (frame.iter === null) {
+        assert(colors.get(frame.id) !== 1,
+          `Ciclo jerárquico en ${frame.id}`);
+        if (colors.get(frame.id) === 2) {
+          stack.pop();
+          continue;
+        }
+        colors.set(frame.id, 1);
+        frame.iter = (children.get(frame.id) ?? new Set()).values();
+      }
+      const next = frame.iter.next();
+      if (next.done) {
+        colors.set(frame.id, 2);
+        stack.pop();
+      } else {
+        const color = colors.get(next.value) ?? 0;
+        assert(color !== 1, `Ciclo jerárquico: ${frame.id} → ${next.value}`);
+        if (color === 0) stack.push({ id: next.value, iter: null });
+      }
     }
-
-    if (color === 2) return;
-
-    colors.set(nodeId, 1);
-
-    for (const child of children.get(nodeId) ?? []) {
-      detectCycle(child);
-    }
-
-    colors.set(nodeId, 2);
   }
 
-  for (const nodeId of nodes.keys()) {
-    detectCycle(nodeId);
-  }
-
-  // 4. Navegar desde una SDA.
   function traverse(rootId) {
     const visited = new Set();
     const pending = [rootId];
-
-    while (pending.length > 0) {
-      const nodeId = pending.pop();
-
-      if (visited.has(nodeId)) continue;
-
-      visited.add(nodeId);
-
-      for (const child of children.get(nodeId) ?? []) {
-        if (!visited.has(child)) {
-          pending.push(child);
-        }
+    while (pending.length) {
+      const node = pending.pop();
+      if (visited.has(node)) continue;
+      visited.add(node);
+      for (const child of children.get(node) ?? []) {
+        if (!visited.has(child)) pending.push(child);
       }
     }
-
     return visited;
   }
 
-  function isWorkIssue(issue) {
-    return issue.type !== "Enterprise";
-  }
+  const isWorkIssue = (issue) => issue.type !== "Enterprise";
+  const reachableKeys = new Set();
+  const sdaMembership = new Map();
 
-  function getStoryPoints(issues) {
-    const withPoints = issues.filter((issue) =>
-      Number.isFinite(issue.storyPoints),
-    );
-
-    return {
-      total: withPoints.reduce((sum, issue) => sum + issue.storyPoints, 0),
-      informed: withPoints.length,
-      missing: issues.length - withPoints.length,
-    };
-  }
-
-  const membership = new Map();
-  const allReachableIssues = new Set();
-
-  console.log("=== JIRA V2 - NAVEGACIÓN MASIVA ===");
+  console.log("=== JIRA V2 - VALIDACIÓN DE NAVEGACIÓN ===");
+  console.log("Archivo:", snapshotPath);
   console.log("Programa:", snapshot.programId);
   console.log("SDA:", snapshot.sdas.length);
   console.log("Entregables:", snapshot.deliverables.length);
   console.log("Incidencias:", snapshot.issues.length);
   console.log("Relaciones:", snapshot.relations.length);
-  console.log("Ciclos jerárquicos: 0");
+  console.log("Ciclos: 0");
 
-  // 5. Analizar cada SDA por separado.
   for (const sda of snapshot.sdas) {
     const visited = traverse(`sda:${sda.id}`);
-
-    const sdaIssues = snapshot.issues.filter(
+    const work = snapshot.issues.filter(
       (issue) => isWorkIssue(issue) && visited.has(`issue:${issue.key}`),
     );
-
-    const sdaDeliverables = snapshot.deliverables.filter((deliverable) =>
-      visited.has(`deliverable:${deliverable.id}`),
+    const deliverables = snapshot.deliverables.filter(
+      (d) => visited.has(`deliverable:${d.id}`),
     );
-
-    const points = getStoryPoints(sdaIssues);
-
-    for (const issue of sdaIssues) {
-      allReachableIssues.add(issue.key);
-
-      if (!membership.has(issue.key)) {
-        membership.set(issue.key, new Set());
-      }
-
-      membership.get(issue.key).add(sda.id);
+    const points = totalStoryPoints(work);
+    const types = {};
+    for (const issue of work) {
+      types[issue.type ?? "Unknown"] = (types[issue.type ?? "Unknown"] ?? 0) + 1;
+      reachableKeys.add(issue.key);
+      if (!sdaMembership.has(issue.key)) sdaMembership.set(issue.key, new Set());
+      sdaMembership.get(issue.key).add(String(sda.id));
     }
-
-    const typeCounts = {};
-    const statusCounts = {};
-
-    for (const issue of sdaIssues) {
-      const type = issue.type ?? "Unknown";
-      const status = issue.status ?? "Unknown";
-
-      typeCounts[type] = (typeCounts[type] ?? 0) + 1;
-      statusCounts[status] = (statusCounts[status] ?? 0) + 1;
-    }
-
     console.log(`\n=== SDA ${sda.id}: ${sda.name} ===`);
-    console.log("Entregables:", sdaDeliverables.length);
-    console.log("Incidencias únicas:", sdaIssues.length);
-
-    console.log("Features:", typeCounts.Feature ?? 0);
-
-    console.log("Task L1:", typeCounts["Task L1"] ?? 0);
-
-    console.log("Stories:", typeCounts.Story ?? 0);
-
-    console.log("Task L2:", typeCounts["Task L2"] ?? 0);
-
-    console.log("Story Points informados:", points.total);
-
+    console.log("Entregables:", deliverables.length);
+    console.log("Incidencias únicas:", work.length);
+    console.log("Features:", types.Feature ?? 0);
+    console.log("Task L1:", types["Task L1"] ?? 0);
+    console.log("Stories:", types.Story ?? 0);
+    console.log("Task L2:", types["Task L2"] ?? 0);
+    console.log("Story Points:", points.total);
     console.log("Incidencias con SP:", points.informed);
-
     console.log("Incidencias sin SP:", points.missing);
-
-    console.log("Estados:");
-    console.table(
-      Object.entries(statusCounts)
-        .sort((a, b) => b[1] - a[1])
-        .map(([status, total]) => ({
-          status,
-          total,
-        })),
-    );
   }
 
-  // 6. Calcular totales globales sin duplicados.
   const workIssues = snapshot.issues.filter(isWorkIssue);
-
-  const connectedIssues = workIssues.filter((issue) =>
-    allReachableIssues.has(issue.key),
-  );
-
-  const disconnectedIssues = workIssues.filter(
-    (issue) => !allReachableIssues.has(issue.key),
-  );
-
-  const sharedIssues = [...membership.entries()].filter(
-    ([, sdas]) => sdas.size > 1,
-  );
-
-  const globalPoints = getStoryPoints(connectedIssues);
-
-  console.log("\n=== TOTALES DEL PROGRAMA ===");
-  console.log("Incidencias de trabajo:", workIssues.length);
-  console.log("Incidencias navegables únicas:", connectedIssues.length);
-
-  console.log("Incidencias compartidas entre SDA:", sharedIssues.length);
-
-  console.log("Story Points únicos informados:", globalPoints.total);
-
-  console.log("Incidencias con SP:", globalPoints.informed);
-
-  console.log("Incidencias sin SP:", globalPoints.missing);
-
-  // 7. Revisar excepciones.
-  console.log("\n=== EXCEPCIONES ===");
-
-  console.log("Incidencias desconectadas:", disconnectedIssues.length);
-
-  for (const issue of disconnectedIssues) {
-    console.log({
-      key: issue.key,
-      type: issue.type,
-      status: issue.status,
-      summary: issue.summary,
-      featureParentKey: issue.featureParentKey,
-      parentKey: issue.parentKey,
-      taskL1ParentKeys: issue.taskL1ParentKeys,
-    });
-  }
-
-  const missingNames = snapshot.deliverables.filter(
-    (deliverable) => !deliverable.name,
-  );
-
-  console.log("Entregables sin nombre:", missingNames.length);
-
-  for (const deliverable of missingNames) {
-    const relatedKeys = snapshot.relations
-      .filter(
-        (relation) =>
-          relation.sourceId === `deliverable:${deliverable.id}` &&
-          relation.type === "deliverable_issue",
-      )
-      .map((relation) => relation.targetId.replace(/^issue:/, ""));
-
-    console.log({
-      deliverableId: deliverable.id,
-      sdaIds: deliverable.sdaIds,
-      relatedIssues: relatedKeys,
-    });
-  }
-
-  console.log(
-    "Referencias externas:",
-    snapshot.quality?.unresolvedRelations?.length ?? 0,
-  );
-
-  // 8. Contrastar la cobertura con el ensamblador.
+  const connected = workIssues.filter((issue) => reachableKeys.has(issue.key));
+  const disconnected = workIssues.filter((issue) => !reachableKeys.has(issue.key));
+  const shared = [...sdaMembership.values()].filter((ids) => ids.size > 1);
+  const points = totalStoryPoints(connected);
+  const noName = snapshot.deliverables.filter((d) => !d.name);
   const stats = snapshot.quality?.stats;
 
   if (stats) {
-    if (
-      stats.connectedIssues !== connectedIssues.length ||
-      stats.disconnectedIssues !== disconnectedIssues.length
-    ) {
-      throw new Error(
-        "Los totales de navegación no coinciden " + "con los del ensamblador",
-      );
+    assert(stats.connectedIssues === connected.length,
+      `Cobertura inconsistente: calculada=${connected.length}, registrada=${stats.connectedIssues}`);
+    assert(stats.disconnectedIssues === disconnected.length,
+      `Desconectadas inconsistentes: calculadas=${disconnected.length}, registradas=${stats.disconnectedIssues}`);
+    if (stats.totalRelations !== undefined) {
+      assert(stats.totalRelations === snapshot.relations.length,
+        "El total de relaciones no coincide con quality.stats");
     }
   }
 
   const expectedOrphans = new Set(snapshot.quality?.orphanIssues ?? []);
+  const actualOrphans = new Set(disconnected.map((issue) => issue.key));
+  assert(expectedOrphans.size === actualOrphans.size &&
+    [...actualOrphans].every((key) => expectedOrphans.has(key)),
+    "Las incidencias desconectadas no coinciden con quality.orphanIssues");
 
-  const actualOrphans = new Set(disconnectedIssues.map((issue) => issue.key));
-
-  if (
-    expectedOrphans.size !== actualOrphans.size ||
-    [...actualOrphans].some((key) => !expectedOrphans.has(key))
-  ) {
-    throw new Error("Las incidencias desconectadas no coinciden");
-  }
+  console.log("\n=== TOTALES DEL PROGRAMA ===");
+  console.log("Incidencias de trabajo:", workIssues.length);
+  console.log("Incidencias navegables únicas:", connected.length);
+  console.log("Incidencias desconectadas:", disconnected.length);
+  console.log("Incidencias compartidas entre SDA:", shared.length);
+  console.log("Story Points únicos:", points.total);
+  console.log("Incidencias con SP:", points.informed);
+  console.log("Incidencias sin SP:", points.missing);
+  console.log("Entregables sin nombre:", noName.length);
+  console.log("Referencias externas:", snapshot.quality?.unresolvedRelations?.length ?? 0);
+  console.log("Advertencias registradas:", snapshot.quality?.warnings?.length ?? 0);
+  if (disconnected.length) console.log("Claves desconectadas:", disconnected.map((i) => i.key));
+  if (noName.length) console.log("IDs de entregables sin nombre:", noName.map((d) => d.id));
 
   console.log("\n=== VALIDACIÓN FINAL ===");
   console.log("Nodos válidos:", nodes.size);
@@ -312,8 +209,13 @@ function validateNavigation(snapshot) {
   console.log("Referencias internas inválidas: 0");
   console.log("Duplicados de relaciones: 0");
   console.log("Ciclos: 0");
-  console.log("Cobertura consistente: SI");
+  console.log("Cobertura consistente: SÍ");
   console.log("Validación finalizada correctamente");
 }
 
-validateNavigation(readSnapshot());
+try {
+  validateNavigation(readSnapshot(snapshotPath));
+} catch (error) {
+  console.error("VALIDACIÓN FALLIDA:", error.message);
+  process.exitCode = 1;
+}
