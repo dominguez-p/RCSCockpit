@@ -13,3 +13,6 @@ data/*.json
 # OS/editor noise.
 .DS_Store
 Thumbs.db
+
+# Jira v2 - datos corporativos locales
+/jira-v2/data/local/
